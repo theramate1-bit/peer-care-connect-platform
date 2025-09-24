@@ -1,0 +1,71 @@
+{
+  "practitioner_subscriptions": {
+    "professional": {
+      "product_id": "prod_T3lh86M0PSoksn",
+      "price_id": "price_1S7eAKFk77knaVvaWcHSypjx",
+      "monthly_fee": 79.99,
+      "marketplace_fee": "3%",
+      "features": [
+        "advanced_scheduling",
+        "analytics",
+        "priority_support",
+        "marketing_tools"
+      ]
+    },
+    "premium": {
+      "product_id": "prod_T3lh9cQHjenztM",
+      "price_id": "price_1S7eANFk77knaVva8L3m7l2Y",
+      "monthly_fee": 199.99,
+      "marketplace_fee": "1%",
+      "features": [
+        "full_analytics",
+        "white_label",
+        "api_access",
+        "dedicated_support"
+      ]
+    }
+  },
+  "custom_pricing": {
+    "individual_sessions": "prod_T1YG1QMpPEH5yY",
+    "group_sessions": "prod_T1YGWLQT4rW1l7",
+    "workshops": "prod_T1YGIPEnqJcv6a"
+  },
+  "marketplace_fees": {
+    "fee_product": "prod_T1YGScHfnT1k0l",
+    "professional_plan_fee": "3%",
+    "premium_plan_fee": "1%"
+  },
+  "sample_prices": {
+    "individual": [
+      {
+        "price_id": "price_1S5VALFk77knaVvalgm7S5CY",
+        "amount": 50,
+        "currency": "gbp"
+      },
+      {
+        "price_id": "price_1S5VAMFk77knaVvaxf42TzLM",
+        "amount": 80,
+        "currency": "gbp"
+      },
+      {
+        "price_id": "price_1S5VAMFk77knaVva22a0UqNW",
+        "amount": 120,
+        "currency": "gbp"
+      }
+    ],
+    "group": [
+      {
+        "price_id": "price_1S5VAMFk77knaVvazd2oNcx2",
+        "amount": 30,
+        "currency": "gbp"
+      },
+      {
+        "price_id": "price_1S5VAMFk77knaVva8vnxU8NF",
+        "amount": 50,
+        "currency": "gbp"
+      }
+    ]
+  },
+  "created_at": "2025-09-09T17:17:14.926Z",
+  "environment": "live"
+}

@@ -1,0 +1,67 @@
+/* LocationSearch Map Styles */
+.mapContainer {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  overflow: hidden;
+  display: block;
+  box-sizing: border-box;
+}
+
+.mapContainer :global(.leaflet-container) {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 8px;
+  position: relative !important;
+}
+
+.mapContainer :global(.leaflet-map-pane) {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+.mapContainer :global(.leaflet-tile-pane) {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+.mapContainer :global(.leaflet-tile-container) {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+.mapContainer :global(.leaflet-tile) {
+  width: 256px !important;
+  height: 256px !important;
+}
+
+/* Ensure map is properly contained */
+.mapWrapper {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  border-radius: 8px;
+  display: block;
+  box-sizing: border-box;
+}
+
+/* Loading state */
+.loadingOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  z-index: 10;
+}

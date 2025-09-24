@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Cache - TheraMate</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, hsl(140, 35%, 45%), hsl(210, 45%, 60%));
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px -6px hsl(140, 35%, 45% / 0.2);
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 {
+            color: hsl(140, 35%, 45%);
+            margin-bottom: 20px;
+        }
+        .button {
+            background: hsl(140, 35%, 45%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        .button:hover {
+            background: hsl(140, 35%, 35%);
+            transform: translateY(-2px);
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .success {
+            background: hsl(140, 35%, 90%);
+            color: hsl(140, 35%, 25%);
+            border: 1px solid hsl(140, 35%, 70%);
+        }
+        .error {
+            background: hsl(350, 65%, 90%);
+            color: hsl(350, 65%, 25%);
+            border: 1px solid hsl(350, 65%, 70%);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Clear Browser Cache</h1>
+        <p>If you're experiencing loading issues with TheraMate, try clearing your browser cache:</p>
+        
+        <button class="button" onclick="clearCache()">Clear Cache & Reload</button>
+        <button class="button" onclick="hardRefresh()">Hard Refresh (Ctrl+F5)</button>
+        <button class="button" onclick="goToApp()">Go to TheraMate</button>
+        
+        <div id="status" class="status"></div>
+        
+        <div style="margin-top: 30px; font-size: 14px; color: #666;">
+            <p><strong>Manual Steps:</strong></p>
+            <p>1. Press <kbd>Ctrl+Shift+Delete</kbd> (Windows) or <kbd>Cmd+Shift+Delete</kbd> (Mac)</p>
+            <p>2. Select "Cached images and files"</p>
+            <p>3. Click "Clear data"</p>
+            <p>4. Refresh the page</p>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function clearCache() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                        registration.unregister();
+                    }
+                    showStatus('Service worker cleared! Reloading...', 'success');
+                    setTimeout(() => {
+                        window.location.reload(true);
+                    }, 1000);
+                });
+            } else {
+                showStatus('Service worker not supported. Please clear cache manually.', 'error');
+            }
+        }
+
+        function hardRefresh() {
+            showStatus('Performing hard refresh...', 'success');
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 500);
+        }
+
+        function goToApp() {
+            window.location.href = '/';
+        }
+
+        // Auto-clear cache on page load
+        window.addEventListener('load', function() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    if (registrations.length > 0) {
+                        showStatus('Service worker detected. Click "Clear Cache & Reload" to update.', 'success');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

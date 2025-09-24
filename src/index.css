@@ -1,0 +1,302 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Leaflet Map Fixes */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 8px;
+  position: relative !important;
+  display: block !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  box-sizing: border-box !important;
+  font-family: inherit !important;
+}
+
+.leaflet-map-pane {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+}
+
+.leaflet-tile-pane {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+}
+
+.leaflet-tile-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+}
+
+.leaflet-tile {
+  width: 256px !important;
+  height: 256px !important;
+}
+
+/* Custom marker styles */
+.user-location-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.therapist-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Map popup improvements */
+.leaflet-popup-content-wrapper {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-tip {
+  background: white !important;
+}
+
+/* Wellness-focused design system for therapist platform */
+
+@layer base {
+  :root {
+    /* Calming wellness color palette */
+    --background: 35 20% 98%;
+    --foreground: 200 15% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 200 15% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 15% 20%;
+
+    /* Wellness primary - calming sage green */
+    --primary: 140 35% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 140 35% 55%;
+    --primary-dark: 140 35% 35%;
+
+    /* Warm secondary tones */
+    --secondary: 25 25% 90%;
+    --secondary-foreground: 200 15% 20%;
+
+    /* Soft muted tones */
+    --muted: 35 15% 95%;
+    --muted-foreground: 200 10% 50%;
+
+    /* Trust-building accent - professional blue */
+    --accent: 210 45% 60%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 210 45% 70%;
+
+    /* Wellness gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-light)));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-light)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary-dark)), hsl(var(--primary)), hsl(var(--accent-light)));
+    --gradient-card: linear-gradient(180deg, hsl(var(--card)), hsl(var(--muted)));
+
+    /* Professional shadows */
+    --shadow-soft: 0 4px 20px -4px hsl(var(--primary) / 0.15);
+    --shadow-medium: 0 8px 30px -6px hsl(var(--primary) / 0.2);
+    --shadow-strong: 0 12px 40px -8px hsl(var(--primary) / 0.3);
+
+    /* Healing energy glow effects */
+    --glow-primary: 0 0 30px hsl(var(--primary) / 0.3);
+    --glow-accent: 0 0 25px hsl(var(--accent) / 0.25);
+
+    --destructive: 350 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 15% 88%;
+    --input: 35 15% 88%;
+    --ring: 140 35% 45%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode wellness colors */
+    --background: 200 20% 8%;
+    --foreground: 35 15% 95%;
+
+    --card: 200 15% 12%;
+    --card-foreground: 35 15% 95%;
+
+    --popover: 200 15% 12%;
+    --popover-foreground: 35 15% 95%;
+
+    --primary: 140 35% 55%;
+    --primary-foreground: 200 20% 8%;
+    --primary-light: 140 35% 65%;
+    --primary-dark: 140 35% 45%;
+
+    --secondary: 200 15% 18%;
+    --secondary-foreground: 35 15% 95%;
+
+    --muted: 200 15% 15%;
+    --muted-foreground: 35 10% 70%;
+
+    --accent: 210 45% 65%;
+    --accent-foreground: 200 20% 8%;
+    --accent-light: 210 45% 75%;
+
+    --destructive: 350 65% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 15% 25%;
+    --input: 200 15% 25%;
+    --ring: 140 35% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+/* Hover-gated effects: only apply hover styles on devices that support hover */
+@media (hover: hover) {
+  .hover\:lift:hover {
+    transform: translateY(-2px);
+  }
+  .hover\:glow:hover {
+    box-shadow: var(--glow-primary);
+  }
+}
+
+/* Mobile utility helpers */
+.mobile-text { font-size: clamp(0.95rem, 2.5vw, 1rem); line-height: 1.55; }
+.mobile-heading { font-size: clamp(1.5rem, 6vw, 2.25rem); line-height: 1.2; }
+.mobile-container { padding-left: 1rem; padding-right: 1rem; }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-inter;
+  }
+}
+
+@layer components {
+  /* Wellness-focused custom components */
+  .wellness-gradient {
+    background: var(--gradient-primary);
+  }
+  
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+  
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+  
+  .shadow-wellness {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .shadow-wellness-medium {
+    box-shadow: var(--shadow-medium);
+  }
+  
+  .shadow-wellness-strong {
+    box-shadow: var(--shadow-strong);
+  }
+  
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+  
+  .glow-accent {
+    box-shadow: var(--glow-accent);
+  }
+  
+  /* Smooth healing animations */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-pulse-gentle {
+    animation: pulse-gentle 4s ease-in-out infinite;
+  }
+  
+
+  
+  /* Video container styles */
+  .hero-video-container {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .hero-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+  }
+  
+  /* Mobile optimization for video */
+  @media (max-width: 768px) {
+    .hero-video {
+      object-position: center 20%;
+    }
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  @keyframes pulse-gentle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+
+  
+  /* Professional transitions */
+  .transition-wellness {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Force Refresh - TheraMate</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, hsl(140, 35%, 45%), hsl(210, 45%, 60%));
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px -6px hsl(140, 35%, 45% / 0.2);
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 {
+            color: hsl(140, 35%, 45%);
+            margin-bottom: 20px;
+        }
+        .button {
+            background: hsl(140, 35%, 45%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        .button:hover {
+            background: hsl(140, 35%, 35%);
+            transform: translateY(-2px);
+        }
+        .button.danger {
+            background: hsl(350, 65%, 55%);
+        }
+        .button.danger:hover {
+            background: hsl(350, 65%, 45%);
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .success {
+            background: hsl(140, 35%, 90%);
+            color: hsl(140, 35%, 25%);
+            border: 1px solid hsl(140, 35%, 70%);
+        }
+        .error {
+            background: hsl(350, 65%, 90%);
+            color: hsl(350, 65%, 25%);
+            border: 1px solid hsl(350, 65%, 70%);
+        }
+        .info {
+            background: hsl(210, 45%, 90%);
+            color: hsl(210, 45%, 25%);
+            border: 1px solid hsl(210, 45%, 70%);
+        }
+        .steps {
+            text-align: left;
+            margin: 20px 0;
+            padding: 20px;
+            background: hsl(35, 15%, 95%);
+            border-radius: 8px;
+        }
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 8px 0;
+        }
+        kbd {
+            background: hsl(35, 15%, 85%);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Force Refresh TheraMate</h1>
+        <p>If you're experiencing loading issues or seeing old content, use these tools to force a complete refresh:</p>
+        
+        <button class="button" onclick="clearAllCaches()">🧹 Clear All Caches</button>
+        <button class="button danger" onclick="forceHardRefresh()">⚡ Force Hard Refresh</button>
+        <button class="button" onclick="goToApp()">🏠 Go to TheraMate</button>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="steps">
+            <h3>Manual Steps (if buttons don't work):</h3>
+            <ol>
+                <li>Press <kbd>Ctrl+Shift+Delete</kbd> (Windows) or <kbd>Cmd+Shift+Delete</kbd> (Mac)</li>
+                <li>Select "All time" or "Everything"</li>
+                <li>Check "Cached images and files" and "Cookies and other site data"</li>
+                <li>Click "Clear data"</li>
+                <li>Close all browser tabs</li>
+                <li>Reopen browser and go to TheraMate</li>
+            </ol>
+        </div>
+        
+        <div style="margin-top: 30px; font-size: 14px; color: #666;">
+            <p><strong>Current Version:</strong> TheraMate v3.0 (Cache Bust)</p>
+            <p><strong>Last Updated:</strong> <span id="timestamp"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // Set timestamp
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        async function clearAllCaches() {
+            showStatus('Clearing all caches...', 'info');
+            
+            try {
+                // Clear service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                    }
+                }
+                
+                // Clear all caches
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                }
+                
+                // Clear localStorage and sessionStorage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                showStatus('All caches cleared! Redirecting to fresh version...', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = '/?v=' + Date.now();
+                }, 2000);
+                
+            } catch (error) {
+                showStatus('Error clearing caches: ' + error.message, 'error');
+            }
+        }
+
+        function forceHardRefresh() {
+            showStatus('Performing hard refresh...', 'info');
+            
+            // Add cache-busting parameter
+            const url = new URL(window.location);
+            url.searchParams.set('v', Date.now());
+            
+            setTimeout(() => {
+                window.location.href = url.toString();
+            }, 1000);
+        }
+
+        function goToApp() {
+            window.location.href = '/?v=' + Date.now();
+        }
+
+        // Auto-detect cache issues
+        window.addEventListener('load', function() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    if (registrations.length > 0) {
+                        showStatus('Service worker detected. Click "Clear All Caches" to ensure fresh content.', 'info');
+                    }
+                });
+            }
+        });
+
+        // Check for old cached files
+        fetch('/assets/index-CtNjYa0V.js', { method: 'HEAD' })
+            .then(response => {
+                if (response.ok) {
+                    showStatus('✅ Latest version detected. If you still see errors, clear caches.', 'success');
+                } else {
+                    showStatus('⚠️ Old version detected. Please clear caches.', 'error');
+                }
+            })
+            .catch(() => {
+                showStatus('❌ Cannot verify version. Please clear caches manually.', 'error');
+            });
+    </script>
+</body>
+</html>

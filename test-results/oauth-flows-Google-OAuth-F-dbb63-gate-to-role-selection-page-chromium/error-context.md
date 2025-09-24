@@ -1,0 +1,86 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e3]:
+      - button "Back to Home" [ref=e4] [cursor=pointer]:
+        - img
+        - text: Back to Home
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - img [ref=e9]
+            - generic [ref=e11]: TheraMate
+          - heading "Welcome Back" [level=3] [ref=e12]
+          - paragraph [ref=e13]: Sign in to access your TheraMate account
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]:
+              - generic [ref=e17]: Email Address
+              - generic [ref=e18]:
+                - img [ref=e19]
+                - textbox "Email Address" [ref=e22]
+            - generic [ref=e23]:
+              - generic [ref=e24]: Password
+              - generic [ref=e25]:
+                - img [ref=e26]
+                - textbox "Password" [ref=e29]
+            - generic [ref=e30]:
+              - generic [ref=e31]:
+                - checkbox "Remember me" [ref=e32] [cursor=pointer]
+                - checkbox
+                - generic [ref=e33]: Remember me
+              - link "Forgot password?" [ref=e34] [cursor=pointer]:
+                - /url: /reset-password
+            - button "Sign In" [ref=e35] [cursor=pointer]
+          - generic [ref=e39]: Or continue with
+          - generic [ref=e40]:
+            - button "Continue with Google as Client" [ref=e41] [cursor=pointer]:
+              - img
+              - text: Continue with Google as Client
+            - button "Continue with Google as Practitioner" [ref=e42] [cursor=pointer]:
+              - img
+              - text: Continue with Google as Practitioner
+          - generic [ref=e43]:
+            - text: Don't have an account?
+            - link "Join TheraMate" [ref=e44] [cursor=pointer]:
+              - /url: /register
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - heading "Cookies & Privacy" [level=3] [ref=e50]
+        - paragraph [ref=e51]: We use essential cookies to make our site work. With your consent, we’ll also use analytics and marketing cookies to understand usage and improve services. You can change your choices at any time.
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]: Analytics
+            - switch [ref=e55] [cursor=pointer]
+          - generic [ref=e56]:
+            - generic [ref=e57]: Marketing
+            - switch [ref=e58] [cursor=pointer]
+          - generic [ref=e59]:
+            - generic [ref=e60]: Functional
+            - switch [ref=e61] [cursor=pointer]
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - button "Reject non-essential" [ref=e64] [cursor=pointer]
+          - button "Accept all" [ref=e65] [cursor=pointer]
+        - button "Save preferences" [ref=e66] [cursor=pointer]
+  - generic:
+    - iframe [ref=e67]:
+      - generic [ref=f1e3]:
+        - generic [ref=f1e4]: "1"
+        - button "Chat widget" [ref=f1e5] [cursor=pointer]:
+          - img "Opens Chat This icon Opens the chat window." [ref=f1e8] [cursor=pointer]
+    - iframe [ref=e68]:
+      - button "👋 Hi! How can we help? I have a question Tell me more" [ref=f2e7] [cursor=pointer]:
+        - paragraph [ref=f2e13] [cursor=pointer]:
+          - generic [ref=f2e15] [cursor=pointer]:
+            - img "👋" [ref=f2e16] [cursor=pointer]
+            - text: Hi! How can we help?
+        - generic [ref=f2e18] [cursor=pointer]:
+          - button "I have a question" [ref=f2e20] [cursor=pointer]
+          - button "Tell me more" [ref=f2e22] [cursor=pointer]
+```

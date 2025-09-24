@@ -1,0 +1,16 @@
+{
+  "products": {
+    "therapy_session": "prod_T1YCTyEeYyRhwv",
+    "credit_purchase": "prod_T1YCfW5tVF1iGK",
+    "platform_subscription": "prod_T1YCfobHLXxO9V"
+  },
+  "prices": {
+    "starter_credit": "price_1S5V6TFk77knaVvaUAp3bPIQ",
+    "professional_credit": "price_1S5V6TFk77knaVvalrf5Yek7",
+    "premium_credit": "price_1S5V6TFk77knaVva5PkovD8q",
+    "basic_subscription": "price_1S5V6UFk77knaVva9D0LsPZR",
+    "pro_subscription": "price_1S5V6UFk77knaVvaHjRFYV9b"
+  },
+  "created_at": "2025-09-09T17:13:14.633Z",
+  "environment": "live"
+}

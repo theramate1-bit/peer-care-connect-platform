@@ -1,0 +1,82 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - heading "Create Your Account" [level=3] [ref=e10]
+        - paragraph [ref=e11]: Join TheraMate and connect with healthcare professionals
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]:
+            - generic [ref=e15]:
+              - generic [ref=e16]: First Name *
+              - textbox "First Name *" [ref=e17]
+            - generic [ref=e18]:
+              - generic [ref=e19]: Last Name *
+              - textbox "Last Name *" [ref=e20]
+          - generic [ref=e21]:
+            - generic [ref=e22]: Email Address *
+            - textbox "Email Address *" [ref=e24]
+          - button "Continue" [disabled]
+        - generic [ref=e29]: Or continue with
+        - generic [ref=e30]:
+          - button "Continue with Google as Client" [ref=e31] [cursor=pointer]:
+            - img
+            - text: Continue with Google as Client
+          - button "Continue with Google as Practitioner" [ref=e32] [cursor=pointer]:
+            - img
+            - text: Continue with Google as Practitioner
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - text: Already have an account?
+          - link "Sign in" [ref=e35]:
+            - /url: /login
+        - link "Back to homepage" [ref=e37]:
+          - /url: /
+          - img [ref=e38]
+          - text: Back to homepage
+    - generic [ref=e43]:
+      - generic [ref=e44]:
+        - heading "Cookies & Privacy" [level=3] [ref=e45]
+        - paragraph [ref=e46]: We use essential cookies to make our site work. With your consent, we’ll also use analytics and marketing cookies to understand usage and improve services. You can change your choices at any time.
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - generic [ref=e49]: Analytics
+            - switch [ref=e50] [cursor=pointer]
+          - generic [ref=e51]:
+            - generic [ref=e52]: Marketing
+            - switch [ref=e53] [cursor=pointer]
+          - generic [ref=e54]:
+            - generic [ref=e55]: Functional
+            - switch [ref=e56] [cursor=pointer]
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - button "Reject non-essential" [ref=e59] [cursor=pointer]
+          - button "Accept all" [ref=e60] [cursor=pointer]
+        - button "Save preferences" [ref=e61] [cursor=pointer]
+  - generic:
+    - iframe [ref=e62]:
+      - generic [ref=f1e3]:
+        - generic [ref=f1e4]: "1"
+        - button "Chat widget" [ref=f1e5] [cursor=pointer]:
+          - img "Opens Chat This icon Opens the chat window." [ref=f1e8] [cursor=pointer]:
+            - generic: This icon Opens the chat window.
+    - iframe [ref=e63]:
+      - generic [ref=f2e5] [cursor=pointer]:
+        - button "Chat attention grabber" [ref=f2e7] [cursor=pointer]:
+          - generic [ref=f2e8] [cursor=pointer]: 
+        - button "👋 Hi! How can we help? I have a question Tell me more" [ref=f2e10] [cursor=pointer]:
+          - paragraph [ref=f2e16] [cursor=pointer]:
+            - generic [ref=f2e18] [cursor=pointer]:
+              - img "👋" [ref=f2e19] [cursor=pointer]
+              - text: Hi! How can we help?
+          - generic [ref=f2e21] [cursor=pointer]:
+            - button "I have a question" [ref=f2e23] [cursor=pointer]
+            - button "Tell me more" [ref=f2e25] [cursor=pointer]
+```

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favicon Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        canvas {
+            border: 1px solid #ddd;
+            margin: 10px;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        .preview {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TheraMate Favicon Generator</h1>
+        <p>This tool helps generate a favicon from the mascot image.</p>
+        
+        <div class="preview">
+            <div>
+                <h3>Current Favicon (SVG)</h3>
+                <canvas id="svgCanvas" width="32" height="32"></canvas>
+            </div>
+            <div>
+                <h3>Generated Favicon</h3>
+                <canvas id="faviconCanvas" width="32" height="32"></canvas>
+            </div>
+        </div>
+        
+        <button onclick="generateFavicon()">Generate Favicon</button>
+        <button onclick="downloadFavicon()">Download as PNG</button>
+        
+        <div id="instructions" style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 4px;">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Click "Generate Favicon" to create a 32x32 version</li>
+                <li>Click "Download as PNG" to save the favicon</li>
+                <li>Use an online converter to convert PNG to ICO format</li>
+                <li>Replace the favicon.ico file in the public folder</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function generateFavicon() {
+            const canvas = document.getElementById('faviconCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, 32, 32);
+            
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, 32, 32);
+            gradient.addColorStop(0, '#6366f1');
+            gradient.addColorStop(1, '#8b5cf6');
+            
+            // Draw background circle
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(16, 16, 15, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw border
+            ctx.strokeStyle = '#4f46e5';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw simplified mascot (dog character)
+            // Head
+            ctx.fillStyle = '#d4a574';
+            ctx.beginPath();
+            ctx.ellipse(16, 14, 6, 5, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Ears
+            ctx.beginPath();
+            ctx.ellipse(12, 10, 2, 3, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(20, 10, 2, 3, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Eyes
+            ctx.fillStyle = '#2d3748';
+            ctx.beginPath();
+            ctx.arc(14, 13, 1, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(18, 13, 1, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Nose
+            ctx.beginPath();
+            ctx.ellipse(16, 15, 0.8, 0.6, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Mouth
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.arc(16, 16, 2, 0, Math.PI);
+            ctx.stroke();
+            
+            // Shirt collar
+            ctx.fillStyle = '#87ceeb';
+            ctx.fillRect(13, 18, 6, 2);
+            
+            // Body
+            ctx.fillStyle = '#d4a574';
+            ctx.beginPath();
+            ctx.ellipse(16, 22, 4, 3, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Arms
+            ctx.beginPath();
+            ctx.ellipse(12, 21, 1.5, 2, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(20, 21, 1.5, 2, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Clipboard
+            ctx.fillStyle = 'white';
+            ctx.fillRect(11, 19, 2, 3);
+            
+            // Decorative elements
+            ctx.fillStyle = '#fbbf24';
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.arc(8, 24, 1, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(24, 24, 1, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.arc(16, 26, 0.8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.globalAlpha = 1;
+        }
+        
+        function downloadFavicon() {
+            const canvas = document.getElementById('faviconCanvas');
+            const link = document.createElement('a');
+            link.download = 'theramate-favicon.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Generate favicon on page load
+        window.onload = function() {
+            generateFavicon();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+---
+description: Development Standards and Best Practices for Peer Care Connect
+type: Always
+alwaysApply: true
+---
+
+# Development Standards and Best Practices
+
+## Code Style
+- Use TypeScript for all new files
+- Prefer functional components in React with hooks
+- Use camelCase for JavaScript/TypeScript variables and functions
+- Use snake_case for database columns and API endpoints
+- Use PascalCase for React components and interfaces
+- Use kebab-case for file names and URLs
+
+## Architecture Patterns
+- Follow the repository pattern for data access
+- Keep business logic in service layers
+- Use Supabase client for all database operations
+- Implement proper error handling with toast notifications
+- Use real-time subscriptions for live data updates
+- Follow RESTful API conventions for Edge Functions
+
+## Component Guidelines
+- Create reusable UI components in `/components/ui/`
+- Implement proper TypeScript interfaces for all props
+- Use consistent naming: `ComponentName.tsx` for components
+- Export components as default exports
+- Use proper imports from `lucide-react` (verify icon names exist)
+- Implement loading states and error boundaries
+
+## Database Standards
+- Use Supabase migrations for all schema changes
+- Implement Row Level Security (RLS) policies
+- Use proper indexing for performance
+- Store file uploads in Supabase Storage
+- Use JSONB for flexible data structures (preferences, metadata)
+- Follow naming conventions: `table_name`, `column_name`
+
+## Authentication & Authorization
+- Use Supabase Auth for user management
+- Implement role-based access control (RBAC)
+- Protect routes with `SimpleProtectedRoute`
+- Validate user roles in Edge Functions
+- Store user profiles in `public.users` table
+
+## Real-time Features
+- Use `useRealtimeSubscription` hook for live updates
+- Implement proper cleanup in useEffect
+- Handle connection states gracefully
+- Use optimistic updates where appropriate
+
+## Error Handling
+- Use `toast` from `sonner` for user notifications
+- Implement proper try-catch blocks
+- Log errors appropriately
+- Provide meaningful error messages to users
+- Handle network failures gracefully
+
+## Testing & Quality
+- Run `read_lints` after making changes
+- Test Edge Functions locally before deployment
+- Verify all imports and exports
+- Check for TypeScript errors
+- Ensure responsive design on mobile devices
+
+## Deployment
+- Use `npx supabase db push` for database changes
+- Deploy Edge Functions with `supabase functions deploy`
+- Only deploy to Vercel when explicitly requested
+- Test functionality in development before production

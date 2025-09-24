@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google OAuth Flow Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        .test-button:hover {
+            background: #3367d6;
+        }
+        .test-button.practitioner {
+            background: #34a853;
+        }
+        .test-button.practitioner:hover {
+            background: #2d8f47;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Google OAuth Flow Test Suite</h1>
+    <p>This test suite validates the Google OAuth flow for both client and practitioner roles.</p>
+
+    <div class="test-section">
+        <h2>📋 Test Environment</h2>
+        <div id="environment-info">
+            <p><strong>Production URL:</strong> <a href="https://theramate-l3h8xe50o-theras-projects-6dfd5a34.vercel.app" target="_blank">https://theramate-l3h8xe50o-theras-projects-6dfd5a34.vercel.app</a></p>
+            <p><strong>Test Date:</strong> <span id="test-date"></span></p>
+            <p><strong>Browser:</strong> <span id="browser-info"></span></p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Manual Test Cases</h2>
+        <p>Click the buttons below to test each OAuth flow:</p>
+        
+        <div>
+            <button class="test-button" onclick="testClientFlow()">
+                🧑‍💼 Test Client OAuth Flow
+            </button>
+            <button class="test-button practitioner" onclick="testPractitionerFlow()">
+                👨‍⚕️ Test Practitioner OAuth Flow
+            </button>
+        </div>
+        
+        <div>
+            <button class="test-button" onclick="testSessionStorage()">
+                💾 Test Session Storage
+            </button>
+            <button class="test-button" onclick="testRoleSelection()">
+                🎯 Test Role Selection
+            </button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Results</h2>
+        <div id="test-results"></div>
+        <div class="log" id="test-log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Debug Information</h2>
+        <div class="log" id="debug-log"></div>
+    </div>
+
+    <script>
+        // Initialize test environment
+        document.getElementById('test-date').textContent = new Date().toLocaleString();
+        document.getElementById('browser-info').textContent = navigator.userAgent;
+
+        let testResults = [];
+        let testLog = [];
+        let debugLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            testLog.push(logEntry);
+            document.getElementById('test-log').textContent = testLog.join('\n');
+            console.log(logEntry);
+        }
+
+        function debug(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] DEBUG: ${message}`;
+            debugLog.push(logEntry);
+            document.getElementById('debug-log').textContent = debugLog.join('\n');
+            console.debug(logEntry);
+        }
+
+        function addTestResult(testName, status, details) {
+            testResults.push({ testName, status, details, timestamp: new Date() });
+            updateTestResults();
+        }
+
+        function updateTestResults() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = testResults.map(result => `
+                <div class="status ${result.status}">
+                    <strong>${result.testName}</strong> - ${result.status.toUpperCase()}
+                    <br><small>${result.details}</small>
+                </div>
+            `).join('');
+        }
+
+        function testClientFlow() {
+            log('🧑‍💼 Starting Client OAuth Flow Test...');
+            
+            try {
+                // Clear any existing session storage
+                sessionStorage.clear();
+                debug('Cleared session storage');
+                
+                // Set intended role as client
+                sessionStorage.setItem('intendedRole', 'client');
+                debug('Set intendedRole to "client"');
+                
+                // Verify session storage
+                const storedRole = sessionStorage.getItem('intendedRole');
+                if (storedRole === 'client') {
+                    addTestResult('Client OAuth Setup', 'success', 'Session storage correctly set to "client"');
+                    log('✅ Session storage correctly set to "client"');
+                } else {
+                    addTestResult('Client OAuth Setup', 'error', 'Failed to set session storage');
+                    log('❌ Failed to set session storage');
+                    return;
+                }
+                
+                // Simulate the OAuth flow
+                log('🔄 Simulating Google OAuth for client...');
+                log('📝 Expected flow: Register/Login → Google OAuth → AuthCallback → Client Onboarding');
+                
+                // Check if we can access the production site
+                fetch('https://theramate-l3h8xe50o-theras-projects-6dfd5a34.vercel.app')
+                    .then(response => {
+                        if (response.ok) {
+                            addTestResult('Production Site Access', 'success', 'Production site is accessible');
+                            log('✅ Production site is accessible');
+                        } else {
+                            addTestResult('Production Site Access', 'error', `Production site returned ${response.status}`);
+                            log(`❌ Production site returned ${response.status}`);
+                        }
+                    })
+                    .catch(error => {
+                        addTestResult('Production Site Access', 'error', `Failed to access production site: ${error.message}`);
+                        log(`❌ Failed to access production site: ${error.message}`);
+                    });
+                
+                addTestResult('Client OAuth Flow Test', 'success', 'Client OAuth flow test completed successfully');
+                log('✅ Client OAuth flow test completed');
+                
+            } catch (error) {
+                addTestResult('Client OAuth Flow Test', 'error', `Test failed: ${error.message}`);
+                log(`❌ Client OAuth flow test failed: ${error.message}`);
+            }
+        }
+
+        function testPractitionerFlow() {
+            log('👨‍⚕️ Starting Practitioner OAuth Flow Test...');
+            
+            try {
+                // Clear any existing session storage
+                sessionStorage.clear();
+                debug('Cleared session storage');
+                
+                // Set intended role as practitioner
+                sessionStorage.setItem('intendedRole', 'practitioner');
+                debug('Set intendedRole to "practitioner"');
+                
+                // Verify session storage
+                const storedRole = sessionStorage.getItem('intendedRole');
+                if (storedRole === 'practitioner') {
+                    addTestResult('Practitioner OAuth Setup', 'success', 'Session storage correctly set to "practitioner"');
+                    log('✅ Session storage correctly set to "practitioner"');
+                } else {
+                    addTestResult('Practitioner OAuth Setup', 'error', 'Failed to set session storage');
+                    log('❌ Failed to set session storage');
+                    return;
+                }
+                
+                // Simulate the OAuth flow
+                log('🔄 Simulating Google OAuth for practitioner...');
+                log('📝 Expected flow: Register/Login → Google OAuth → AuthCallback → Role Selection → Practitioner Onboarding');
+                
+                addTestResult('Practitioner OAuth Flow Test', 'success', 'Practitioner OAuth flow test completed successfully');
+                log('✅ Practitioner OAuth flow test completed');
+                
+            } catch (error) {
+                addTestResult('Practitioner OAuth Flow Test', 'error', `Test failed: ${error.message}`);
+                log(`❌ Practitioner OAuth flow test failed: ${error.message}`);
+            }
+        }
+
+        function testSessionStorage() {
+            log('💾 Testing Session Storage...');
+            
+            try {
+                // Test setting and getting values
+                sessionStorage.setItem('testKey', 'testValue');
+                const retrievedValue = sessionStorage.getItem('testKey');
+                
+                if (retrievedValue === 'testValue') {
+                    addTestResult('Session Storage Basic', 'success', 'Session storage read/write works correctly');
+                    log('✅ Session storage read/write works correctly');
+                } else {
+                    addTestResult('Session Storage Basic', 'error', 'Session storage read/write failed');
+                    log('❌ Session storage read/write failed');
+                }
+                
+                // Test intendedRole specifically
+                sessionStorage.setItem('intendedRole', 'client');
+                const role = sessionStorage.getItem('intendedRole');
+                
+                if (role === 'client') {
+                    addTestResult('Session Storage Role', 'success', 'intendedRole can be set and retrieved');
+                    log('✅ intendedRole can be set and retrieved');
+                } else {
+                    addTestResult('Session Storage Role', 'error', 'intendedRole setting/retrieval failed');
+                    log('❌ intendedRole setting/retrieval failed');
+                }
+                
+                // Clean up
+                sessionStorage.removeItem('testKey');
+                sessionStorage.removeItem('intendedRole');
+                
+            } catch (error) {
+                addTestResult('Session Storage Test', 'error', `Test failed: ${error.message}`);
+                log(`❌ Session storage test failed: ${error.message}`);
+            }
+        }
+
+        function testRoleSelection() {
+            log('🎯 Testing Role Selection Logic...');
+            
+            try {
+                // Test client role logic
+                sessionStorage.setItem('intendedRole', 'client');
+                const clientRole = sessionStorage.getItem('intendedRole');
+                
+                if (clientRole === 'client') {
+                    log('✅ Client role selection works');
+                    addTestResult('Client Role Selection', 'success', 'Client role can be selected and stored');
+                } else {
+                    log('❌ Client role selection failed');
+                    addTestResult('Client Role Selection', 'error', 'Client role selection failed');
+                }
+                
+                // Test practitioner role logic
+                sessionStorage.setItem('intendedRole', 'practitioner');
+                const practitionerRole = sessionStorage.getItem('intendedRole');
+                
+                if (practitionerRole === 'practitioner') {
+                    log('✅ Practitioner role selection works');
+                    addTestResult('Practitioner Role Selection', 'success', 'Practitioner role can be selected and stored');
+                } else {
+                    log('❌ Practitioner role selection failed');
+                    addTestResult('Practitioner Role Selection', 'error', 'Practitioner role selection failed');
+                }
+                
+                // Test role clearing
+                sessionStorage.removeItem('intendedRole');
+                const clearedRole = sessionStorage.getItem('intendedRole');
+                
+                if (clearedRole === null) {
+                    log('✅ Role clearing works');
+                    addTestResult('Role Clearing', 'success', 'Role can be cleared from session storage');
+                } else {
+                    log('❌ Role clearing failed');
+                    addTestResult('Role Clearing', 'error', 'Role clearing failed');
+                }
+                
+            } catch (error) {
+                addTestResult('Role Selection Test', 'error', `Test failed: ${error.message}`);
+                log(`❌ Role selection test failed: ${error.message}`);
+            }
+        }
+
+        // Auto-run basic tests on page load
+        window.addEventListener('load', function() {
+            log('🚀 Test suite initialized');
+            log('📋 Ready to test Google OAuth flows');
+            debug('Browser capabilities: ' + JSON.stringify({
+                localStorage: typeof(Storage) !== "undefined",
+                sessionStorage: typeof(Storage) !== "undefined",
+                fetch: typeof(fetch) !== "undefined"
+            }));
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,501 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - link "TheraMate Mascot TheraMate Connect • Heal • Grow" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "TheraMate Mascot" [ref=e9] [cursor=pointer]
+          - generic [ref=e10] [cursor=pointer]:
+            - heading "TheraMate" [level=1] [ref=e11] [cursor=pointer]
+            - paragraph [ref=e12] [cursor=pointer]: Connect • Heal • Grow
+        - navigation [ref=e13]:
+          - link "Marketplace" [ref=e14] [cursor=pointer]:
+            - /url: /marketplace
+            - img [ref=e15] [cursor=pointer]
+            - text: Marketplace
+          - link "How It Works" [ref=e20] [cursor=pointer]:
+            - /url: /how-it-works
+          - link "Pricing" [ref=e21] [cursor=pointer]:
+            - /url: /pricing
+          - link "About Us" [ref=e22] [cursor=pointer]:
+            - /url: /about
+          - link "Help" [ref=e23] [cursor=pointer]:
+            - /url: /help
+        - generic [ref=e24]:
+          - link "Sign In" [ref=e25] [cursor=pointer]:
+            - /url: /login
+            - button "Sign In" [ref=e26] [cursor=pointer]
+          - link "Get Started" [ref=e27] [cursor=pointer]:
+            - /url: /register
+            - button "Get Started" [ref=e28] [cursor=pointer]
+    - generic [ref=e40]:
+      - generic [ref=e42]:
+        - img [ref=e43]
+        - generic [ref=e49]: Trusted Healthcare Platform
+      - heading "Book Osteopaths, Sports Massage & Sports Therapists Online" [level=1] [ref=e50]:
+        - generic [ref=e51]: Book Osteopaths,
+        - generic [ref=e52]: Sports Massage & Sports Therapists
+        - generic [ref=e53]: Online
+      - heading "Fast, trusted, and local treatment for back pain, sports injuries, posture correction and recovery." [level=2] [ref=e54]
+      - generic [ref=e55]:
+        - link "Browse Therapists" [ref=e56] [cursor=pointer]:
+          - /url: /marketplace
+          - button "Browse Therapists" [ref=e57] [cursor=pointer]:
+            - generic [ref=e59] [cursor=pointer]:
+              - img [ref=e60] [cursor=pointer]
+              - text: Browse Therapists
+              - img [ref=e71] [cursor=pointer]
+        - link "Get Started Free" [ref=e74] [cursor=pointer]:
+          - /url: /register
+          - button "Get Started Free" [ref=e75] [cursor=pointer]:
+            - generic [ref=e77] [cursor=pointer]:
+              - img [ref=e78] [cursor=pointer]
+              - text: Get Started Free
+      - generic [ref=e80]:
+        - generic [ref=e81]:
+          - generic [ref=e82]: 500+
+          - generic [ref=e83]: Active Therapists
+        - generic [ref=e84]:
+          - generic [ref=e85]: 4.9★
+          - generic [ref=e86]: Average Rating
+        - generic [ref=e87]:
+          - generic [ref=e88]: 10K+
+          - generic [ref=e89]: Happy Clients
+        - generic [ref=e90]:
+          - generic [ref=e91]: 50K+
+          - generic [ref=e92]: Sessions Booked
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - heading "Built for Healthcare Professionals" [level=2] [ref=e96]
+        - paragraph [ref=e97]: Connect with clients, manage sessions, and grow your practice with our comprehensive healthcare platform
+      - generic [ref=e98]:
+        - generic [ref=e100]:
+          - button "Smart Booking Intelligent appointment scheduling with qualified healthcare professionals" [ref=e101] [cursor=pointer]:
+            - generic [ref=e104] [cursor=pointer]:
+              - img [ref=e106] [cursor=pointer]
+              - generic [ref=e117] [cursor=pointer]:
+                - heading "Smart Booking" [level=3] [ref=e118] [cursor=pointer]
+                - paragraph [ref=e119] [cursor=pointer]: Intelligent appointment scheduling with qualified healthcare professionals
+          - button "Intelligent Matching Advanced discovery system for osteopaths, sports therapists, and massage therapists" [ref=e121] [cursor=pointer]:
+            - generic [ref=e122] [cursor=pointer]:
+              - img [ref=e124] [cursor=pointer]
+              - generic [ref=e127] [cursor=pointer]:
+                - heading "Intelligent Matching" [level=3] [ref=e128] [cursor=pointer]
+                - paragraph [ref=e129] [cursor=pointer]: Advanced discovery system for osteopaths, sports therapists, and massage therapists
+          - button "Secure Communication Protected messaging and documentation system for healthcare professionals" [ref=e131] [cursor=pointer]:
+            - generic [ref=e132] [cursor=pointer]:
+              - img [ref=e134] [cursor=pointer]
+              - generic [ref=e140] [cursor=pointer]:
+                - heading "Secure Communication" [level=3] [ref=e141] [cursor=pointer]
+                - paragraph [ref=e142] [cursor=pointer]: Protected messaging and documentation system for healthcare professionals
+          - button "Progress Analytics Advanced insights and tracking for healthcare practitioners" [ref=e144] [cursor=pointer]:
+            - generic [ref=e145] [cursor=pointer]:
+              - img [ref=e147] [cursor=pointer]
+              - generic [ref=e150] [cursor=pointer]:
+                - heading "Progress Analytics" [level=3] [ref=e151] [cursor=pointer]
+                - paragraph [ref=e152] [cursor=pointer]: Advanced insights and tracking for healthcare practitioners
+        - generic [ref=e156]:
+          - generic [ref=e158]: 📅
+          - heading "Smart Booking" [level=3] [ref=e159]
+          - paragraph [ref=e160]: Intelligent appointment scheduling with qualified healthcare professionals
+          - generic [ref=e161]:
+            - generic [ref=e164]: AI-powered practitioner matching
+            - generic [ref=e167]: Seamless calendar integration
+            - generic [ref=e170]: Real-time availability updates
+            - generic [ref=e173]: Automated check-in/check-out
+    - generic [ref=e175]:
+      - generic [ref=e176]:
+        - generic [ref=e177]:
+          - img [ref=e178]
+          - text: For Every Healthcare Professional
+        - heading "Built for Your Role" [level=2] [ref=e183]:
+          - text: Built for
+          - generic [ref=e184]: Your Role
+        - paragraph [ref=e185]: TheraMate offers specialized features and tools tailored to your specific profession and needs
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - generic [ref=e188]:
+            - generic [ref=e189]:
+              - img [ref=e190]
+              - generic [ref=e192]: Professional
+            - heading "Sports Therapist" [level=3] [ref=e193]
+            - paragraph [ref=e194]: Specialized in sports injury treatment and performance enhancement
+          - generic [ref=e196]:
+            - heading "SPECIALIZATIONS" [level=4] [ref=e197]
+            - list [ref=e198]:
+              - listitem [ref=e199]:
+                - img [ref=e200]
+                - generic [ref=e202]: Sports injury rehabilitation
+              - listitem [ref=e203]:
+                - img [ref=e204]
+                - generic [ref=e206]: Performance optimization
+              - listitem [ref=e207]:
+                - img [ref=e208]
+                - generic [ref=e210]: Movement analysis
+              - listitem [ref=e211]:
+                - img [ref=e212]
+                - generic [ref=e214]: Injury prevention programs
+        - generic [ref=e215]:
+          - generic [ref=e216]:
+            - generic [ref=e217]:
+              - img [ref=e218]
+              - generic [ref=e223]: Professional
+            - heading "Massage Therapist" [level=3] [ref=e224]
+            - paragraph [ref=e225]: Licensed massage therapy professionals offering various techniques
+          - generic [ref=e227]:
+            - heading "SPECIALIZATIONS" [level=4] [ref=e228]
+            - list [ref=e229]:
+              - listitem [ref=e230]:
+                - img [ref=e231]
+                - generic [ref=e233]: Deep tissue massage
+              - listitem [ref=e234]:
+                - img [ref=e235]
+                - generic [ref=e237]: Swedish massage
+              - listitem [ref=e238]:
+                - img [ref=e239]
+                - generic [ref=e241]: Sports massage
+              - listitem [ref=e242]:
+                - img [ref=e243]
+                - generic [ref=e245]: Therapeutic techniques
+        - generic [ref=e246]:
+          - generic [ref=e247]:
+            - generic [ref=e248]:
+              - img [ref=e249]
+              - generic [ref=e255]: Professional
+            - heading "Osteopath" [level=3] [ref=e256]
+            - paragraph [ref=e257]: Registered osteopathic practitioners focusing on holistic treatment
+          - generic [ref=e259]:
+            - heading "SPECIALIZATIONS" [level=4] [ref=e260]
+            - list [ref=e261]:
+              - listitem [ref=e262]:
+                - img [ref=e263]
+                - generic [ref=e265]: Structural osteopathy
+              - listitem [ref=e266]:
+                - img [ref=e267]
+                - generic [ref=e269]: Cranial techniques
+              - listitem [ref=e270]:
+                - img [ref=e271]
+                - generic [ref=e273]: Visceral manipulation
+              - listitem [ref=e274]:
+                - img [ref=e275]
+                - generic [ref=e277]: Pediatric care
+        - generic [ref=e278]:
+          - generic [ref=e279]:
+            - generic [ref=e280]:
+              - img [ref=e281]
+              - generic [ref=e284]: Professional
+            - heading "Client" [level=3] [ref=e285]
+            - paragraph [ref=e286]: Individuals seeking professional therapeutic services
+          - generic [ref=e288]:
+            - heading "SPECIALIZATIONS" [level=4] [ref=e289]
+            - list [ref=e290]:
+              - listitem [ref=e291]:
+                - img [ref=e292]
+                - generic [ref=e294]: Find qualified therapists
+              - listitem [ref=e295]:
+                - img [ref=e296]
+                - generic [ref=e298]: Book appointments online
+              - listitem [ref=e299]:
+                - img [ref=e300]
+                - generic [ref=e302]: Read reviews & ratings
+              - listitem [ref=e303]:
+                - img [ref=e304]
+                - generic [ref=e306]: Secure messaging
+      - generic [ref=e307]:
+        - generic [ref=e308]:
+          - generic [ref=e309]:
+            - img [ref=e310]
+            - generic [ref=e321]:
+              - generic [ref=e322]: Easy Booking
+              - generic [ref=e323]: Schedule in seconds
+          - generic [ref=e324]:
+            - img [ref=e325]
+            - generic [ref=e328]:
+              - generic [ref=e329]: Secure Payments
+              - generic [ref=e330]: Protected transactions
+          - generic [ref=e331]:
+            - img [ref=e332]
+            - generic [ref=e335]:
+              - generic [ref=e336]: 24/7 Support
+              - generic [ref=e337]: Always here to help
+        - heading "Ready to get started?" [level=3] [ref=e338]
+        - paragraph [ref=e339]: Join thousands of healthcare professionals and clients already using TheraMate
+        - link "Create Your Account" [ref=e340] [cursor=pointer]:
+          - /url: /register
+          - button "Create Your Account" [ref=e341] [cursor=pointer]
+    - generic [ref=e342]:
+      - generic [ref=e344]:
+        - heading "What Our Users Say" [level=2] [ref=e345]
+        - paragraph [ref=e346]: Real stories from real people who found healing through our platform
+      - generic [ref=e350]:
+        - generic [ref=e352]:
+          - img [ref=e354]
+          - generic [ref=e357]:
+            - img [ref=e359]
+            - img [ref=e362]
+            - img [ref=e365]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e367]: "\"Found an amazing sports therapist through TheraMate. The booking process was seamless, and the treatment helped me recover from my injury faster than expected.\""
+          - generic [ref=e368]:
+            - generic [ref=e369]: 👩‍💼
+            - generic [ref=e370]:
+              - generic [ref=e371]: Sarah Johnson
+              - generic [ref=e372]: Marathon Runner
+        - generic [ref=e375]:
+          - img [ref=e377]
+          - generic [ref=e380]:
+            - img [ref=e382]
+            - img [ref=e385]
+            - img [ref=e388]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e390]: "\"Struggling with back pain from desk work, I found a local osteopath who completely transformed my posture and pain levels. Highly recommend!\""
+          - generic [ref=e391]:
+            - generic [ref=e392]: 👨‍💻
+            - generic [ref=e393]:
+              - generic [ref=e394]: Michael Chen
+              - generic [ref=e395]: Office Worker
+        - generic [ref=e398]:
+          - img [ref=e400]
+          - generic [ref=e403]:
+            - img [ref=e405]
+            - img [ref=e408]
+            - img [ref=e411]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e413]: "\"As a professional practitioner myself, I appreciate the quality of therapists on TheraMate. Found excellent massage therapy for my own recovery needs.\""
+          - generic [ref=e414]:
+            - generic [ref=e415]: 👩‍🏫
+            - generic [ref=e416]:
+              - generic [ref=e417]: Emma Williams
+              - generic [ref=e418]: Yoga Instructor
+        - generic [ref=e421]:
+          - img [ref=e423]
+          - generic [ref=e426]:
+            - img [ref=e428]
+            - img [ref=e431]
+            - img [ref=e434]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e436]: "\"After a workplace injury, TheraMate connected me with a sports therapist who specialized in occupational injuries. Couldn't be happier with the results.\""
+          - generic [ref=e437]:
+            - generic [ref=e438]: 👷‍♂️
+            - generic [ref=e439]:
+              - generic [ref=e440]: David Thompson
+              - generic [ref=e441]: Construction Worker
+        - generic [ref=e444]:
+          - img [ref=e446]
+          - generic [ref=e449]:
+            - img [ref=e451]
+            - img [ref=e454]
+            - img [ref=e457]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e459]: "\"Postpartum recovery was challenging, but finding a massage therapist through TheraMate who understood my needs made all the difference.\""
+          - generic [ref=e460]:
+            - generic [ref=e461]: 👩‍👶
+            - generic [ref=e462]:
+              - generic [ref=e463]: Lisa Rodriguez
+              - generic [ref=e464]: New Mother
+        - generic [ref=e467]:
+          - img [ref=e469]
+          - generic [ref=e472]:
+            - img [ref=e474]
+            - img [ref=e477]
+            - img [ref=e480]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e482]: "\"Regular sessions with my TheraMate sports therapist have become essential for my training. The platform makes booking and managing appointments so easy.\""
+          - generic [ref=e483]:
+            - generic [ref=e484]: 🏃‍♂️
+            - generic [ref=e485]:
+              - generic [ref=e486]: James Mitchell
+              - generic [ref=e487]: Athlete
+        - generic [ref=e490]:
+          - img [ref=e492]
+          - generic [ref=e495]:
+            - img [ref=e497]
+            - img [ref=e500]
+            - img [ref=e503]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e505]: "\"Found an amazing sports therapist through TheraMate. The booking process was seamless, and the treatment helped me recover from my injury faster than expected.\""
+          - generic [ref=e506]:
+            - generic [ref=e507]: 👩‍💼
+            - generic [ref=e508]:
+              - generic [ref=e509]: Sarah Johnson
+              - generic [ref=e510]: Marathon Runner
+        - generic [ref=e513]:
+          - img [ref=e515]
+          - generic [ref=e518]:
+            - img [ref=e520]
+            - img [ref=e523]
+            - img [ref=e526]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e528]: "\"Struggling with back pain from desk work, I found a local osteopath who completely transformed my posture and pain levels. Highly recommend!\""
+          - generic [ref=e529]:
+            - generic [ref=e530]: 👨‍💻
+            - generic [ref=e531]:
+              - generic [ref=e532]: Michael Chen
+              - generic [ref=e533]: Office Worker
+        - generic [ref=e536]:
+          - img [ref=e538]
+          - generic [ref=e541]:
+            - img [ref=e543]
+            - img [ref=e546]
+            - img [ref=e549]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e551]: "\"As a professional practitioner myself, I appreciate the quality of therapists on TheraMate. Found excellent massage therapy for my own recovery needs.\""
+          - generic [ref=e552]:
+            - generic [ref=e553]: 👩‍🏫
+            - generic [ref=e554]:
+              - generic [ref=e555]: Emma Williams
+              - generic [ref=e556]: Yoga Instructor
+        - generic [ref=e559]:
+          - img [ref=e561]
+          - generic [ref=e564]:
+            - img [ref=e566]
+            - img [ref=e569]
+            - img [ref=e572]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e574]: "\"After a workplace injury, TheraMate connected me with a sports therapist who specialized in occupational injuries. Couldn't be happier with the results.\""
+          - generic [ref=e575]:
+            - generic [ref=e576]: 👷‍♂️
+            - generic [ref=e577]:
+              - generic [ref=e578]: David Thompson
+              - generic [ref=e579]: Construction Worker
+        - generic [ref=e582]:
+          - img [ref=e584]
+          - generic [ref=e587]:
+            - img [ref=e589]
+            - img [ref=e592]
+            - img [ref=e595]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e597]: "\"Postpartum recovery was challenging, but finding a massage therapist through TheraMate who understood my needs made all the difference.\""
+          - generic [ref=e598]:
+            - generic [ref=e599]: 👩‍👶
+            - generic [ref=e600]:
+              - generic [ref=e601]: Lisa Rodriguez
+              - generic [ref=e602]: New Mother
+        - generic [ref=e605]:
+          - img [ref=e607]
+          - generic [ref=e610]:
+            - img [ref=e612]
+            - img [ref=e615]
+            - img [ref=e618]
+            - generic:
+              - img
+            - generic:
+              - img
+          - blockquote [ref=e620]: "\"Regular sessions with my TheraMate sports therapist have become essential for my training. The platform makes booking and managing appointments so easy.\""
+          - generic [ref=e621]:
+            - generic [ref=e622]: 🏃‍♂️
+            - generic [ref=e623]:
+              - generic [ref=e624]: James Mitchell
+              - generic [ref=e625]: Athlete
+      - paragraph [ref=e628]: Join thousands of satisfied users today
+    - contentinfo [ref=e629]:
+      - generic [ref=e630]:
+        - generic [ref=e631]:
+          - generic [ref=e632]:
+            - generic [ref=e633]:
+              - img "Theramate Mascot" [ref=e635]
+              - generic [ref=e636]:
+                - heading "Theramate" [level=3] [ref=e637]
+                - paragraph [ref=e638]: Connect • Heal • Grow
+            - paragraph [ref=e639]: Empowering healthcare professionals with innovative therapy and wellness solutions. Connect with qualified practitioners and transform your practice.
+          - generic [ref=e640]:
+            - heading "Quick Links" [level=4] [ref=e641]
+            - list [ref=e642]:
+              - listitem [ref=e643]:
+                - link "For Companies" [ref=e644] [cursor=pointer]:
+                  - /url: /contact
+              - listitem [ref=e645]:
+                - link "Help Centre" [ref=e646] [cursor=pointer]:
+                  - /url: /help
+              - listitem [ref=e647]:
+                - link "FAQ" [ref=e648] [cursor=pointer]:
+                  - /url: /help
+              - listitem [ref=e649]:
+                - link "Terms and Conditions" [ref=e650] [cursor=pointer]:
+                  - /url: /terms
+              - listitem [ref=e651]:
+                - link "Privacy Policy" [ref=e652] [cursor=pointer]:
+                  - /url: /privacy
+              - listitem [ref=e653]:
+                - link "Cookie Policy" [ref=e654] [cursor=pointer]:
+                  - /url: /cookies
+          - generic [ref=e655]:
+            - heading "Quick Answers" [level=4] [ref=e656]
+            - generic [ref=e657]:
+              - generic [ref=e658]:
+                - paragraph [ref=e659]: Can I book a sports massage near me?
+                - paragraph [ref=e660]: Yes, Theramate lets you search and book qualified sports massage therapists across the UK.
+              - generic [ref=e661]:
+                - paragraph [ref=e662]: Do you offer osteopathy for back pain?
+                - paragraph [ref=e663]: Yes, you can book osteopaths online for posture correction, lower back pain, and injury recovery.
+              - generic [ref=e664]:
+                - paragraph [ref=e665]: How do I know the therapists are qualified?
+                - paragraph [ref=e666]: All professionals on Theramate are verified and accredited.
+        - generic [ref=e667]:
+          - generic [ref=e668]:
+            - link "Follow us on Instagram" [ref=e669] [cursor=pointer]:
+              - /url: https://www.instagram.com/theramate.app
+              - img [ref=e670] [cursor=pointer]
+            - link "Follow us on TikTok" [ref=e672] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@theramate.app
+              - img [ref=e673] [cursor=pointer]
+          - generic [ref=e675]: © 2025 Theramate. All rights reserved.
+  - generic [ref=e679]:
+    - generic [ref=e680]:
+      - heading "Cookies & Privacy" [level=3] [ref=e681]
+      - paragraph [ref=e682]: We use essential cookies to make our site work. With your consent, we’ll also use analytics and marketing cookies to understand usage and improve services. You can change your choices at any time.
+      - generic [ref=e683]:
+        - generic [ref=e684]:
+          - generic [ref=e685]: Analytics
+          - switch [ref=e686] [cursor=pointer]
+        - generic [ref=e687]:
+          - generic [ref=e688]: Marketing
+          - switch [ref=e689] [cursor=pointer]
+        - generic [ref=e690]:
+          - generic [ref=e691]: Functional
+          - switch [ref=e692] [cursor=pointer]
+    - generic [ref=e693]:
+      - generic [ref=e694]:
+        - button "Reject non-essential" [ref=e695] [cursor=pointer]
+        - button "Accept all" [ref=e696] [cursor=pointer]
+      - button "Save preferences" [ref=e697] [cursor=pointer]
+```

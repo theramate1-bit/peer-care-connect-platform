@@ -1,0 +1,70 @@
+---
+description: Peer Care Connect Project Context and Current State
+type: Always
+alwaysApply: true
+---
+
+# Peer Care Connect Project Context
+
+## Project Overview
+Peer Care Connect is a comprehensive platform connecting musculoskeletal health practitioners (osteopaths, sports therapists, massage therapists) with clients. The platform facilitates booking, session management, treatment notes, and practice analytics.
+
+## Current Architecture
+- **Frontend**: React + TypeScript + Vite
+- **Backend**: Supabase (PostgreSQL + Edge Functions)
+- **Authentication**: Supabase Auth
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime subscriptions
+- **Deployment**: Vercel (frontend), Supabase (backend)
+
+## Key Features Implemented
+- Multi-role authentication (client, practitioner roles)
+- Marketplace for practitioner discovery
+- Booking system with calendar integration
+- Real-time session management
+- Treatment notes (SOAP, DAP, Free Text formats)
+- Client progress tracking
+- Practice analytics dashboard
+- Stripe payment processing
+- File upload for qualifications
+- Real-time notifications
+
+## Database Schema
+- `users` - User profiles and practitioner data
+- `client_sessions` - Booking and session management
+- `treatment_notes` - Clinical documentation
+- `progress_metrics` - Client progress tracking
+- `progress_goals` - Treatment goals
+- `session_feedback` - Post-session feedback
+- `subscriptions` - User subscription management
+
+## Recent Major Changes
+- Removed all mock data, implemented real-time data
+- Added comprehensive note-taking system
+- Implemented session check-in/check-out workflow
+- Added qualification verification system
+- Created practice management hubs
+- Implemented real-time notifications
+- Added client communication system
+
+## Current Focus Areas
+- Ensuring all functionality works with live data
+- Maintaining consistent UI/UX across practitioner types
+- Implementing proper error handling
+- Optimizing real-time performance
+- Ensuring mobile responsiveness
+
+## Known Issues Resolved
+- Fixed duplicate navbar issues across dashboards
+- Resolved icon import errors (CheckIn, TrendingUp)
+- Fixed parameter mismatches in Edge Functions
+- Implemented proper authentication for Edge Functions
+- Resolved useToast errors in components
+
+## Development Guidelines
+- Always use real data, no placeholders or hardcoded values
+- Implement proper loading states
+- Use consistent error handling with toast notifications
+- Ensure mobile-first responsive design
+- Follow TypeScript best practices
+- Implement proper cleanup in useEffect hooks
