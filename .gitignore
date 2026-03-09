@@ -23,3 +23,13 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Local test and generated output
+playwright-report/
+test-results/
+supabase/.temp/
+stripe-payment-full.txt
+temp_function_update.sql
+test-cancellation-email-red.html
+supabase/functions/stripe-payment/deploy_data.json
+supabase/functions/stripe-payment/index_full.txt
