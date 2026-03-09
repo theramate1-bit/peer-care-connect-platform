@@ -30,9 +30,10 @@ export class Analytics {
       const { error } = await supabase
         .from('analytics_events')
         .insert({
+          event_type: 'user_action', // Event type for categorization
           event_name: name,
           metadata: metadata ?? {},
-          created_at: new Date().toISOString(),
+          properties: metadata ?? {}, // Also store in properties for backwards compatibility
         });
       if (error && !(`${error.message}` || '').includes('does not exist')) {
         // Log but don't throw to avoid UX impact

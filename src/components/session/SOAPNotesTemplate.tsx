@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,11 +23,18 @@ import {
   Download,
   Sparkles,
   Clock,
-  User,
-  Target
+  User as UserIcon,
+  Target,
+  Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
+import {
+  JOINTS,
+  MOVEMENTS,
+  PAIN_AREAS,
+  STRENGTH_GRADES
+} from '@/lib/constants';
 
 interface SOAPTemplate {
   id: string;
@@ -34,8 +50,9 @@ interface SOAPTemplate {
 interface SOAPNotesTemplateProps {
   therapyType?: string;
   clientName?: string;
+  isCompleted?: boolean;
   onTemplateSelect?: (template: SOAPTemplate) => void;
-  onSave?: (soapData: SOAPData) => void;
+  onSave?: (soapData: SOAPData, status?: 'draft' | 'completed' | 'archived') => void;
 }
 
 interface SOAPData {
@@ -50,6 +67,7 @@ interface SOAPData {
 export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
   therapyType = 'general',
   clientName = 'Client',
+  isCompleted = false,
   onTemplateSelect,
   onSave
 }) => {
@@ -64,6 +82,18 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
   });
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+
+  // Suggested Prompts State
+  const [painArea, setPainArea] = useState('');
+  const [painScore, setPainScore] = useState<string>('');
+  const [romJoint, setRomJoint] = useState('');
+  const [romSide, setRomSide] = useState<'right' | 'left' | 'bilateral'>('right');
+  const [romMovement, setRomMovement] = useState('');
+  const [romDegrees, setRomDegrees] = useState('');
+  const [strengthJoint, setStrengthJoint] = useState('');
+  const [strengthSide, setStrengthSide] = useState<'right' | 'left' | 'bilateral'>('right');
+  const [strengthMovement, setStrengthMovement] = useState('');
+  const [strengthGrade, setStrengthGrade] = useState('');
 
   // Pre-built SOAP templates for different therapy types
   const soapTemplates: SOAPTemplate[] = [
@@ -248,6 +278,49 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
     }));
   };
 
+  const addPainScore = () => {
+    if (!painArea || !painScore) return;
+    const textToAdd = `${painArea} Pain (VAS): ${painScore}/10`;
+    const escapedArea = painArea.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`${escapedArea} Pain \\(VAS\\): \\d+\\/10`, 'g');
+    let newObjective = soapData.objective;
+    if (regex.test(soapData.objective)) {
+      newObjective = soapData.objective.replace(regex, textToAdd);
+    } else {
+      newObjective = soapData.objective ? `${soapData.objective}\n${textToAdd}` : textToAdd;
+    }
+    handleManualEdit('objective', newObjective);
+    setPainArea('');
+    setPainScore('');
+    toast.success('Pain score added to Objective');
+  };
+
+  const addRom = () => {
+    if (!romJoint || !romMovement || !romDegrees) return;
+    const sideText = romSide === 'bilateral' ? 'bilateral' : romSide === 'right' ? 'right' : 'left';
+    const textToAdd = `ROM: ${sideText} ${romJoint} ${romMovement} - ${romDegrees}°`;
+    handleManualEdit('objective', soapData.objective ? `${soapData.objective}\n${textToAdd}` : textToAdd);
+    setRomJoint('');
+    setRomSide('right');
+    setRomMovement('');
+    setRomDegrees('');
+    toast.success('ROM added to Objective');
+  };
+
+  const addStrength = () => {
+    if (!strengthJoint || !strengthMovement || !strengthGrade) return;
+    const gradeObj = STRENGTH_GRADES.find(g => g.value === strengthGrade);
+    const gradeName = gradeObj ? gradeObj.label : strengthGrade;
+    const sideText = strengthSide === 'bilateral' ? 'bilateral' : strengthSide === 'right' ? 'right' : 'left';
+    const textToAdd = `Strength Testing: ${sideText} ${strengthJoint} ${strengthMovement} - Grade ${strengthGrade}/5 (${gradeName})`;
+    handleManualEdit('objective', soapData.objective ? `${soapData.objective}\n${textToAdd}` : textToAdd);
+    setStrengthJoint('');
+    setStrengthSide('right');
+    setStrengthMovement('');
+    setStrengthGrade('');
+    toast.success('Strength test added to Objective');
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
@@ -255,9 +328,18 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
 
   const handleSave = () => {
     if (onSave) {
-      onSave(soapData);
+      onSave(soapData, 'draft');
     }
     toast.success('SOAP notes saved');
+  };
+
+  const handleComplete = () => {
+    if (confirm('Are you sure you want to complete this note? You will not be able to edit it afterwards.')) {
+      if (onSave) {
+        onSave(soapData, 'completed');
+      }
+      toast.success('SOAP notes completed and locked');
+    }
   };
 
   const exportToPDF = () => {
@@ -375,7 +457,7 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
             {soapTemplates.map((template) => (
               <Card 
                 key={template.id}
-                className={`cursor-pointer transition-all hover:shadow-md ${
+                className={`cursor-pointer transition-[border-color,background-color] duration-200 ease-out ${
                   selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''
                 }`}
                 onClick={() => applyTemplate(template)}
@@ -468,6 +550,7 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
                   onChange={(e) => handleManualEdit('chief_complaint', e.target.value)}
                   placeholder="Patient's main concern..."
                   className="mt-2"
+                  disabled={isCompleted}
                 />
               </div>
               <div>
@@ -478,19 +561,181 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
                   placeholder="Patient's reported symptoms and history..."
                   className="mt-2"
                   rows={6}
+                  disabled={isCompleted}
                 />
               </div>
             </TabsContent>
 
             <TabsContent value="objective" className="space-y-4">
+              {/* Suggested Prompts Section */}
+              <div className={`bg-muted/30 p-4 rounded-lg border border-border/50 space-y-4 ${isCompleted ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-sm">Suggested Prompts</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Pain Score */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Pain Score (VAS)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Select onValueChange={setPainArea} value={painArea}>
+                        <SelectTrigger className="w-full bg-background">
+                          <SelectValue placeholder="Area of Pain" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAIN_AREAS.map((area) => (
+                            <SelectItem key={area} value={area}>
+                              {area}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select onValueChange={setPainScore} value={painScore}>
+                        <SelectTrigger className="w-full bg-background">
+                          <SelectValue placeholder="Score (0-10)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[...Array(11)].map((_, i) => (
+                            <SelectItem key={i} value={i.toString()}>
+                              {i} - {i === 0 ? 'No Pain' : i === 10 ? 'Worst' : i < 4 ? 'Mild' : i < 7 ? 'Mod' : 'Severe'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={addPainScore} size="sm" variant="secondary" className="w-full" disabled={!painArea || !painScore}>
+                      <Plus className="h-3 w-3 mr-1" /> Add to Objective
+                    </Button>
+                  </div>
+
+                  {/* Range of Motion */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Range of Motion (ROM)</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      <Select onValueChange={(value) => { setRomJoint(value); setRomMovement(''); }} value={romJoint}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue placeholder="Body Part" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {JOINTS.map((joint) => (
+                            <SelectItem key={joint} value={joint}>
+                              {joint}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select onValueChange={(value: any) => setRomSide(value)} value={romSide}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="right">Right</SelectItem>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="bilateral">Bilateral</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select onValueChange={setRomMovement} value={romMovement} disabled={!romJoint}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue placeholder="Movement" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {romJoint && MOVEMENTS[romJoint]?.map((movement) => (
+                            <SelectItem key={movement} value={movement}>
+                              {movement}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <div className="relative">
+                        <Input 
+                          placeholder="Deg" 
+                          type="number"
+                          value={romDegrees}
+                          onChange={(e) => setRomDegrees(e.target.value)}
+                          className="bg-background pr-6 h-9 text-sm"
+                        />
+                        <span className="absolute right-2 top-2 text-muted-foreground text-xs">°</span>
+                      </div>
+                    </div>
+                    <Button onClick={addRom} size="sm" variant="secondary" className="w-full" disabled={!romJoint || !romMovement || !romDegrees}>
+                      <Plus className="h-3 w-3 mr-1" /> Add to Objective
+                    </Button>
+                  </div>
+
+                  {/* Strength Testing */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Strength Testing</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      <Select onValueChange={(value) => { setStrengthJoint(value); setStrengthMovement(''); }} value={strengthJoint}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue placeholder="Body Part" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {JOINTS.map((joint) => (
+                            <SelectItem key={joint} value={joint}>
+                              {joint}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select onValueChange={(value: any) => setStrengthSide(value)} value={strengthSide}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="right">Right</SelectItem>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="bilateral">Bilateral</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select onValueChange={setStrengthMovement} value={strengthMovement} disabled={!strengthJoint}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue placeholder="Movement" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {strengthJoint && MOVEMENTS[strengthJoint]?.map((movement) => (
+                            <SelectItem key={movement} value={movement}>
+                              {movement}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select onValueChange={setStrengthGrade} value={strengthGrade}>
+                        <SelectTrigger className="bg-background h-9">
+                          <SelectValue placeholder="Grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STRENGTH_GRADES.map((grade) => (
+                            <SelectItem key={grade.value} value={grade.value}>
+                              {grade.value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={addStrength} size="sm" variant="secondary" className="w-full" disabled={!strengthJoint || !strengthMovement || !strengthGrade}>
+                      <Plus className="h-3 w-3 mr-1" /> Add to Objective
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="text-sm font-medium">Objective Findings</label>
                 <Textarea
                   value={soapData.objective}
                   onChange={(e) => handleManualEdit('objective', e.target.value)}
-                  placeholder="Observations, palpation findings, range of motion..."
+                  placeholder="Observations, palpation findings, range of motion. Include: Pain score (VAS 0-10), Range of motion measurements (e.g., knee flexion 90°, shoulder abduction 120°), strength testing, special tests..."
                   className="mt-2"
                   rows={6}
+                  disabled={isCompleted}
                 />
               </div>
             </TabsContent>
@@ -504,6 +749,7 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
                   placeholder="Clinical findings, diagnosis, evaluation..."
                   className="mt-2"
                   rows={6}
+                  disabled={isCompleted}
                 />
               </div>
             </TabsContent>
@@ -517,6 +763,7 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
                   placeholder="Treatment approach, exercises, follow-up..."
                   className="mt-2"
                   rows={6}
+                  disabled={isCompleted}
                 />
               </div>
             </TabsContent>
@@ -530,6 +777,7 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
                   placeholder="Additional session observations and notes..."
                   className="mt-2"
                   rows={6}
+                  disabled={isCompleted}
                 />
               </div>
             </TabsContent>
@@ -537,10 +785,22 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 mt-6">
-            <Button onClick={handleSave} className="flex-1">
+            <Button onClick={handleSave} className="flex-1" disabled={isCompleted}>
               <Save className="h-4 w-4 mr-2" />
               Save Notes
             </Button>
+            {!isCompleted && (
+              <Button onClick={handleComplete} variant="outline" className="flex-1 border-green-600 text-green-600 hover:bg-green-50 hover:text-green-700">
+                <Target className="h-4 w-4 mr-2" />
+                Complete Note
+              </Button>
+            )}
+            {isCompleted && (
+              <Button disabled variant="outline" className="flex-1 border-green-600 text-green-600 bg-green-50 opacity-100">
+                <Target className="h-4 w-4 mr-2" />
+                Note Completed
+              </Button>
+            )}
             <Button onClick={exportToPDF} variant="outline">
               <Download className="h-4 w-4 mr-2" />
               Export PDF
@@ -581,3 +841,5 @@ export const SOAPNotesTemplate: React.FC<SOAPNotesTemplateProps> = ({
     </div>
   );
 };
+
+

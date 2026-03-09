@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarIntegrationService, CalendarSyncConfig } from '@/lib/calendar-integration';
 import { CalendarSyncStatus } from '@/components/calendar/CalendarIntegration';
+import { GoogleCalendarService } from '@/lib/google-calendar-service';
 import { toast } from 'sonner';
 
 const CalendarSettings = () => {
@@ -25,6 +26,8 @@ const CalendarSettings = () => {
     lastSync: undefined
   });
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [workingHours, setWorkingHours] = useState({
     monday: { start: '09:00', end: '17:00', enabled: true },
     tuesday: { start: '09:00', end: '17:00', enabled: true },
@@ -37,7 +40,18 @@ const CalendarSettings = () => {
 
   useEffect(() => {
     loadCalendarSettings();
+    checkConnectionStatus();
   }, [user]);
+
+  const checkConnectionStatus = async () => {
+    if (!user?.id) return;
+    try {
+      const connected = await GoogleCalendarService.isConnected();
+      setIsConnected(connected);
+    } catch (error) {
+      console.error('Error checking connection status:', error);
+    }
+  };
 
   const loadCalendarSettings = async () => {
     if (!user?.id) return;
@@ -149,7 +163,7 @@ const CalendarSettings = () => {
         end: new Date(`${session.session_date}T${session.start_time}`),
         description: session.notes || '',
         location: 'Location TBD',
-        status: session.status === 'cancelled' ? 'cancelled' : 'confirmed' as const,
+        status: session.status === 'cancelled' ? 'cancelled' : 'scheduled' as const,
         source: 'internal' as const
       })) || [];
 
@@ -160,7 +174,7 @@ const CalendarSettings = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'peer-care-connect-calendar.ics';
+      link.download = 'theramate-calendar.ics';
       link.click();
       URL.revokeObjectURL(url);
 
@@ -179,6 +193,70 @@ const CalendarSettings = () => {
         [field]: value
       }
     }));
+  };
+
+  const handleConnectGoogleCalendar = async () => {
+    setIsConnecting(true);
+    try {
+      const authUrl = await GoogleCalendarService.getAuthUrl();
+      
+      // Open OAuth popup
+      const popup = window.open(
+        authUrl,
+        'Google Calendar Authorization',
+        'width=600,height=700,scrollbars=yes,resizable=yes'
+      );
+
+      // Listen for OAuth callback
+      const handleMessage = async (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'google-calendar-connected') {
+          const { code } = event.data;
+          
+          try {
+            await GoogleCalendarService.exchangeCode(code);
+            await checkConnectionStatus();
+            await loadCalendarSettings();
+            toast.success('Google Calendar connected successfully');
+          } catch (error) {
+            console.error('Error connecting calendar:', error);
+            toast.error('Failed to connect Google Calendar');
+          } finally {
+            setIsConnecting(false);
+            window.removeEventListener('message', handleMessage);
+          }
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      // Check if popup was closed
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          setIsConnecting(false);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 500);
+
+    } catch (error) {
+      console.error('Error initiating Google Calendar connection:', error);
+      toast.error('Failed to initiate Google Calendar connection');
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnectGoogleCalendar = async () => {
+    try {
+      await GoogleCalendarService.disconnect();
+      setIsConnected(false);
+      setSyncConfig(prev => ({ ...prev, enabled: false }));
+      toast.success('Google Calendar disconnected');
+    } catch (error) {
+      console.error('Error disconnecting calendar:', error);
+      toast.error('Failed to disconnect Google Calendar');
+    }
   };
 
   return (
@@ -260,11 +338,66 @@ const CalendarSettings = () => {
                     </Select>
                   </div>
 
-                  <CalendarSyncStatus
-                    lastSync={syncConfig.lastSync}
-                    isSyncing={isSyncing}
-                    onSync={handleSync}
-                  />
+                  {syncConfig.provider === 'google' && (
+                    <>
+                      {!isConnected ? (
+                        <div className="space-y-4">
+                          <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              Connect your Google Calendar to enable automatic two-way synchronization.
+                            </AlertDescription>
+                          </Alert>
+                          <Button
+                            onClick={handleConnectGoogleCalendar}
+                            disabled={isConnecting}
+                            className="w-full"
+                          >
+                            {isConnecting ? (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                Connecting...
+                              </>
+                            ) : (
+                              <>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Connect Google Calendar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <Alert>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <AlertDescription>
+                              Google Calendar is connected. Your calendars will automatically sync.
+                            </AlertDescription>
+                          </Alert>
+                          <Button
+                            onClick={handleDisconnectGoogleCalendar}
+                            variant="destructive"
+                            size="sm"
+                          >
+                            Disconnect Google Calendar
+                          </Button>
+                          <CalendarSyncStatus
+                            lastSync={syncConfig.lastSync}
+                            isSyncing={isSyncing}
+                            onSync={handleSync}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {syncConfig.provider !== 'google' && (
+                    <CalendarSyncStatus
+                      lastSync={syncConfig.lastSync}
+                      isSyncing={isSyncing}
+                      onSync={handleSync}
+                    />
+                  )}
                 </>
               )}
             </CardContent>
@@ -298,6 +431,7 @@ const CalendarSettings = () => {
                         type="time"
                         value={hours.start}
                         onChange={(e) => updateWorkingHours(day, 'start', e.target.value)}
+                        step="60"
                         className="w-32"
                       />
                       <span>to</span>
@@ -305,6 +439,7 @@ const CalendarSettings = () => {
                         type="time"
                         value={hours.end}
                         onChange={(e) => updateWorkingHours(day, 'end', e.target.value)}
+                        step="60"
                         className="w-32"
                       />
                     </>

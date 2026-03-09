@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { ArrowRight, Search, Calendar, CreditCard, Shield, Clock, Star, CheckCircle, User, Users, MapPin, Phone, MessageCircle } from "lucide-react";
+import { ArrowRight, Search, Calendar, CreditCard, Shield, Clock, Star, CheckCircle, User as UserIcon, Users, MapPin, Phone, MessageCircle } from "lucide-react";
 import StandardPage from "@/components/layouts/StandardPage";
 import { BackButton } from "@/components/BackButton";
 
@@ -34,7 +34,7 @@ const ClientHowItWorks = () => {
       step: 3,
       title: "Attend Your Session",
       description: "Meet with your healthcare professional at their practice location",
-      icon: User,
+      icon: User as UserIcon,
       details: [
         "In-person treatment sessions",
         "Professional treatment room environment",
@@ -166,7 +166,7 @@ const ClientHowItWorks = () => {
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {specialties.map((specialty, index) => (
-                <Card key={index} className="text-center hover:shadow-md transition-shadow cursor-pointer">
+                <Card key={index} className="text-center transition-[border-color,background-color] duration-200 ease-out cursor-pointer">
                   <CardContent className="p-4">
                     <h3 className="font-medium text-sm">{specialty}</h3>
                   </CardContent>
@@ -250,7 +250,7 @@ const ClientHowItWorks = () => {
               <Card>
                 <CardHeader className="text-center">
                   <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <User className="h-8 w-8 text-primary" />
+                    <UserIcon className="h-8 w-8 text-primary" />
                   </div>
                   <CardTitle>3. Start Your Journey</CardTitle>
                 </CardHeader>
@@ -314,7 +314,7 @@ const ClientHowItWorks = () => {
               <Card className="h-full">
                 <CardHeader className="text-center">
                   <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <User className="h-8 w-8 text-primary" />
+                    <UserIcon className="h-8 w-8 text-primary" />
                   </div>
                                      <CardTitle className="text-xl">For Healthcare Clients</CardTitle>
                    <CardDescription>
@@ -386,3 +386,6 @@ const ClientHowItWorks = () => {
 };
 
 export default ClientHowItWorks;
+
+
+

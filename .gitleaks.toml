@@ -1,0 +1,59 @@
+# Gitleaks Configuration
+# Secret scanning for Cyber Essentials Plus compliance
+# Reference: https://github.com/gitleaks/gitleaks
+
+title = "Theramate Secret Scanning"
+
+[extend]
+# Use default Gitleaks rules
+useDefault = true
+
+[allowlist]
+description = "Allowlist for false positives"
+paths = [
+  '''\.example$''',
+  '''\.sample$''',
+  '''\.template$''',
+  '''package-lock\.json$''',
+  '''yarn\.lock$''',
+  '''pnpm-lock\.yaml$''',
+]
+
+commits = [
+  # Allow commits that only remove secrets
+  '''^[a-f0-9]+ Remove.*secret''',
+  '''^[a-f0-9]+ Delete.*key''',
+]
+
+regexes = [
+  '''example.*key''',
+  '''test.*secret''',
+  '''sample.*token''',
+]
+
+[rules]
+# Custom rules for Theramate-specific patterns
+id = "theramate-api-key"
+description = "Theramate API keys"
+regex = '''(?i)(theramate|thera).*api.*key['":\s]*[=:]\s*['"]?[a-zA-Z0-9]{32,}['"]?'''
+tags = ["api-key", "theramate"]
+
+id = "supabase-service-role-key"
+description = "Supabase service role keys"
+regex = '''eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+'''
+tags = ["supabase", "jwt"]
+# Allowlist for public anon keys (they're meant to be public)
+allowlist = [
+  '''VITE_SUPABASE_ANON_KEY''',
+  '''SUPABASE_ANON_KEY''',
+]
+
+id = "stripe-secret-key"
+description = "Stripe secret keys"
+regex = '''sk_(live|test)_[a-zA-Z0-9]{32,}'''
+tags = ["stripe", "payment"]
+
+id = "resend-api-key"
+description = "Resend API keys"
+regex = '''re_[a-zA-Z0-9]{32,}'''
+tags = ["resend", "email"]

@@ -293,7 +293,7 @@ export const CommunityForum: React.FC<CommunityForumProps> = ({
       {/* Posts List */}
       <div className="space-y-4">
         {sortedPosts.map(post => (
-          <Card key={post.id} className="hover:shadow-md transition-shadow">
+          <Card key={post.id} className="transition-[border-color,background-color] duration-200 ease-out">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-3">

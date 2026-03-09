@@ -1,0 +1,75 @@
+---
+description: Agent must operate logically without assumptions; verify before acting, cite sources, plan first.
+type: Always
+alwaysApply: true
+---
+
+# Agent: Logical Operation Without Assumptions
+
+Follow these rules on every task. Do not skip steps or infer facts from "typical" setups.
+
+---
+
+## 1. Verify Before Acting
+
+- **Do not assume** framework, runtime, DB schema, env vars, or existing APIs. **Read the codebase** (or use MCP/DB tools) and state what you verified.
+- Before changing behavior of any feature:
+  - Identify the relevant files (routes, handlers, schema, types).
+  - Read the current implementation and any constraints (e.g. DB CHECK on `subscriptions.status`).
+  - State in brief what you checked (e.g. "Confirmed `subscriptions` has status CHECK (active, cancelled, past_due, unpaid); webhook used 'canceled' — fixed to 'cancelled'.").
+- When using external docs (Stripe, Supabase): **cite the doc** (e.g. "Per Stripe Billing quickstart: 'verify that the subscription status is active'") when your implementation depends on it.
+
+---
+
+## 2. Do Not Assume — State What You Checked
+
+- **Stack / runtime:** Confirm from `package.json`, config files, or existing routes (e.g. Vite not Next.js, Edge Functions not Express) before suggesting or writing code.
+- **Database:** For any table or column you rely on, confirm it exists and its constraints (e.g. `information_schema.columns`, `pg_constraint`, or Supabase MCP). Do not assume column names or allowed values.
+- **Env / secrets:** Do not assume env var names or presence; if the task depends on them, list what is needed or read from existing code that uses them.
+- **APIs / routes:** Do not assume endpoint paths or request shapes; read the existing handler or client calls.
+
+When you cannot verify (e.g. no access to live DB): **say so** and list what would need to be verified, or ask the user to confirm.
+
+---
+
+## 3. Plan or Checklist Before Large Changes
+
+- For any change that touches **multiple files or flows** (e.g. subscription security, new feature):
+  - **First:** Produce a short step-by-step plan or checklist (what will be read, what will be changed, in what order).
+  - **Then:** Execute and tick off each step; if a step reveals an assumption (e.g. schema differs), stop and correct the plan or ask before continuing.
+- Do not implement a large refactor or new flow in one go without a visible plan.
+
+---
+
+## 4. Scope and Sources of Truth
+
+- **Stick to the user’s scope.** If they ask to "fix the back-button bypass," do not add unrelated refactors, new features, or RLS on every table unless they ask. If you suggest defense-in-depth, label it clearly as optional.
+- **Project sources of truth:**
+  - **Stack / build:** `package.json`, Vite/config in this repo (React + Vite + Supabase Edge Functions).
+  - **Schema / state:** Supabase (migrations, MCP, or `types.ts` generated from DB). When docs and project code conflict, **follow project code** unless the user says otherwise.
+  - **Subscription entitlement:** Only the Stripe webhook updates `subscriptions`; access is determined by DB state (e.g. `status IN ('active','trialing')`), not success URL or client state.
+
+---
+
+## 5. When in Doubt, Ask or Cite
+
+- If a single clarifying question would prevent a wrong change (e.g. "Should upgrade/downgrade also go through subscription-success, or only initial checkout?"), **ask in one sentence** instead of guessing.
+- When you make a design choice (e.g. "Portal return URL stays /settings/subscription so upgrade/downgrade is unchanged"), **state it** so the user can correct if wrong.
+
+---
+
+## 6. After Making Changes
+
+- **Lint:** Run `read_lints` on edited files and fix introduced issues.
+- **Consistency:** If you add a pattern (e.g. a new rule or helper), use the same pattern elsewhere in the same task where it applies; do not leave half-updated call sites.
+
+---
+
+## Summary Checklist (use mentally on every task)
+
+- [ ] Verified relevant code/schema/config before writing (not assumed).
+- [ ] Stated what was checked or cited (doc/code) where it affects behavior.
+- [ ] For multi-file or flow changes: had a plan/checklist, then executed it.
+- [ ] Stayed in scope; optional extras clearly marked.
+- [ ] When uncertain, asked one short question or stated the choice instead of guessing.
+- [ ] Ran lints on edited files and fixed new issues.

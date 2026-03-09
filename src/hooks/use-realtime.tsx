@@ -16,33 +16,85 @@ export function useRealtimeSubscription(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const subscriptionRef = useRef<RealtimeSubscription | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const callbackRef = useRef(callback); // ✅ Use ref for callback
+
+  // Update callback ref when it changes
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
-    // Initial data fetch
-    const fetchData = async () => {
+    // Skip if already retrying or too many retries
+    if (isRetrying || retryCount > 3) {
+      console.log('⏸️ Skipping realtime subscription - too many retries');
+      return;
+    }
+    
+    // Add exponential backoff: 1s, 2s, 4s, 8s
+    const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 8000);
+    
+    const timer = setTimeout(() => {
+      // Initial data fetch
+      const fetchData = async () => {
       try {
         setLoading(true);
         let query = supabase.from(table).select('*');
         
         if (filter) {
-          query = query.eq(filter.split('=')[0], filter.split('=')[1]);
+          // Parse filter correctly - handle both simple and complex filters
+          if (filter.includes('=eq.')) {
+            // Handle Supabase filter format: "user_id=eq.userId"
+            const [column, value] = filter.split('=eq.');
+            query = query.eq(column, value);
+          } else if (filter.includes('=')) {
+            // Handle simple format: "user_id=userId"
+            const [column, value] = filter.split('=');
+            query = query.eq(column, value);
+          }
         }
         
         const { data: initialData, error: fetchError } = await query;
         
         if (fetchError) {
+          console.log(`Table ${table} not found or error:`, fetchError.message);
           setError(fetchError.message);
+          setData([]); // Set empty array instead of crashing
+          
+          // Increment retry count for network errors
+          if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+            setIsRetrying(true);
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+              setIsRetrying(false);
+            }, backoffDelay);
+          }
         } else {
           setData(initialData || []);
+          setRetryCount(0); // Reset retry count on success
         }
       } catch (err) {
+        console.log(`Failed to fetch data from ${table}:`, err);
         setError('Failed to fetch data');
+        setData([]); // Set empty array instead of crashing
+        
+        // Increment retry count for network errors
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('ERR_INSUFFICIENT_RESOURCES')) {
+          setIsRetrying(true);
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+            setIsRetrying(false);
+          }, backoffDelay);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+    }, backoffDelay);
 
     // Set up real-time subscription
     const channel = supabase
@@ -58,8 +110,8 @@ export function useRealtimeSubscription(
         (payload) => {
           console.log('Realtime update:', payload);
           
-          if (callback) {
-            callback(payload);
+          if (callbackRef.current) { // ✅ Use ref instead of prop
+            callbackRef.current(payload);
           }
 
           // Update local data based on event type
@@ -89,11 +141,12 @@ export function useRealtimeSubscription(
     };
 
     return () => {
+      clearTimeout(timer);
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
       }
     };
-  }, [table, filter, callback]);
+  }, [table, filter, retryCount]);
 
   return { data, loading, error };
 }
@@ -159,27 +212,35 @@ export function useRealtimeNotifications(userId?: string) {
   useEffect(() => {
     if (!userId) return;
 
-    // Fetch initial notifications
+    // Fetch initial notifications - using correct schema (recipient_id, read_at, body)
     const fetchNotifications = async () => {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', userId)
-        .eq('read', false)
-        .order('created_at', { ascending: false });
+        .eq('recipient_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) {
         console.error('Error fetching notifications:', error);
         return;
       }
 
-      setNotifications(data || []);
-      setUnreadCount(data?.length || 0);
+      // Transform to include computed read status and message alias
+      const transformed = (data || []).map(notif => ({
+        ...notif,
+        read: notif.read_at !== null,
+        message: notif.body,
+        user_id: notif.recipient_id // Keep for backward compatibility
+      }));
+
+      setNotifications(transformed);
+      setUnreadCount(transformed.filter(n => !n.read).length);
     };
 
     fetchNotifications();
 
-    // Set up real-time subscription for notifications
+    // Set up real-time subscription for notifications - using correct filter
     const channel = supabase
       .channel(`notifications_${userId}`)
       .on(
@@ -188,11 +249,49 @@ export function useRealtimeNotifications(userId?: string) {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${userId}`
+          filter: `recipient_id=eq.${userId}`
         },
         (payload) => {
-          setNotifications(prev => [payload.new, ...prev]);
-          setUnreadCount(prev => prev + 1);
+          const newNotif = {
+            ...payload.new,
+            read: payload.new.read_at !== null,
+            message: payload.new.body,
+            user_id: payload.new.recipient_id
+          };
+          setNotifications(prev => [newNotif, ...prev]);
+          if (!newNotif.read) {
+            setUnreadCount(prev => prev + 1);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${userId}`
+        },
+        (payload) => {
+          const updatedNotif = {
+            ...payload.new,
+            read: payload.new.read_at !== null,
+            message: payload.new.body,
+            user_id: payload.new.recipient_id
+          };
+          setNotifications(prev => 
+            prev.map(notif => 
+              notif.id === updatedNotif.id ? updatedNotif : notif
+            )
+          );
+          // Update unread count
+          const wasRead = payload.old.read_at !== null;
+          const isRead = updatedNotif.read;
+          if (!wasRead && isRead) {
+            setUnreadCount(prev => Math.max(0, prev - 1));
+          } else if (wasRead && !isRead) {
+            setUnreadCount(prev => prev + 1);
+          }
         }
       )
       .subscribe();
@@ -203,33 +302,56 @@ export function useRealtimeNotifications(userId?: string) {
   }, [userId]);
 
   const markAsRead = async (notificationId: string) => {
+    // Use RPC function or update read_at directly
     const { error } = await supabase
       .from('notifications')
-      .update({ read: true })
+      .update({ read_at: new Date().toISOString() })
       .eq('id', notificationId);
 
     if (!error) {
       setNotifications(prev => 
         prev.map(notif => 
-          notif.id === notificationId ? { ...notif, read: true } : notif
+          notif.id === notificationId 
+            ? { ...notif, read: true, read_at: new Date().toISOString() }
+            : notif
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+    } else {
+      console.error('Error marking notification as read:', error);
     }
   };
 
   const markAllAsRead = async () => {
-    const { error } = await supabase
+    if (!userId) return;
+
+    // Use RPC function for better performance
+    const { data: unreadNotifications, error: fetchError } = await supabase
       .from('notifications')
-      .update({ read: true })
-      .eq('user_id', userId)
-      .eq('read', false);
+      .select('id')
+      .eq('recipient_id', userId)
+      .is('read_at', null);
+
+    if (fetchError || !unreadNotifications || unreadNotifications.length === 0) {
+      return;
+    }
+
+    const notificationIds = unreadNotifications.map(n => n.id);
+    const { error } = await supabase.rpc('mark_notifications_read', {
+      p_ids: notificationIds
+    });
 
     if (!error) {
       setNotifications(prev => 
-        prev.map(notif => ({ ...notif, read: true }))
+        prev.map(notif => ({ 
+          ...notif, 
+          read: true,
+          read_at: new Date().toISOString()
+        }))
       );
       setUnreadCount(0);
+    } else {
+      console.error('Error marking all notifications as read:', error);
     }
   };
 

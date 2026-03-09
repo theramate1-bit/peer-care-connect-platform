@@ -26,9 +26,45 @@ export interface CreditRate {
   is_active: boolean;
 }
 
+/**
+ * CreditManager - Handles all credit-related operations
+ * 
+ * Credits are a currency system for practitioners to exchange treatments.
+ * Only practitioners can earn and spend credits. Clients pay with real money.
+ * 
+ * Key concepts:
+ * - Credits are earned by providing treatments (1 credit per booking)
+ * - Credits are spent to receive treatments from other practitioners
+ * - All credit transactions are recorded for audit purposes
+ * 
+ * @example
+ * ```typescript
+ * // Get balance
+ * const balance = await CreditManager.getBalance(userId);
+ * 
+ * // Earn credits
+ * await CreditManager.earnCredits(userId, 1, sessionId);
+ * 
+ * // Spend credits
+ * await CreditManager.spendCredits(userId, 5, sessionId);
+ * ```
+ */
 export class CreditManager {
   /**
-   * Get user's current credit balance (PRACTITIONERS ONLY)
+   * Get user's current credit balance
+   * 
+   * IMPORTANT: Only practitioners can have credits. Clients pay with real money.
+   * 
+   * @param userId - The user ID to check balance for
+   * @returns Current credit balance (0 if user is not a practitioner or has no credits)
+   * 
+   * @example
+   * ```typescript
+   * const balance = await CreditManager.getBalance('user-123');
+   * if (balance >= 5) {
+   *   // User has enough credits
+   * }
+   * ```
    */
   static async getBalance(userId: string): Promise<number> {
     try {
@@ -59,7 +95,18 @@ export class CreditManager {
         return 0;
       }
 
-      return data || 0;
+      // get_credit_balance returns a table (array of objects), extract the balance
+      if (Array.isArray(data) && data.length > 0) {
+        // Use balance field, fallback to current_balance if balance doesn't exist
+        return data[0].balance ?? data[0].current_balance ?? 0;
+      }
+
+      // If data is already a number (shouldn't happen, but handle gracefully)
+      if (typeof data === 'number') {
+        return data;
+      }
+
+      return 0;
     } catch (error) {
       console.error('Error getting credit balance:', error);
       return 0;
@@ -67,7 +114,43 @@ export class CreditManager {
   }
 
   /**
-   * Update credit balance (earn or spend)
+   * Update credit balance (earn or spend credits)
+   * 
+   * This is the core function for all credit transactions. It:
+   * 1. Validates the transaction
+   * 2. Updates the balance in the database
+   * 3. Creates a transaction record for audit
+   * 
+   * @param userId - User ID to update balance for
+   * @param amount - Amount to add (positive) or subtract (negative)
+   * @param transactionType - Type of transaction: 'earn', 'spend', 'purchase', 'refund', 'transfer'
+   * @param description - Optional description of the transaction
+   * @param referenceId - Optional ID linking to related record (e.g., session_id)
+   * @param referenceType - Optional type of reference (e.g., 'session', 'purchase')
+   * @returns Transaction ID if successful, null if error
+   * 
+   * @example
+   * ```typescript
+   * // Earn 1 credit for providing a treatment
+   * await CreditManager.updateBalance(
+   *   userId,
+   *   1,
+   *   'earn',
+   *   'Completed patient booking',
+   *   sessionId,
+   *   'session'
+   * );
+   * 
+   * // Spend 5 credits to receive treatment
+   * await CreditManager.updateBalance(
+   *   userId,
+   *   -5,
+   *   'spend',
+   *   'Booked treatment session',
+   *   sessionId,
+   *   'session'
+   * );
+   * ```
    */
   static async updateBalance(
     userId: string,
@@ -102,6 +185,26 @@ export class CreditManager {
 
   /**
    * Earn credits for providing a service
+   * 
+   * Practitioners earn 1 credit for each patient booking they complete,
+   * regardless of service type or duration.
+   * 
+   * @param userId - Practitioner user ID
+   * @param amount - Number of credits to earn (typically 1)
+   * @param sessionId - Session ID this credit is for
+   * @param description - Optional custom description
+   * @returns Transaction ID if successful
+   * 
+   * @example
+   * ```typescript
+   * // Earn 1 credit after completing a session
+   * await CreditManager.earnCredits(
+   *   practitionerId,
+   *   1,
+   *   sessionId,
+   *   'Completed 60-minute massage session'
+   * );
+   * ```
    */
   static async earnCredits(
     userId: string,
@@ -120,7 +223,27 @@ export class CreditManager {
   }
 
   /**
-   * Spend credits for booking a service
+   * Spend credits to book a treatment from another practitioner
+   * 
+   * Credits are deducted when a practitioner books a treatment exchange.
+   * The amount depends on the service duration (1 credit per minute).
+   * 
+   * @param userId - Practitioner user ID spending credits
+   * @param amount - Number of credits to spend
+   * @param sessionId - Session ID this credit is for
+   * @param description - Optional custom description
+   * @returns Transaction ID if successful
+   * 
+   * @example
+   * ```typescript
+   * // Spend 60 credits for a 60-minute session
+   * await CreditManager.spendCredits(
+   *   practitionerId,
+   *   60,
+   *   sessionId,
+   *   'Booked 60-minute osteopathy session'
+   * );
+   * ```
    */
   static async spendCredits(
     userId: string,
@@ -239,30 +362,14 @@ export class CreditManager {
 
   /**
    * Get credit earned for a specific service
+   * NEW SYSTEM: 1 credit per patient booking (regardless of service type or duration)
    */
   static async getCreditEarned(
     serviceType: string,
     durationMinutes: number
   ): Promise<number> {
-    try {
-      const { data, error } = await supabase
-        .from('credit_rates')
-        .select('credit_earned')
-        .eq('service_type', serviceType)
-        .eq('duration_minutes', durationMinutes)
-        .eq('is_active', true)
-        .single();
-
-      if (error) {
-        console.error('Error getting credit earned:', error);
-        return 0;
-      }
-
-      return data?.credit_earned || 0;
-    } catch (error) {
-      console.error('Error getting credit earned:', error);
-      return 0;
-    }
+    // Fixed: 1 credit per patient booking
+    return 1;
   }
 
   /**
@@ -277,8 +384,33 @@ export class CreditManager {
   }
 
   /**
-   * Process session credit transactions (PRACTITIONERS ONLY)
-   * Clients pay with real money, practitioners earn credits
+   * Process credit transactions for a completed session
+   * 
+   * This handles the credit flow when a session is completed:
+   * - Practitioner earns 1 credit (regardless of service type/duration)
+   * - Client pays with real money (no credits involved)
+   * 
+   * NEW SYSTEM: Fixed at 1 credit per patient booking
+   * 
+   * @param sessionId - The completed session ID
+   * @param clientId - Client user ID (for reference, doesn't affect credits)
+   * @param practitionerId - Practitioner user ID who earns the credit
+   * @param serviceType - Type of service provided (for reference)
+   * @param durationMinutes - Session duration (for reference)
+   * @returns Object with practitioner transaction ID
+   * 
+   * @example
+   * ```typescript
+   * // After a session is completed
+   * const result = await CreditManager.processSessionCredits(
+   *   sessionId,
+   *   clientId,
+   *   practitionerId,
+   *   'massage',
+   *   60
+   * );
+   * // Practitioner earns 1 credit automatically
+   * ```
    */
   static async processSessionCredits(
     sessionId: string,
@@ -288,19 +420,15 @@ export class CreditManager {
     durationMinutes: number
   ): Promise<{ practitionerTransactionId: string }> {
     try {
-      // Get credit earned for practitioner
-      const creditEarned = await this.getCreditEarned(serviceType, durationMinutes);
-
-      if (creditEarned === 0) {
-        throw new Error('Invalid credit rates for service');
-      }
+      // NEW SYSTEM: 1 credit per patient booking (regardless of service type or duration)
+      const creditEarned = 1;
 
       // Only practitioners earn credits - clients pay with real money
       const practitionerTransactionId = await this.earnCredits(
         practitionerId,
         creditEarned,
         sessionId,
-        `Provided ${serviceType} session (${durationMinutes}min)`
+        `Completed patient booking - 1 credit per booking`
       );
 
       return {

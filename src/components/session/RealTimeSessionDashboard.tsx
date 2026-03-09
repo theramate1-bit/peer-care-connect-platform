@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Clock, 
-  User, 
+  User as UserIcon, 
   Calendar, 
   Play, 
   Pause, 
@@ -146,7 +146,11 @@ export const RealTimeSessionDashboard: React.FC = () => {
   };
 
   const formatTime = (timeString: string) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString([], { 
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = timeString.includes(':') && timeString.split(':').length === 3
+      ? timeString.substring(0, 5)
+      : timeString;
+    return new Date(`2000-01-01T${timeWithoutSeconds}`).toLocaleTimeString([], { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
@@ -276,3 +280,6 @@ export const RealTimeSessionDashboard: React.FC = () => {
     </div>
   );
 };
+
+
+

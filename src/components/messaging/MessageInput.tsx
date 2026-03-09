@@ -5,11 +5,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Send, 
-  Paperclip, 
-  Image as ImageIcon, 
+  Image as ImageIcon,
   FileText, 
   X, 
-  Smile,
   Reply,
   Shield,
   AlertTriangle
@@ -54,8 +52,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Utility functions for file security
   const generateFileHash = async (file: File): Promise<string> => {
@@ -79,9 +75,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const uploadFileToStorage = async (file: File, attachmentId: string): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${attachmentId}.${fileExt}`;
-    const filePath = `secure-messages/${conversationId}/${fileName}`;
+    // Sanitize file name and path to prevent path traversal
+    const sanitizedFileName = sanitizeFileName(file.name);
+    const fileExt = sanitizedFileName.split('.').pop() || 'bin';
+    const sanitizedAttachmentId = sanitizePathSegment(attachmentId);
+    const sanitizedConversationId = sanitizePathSegment(conversationId);
+    const fileName = `${sanitizedAttachmentId}.${fileExt}`;
+    const filePath = `secure-messages/${sanitizedConversationId}/${fileName}`;
 
     const { data, error } = await supabase.storage
       .from('message-attachments')
@@ -105,7 +105,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       const encryptedContent = message.trim();
       const contentHash = btoa(encryptedContent); // Simple hash for demo
 
-      // Insert the message
+      // Insert the message (using direct insert to support reply_to_message_id and attachments)
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
@@ -120,6 +120,38 @@ const MessageInput: React.FC<MessageInputProps> = ({
         .single();
 
       if (messageError) throw messageError;
+
+      // Create notification for recipient (if not a system message)
+      try {
+        const { NotificationSystem } = await import('@/lib/notification-system');
+        
+        // Get recipient ID from conversation
+        const { data: conversation } = await supabase
+          .from('conversations')
+          .select('participant1_id, participant2_id')
+          .eq('id', conversationId)
+          .single();
+
+        if (conversation) {
+          const recipientId = conversation.participant1_id === user.id 
+            ? conversation.participant2_id 
+            : conversation.participant1_id;
+
+          if (recipientId) {
+            const messagePreview = encryptedContent.trim() || (attachments.length > 0 ? 'Sent an attachment' : 'New message');
+            await NotificationSystem.sendMessageNotification(
+              conversationId,
+              messageData.id,
+              user.id,
+              recipientId,
+              messagePreview
+            );
+          }
+        }
+      } catch (notifError) {
+        // Don't block message sending if notification fails
+        console.error('Error creating notification:', notifError);
+      }
 
       // Handle file attachments if any
       if (attachments.length > 0 && messageData) {
@@ -419,56 +451,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
             disabled={isSending}
           />
           
-          {/* Attachment buttons */}
-          <div className="flex items-center space-x-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.doc,.docx,.txt,.zip,.rar"
-              onChange={(e) => handleFileSelect(e.target.files)}
-              className="hidden"
-            />
-            <input
-              ref={imageInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(e) => handleFileSelect(e.target.files)}
-              className="hidden"
-            />
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={isSending}
-              className="h-8 px-2"
-            >
-              <ImageIcon className="w-4 h-4 mr-1" />
-              Image
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSending}
-              className="h-8 px-2"
-            >
-              <Paperclip className="w-4 h-4 mr-1" />
-              File
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isSending}
-              className="h-8 px-2"
-            >
-              <Smile className="w-4 h-4" />
-            </Button>
-          </div>
         </div>
         
         <Button

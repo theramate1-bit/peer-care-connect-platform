@@ -12,7 +12,7 @@ import {
   Filter, 
   Calendar,
   Clock,
-  User,
+  User as UserIcon,
   Stethoscope,
   Play,
   Pause,
@@ -31,6 +31,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LiveSOAPNotes } from './LiveSOAPNotes';
 import { SOAPNotesTemplate } from './SOAPNotesTemplate';
 import { SOAPNotesViewer } from './SOAPNotesViewer';
+import { SOAPNoteDocumentView } from './SOAPNoteDocumentView';
 
 interface SOAPSession {
   id: string;
@@ -161,7 +162,11 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
 
   const handleSessionSelect = (session: SOAPSession) => {
     setSelectedSession(session);
-    setActiveTab('view');
+    if (session.status === 'completed') {
+      setActiveTab('document-view');
+    } else {
+      setActiveTab('view');
+    }
   };
 
   const handleCreateNew = () => {
@@ -170,13 +175,11 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
     setActiveTab('live');
   };
 
-  const handleSaveSOAP = async (soapData: any) => {
+  const handleSaveSOAP = async (soapData: any, status?: 'draft' | 'completed' | 'archived') => {
     try {
       if (selectedSession) {
         // Update existing session
-        const { error } = await supabase
-          .from('session_recordings')
-          .update({
+        const updateData: any = {
             soap_subjective: soapData.subjective,
             soap_objective: soapData.objective,
             soap_assessment: soapData.assessment,
@@ -184,11 +187,30 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
             chief_complaint: soapData.chief_complaint,
             session_notes: soapData.session_notes,
             updated_at: new Date().toISOString()
-          })
+        };
+
+        if (status) {
+            updateData.status = status;
+        }
+
+        const { error } = await supabase
+          .from('session_recordings')
+          .update(updateData)
           .eq('id', selectedSession.id);
 
         if (error) throw error;
-        toast.success('SOAP notes updated successfully');
+        
+        if (status === 'completed') {
+            toast.success('SOAP notes completed and locked');
+            // Update local state to reflect change immediately
+            if (selectedSession) {
+                const updatedSession = { ...selectedSession, status: 'completed' as const, ...updateData };
+                setSelectedSession(updatedSession);
+                setActiveTab('document-view');
+            }
+        } else {
+            toast.success('SOAP notes updated successfully');
+        }
       } else {
         // Create new session
         const { error } = await supabase
@@ -203,7 +225,7 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
             soap_plan: soapData.plan,
             chief_complaint: soapData.chief_complaint,
             session_notes: soapData.session_notes,
-            status: 'draft'
+            status: status || 'draft'
           });
 
         if (error) throw error;
@@ -350,12 +372,24 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-4 hidden">
+          {/* Hidden tabs list because we manage navigation manually mostly, but keeping structure for now if needed */}
           <TabsTrigger value="live">Live Recording</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="view">View Notes</TabsTrigger>
           <TabsTrigger value="history">Session History</TabsTrigger>
+          <TabsTrigger value="document-view">Document View</TabsTrigger>
         </TabsList>
+        
+        {/* Visible Tab Navigation for non-document views */}
+        {activeTab !== 'document-view' && (
+            <TabsList className="grid w-full grid-cols-4 mb-6">
+            <TabsTrigger value="live">Live Recording</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="view">View Notes</TabsTrigger>
+            <TabsTrigger value="history">Session History</TabsTrigger>
+            </TabsList>
+        )}
 
         {/* Live Recording Tab */}
         <TabsContent value="live" className="space-y-6">
@@ -365,6 +399,7 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
               clientName={selectedSession?.client_name || 'New Client'}
               clientId={selectedSession?.client_id || clientId || user?.id || ''}
               onSave={handleSaveSOAP}
+              isCompleted={selectedSession?.status === 'completed'}
             />
           ) : (
             <Card>
@@ -389,6 +424,7 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
             therapyType={selectedSession?.therapy_type}
             clientName={selectedSession?.client_name}
             onSave={handleSaveSOAP}
+            isCompleted={selectedSession?.status === 'completed'}
           />
         </TabsContent>
 
@@ -521,32 +557,39 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
                               e.stopPropagation();
                               handleSessionSelect(session);
                             }}
+                            title="View Notes"
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
                           
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSessionSelect(session);
-                              setActiveTab('live');
-                            }}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSession(session.id);
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {session.status !== 'completed' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSessionSelect(session);
+                                  setActiveTab('live');
+                                }}
+                                title="Edit Notes"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(session.id);
+                                }}
+                                title="Delete Session"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -556,7 +599,22 @@ export const SOAPNotesDashboard: React.FC<SOAPNotesDashboardProps> = ({
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="document-view" className="space-y-6">
+            {selectedSession ? (
+                <SOAPNoteDocumentView 
+                    session={selectedSession}
+                    onBack={() => setActiveTab('history')}
+                />
+            ) : (
+                <div className="flex items-center justify-center h-64">
+                    <p className="text-muted-foreground">No session selected</p>
+                </div>
+            )}
+        </TabsContent>
       </Tabs>
     </div>
   );
 };
+
+
+

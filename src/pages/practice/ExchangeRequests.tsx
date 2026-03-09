@@ -20,11 +20,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { TreatmentExchangeService, ExchangeRequest } from '@/lib/treatment-exchange';
+import { ExchangeAcceptanceModal } from '@/components/treatment-exchange/ExchangeAcceptanceModal';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 
 const ExchangeRequests: React.FC = () => {
   const { userProfile } = useAuth();
+  const [searchParams] = useSearchParams();
   const [requests, setRequests] = useState<{
     sent: ExchangeRequest[];
     received: ExchangeRequest[];
@@ -33,14 +36,31 @@ const ExchangeRequests: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'sent' | 'received'>('received');
   const [selectedRequest, setSelectedRequest] = useState<ExchangeRequest | null>(null);
   const [showResponseModal, setShowResponseModal] = useState(false);
+  const [showAcceptanceModal, setShowAcceptanceModal] = useState(false);
   const [responseNotes, setResponseNotes] = useState('');
   const [responding, setResponding] = useState(false);
+  const focusedRequestId = searchParams.get('request');
 
   useEffect(() => {
     if (userProfile) {
       loadRequests();
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    if (!focusedRequestId) return;
+    const inReceived = requests.received.find((request) => request.id === focusedRequestId);
+    const inSent = requests.sent.find((request) => request.id === focusedRequestId);
+    if (inReceived) {
+      setActiveTab('received');
+      setSelectedRequest(inReceived);
+      return;
+    }
+    if (inSent) {
+      setActiveTab('sent');
+      setSelectedRequest(inSent);
+    }
+  }, [focusedRequestId, requests]);
 
   const loadRequests = async () => {
     try {
@@ -55,28 +75,19 @@ const ExchangeRequests: React.FC = () => {
     }
   };
 
-  const handleAcceptRequest = async () => {
+  const handleAcceptRequest = () => {
     if (!selectedRequest) return;
 
-    try {
-      setResponding(true);
-      await TreatmentExchangeService.acceptExchangeRequest(
-        selectedRequest.id,
-        userProfile?.id!,
-        responseNotes
-      );
-      
-      toast.success('Exchange request accepted!');
+    // Close the response modal and show the acceptance modal with service selection
       setShowResponseModal(false);
+    setShowAcceptanceModal(true);
+  };
+
+  const handleExchangeAccepted = async () => {
+    setShowAcceptanceModal(false);
       setSelectedRequest(null);
       setResponseNotes('');
-      loadRequests();
-    } catch (error) {
-      console.error('Error accepting request:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to accept request');
-    } finally {
-      setResponding(false);
-    }
+    await loadRequests();
   };
 
   const handleDeclineRequest = async () => {
@@ -186,7 +197,7 @@ const ExchangeRequests: React.FC = () => {
           const isRequestExpired = isExpired(request.expires_at);
           
           return (
-            <Card key={request.id} className="hover:shadow-lg transition-shadow">
+            <Card key={request.id} className={`transition-[border-color,background-color] duration-200 ease-out ${focusedRequestId === request.id ? 'ring-2 ring-primary/40' : ''}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
@@ -229,7 +240,7 @@ const ExchangeRequests: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span>{format(new Date(request.requested_session_date), 'MMM dd, yyyy')}</span>
@@ -267,17 +278,29 @@ const ExchangeRequests: React.FC = () => {
 
                 {/* Action Buttons */}
                 {activeTab === 'received' && request.status === 'pending' && !isRequestExpired && (
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <Button
+                      onClick={() => {
+                        setSelectedRequest(request);
+                        setShowAcceptanceModal(true);
+                      }}
+                      size="sm"
+                      className="w-full sm:flex-1"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Accept
+                    </Button>
                     <Button
                       onClick={() => {
                         setSelectedRequest(request);
                         setShowResponseModal(true);
                       }}
                       size="sm"
-                      className="flex-1"
+                      variant="outline"
+                      className="w-full sm:flex-1"
                     >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Respond
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Decline
                     </Button>
                   </div>
                 )}
@@ -313,8 +336,8 @@ const ExchangeRequests: React.FC = () => {
 
       {/* Response Modal */}
       {showResponseModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <Card className="w-full max-w-md mt-2 sm:mt-0">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Respond to Request</CardTitle>
@@ -342,12 +365,12 @@ const ExchangeRequests: React.FC = () => {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={handleDeclineRequest}
                   disabled={responding}
-                  className="flex-1"
+                  className="w-full sm:flex-1"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Decline
@@ -355,7 +378,7 @@ const ExchangeRequests: React.FC = () => {
                 <Button
                   onClick={handleAcceptRequest}
                   disabled={responding}
-                  className="flex-1"
+                  className="w-full sm:flex-1"
                 >
                   {responding ? (
                     <>
@@ -373,6 +396,28 @@ const ExchangeRequests: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Exchange Acceptance Modal with Service Selection */}
+      {selectedRequest && selectedRequest.status === 'pending' && selectedRequest.requester_id && userProfile?.id && (
+        <ExchangeAcceptanceModal
+          open={showAcceptanceModal}
+          onOpenChange={(open) => {
+            console.log('🔍 Modal onOpenChange called:', open);
+            setShowAcceptanceModal(open);
+            if (!open) {
+              setSelectedRequest(null);
+            }
+          }}
+          requestId={selectedRequest.id}
+          requesterId={selectedRequest.requester_id}
+          requesterName={selectedRequest.requester ? `${selectedRequest.requester.first_name || ''} ${selectedRequest.requester.last_name || ''}`.trim() : 'Practitioner'}
+          requestedSessionDate={selectedRequest.requested_session_date}
+          requestedStartTime={selectedRequest.requested_start_time}
+          requestedDuration={selectedRequest.duration_minutes || 60}
+          recipientId={userProfile.id}
+          onAccepted={handleExchangeAccepted}
+        />
       )}
     </div>
   );

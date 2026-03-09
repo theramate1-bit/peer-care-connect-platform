@@ -1,5 +1,5 @@
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { HeaderClean } from "@/components/landing/HeaderClean";
+import { FooterClean } from "@/components/FooterClean";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,10 +210,10 @@ const HelpCentre = () => {
           ]
         }}
       />
-      <div className="min-h-screen bg-background">
-        <Header />
+      <div className="min-h-screen bg-white dark:bg-slate-950">
+        <HeaderClean />
       
-      <div className="py-20">
+      <div className="py-20 mt-16">
         <div className="container mx-auto px-6">
           {/* Hero Section */}
           <div className="text-center mb-16">
@@ -276,7 +276,7 @@ const HelpCentre = () => {
                   {categories.map((category, index) => (
                     <Card 
                       key={index} 
-                      className="cursor-pointer hover:shadow-lg transition-shadow group"
+                      className="cursor-pointer transition-[border-color,background-color] duration-200 ease-out group"
                       onClick={() => {
                         // Show first article from this category
                         const categoryArticles = popularArticles.filter(article => 
@@ -318,7 +318,7 @@ const HelpCentre = () => {
                   {popularArticles.map((article, index) => (
                     <Card 
                       key={index} 
-                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      className="cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                       onClick={() => handleArticleClick(article.id || `article-${index}`)}
                     >
                       <CardContent className="p-6">
@@ -353,7 +353,7 @@ const HelpCentre = () => {
                 <h2 className="text-2xl font-bold mb-6">Recent Help Articles</h2>
                 <div className="space-y-4">
                   <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                     onClick={() => handleArticleClick("platform-setup")}
                   >
                     <CardContent className="p-6">
@@ -381,7 +381,7 @@ const HelpCentre = () => {
                   </Card>
                   
                   <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                     onClick={() => handleArticleClick("client-management")}
                   >
                     <CardContent className="p-6">
@@ -409,7 +409,7 @@ const HelpCentre = () => {
                   </Card>
                   
                   <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                     onClick={() => handleArticleClick("outcome-measurement")}
                   >
                     <CardContent className="p-6">
@@ -630,7 +630,7 @@ const HelpCentre = () => {
         </div>
       </div>
       
-      <Footer />
+      <FooterClean />
     </div>
     </>
   );

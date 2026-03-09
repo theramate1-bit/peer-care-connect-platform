@@ -22,24 +22,72 @@ const ResetPasswordConfirm = () => {
 
   useEffect(() => {
     const checkToken = async () => {
+      // First, check if we already have a valid session (set by UrlFragmentHandler)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        console.log('✅ Valid session found, allowing password reset');
+        setIsValidToken(true);
+        return;
+      }
+
       // Check for token_hash from route state (from RouteGuard)
       const token_hash = location.state?.token_hash;
       const type = location.state?.type;
       
-      // Check for access_token/refresh_token (from URL fragment)
-      const accessToken = searchParams.get('access_token');
-      const refreshToken = searchParams.get('refresh_token');
+      // Check for access_token/refresh_token in URL fragment (from hash)
+      const hash = window.location.hash;
+      let accessToken: string | null = null;
+      let refreshToken: string | null = null;
+      
+      if (hash) {
+        const urlParams = new URLSearchParams(hash.substring(1));
+        accessToken = urlParams.get('access_token');
+        refreshToken = urlParams.get('refresh_token');
+      }
+      
+      // Also check query parameters (fallback)
+      if (!accessToken) {
+        accessToken = searchParams.get('access_token');
+        refreshToken = searchParams.get('refresh_token');
+      }
       
       console.log('🔍 Checking reset tokens:', { 
         token_hash: !!token_hash, 
         type, 
         accessToken: !!accessToken, 
-        refreshToken: !!refreshToken 
+        refreshToken: !!refreshToken,
+        hasSession: !!session
       });
       
-      if (token_hash && type) {
-        // Handle password reset token hash
-        console.log('🔄 Processing password reset token hash...');
+      // Check for code parameter in query string (Supabase sends this format)
+      const codeParam = searchParams.get('code');
+      const typeParam = searchParams.get('type');
+      
+      if (codeParam && typeParam === 'recovery') {
+        // Handle password reset code from query string
+        console.log('🔄 Processing password reset code from query string...');
+        try {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: codeParam,
+            type: 'recovery'
+          });
+
+          if (error) {
+            console.error('❌ Token hash validation error:', error);
+            toast.error('Invalid or expired reset link. Please request a new one.');
+            navigate('/reset-password');
+          } else {
+            console.log('✅ Reset token hash validated successfully');
+            setIsValidToken(true);
+          }
+        } catch (error) {
+          console.error('❌ Token hash validation error:', error);
+          toast.error('Invalid or expired reset link. Please request a new one.');
+          navigate('/reset-password');
+        }
+      } else if (token_hash && type) {
+        // Handle password reset token hash from route state
+        console.log('🔄 Processing password reset token hash from state...');
         try {
           const { error } = await supabase.auth.verifyOtp({
             token_hash,
@@ -115,7 +163,12 @@ const ResetPasswordConfirm = () => {
         toast.error('Failed to update password. Please try again.');
       } else {
         console.log('✅ Password updated successfully');
-        toast.success('Password updated successfully! You can now sign in.');
+        
+        // Sign out user after password reset (security best practice)
+        // This ensures user must sign in with new password and prevents redirect loops
+        await supabase.auth.signOut();
+        
+        toast.success('Password updated successfully! Please sign in with your new password.');
         navigate('/login');
       }
     } catch (error) {

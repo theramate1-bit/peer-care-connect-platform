@@ -9,11 +9,40 @@ test.describe('Google OAuth Flows', () => {
       sessionStorage.clear();
       localStorage.clear();
     });
+    
+    // Dismiss cookie banner if it appears
+    try {
+      const cookieBanner = page.locator('text=Cookies & Privacy').first();
+      if (await cookieBanner.isVisible({ timeout: 2000 })) {
+        const acceptButton = page.locator('button:has-text("Accept all")').first();
+        if (await acceptButton.isVisible({ timeout: 1000 })) {
+          await acceptButton.click();
+          await page.waitForTimeout(500); // Wait for banner to disappear
+        }
+      }
+    } catch (error) {
+      // Cookie banner might not be present, continue with test
+      console.log('Cookie banner not found or already dismissed');
+    }
   });
 
   test.describe('Client OAuth Flow', () => {
     test('should display client Google OAuth button on register page', async ({ page }) => {
       await page.goto('/register');
+      
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
       
       // Check if client Google OAuth button exists
       const clientButton = page.locator('button:has-text("Continue with Google as Client")');
@@ -26,6 +55,20 @@ test.describe('Google OAuth Flows', () => {
 
     test('should set intendedRole to client when clicking client button', async ({ page }) => {
       await page.goto('/register');
+      
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
       
       // Click the client Google OAuth button
       const clientButton = page.locator('button:has-text("Continue with Google as Client")');
@@ -42,6 +85,20 @@ test.describe('Google OAuth Flows', () => {
     test('should display client Google OAuth button on login page', async ({ page }) => {
       await page.goto('/login');
       
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
+      
       // Check if client Google OAuth button exists
       const clientButton = page.locator('button:has-text("Continue with Google as Client")');
       await expect(clientButton).toBeVisible();
@@ -53,6 +110,20 @@ test.describe('Google OAuth Flows', () => {
 
     test('should set intendedRole to client when clicking client button on login', async ({ page }) => {
       await page.goto('/login');
+      
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
       
       // Click the client Google OAuth button
       const clientButton = page.locator('button:has-text("Continue with Google as Client")');
@@ -71,6 +142,20 @@ test.describe('Google OAuth Flows', () => {
     test('should display practitioner Google OAuth button on register page', async ({ page }) => {
       await page.goto('/register');
       
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
+      
       // Check if practitioner Google OAuth button exists
       const practitionerButton = page.locator('button:has-text("Continue with Google as Practitioner")');
       await expect(practitionerButton).toBeVisible();
@@ -78,6 +163,20 @@ test.describe('Google OAuth Flows', () => {
 
     test('should set intendedRole to practitioner when clicking practitioner button', async ({ page }) => {
       await page.goto('/register');
+      
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
       
       // Click the practitioner Google OAuth button
       const practitionerButton = page.locator('button:has-text("Continue with Google as Practitioner")');
@@ -94,6 +193,20 @@ test.describe('Google OAuth Flows', () => {
     test('should display practitioner Google OAuth button on login page', async ({ page }) => {
       await page.goto('/login');
       
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
+      
       // Check if practitioner Google OAuth button exists
       const practitionerButton = page.locator('button:has-text("Continue with Google as Practitioner")');
       await expect(practitionerButton).toBeVisible();
@@ -101,6 +214,20 @@ test.describe('Google OAuth Flows', () => {
 
     test('should set intendedRole to practitioner when clicking practitioner button on login', async ({ page }) => {
       await page.goto('/login');
+      
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
       
       // Click the practitioner Google OAuth button
       const practitionerButton = page.locator('button:has-text("Continue with Google as Practitioner")');
@@ -119,6 +246,9 @@ test.describe('Google OAuth Flows', () => {
     test('should display role selection options for practitioners', async ({ page }) => {
       await page.goto('/auth/role-selection');
       
+      // Wait for page to load completely
+      await page.waitForLoadState('networkidle');
+      
       // Check if all practitioner role options are visible
       const osteopathOption = page.locator('input[value="osteopath"]');
       const sportsTherapistOption = page.locator('input[value="sports_therapist"]');
@@ -133,6 +263,7 @@ test.describe('Google OAuth Flows', () => {
 
     test('should allow selecting osteopath role', async ({ page }) => {
       await page.goto('/auth/role-selection');
+      await page.waitForLoadState('networkidle');
       
       // Select osteopath role
       const osteopathOption = page.locator('input[value="osteopath"]');
@@ -144,6 +275,7 @@ test.describe('Google OAuth Flows', () => {
 
     test('should allow selecting sports therapist role', async ({ page }) => {
       await page.goto('/auth/role-selection');
+      await page.waitForLoadState('networkidle');
       
       // Select sports therapist role
       const sportsTherapistOption = page.locator('input[value="sports_therapist"]');
@@ -155,6 +287,7 @@ test.describe('Google OAuth Flows', () => {
 
     test('should allow selecting massage therapist role', async ({ page }) => {
       await page.goto('/auth/role-selection');
+      await page.waitForLoadState('networkidle');
       
       // Select massage therapist role
       const massageTherapistOption = page.locator('input[value="massage_therapist"]');
@@ -166,6 +299,7 @@ test.describe('Google OAuth Flows', () => {
 
     test('should allow selecting client role', async ({ page }) => {
       await page.goto('/auth/role-selection');
+      await page.waitForLoadState('networkidle');
       
       // Select client role
       const clientOption = page.locator('input[value="client"]');
@@ -234,6 +368,20 @@ test.describe('Google OAuth Flows', () => {
       
       await page.goto('/register');
       
+      // Dismiss cookie banner if present
+      try {
+        const cookieBanner = page.locator('text=Cookies & Privacy').first();
+        if (await cookieBanner.isVisible({ timeout: 2000 })) {
+          const acceptButton = page.locator('button:has-text("Accept all")').first();
+          if (await acceptButton.isVisible({ timeout: 1000 })) {
+            await acceptButton.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      } catch (error) {
+        // Continue if no cookie banner
+      }
+      
       // Check if buttons are visible on mobile
       const clientButton = page.locator('button:has-text("Continue with Google as Client")');
       const practitionerButton = page.locator('button:has-text("Continue with Google as Practitioner")');
@@ -247,6 +395,7 @@ test.describe('Google OAuth Flows', () => {
       await page.setViewportSize({ width: 375, height: 667 });
       
       await page.goto('/auth/role-selection');
+      await page.waitForLoadState('networkidle');
       
       // Check if role options are visible on mobile
       const osteopathOption = page.locator('input[value="osteopath"]');

@@ -67,7 +67,7 @@ export const ProductShowcase = () => {
 
   return (
     <section className="py-20 bg-gradient-to-b from-background via-muted/20 to-background">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 h-min-content">
         {/* Header */}
         <motion.div
           className="text-center max-w-4xl mx-auto mb-16"
@@ -113,9 +113,9 @@ export const ProductShowcase = () => {
                   <motion.button
                     key={feature.id}
                     onClick={() => setActiveTab(feature.id)}
-                    className={`w-full p-6 rounded-2xl text-left transition-all duration-300 relative overflow-hidden group ${
+                    className={`w-full p-6 rounded-2xl text-left transition-[border-color,background-color] duration-200 ease-out relative overflow-hidden group will-change-transform ${
                       isActive 
-                        ? 'bg-gradient-to-r from-wellness-500/10 to-primary/10 border-2 border-wellness-400/30' 
+                        ? 'bg-gradient-to-r from-wellness-500/10 to-primary/10 border-2 border-wellness-400/30 shadow-depth-1' 
                         : 'bg-card/50 border border-border/50 hover:border-wellness-400/20'
                     }`}
                     whileHover={{ scale: 1.02 }}
@@ -150,7 +150,7 @@ export const ProductShowcase = () => {
                           isActive 
                             ? 'bg-gradient-to-br from-wellness-500 to-primary text-white shadow-lg' 
                             : 'bg-muted text-muted-foreground group-hover:bg-wellness-500/20 group-hover:text-wellness-600'
-                        } transition-all duration-300`}
+                        } transition-[border-color,background-color] duration-200 ease-out`}
                         whileHover={{ rotate: isActive ? 0 : 10 }}
                         animate={{ rotate: isActive ? 360 : 0 }}
                         transition={{ duration: isActive ? 0.6 : 0.3 }}
@@ -171,7 +171,7 @@ export const ProductShowcase = () => {
 
                       {/* Active indicator */}
                       <motion.div
-                        className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                        className={`w-3 h-3 rounded-full transition-[background-color] duration-200 ease-out ${
                           isActive ? 'bg-wellness-500 shadow-lg' : 'bg-transparent'
                         }`}
                         animate={{ 
@@ -211,7 +211,7 @@ export const ProductShowcase = () => {
                   className="relative"
                 >
                   {/* Feature card */}
-                  <div className="relative p-8 rounded-3xl bg-gradient-to-br from-card to-card/80 border border-border/50 shadow-2xl overflow-hidden">
+                  <div className="relative p-8 rounded-3xl bg-gradient-to-br from-card to-card/80 border border-border/50 shadow-depth-2 overflow-hidden will-change-transform">
                     {/* Background pattern */}
                     <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(34,197,94,0.05)_1px,transparent_1px),linear-gradient(-45deg,rgba(34,197,94,0.05)_1px,transparent_1px)] bg-[size:20px_20px] opacity-30" />
                     

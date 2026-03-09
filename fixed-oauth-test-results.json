@@ -1,0 +1,82 @@
+{
+  "timestamp": "2025-09-28T17:00:15.707Z",
+  "productionUrl": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app",
+  "results": [
+    {
+      "testName": "Main Page",
+      "hasGoogleOAuth": true,
+      "hasClientButton": false,
+      "hasPractitionerButton": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334,
+      "specificTexts": []
+    },
+    {
+      "testName": "Register Page",
+      "hasGoogleOAuth": true,
+      "hasClientButton": false,
+      "hasPractitionerButton": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334,
+      "specificTexts": []
+    },
+    {
+      "testName": "Login Page",
+      "hasGoogleOAuth": true,
+      "hasClientButton": false,
+      "hasPractitionerButton": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334,
+      "specificTexts": []
+    },
+    {
+      "testName": "Auth Callback",
+      "hasGoogleOAuth": true,
+      "hasClientButton": false,
+      "hasPractitionerButton": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334,
+      "specificTexts": []
+    },
+    {
+      "testName": "Role Selection",
+      "hasGoogleOAuth": true,
+      "hasClientButton": false,
+      "hasPractitionerButton": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334,
+      "specificTexts": []
+    },
+    {
+      "testName": "Onboarding",
+      "hasGoogleOAuth": true,
+      "hasClientButton": false,
+      "hasPractitionerButton": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334,
+      "specificTexts": []
+    }
+  ],
+  "summary": {
+    "hasGoogleOAuth": true,
+    "hasClientButton": false,
+    "hasPractitionerButton": true,
+    "hasRoleManager": false,
+    "hasOAuthCallback": true,
+    "hasReactApp": true,
+    "readyComponents": 4,
+    "totalComponents": 5
+  }
+}

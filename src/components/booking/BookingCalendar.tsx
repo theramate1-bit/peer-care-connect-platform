@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { CalendarIcon, Clock, MapPin, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, User as UserIcon, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { getBlocksForDate, isTimeSlotBlocked } from '@/lib/block-time-utils';
 import { cn } from '@/lib/utils';
 import StripePaymentForm from '@/components/payments/StripePaymentForm';
 import { PaymentIntegration } from '@/lib/payment-integration';
@@ -21,15 +22,6 @@ interface TherapistProfile {
   hourly_rate: number;
   location: string;
   profile_verified: boolean;
-}
-
-interface AvailabilitySlot {
-  id: string;
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  duration_minutes: number;
-  is_available: boolean;
 }
 
 interface TimeSlot {
@@ -64,12 +56,13 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
   const DURATION_OPTIONS = [30, 45, 60, 90, 120];
   const SESSION_TYPES = [
     'Initial Consultation',
+    'Treatment Session',
     'Follow-up Session',
+    'Rehabilitation',
+    'Maintenance Care',
     'Sports Therapy',
     'Massage Therapy',
     'Osteopathy',
-    'Physiotherapy',
-    'Counselling',
     'Other'
   ];
 
@@ -79,70 +72,135 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
     }
   }, [selectedDate, selectedDuration, therapist]);
 
+  // Real-time subscription for availability changes
+  useEffect(() => {
+    if (!therapist?.user_id || !selectedDate) return;
+
+    const selectedDateStr = selectedDate.toISOString().split('T')[0];
+    const channel = supabase
+      .channel(`availability-calendar-${therapist.user_id}-${selectedDateStr}`)
+      // Listen to postgres_changes for calendar_events (blocked time)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calendar_events',
+          filter: `user_id=eq.${therapist.user_id}`
+        },
+        (payload: any) => {
+          const newEventType = payload.new?.event_type;
+          const oldEventType = payload.old?.event_type;
+          if (newEventType === 'block' || newEventType === 'unavailable' || 
+              oldEventType === 'block' || oldEventType === 'unavailable') {
+            const eventDate = payload.new?.start_time || payload.old?.start_time;
+            if (eventDate && typeof eventDate === 'string' && eventDate.startsWith(selectedDateStr)) {
+              fetchAvailableSlots();
+            }
+          }
+        }
+      )
+      // Listen to postgres_changes for client_sessions (bookings)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'client_sessions',
+          filter: `therapist_id=eq.${therapist.user_id}`
+        },
+        (payload: any) => {
+          const sessionDate = payload.new?.session_date || payload.old?.session_date;
+          if (sessionDate === selectedDateStr) {
+            fetchAvailableSlots();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [therapist?.user_id, selectedDate]);
+
   const fetchAvailableSlots = async () => {
     if (!selectedDate || !therapist) return;
 
     setLoading(true);
     try {
-      const dayOfWeek = selectedDate.getDay();
-      
-      // Fetch therapist's availability for this day
+      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+      const serviceDurationHours = selectedDuration / 60;
+
+      // 1. Fetch practitioner availability (working hours)
       const { data: availability, error: availabilityError } = await supabase
-        .from('availability_slots')
-        .select('*')
-        .eq('therapist_id', therapist.user_id)
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_available', true)
-        .gte('duration_minutes', selectedDuration)
-        .order('start_time');
+        .from('practitioner_availability')
+        .select('working_hours, timezone')
+        .eq('user_id', therapist.user_id)
+        .maybeSingle();
 
       if (availabilityError) throw availabilityError;
 
-      // Fetch existing bookings for this date
+      // 2. Fetch existing bookings for this date
       const { data: existingBookings, error: bookingsError } = await supabase
         .from('client_sessions')
-        .select('start_time, duration_minutes')
+        .select('start_time, duration_minutes, status, expires_at')
         .eq('therapist_id', therapist.user_id)
-        .eq('session_date', selectedDate.toISOString().split('T')[0])
-        .eq('status', 'scheduled');
+        .eq('session_date', selectedDateStr)
+        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
 
       if (bookingsError) throw bookingsError;
 
-      // Generate time slots based on availability
+      // 3. Get blocked/unavailable time for this date
+      const blocks = await getBlocksForDate(therapist.user_id, selectedDateStr);
+
+      // 4. Generate time slots based on availability
       const slots: TimeSlot[] = [];
-      if (availability && availability.length > 0) {
-        availability.forEach(slot => {
-          const start = new Date(`2000-01-01T${slot.start_time}`);
-          const end = new Date(`2000-01-01T${slot.end_time}`);
-          
-          let current = new Date(start);
-          while (current < end) {
-            const slotEnd = new Date(current.getTime() + selectedDuration * 60000);
-            if (slotEnd <= end) {
-              const timeString = current.toTimeString().slice(0, 5);
+      const nowIso = new Date().toISOString();
+
+      if (availability && availability.working_hours) {
+        const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        const daySchedule = availability.working_hours[dayOfWeek];
+
+        if (daySchedule && daySchedule.enabled && daySchedule.hours && daySchedule.hours.length > 0) {
+          daySchedule.hours.forEach((timeBlock: any) => {
+            const startHour = parseInt(timeBlock.start.split(':')[0]);
+            const endHour = parseInt(timeBlock.end.split(':')[0]);
+            
+            for (let hour = startHour; hour < endHour; hour++) {
+              // Check if slot can fit the service duration
+              const slotEndHour = hour + serviceDurationHours;
+              if (slotEndHour > endHour) {
+                continue;
+              }
               
-              // Check if this slot conflicts with existing bookings
+              const timeString = `${hour.toString().padStart(2, '0')}:00`;
+              
+              // Check for booking conflicts
               const isBooked = existingBookings?.some(booking => {
-                const bookingStart = new Date(`2000-01-01T${booking.start_time}`);
-                const bookingEnd = new Date(bookingStart.getTime() + booking.duration_minutes * 60000);
-                
-                return (
-                  (current >= bookingStart && current < bookingEnd) ||
-                  (slotEnd > bookingStart && slotEnd <= bookingEnd) ||
-                  (current <= bookingStart && slotEnd >= bookingEnd)
-                );
+                // Skip expired pending_payment sessions
+                if (booking.status === 'pending_payment' && booking.expires_at && booking.expires_at < nowIso) {
+                  return false;
+                }
+                const bookingStart = parseInt(booking.start_time.split(':')[0]);
+                const bookingEnd = bookingStart + Math.ceil(booking.duration_minutes / 60);
+                return bookingStart < slotEndHour && bookingEnd > hour;
               }) || false;
 
-              slots.push({
-                time: timeString,
-                available: !isBooked,
-                booked: isBooked,
-                duration: selectedDuration
-              });
+              // Check if this time slot is blocked
+              const isBlocked = isTimeSlotBlocked(timeString, selectedDuration, blocks, selectedDateStr);
+
+              // Only add slot if it's available (filter out blocked/booked slots)
+              if (!isBooked && !isBlocked) {
+                slots.push({
+                  time: timeString,
+                  available: true,
+                  booked: false,
+                  duration: selectedDuration
+                });
+              }
             }
-            current = slotEnd;
-          }
-        });
+          });
+        }
       }
 
       setAvailableSlots(slots);
@@ -179,7 +237,11 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
     setBooking(true);
     try {
-      const totalAmount = (therapist.hourly_rate * selectedDuration) / 60;
+      // Calculate price
+      // Note: In a real app this should come from the selected service
+      // For now we'll estimate based on hourly rate if available or default
+      const estimatedPrice = (therapist.hourly_rate / 60) * selectedDuration;
+      const totalAmount = estimatedPrice > 0 ? estimatedPrice : 50; // Fallback default
       
       // Create the booking
       const { data: sessionData, error: bookingError } = await supabase
@@ -256,27 +318,47 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
   const getDateModifiers = (date: Date) => {
     const modifiers: any = {};
     
-    // Check if therapist works on this day
-    const dayOfWeek = date.getDay();
-    const hasAvailability = availableSlots.some(slot => slot.available);
-    
-    if (hasAvailability) {
-      modifiers.hasAvailability = true;
-    }
+    // Check if therapist works on this day (simple check based on available slots)
+    // In a real app we'd want to check availability for the whole month efficiently
+    // For now we just show availability for the selected day in the slots area
     
     return modifiers;
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
+    // Validate time string
+    if (!time || typeof time !== 'string' || !time.includes(':')) {
+      return 'Not selected';
+    }
+    
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = time.split(':').length === 3
+      ? time.substring(0, 5)
+      : time;
+    
+    const [hours, minutes] = timeWithoutSeconds.split(':');
+    
+    // Validate that we have both hours and minutes
+    if (!hours || !minutes || hours === '' || minutes === '') {
+      return 'Not selected';
+    }
+    
+    const hour = parseInt(hours, 10);
+    const minute = parseInt(minutes, 10);
+    
+    // Validate parsed values
+    if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return 'Invalid time';
+    }
+    
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    return `${displayHour}:${String(minute).padStart(2, '0')} ${ampm}`;
   };
 
   const calculatePrice = () => {
-    return (therapist.hourly_rate * selectedDuration) / 60;
+    // Estimate based on hourly rate
+    return (therapist.hourly_rate / 60) * selectedDuration;
   };
 
   return (
@@ -292,7 +374,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
             </div>
             <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              £{therapist.hourly_rate}/hour
+              <span className="text-sm text-muted-foreground">Pricing in booking</span>
             </div>
             {therapist.profile_verified && (
               <Badge variant="default" className="flex items-center gap-1">
@@ -319,10 +401,6 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
               selected={selectedDate}
               onSelect={handleDateSelect}
               disabled={isDateDisabled}
-              modifiers={getDateModifiers(selectedDate || new Date())}
-              modifiersClassNames={{
-                hasAvailability: "bg-green-100 text-green-800 font-semibold"
-              }}
               className="rounded-md border"
             />
           </CardContent>
@@ -432,7 +510,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                 <div className="text-right">
                   <p className="text-2xl font-bold">£{calculatePrice().toFixed(2)}</p>
                   <p className="text-sm text-muted-foreground">
-                    £{therapist.hourly_rate}/hour
+                    Estimated Price
                   </p>
                 </div>
               </div>
@@ -491,7 +569,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
             </div>
             
             <StripePaymentForm
-              amount={calculateTotalCost()}
+              amount={Math.round(calculatePrice() * 100)}
               currency="gbp"
               description={`Session with ${therapist.first_name} ${therapist.last_name}`}
               onSuccess={(paymentIntent) => {

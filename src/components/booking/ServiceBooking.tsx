@@ -15,7 +15,7 @@ import {
   Calendar, 
   Clock, 
   PoundSterling, 
-  User, 
+  User as UserIcon, 
   MapPin,
   CreditCard,
   CheckCircle,
@@ -26,6 +26,7 @@ import { BookingRequest, createBooking } from '@/services/bookingService';
 import { formatPrice, getServiceTypeDisplayName } from '@/utils/pricing';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { SessionNotifications } from '@/lib/session-notifications';
 
 interface ServiceBookingProps {
   service: PractitionerService;
@@ -74,6 +75,14 @@ const ServiceBooking: React.FC<ServiceBookingProps> = ({
       setBooking(result.booking);
       setPaymentIntent(result.paymentIntent);
       setStep('payment');
+      
+      // Send notification for booking created
+      await SessionNotifications.sendNotification({
+        trigger: 'booking_created',
+        sessionId: result.booking.id,
+        clientId: user.id,
+        practitionerId: service.practitioner_id
+      });
       
       toast.success('Booking created successfully');
     } catch (error) {
@@ -286,3 +295,6 @@ const ServiceBooking: React.FC<ServiceBookingProps> = ({
 };
 
 export default ServiceBooking;
+
+
+

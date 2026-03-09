@@ -9,10 +9,12 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { SessionNotifications } from '@/lib/session-notifications';
+import { parseDateSafe } from '@/lib/date';
 import { 
   Calendar, 
   Clock, 
-  User, 
+  User as UserIcon, 
   MapPin, 
   Phone, 
   Mail, 
@@ -43,6 +45,7 @@ interface ClientSession {
   session_notes: string;
   created_at: string;
   updated_at: string;
+  is_peer_booking?: boolean;
 }
 
 interface SessionManagerProps {
@@ -114,6 +117,29 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ view = 'today' }
 
   const updateSessionStatus = async (sessionId: string, newStatus: ClientSession['status']) => {
     try {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      // Validate state transition
+      // Pass is_peer_booking and payment_status to allow scheduled -> in_progress for peer bookings
+      const { validateTransition } = await import('@/lib/session-state-machine');
+      const validation = validateTransition(
+        session.status as any, 
+        newStatus as any,
+        {
+          isPeerBooking: (session as any).is_peer_booking || false,
+          paymentStatus: (session as any).payment_status || 'pending'
+        }
+      );
+      if (!validation.valid) {
+        toast({
+          title: "Invalid status transition",
+          description: validation.error || 'Cannot perform this status change',
+          variant: "destructive"
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('client_sessions')
         .update({ 
@@ -130,6 +156,36 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ view = 'today' }
           ? { ...session, status: newStatus, updated_at: new Date().toISOString() }
           : session
       ));
+
+      // Send notification based on status change
+      const triggerMap: Record<string, any> = {
+        'confirmed': 'session_confirmed',
+        'in_progress': 'session_started',
+        'completed': 'session_completed',
+        'cancelled': 'session_cancelled'
+      };
+
+      if (triggerMap[newStatus]) {
+        // Get client_id from session
+        const { data: sessionData } = await supabase
+          .from('client_sessions')
+          .select('client_id')
+          .eq('id', sessionId)
+          .single();
+
+        if (sessionData) {
+          await SessionNotifications.sendNotification({
+            trigger: triggerMap[newStatus],
+            sessionId: session.id,
+            clientId: sessionData.client_id,
+            practitionerId: user?.id || '',
+            sessionDate: session.session_date,
+            sessionTime: session.start_time,
+            sessionType: session.session_type,
+            practitionerName: userProfile?.first_name + ' ' + userProfile?.last_name
+          });
+        }
+      }
 
       toast({
         title: "Status Updated",
@@ -239,11 +295,34 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ view = 'today' }
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
+    // Validate time string
+    if (!time || typeof time !== 'string' || !time.includes(':')) {
+      return 'Not selected';
+    }
+    
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = time.split(':').length === 3
+      ? time.substring(0, 5)
+      : time;
+    
+    const [hours, minutes] = timeWithoutSeconds.split(':');
+    
+    // Validate that we have both hours and minutes
+    if (!hours || !minutes || hours === '' || minutes === '') {
+      return 'Not selected';
+    }
+    
+    const hour = parseInt(hours, 10);
+    const minute = parseInt(minutes, 10);
+    
+    // Validate parsed values
+    if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return 'Invalid time';
+    }
+    
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    return `${displayHour}:${String(minute).padStart(2, '0')} ${ampm}`;
   };
 
   const getSessionActions = (session: ClientSession) => {
@@ -421,7 +500,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ view = 'today' }
           </Card>
         ) : (
           sessions.map((session) => (
-            <Card key={session.id} className="hover:shadow-md transition-shadow">
+            <Card key={session.id} className="transition-[border-color,background-color] duration-200 ease-out">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -438,7 +517,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ view = 'today' }
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        <span>{new Date(session.session_date).toLocaleDateString()}</span>
+                        <span>{parseDateSafe(session.session_date).toLocaleDateString()}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4" />
@@ -586,3 +665,6 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ view = 'today' }
     </div>
   );
 };
+
+
+

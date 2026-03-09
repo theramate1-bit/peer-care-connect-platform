@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,11 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, MapPin, Star, Clock, Calendar, User, Filter } from 'lucide-react';
+import { Search, MapPin, Star, Clock, Calendar, User as UserIcon, Filter, Car } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { BookingFlow } from '@/components/marketplace/BookingFlow';
+import { MobileBookingRequestFlow } from '@/components/marketplace/MobileBookingRequestFlow';
+import { NextAvailableSlot } from '@/components/marketplace/NextAvailableSlot';
+import { HybridBookingChooser } from '@/components/booking/HybridBookingChooser';
+import { canBookClinic, canRequestMobile } from '@/lib/booking-flow-type';
 
 interface Practitioner {
   id: string;
@@ -25,15 +30,28 @@ interface Practitioner {
   user_role: string;
   average_rating?: number;
   total_sessions?: number;
+  distance_km?: number;
+  therapist_type?: 'clinic_based' | 'mobile' | 'hybrid' | null;
+  base_latitude?: number | null;
+  base_longitude?: number | null;
+  mobile_service_radius_km?: number | null;
+  stripe_connect_account_id?: string | null;
+  clinic_latitude?: number | null;
+  clinic_longitude?: number | null;
+  products?: Array<{ id: string; name: string; description?: string; price_amount: number; currency: string; duration_minutes: number; service_type?: 'clinic' | 'mobile' | 'both'; is_active: boolean; stripe_price_id?: string }>;
 }
+
+type SortOption = 'price' | 'rating' | 'distance';
 
 const ClientBooking = () => {
   const { user, userProfile } = useAuth();
+  const [searchParams] = useSearchParams();
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [filteredPractitioners, setFilteredPractitioners] = useState<Practitioner[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);
   const [showBookingFlow, setShowBookingFlow] = useState(false);
+  const [showMobileRequestFlow, setShowMobileRequestFlow] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +60,9 @@ const ClientBooking = () => {
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>('all');
   const [priceRange, setPriceRange] = useState<string>('all');
 
+  // Sort (KAN-31)
+  const [sortBy, setSortBy] = useState<SortOption>('rating');
+
   useEffect(() => {
     loadPractitioners();
   }, []);
@@ -49,6 +70,25 @@ const ClientBooking = () => {
   useEffect(() => {
     filterPractitioners();
   }, [practitioners, searchTerm, selectedRole, selectedLocation, selectedSpecialization, priceRange]);
+
+  // Handle practitioner parameter from URL
+  useEffect(() => {
+    const practitionerId = searchParams.get('practitioner');
+    const bookingMode = searchParams.get('mode');
+    if (practitionerId && practitioners.length > 0) {
+      const practitioner = practitioners.find(p => p.user_id === practitionerId);
+      if (practitioner) {
+        setSelectedPractitioner(practitioner);
+        if (bookingMode === 'mobile') {
+          setShowBookingFlow(false);
+          setShowMobileRequestFlow(true);
+        } else {
+          setShowMobileRequestFlow(false);
+          setShowBookingFlow(true);
+        }
+      }
+    }
+  }, [practitioners, searchParams]);
 
   const loadPractitioners = async () => {
     try {
@@ -66,7 +106,14 @@ const ClientBooking = () => {
           bio,
           experience_years,
           user_role,
-          email
+          email,
+          therapist_type,
+          base_latitude,
+          base_longitude,
+          mobile_service_radius_km,
+          stripe_connect_account_id,
+          clinic_latitude,
+          clinic_longitude
         `)
         .in('user_role', ['sports_therapist', 'osteopath', 'massage_therapist'])
         .eq('is_active', true)
@@ -74,9 +121,23 @@ const ClientBooking = () => {
 
       if (error) throw error;
 
+      // Fetch active products for all practitioners (batch)
+      const practitionerIds = (data || []).map((p: { id: string }) => p.id);
+      const { data: productsData } = await supabase
+        .from('practitioner_products')
+        .select('id, name, description, price_amount, currency, duration_minutes, service_type, is_active, stripe_price_id, practitioner_id')
+        .in('practitioner_id', practitionerIds)
+        .eq('is_active', true);
+      const productsByPractitioner = new Map<string, NonNullable<Practitioner['products']>>();
+      (productsData || []).forEach((row: { practitioner_id: string } & Record<string, unknown>) => {
+        const list = productsByPractitioner.get(row.practitioner_id) ?? [];
+        list.push(row as NonNullable<Practitioner['products']>[number]);
+        productsByPractitioner.set(row.practitioner_id, list);
+      });
+
       // Get ratings for each practitioner
       const practitionersWithRatings = await Promise.all(
-        (data || []).map(async (practitioner) => {
+        (data || []).map(async (practitioner: { id: string; [key: string]: unknown }) => {
           const { data: ratings } = await supabase
             .from('reviews')
             .select('overall_rating')
@@ -90,14 +151,17 @@ const ClientBooking = () => {
             .eq('status', 'completed');
 
           const averageRating = ratings?.length 
-            ? ratings.reduce((sum, r) => sum + r.overall_rating, 0) / ratings.length 
+            ? ratings.reduce((sum: number, r: { overall_rating?: number }) => sum + (r.overall_rating ?? 0), 0) / ratings.length 
             : 0;
+
+          const products = productsByPractitioner.get(practitioner.id) || [];
 
           return {
             ...practitioner,
-            user_id: practitioner.id, // Add user_id for compatibility
+            user_id: practitioner.id,
             average_rating: averageRating,
-            total_sessions: sessions?.length || 0
+            total_sessions: sessions?.length || 0,
+            products,
           };
         })
       );
@@ -174,6 +238,19 @@ const ClientBooking = () => {
 
   const uniqueLocations = [...new Set(practitioners.map(p => p.location))];
   const uniqueSpecializations = [...new Set(practitioners.flatMap(p => p.specializations))];
+
+  // Apply sort to filtered list (KAN-31: Price low→high, Rating high→low, Distance low→high)
+  const sortedPractitioners = React.useMemo(() => {
+    const list = [...filteredPractitioners];
+    if (sortBy === 'price') {
+      list.sort((a, b) => (a.hourly_rate ?? Infinity) - (b.hourly_rate ?? Infinity));
+    } else if (sortBy === 'rating') {
+      list.sort((a, b) => (b.average_rating ?? 0) - (a.average_rating ?? 0));
+    } else if (sortBy === 'distance') {
+      list.sort((a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity));
+    }
+    return list;
+  }, [filteredPractitioners, sortBy]);
 
   if (loading) {
     return (
@@ -296,18 +373,33 @@ const ClientBooking = () => {
         </CardContent>
       </Card>
 
-      {/* Results */}
-      <div className="mb-4">
+      {/* Results and Sort (KAN-31) */}
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-muted-foreground">
           {filteredPractitioners.length} therapist{filteredPractitioners.length !== 1 ? 's' : ''} found
         </p>
+        {filteredPractitioners.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground">Sort by:</span>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="price">Price (Low to High)</SelectItem>
+                <SelectItem value="rating">Rating</SelectItem>
+                <SelectItem value="distance">Distance</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Practitioners Grid */}
       {filteredPractitioners.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
-            <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <UserIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No therapists found</h3>
             <p className="text-muted-foreground mb-4">
               Try adjusting your search criteria or filters.
@@ -325,13 +417,13 @@ const ClientBooking = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPractitioners.map((practitioner) => (
-            <Card key={practitioner.id} className="hover:shadow-lg transition-shadow">
+          {sortedPractitioners.map((practitioner) => (
+            <Card key={practitioner.id} className="transition-[border-color,background-color] duration-200 ease-out">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      <User className="h-5 w-5" />
+                      <UserIcon className="h-5 w-5" />
                       {practitioner.first_name} {practitioner.last_name}
                     </CardTitle>
                     <CardDescription className="flex items-center gap-2 mt-1">
@@ -394,21 +486,58 @@ const ClientBooking = () => {
                     </div>
                   )}
 
-                  {/* Price */}
-                  <div className="flex items-center justify-between pt-2">
+                  {/* Next available slot - KAN-31 */}
+                  <NextAvailableSlot therapistId={practitioner.user_id} className="pt-1" />
+
+                  {/* Price & Book */}
+                  <div className="flex items-center justify-between pt-2 gap-2">
                     <div>
-                      <span className="text-lg font-semibold">£{practitioner.hourly_rate}</span>
-                      <span className="text-sm text-muted-foreground">/hour</span>
+                      <span className="text-sm text-muted-foreground">Pricing available in booking</span>
                     </div>
-                    <Button
-                      onClick={() => {
-                        setSelectedPractitioner(practitioner);
-                        setShowBookingFlow(true);
-                      }}
-                      size="sm"
-                    >
-                      Book Session
-                    </Button>
+                    <div className="flex flex-wrap gap-1">
+                      {canBookClinic(practitioner) && canRequestMobile(practitioner) ? (
+                        <HybridBookingChooser
+                          onBookClinic={() => {
+                            setSelectedPractitioner(practitioner);
+                            setShowMobileRequestFlow(false);
+                            setShowBookingFlow(true);
+                          }}
+                          onRequestMobile={() => {
+                            setSelectedPractitioner(practitioner);
+                            setShowBookingFlow(false);
+                            setShowMobileRequestFlow(true);
+                          }}
+                          practitionerName={`${practitioner.first_name} ${practitioner.last_name}`.trim()}
+                          clinicLabel="Book at Clinic"
+                          mobileLabel="Request Visit to My Location"
+                        />
+                      ) : canBookClinic(practitioner) ? (
+                        <Button
+                          onClick={() => {
+                            setSelectedPractitioner(practitioner);
+                            setShowMobileRequestFlow(false);
+                            setShowBookingFlow(true);
+                          }}
+                          size="sm"
+                        >
+                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          Book Session
+                        </Button>
+                      ) : null}
+                      {!canBookClinic(practitioner) && canRequestMobile(practitioner) && (
+                        <Button
+                          onClick={() => {
+                            setSelectedPractitioner(practitioner);
+                            setShowBookingFlow(false);
+                            setShowMobileRequestFlow(true);
+                          }}
+                          size="sm"
+                        >
+                          <Car className="h-3.5 w-3.5 mr-1" />
+                          Request Mobile Session
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -423,6 +552,18 @@ const ClientBooking = () => {
           open={showBookingFlow}
           onOpenChange={setShowBookingFlow}
           practitioner={selectedPractitioner}
+          onRedirectToMobile={() => {
+            setShowBookingFlow(false);
+            setShowMobileRequestFlow(true);
+          }}
+        />
+      )}
+      {showMobileRequestFlow && selectedPractitioner && (
+        <MobileBookingRequestFlow
+          open={showMobileRequestFlow}
+          onOpenChange={setShowMobileRequestFlow}
+          practitioner={selectedPractitioner}
+          clientLocation={null}
         />
       )}
     </div>
@@ -430,3 +571,5 @@ const ClientBooking = () => {
 };
 
 export default ClientBooking;
+
+

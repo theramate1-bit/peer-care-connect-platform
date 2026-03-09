@@ -8,7 +8,7 @@ import {
   CheckCircle, 
   Clock, 
   MapPin, 
-  User, 
+  User as UserIcon, 
   Phone, 
   AlertCircle,
   ArrowLeft,
@@ -376,7 +376,7 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
               {sessionInfo && (
                 <>
                   <div className="flex items-center gap-3">
-                    <User className="h-5 w-5 text-muted-foreground" />
+                    <UserIcon className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <div className="font-medium">Therapist</div>
                       <div className="text-sm text-muted-foreground">
@@ -451,3 +451,6 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
     </div>
   );
 };
+
+
+

@@ -116,7 +116,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     switch (message.message_type) {
       case 'text':
         return (
-          <div className="text-sm text-gray-900 whitespace-pre-wrap">
+          <div className="text-sm text-gray-900 whitespace-pre-wrap break-words overflow-wrap-anywhere">
             {message.encrypted_content}
           </div>
         );
@@ -176,7 +176,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                     // In a real app, this would open a lightbox
                   }}
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded-lg flex items-center justify-center">
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 rounded-lg flex items-center justify-center">
                   <Button
                     size="sm"
                     variant="secondary"
@@ -218,10 +218,10 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   };
 
   return (
-    <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2 max-w-xs lg:max-w-md`}>
+    <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-3 sm:mb-4 px-2 sm:px-0`}>
+      <div className={`flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2 max-w-[85%] sm:max-w-xs md:max-w-sm lg:max-w-md`}>
         {/* Avatar */}
-        <Avatar className="w-8 h-8 flex-shrink-0">
+        <Avatar className="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 hidden sm:flex">
           <AvatarImage 
             src={generateAvatarUrl(
               `${message.sender.first_name}${message.sender.last_name}`,
@@ -235,16 +235,16 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
         </Avatar>
 
         {/* Message Content */}
-        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} min-w-0 flex-1`}>
           {/* Reply to message */}
           {message.reply_to_message && (
-            <div className={`mb-2 p-2 bg-gray-100 rounded-lg text-xs text-gray-600 max-w-full ${
+            <div className={`mb-2 p-2 bg-gray-100 rounded-lg text-xs text-gray-600 max-w-full break-words ${
               isOwnMessage ? 'text-right' : 'text-left'
             }`}>
               <p className="font-medium">
                 Replying to {message.reply_to_message.sender.first_name}
               </p>
-              <p className="truncate">
+              <p className="break-words">
                 {message.reply_to_message.encrypted_content}
               </p>
             </div>
@@ -253,13 +253,15 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
           {/* Main message */}
           <div className={`relative group ${
             isOwnMessage 
-              ? 'bg-blue-500 text-white' 
+              ? 'bg-white text-gray-900 border border-gray-200' 
               : 'bg-gray-100 text-gray-900'
-          } rounded-lg px-3 py-2 shadow-sm`}>
-            {renderMessageContent()}
+          } rounded-lg px-3 py-2 shadow-sm break-words max-w-full`}>
+            <div className="break-words overflow-wrap-anywhere">
+              {renderMessageContent()}
+            </div>
             
             {/* Message actions */}
-            <div className={`absolute top-0 ${isOwnMessage ? '-left-16' : '-right-16'} opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1`}>
+            <div className={`absolute top-0 ${isOwnMessage ? '-left-12 sm:-left-16' : '-right-12 sm:-right-16'} opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1 hidden sm:flex`}>
               <Button
                 size="sm"
                 variant="ghost"

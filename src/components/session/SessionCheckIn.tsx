@@ -12,7 +12,7 @@ import {
   MapPin, 
   Phone, 
   Calendar,
-  User,
+  User as UserIcon,
   AlertCircle,
   Camera,
   LogIn,
@@ -61,6 +61,7 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
   const [rating, setRating] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [existingFeedback, setExistingFeedback] = useState<any>(null);
 
   // Real-time subscription for session updates
   const { data: realtimeSession } = useRealtimeSubscription(
@@ -84,7 +85,10 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
 
   useEffect(() => {
     fetchSession();
-  }, [sessionId]);
+    if (checkInStatus === 'completed') {
+      fetchExistingFeedback();
+    }
+  }, [sessionId, checkInStatus]);
 
   useEffect(() => {
     if (arrivalTime) {
@@ -95,6 +99,34 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
       return () => clearInterval(interval);
     }
   }, [arrivalTime]);
+
+  const fetchExistingFeedback = async () => {
+    if (!sessionId || !user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('session_feedback')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('client_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching existing feedback:', error);
+        return;
+      }
+
+      if (data) {
+        setExistingFeedback(data);
+        setRating(data.rating || 0);
+        setFeedback(data.feedback || '');
+      }
+    } catch (error) {
+      console.error('Error fetching existing feedback:', error);
+    }
+  };
 
   const fetchSession = async () => {
     try {
@@ -128,6 +160,8 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
         setCheckInStatus('session_started');
       } else if (data.status === 'completed') {
         setCheckInStatus('completed');
+        // Fetch existing feedback when session is completed
+        await fetchExistingFeedback();
       }
     } catch (error) {
       console.error('Error fetching session:', error);
@@ -201,8 +235,8 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
       if (error) throw error;
 
       toast.success('Thank you for your feedback!');
-      setFeedback('');
-      setRating(0);
+      // Reload existing feedback to show it
+      await fetchExistingFeedback();
     } catch (error) {
       console.error('Error submitting feedback:', error);
       toast.error('Failed to submit feedback');
@@ -212,7 +246,11 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
   };
 
   const formatTime = (timeString: string) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString([], { 
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = timeString.includes(':') && timeString.split(':').length === 3
+      ? timeString.substring(0, 5)
+      : timeString;
+    return new Date(`2000-01-01T${timeWithoutSeconds}`).toLocaleTimeString([], { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
@@ -283,7 +321,7 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">Therapist: {session.therapist_name}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -395,47 +433,107 @@ export const SessionCheckIn: React.FC<SessionCheckInProps> = ({
       {checkInStatus === 'completed' && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5" />
-              Session Feedback
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5" />
+                Session Feedback
+              </CardTitle>
+              {existingFeedback && (
+                <Badge className="bg-green-100 text-green-800">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Feedback Submitted
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="rating">Rate your session (1-5 stars)</Label>
-              <div className="flex gap-1 mt-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    className={`text-2xl ${
-                      star <= rating ? 'text-yellow-400' : 'text-gray-300'
-                    } hover:text-yellow-400 transition-colors`}
-                  >
-                    ★
-                  </button>
-                ))}
+            {existingFeedback ? (
+              // Display existing feedback
+              <div className="space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Star className="h-4 w-4 text-yellow-400" />
+                    <span className="font-medium">Your Rating</span>
+                  </div>
+                  <div className="flex gap-1 mb-3">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-5 w-5 ${
+                          star <= (existingFeedback.rating || 0)
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      ({existingFeedback.rating}/5)
+                    </span>
+                  </div>
+                  
+                  {existingFeedback.feedback && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-start gap-2">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div className="flex-1">
+                          <div className="text-xs font-medium text-muted-foreground mb-1">
+                            Your Feedback
+                          </div>
+                          <p className="text-sm">{existingFeedback.feedback}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {existingFeedback.created_at && (
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Submitted on {new Date(existingFeedback.created_at).toLocaleDateString()} at{' '}
+                      {new Date(existingFeedback.created_at).toLocaleTimeString()}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="feedback">Share your experience</Label>
-              <Textarea
-                id="feedback"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="How was your session? Any feedback for your therapist?"
-                className="min-h-[100px]"
-              />
-            </div>
-            
-            <Button onClick={submitFeedback} disabled={loading || !feedback.trim()}>
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Submit Feedback
-            </Button>
+            ) : (
+              // Show feedback form
+              <>
+                <div>
+                  <Label htmlFor="rating">Rate your session (1-5 stars)</Label>
+                  <div className="flex gap-1 mt-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setRating(star)}
+                        className={`text-2xl ${
+                          star <= rating ? 'text-yellow-400' : 'text-gray-300'
+                        } hover:text-yellow-400 transition-colors`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="feedback">Share your experience</Label>
+                  <Textarea
+                    id="feedback"
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="How was your session? Any feedback for your therapist?"
+                    className="min-h-[100px]"
+                  />
+                </div>
+                
+                <Button onClick={submitFeedback} disabled={loading || !feedback.trim()}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Submit Feedback
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
     </div>
   );
 };
+

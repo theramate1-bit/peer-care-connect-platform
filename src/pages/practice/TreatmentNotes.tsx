@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Plus, Filter, Calendar, User, Stethoscope, TrendingUp, X, Save, Edit } from 'lucide-react';
+import { FileText, Search, Plus, Filter, Calendar, User as UserIcon, Stethoscope, TrendingUp, X, Save, Edit, Activity, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,17 +15,39 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { EnhancedTreatmentNotes } from '@/components/session/EnhancedTreatmentNotes';
 import { ClientProgressTracker } from '@/components/session/ClientProgressTracker';
+import { resolveClientIdFromSession } from '@/lib/client-id-resolver';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
+import { HEPService, HomeExerciseProgram } from '@/lib/hep-service';
+import { HEPViewer } from '@/components/client/HEPViewer';
+import { SOAPNotesViewer } from '@/components/session/SOAPNotesViewer';
+
+interface UnifiedNote {
+  id: string;
+  session_id?: string;
+  program_id?: string;
+  client_id: string;
+  client_name: string;
+  note_type: string;
+  session_date: string;
+  created_at: string;
+  updated_at: string;
+  hep_data?: HomeExerciseProgram;
+}
 
 const TreatmentNotes = () => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState('all');
-  const [treatmentNotes, setTreatmentNotes] = useState([]);
+  const [treatmentNotes, setTreatmentNotes] = useState<any[]>([]);
+  const [unifiedNotes, setUnifiedNotes] = useState<UnifiedNote[]>([]);
+  const [selectedNote, setSelectedNote] = useState<UnifiedNote | null>(null);
   const [clients, setClients] = useState([{ id: 'all', name: 'All Clients' }]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('unified');
+  // State for resolving client ID in Progress tab
+  const [resolvedProgressClientId, setResolvedProgressClientId] = useState<string | null>(null);
+  const [resolvingProgressClientId, setResolvingProgressClientId] = useState(false);
   
   // Modal states
   const [isNewNoteModalOpen, setIsNewNoteModalOpen] = useState(false);
@@ -42,10 +64,27 @@ const TreatmentNotes = () => {
     status: 'completed'
   });
 
+  // Resolve client ID for Progress tab when selectedSession changes
+  useEffect(() => {
+    const resolveProgressClientId = async () => {
+      if (!selectedSession) {
+        setResolvedProgressClientId(null);
+        setResolvingProgressClientId(false);
+        return;
+      }
+
+      setResolvingProgressClientId(true);
+      const clientId = await resolveClientIdFromSession(selectedSession);
+      setResolvedProgressClientId(clientId);
+      setResolvingProgressClientId(false);
+    };
+    resolveProgressClientId();
+  }, [selectedSession?.id, selectedSession?.client_id, selectedSession?.client_email]);
+
   // Real-time subscription for treatment notes/sessions
   const { data: realtimeSessions, loading: sessionsLoading } = useRealtimeSubscription(
     'client_sessions',
-    `therapist_id=${user?.id}`,
+    `therapist_id=eq.${user?.id}`,
     (payload) => {
       console.log('Real-time treatment notes update:', payload);
       // Refresh treatment notes when sessions change
@@ -65,6 +104,26 @@ const TreatmentNotes = () => {
       processTreatmentNotes(realtimeSessions);
     }
   }, [realtimeSessions]);
+
+  // Pre-populate note from URL params (from messages)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session');
+    const subjectiveText = params.get('subjective');
+
+    if (sessionId && subjectiveText) {
+      // Pre-populate new note form
+      setNewNoteData(prev => ({
+        ...prev,
+        session_id: sessionId,
+        notes: `**Subjective (from client messages):**\n${decodeURIComponent(subjectiveText)}\n\n**Objective:**\n\n**Assessment:**\n\n**Plan:**\n`
+      }));
+      setIsNewNoteModalOpen(true);
+      
+      // Clear URL params after loading
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const processTreatmentNotes = (sessions: any[]) => {
     // Transform sessions into treatment notes format
@@ -104,6 +163,62 @@ const TreatmentNotes = () => {
     setClients(uniqueClients);
   };
 
+  const getNoteTypeColor = (noteType: string) => {
+    switch (noteType.toLowerCase()) {
+      case 'soap':
+      case 'subjective':
+      case 'objective':
+      case 'assessment':
+      case 'plan':
+        return 'bg-blue-100 text-blue-800';
+      case 'dap':
+      case 'data':
+        return 'bg-green-100 text-green-800';
+      case 'free_text':
+      case 'general':
+        return 'bg-purple-100 text-purple-800';
+      case 'hep':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getNoteTypeLabel = (noteType: string) => {
+    switch (noteType.toLowerCase()) {
+      case 'hep':
+        return 'HEP';
+      case 'eps':
+        return 'EPS';
+      case 'soap':
+        return 'SOAP';
+      case 'dap':
+        return 'DAP';
+      case 'subjective':
+        return 'SUBJECTIVE';
+      case 'objective':
+        return 'OBJECTIVE';
+      case 'assessment':
+        return 'ASSESSMENT';
+      case 'plan':
+        return 'PLAN';
+      case 'general':
+        return 'GENERAL';
+      case 'free_text':
+        return 'FREE TEXT';
+      default:
+        return noteType.toUpperCase();
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
   const fetchTreatmentNotes = async () => {
     if (!user?.id) {
       console.error('No user ID available');
@@ -113,37 +228,136 @@ const TreatmentNotes = () => {
 
     try {
       setLoading(true);
-      console.log('Fetching sessions for user:', user.id);
       
-      // Fetch treatment notes/sessions
-      const { data: sessions, error } = await supabase
+      // Fetch structured treatment notes from treatment_notes table (like clients see)
+      // Use left join to include notes even if session doesn't exist
+      const { data: treatmentNotesData, error: treatmentNotesError } = await supabase
+        .from('treatment_notes')
+        .select(`
+          id,
+          session_id,
+          note_type,
+          content,
+          created_at,
+          updated_at,
+          client_id,
+          session:client_sessions(
+            session_date,
+            client_name,
+            start_time,
+            duration_minutes,
+            session_type
+          )
+        `)
+        .eq('practitioner_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (treatmentNotesError) {
+        console.error('Error fetching treatment notes:', treatmentNotesError);
+        toast.error('Failed to load treatment notes');
+      }
+
+      // Also fetch sessions for legacy compatibility
+      const { data: sessions, error: sessionsError } = await supabase
         .from('client_sessions')
         .select('*')
         .eq('therapist_id', user.id as any)
         .order('session_date', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching sessions:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-        toast.error(`Failed to load sessions: ${error.message || 'Unknown error'}`);
-        setLoading(false);
-        return;
+      if (sessionsError) {
+        console.error('Error fetching sessions:', sessionsError);
       }
 
-      console.log('Sessions found:', sessions?.length || 0);
-      console.log('Sessions data:', sessions);
+      // Fetch HEPs created by practitioner
+      const heps = await HEPService.getPractitionerPrograms(user.id);
 
-      if (!sessions) {
-        console.error('No sessions data returned');
-        toast.error('No sessions found');
-        return;
+      // Get all client IDs from both sources
+      const treatmentClientIds = [...new Set(treatmentNotesData?.map(note => note.client_id) || [])];
+      const sessionClientIds = [...new Set(sessions?.map((s: any) => s.client_id) || [])];
+      const hepClientIds = [...new Set(heps.map(hep => hep.client_id))];
+      const allClientIds = [...new Set([...treatmentClientIds, ...sessionClientIds, ...hepClientIds])];
+
+      // Fetch client details
+      const { data: clientData, error: clientError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name')
+        .in('id', allClientIds);
+
+      if (clientError) {
+        console.error('Error fetching clients:', clientError);
       }
 
-      // Transform sessions into treatment notes format
-      const notes = sessions.map((session: any) => ({
+      const clientMap = new Map(clientData?.map(c => [c.id, c]) || []);
+
+      // Format structured treatment notes
+      const formattedTreatmentNotes: UnifiedNote[] = (treatmentNotesData || []).map(note => {
+        const client = clientMap.get(note.client_id);
+        return {
+          id: note.id,
+          session_id: note.session_id,
+          client_id: note.client_id,
+          client_name: note.session?.client_name || 
+                       (client ? `${client.first_name} ${client.last_name}` : 'Unknown Client'),
+          note_type: note.note_type,
+          session_date: note.session?.session_date || note.created_at,
+          created_at: note.created_at,
+          updated_at: note.updated_at
+        };
+      });
+
+      // Format HEPs as notes
+      const formattedHEPNotes: UnifiedNote[] = heps.map(hep => {
+        const client = clientMap.get(hep.client_id);
+        return {
+          id: `hep-${hep.id}`,
+          program_id: hep.id,
+          session_id: hep.session_id || undefined,
+          client_id: hep.client_id,
+          client_name: client ? `${client.first_name} ${client.last_name}` : 'Unknown Client',
+          note_type: 'hep',
+          session_date: hep.start_date || hep.created_at || new Date().toISOString(),
+          created_at: hep.created_at || new Date().toISOString(),
+          updated_at: hep.updated_at || new Date().toISOString(),
+          hep_data: hep
+        };
+      });
+
+      // Deduplicate HEPs by program_id to prevent showing the same HEP twice
+      // Keep the most recent one if duplicates exist (prefer one with session_id)
+      const seenHEPIds = new Map<string, UnifiedNote>();
+      formattedHEPNotes.forEach(hep => {
+        if (hep.program_id) {
+          const existing = seenHEPIds.get(hep.program_id);
+          if (!existing) {
+            // First occurrence - keep it
+            seenHEPIds.set(hep.program_id, hep);
+          } else {
+            // Duplicate found - keep the one with session_id if available, or most recent
+            const shouldReplace = 
+              (!existing.session_id && hep.session_id) || // New one has session_id, old doesn't
+              (existing.session_id && hep.session_id && new Date(hep.created_at) > new Date(existing.created_at)) || // Both have session_id, new is more recent
+              (!existing.session_id && !hep.session_id && new Date(hep.created_at) > new Date(existing.created_at)); // Neither has session_id, new is more recent
+            
+            if (shouldReplace) {
+              seenHEPIds.set(hep.program_id, hep);
+            }
+          }
+        }
+      });
+      const uniqueHEPNotes = Array.from(seenHEPIds.values());
+
+      // Combine and sort by created_at (most recent first)
+      const allNotes = [...formattedTreatmentNotes, ...uniqueHEPNotes].sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setUnifiedNotes(allNotes);
+
+      // Legacy format for backward compatibility
+      const legacyNotes = (sessions || []).map((session: any) => ({
         id: session.id,
         client: session.client_name || 'Unknown Client',
-        client_name: session.client_name || 'Unknown Client', // Keep original field name
+        client_name: session.client_name || 'Unknown Client',
         date: session.session_date,
         type: session.session_type || 'Treatment Session',
         status: session.status || 'completed',
@@ -151,36 +365,27 @@ const TreatmentNotes = () => {
         therapist: user?.user_metadata?.first_name || 'Therapist',
         client_id: session.client_id,
         duration: Number(session.duration_minutes) || 60,
-        duration_minutes: Number(session.duration_minutes) || 60, // Keep original field name
-        session_date: session.session_date, // Keep original field name
-        session_type: session.session_type || 'Treatment Session', // Keep original field name
-        followUp: null // follow_up_date doesn't exist in schema
+        duration_minutes: Number(session.duration_minutes) || 60,
+        session_date: session.session_date,
+        session_type: session.session_type || 'Treatment Session',
+        followUp: null
       }));
 
-      setTreatmentNotes(notes);
+      setTreatmentNotes(legacyNotes);
 
       // Create unique clients list
       const uniqueClients = [{ id: 'all', name: 'All Clients' }];
-      const clientMap = new Map();
-      
-      sessions.forEach((session: any) => {
-        const clientId = session.client_id;
-        const clientName = session.client_name || 'Unknown Client';
-        
-        if (clientId && !clientMap.has(clientId)) {
-          clientMap.set(clientId, { id: clientId, name: clientName });
-          uniqueClients.push({ id: clientId, name: clientName });
+      allClientIds.forEach(clientId => {
+        const client = clientMap.get(clientId);
+        if (client) {
+          uniqueClients.push({
+            id: clientId,
+            name: `${client.first_name} ${client.last_name}`
+          });
         }
       });
 
       setClients(uniqueClients);
-
-      // If no sessions found, create some test sessions
-      if (sessions.length === 0) {
-        console.log('No sessions found for user, creating test sessions...');
-        await createTestSessions();
-        // Don't refetch here to avoid infinite loop - the test sessions will be visible on next page load
-      }
     } catch (error) {
       console.error('Error fetching treatment notes:', error);
       toast.error('Failed to load treatment notes');
@@ -240,20 +445,34 @@ const TreatmentNotes = () => {
         }
       ];
 
-      const { error } = await supabase
+      const { data: insertedSessions, error } = await supabase
         .from('client_sessions')
-        .insert(testSessions as any);
+        .insert(testSessions)
+        .select();
 
       if (error) {
         console.error('Error creating test sessions:', error);
-        toast.error('Failed to create test sessions');
-      } else {
-        console.log('Test sessions created successfully');
-        toast.success('Test sessions created for demonstration');
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        
+        // Provide more specific error messages
+        if (error.code === '23503') {
+          toast.error('Failed to create test sessions: One or more client IDs do not exist');
+        } else if (error.code === '23505') {
+          toast.error('Failed to create test sessions: Duplicate entry detected');
+        } else if (error.code === '23514') {
+          toast.error('Failed to create test sessions: Check constraint violation');
+        } else {
+          toast.error(`Failed to create test sessions: ${error.message || 'Unknown error'}`);
+        }
+      } else if (insertedSessions && insertedSessions.length > 0) {
+        console.log('Test sessions created successfully:', insertedSessions.length);
+        toast.success(`Successfully created ${insertedSessions.length} test session(s)`);
+        // Refresh the treatment notes after creating test sessions
+        fetchTreatmentNotes();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating test sessions:', error);
-      toast.error('Failed to create test sessions');
+      toast.error(`Failed to create test sessions: ${error?.message || 'Unknown error'}`);
     }
   };
 
@@ -285,21 +504,17 @@ const TreatmentNotes = () => {
       const selectedClient = clients.find(c => c.id === newNoteData.client_id);
       const clientName = selectedClient ? selectedClient.name : 'Unknown Client';
 
+      // Create treatment note in proper treatment_notes table (not fake session)
       const { error } = await supabase
-        .from('client_sessions')
+        .from('treatment_notes')
         .insert({
+          practitioner_id: user.id,
           client_id: newNoteData.client_id,
-          client_name: clientName,
-          therapist_id: user.id,
-          session_date: newNoteData.session_date,
-          start_time: '09:00', // Default start time for note entries
-          session_type: newNoteData.session_type,
-          notes: newNoteData.notes,
-          duration_minutes: newNoteData.duration_minutes,
-          status: newNoteData.status as any,
-          price: 0, // Free note entry
-          payment_status: 'completed'
-        } as any);
+          note_type: 'general', // Default to general note type
+          content: newNoteData.notes,
+          timestamp: new Date(newNoteData.session_date).toISOString(),
+          session_id: null // Standalone note not tied to a session
+        });
 
       if (error) throw error;
 
@@ -322,11 +537,16 @@ const TreatmentNotes = () => {
       const { error } = await supabase
         .from('client_sessions')
         .update({
-          notes: selectedSession.notes
-        } as any)
+          notes: selectedSession.notes,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', selectedSession.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating note:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        throw error;
+      }
 
       toast.success('Treatment note updated successfully!');
       setIsEditingNote(false);
@@ -350,7 +570,7 @@ const TreatmentNotes = () => {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'Injury Assessment': return <Stethoscope className="h-4 w-4" />;
-      case 'Massage Therapy': return <User className="h-4 w-4" />;
+      case 'Massage Therapy': return <UserIcon className="h-4 w-4" />;
       case 'Osteopathic Treatment': return <FileText className="h-4 w-4" />;
       default: return <FileText className="h-4 w-4" />;
     }
@@ -388,9 +608,9 @@ const TreatmentNotes = () => {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{treatmentNotes.length}</div>
+            <div className="text-2xl font-bold">{unifiedNotes.length}</div>
             <p className="text-xs text-muted-foreground">
-              {loading ? 'Loading...' : 'All time notes'}
+              {loading ? 'Loading...' : 'All notes & HEPs'}
             </p>
           </CardContent>
         </Card>
@@ -444,7 +664,8 @@ const TreatmentNotes = () => {
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex items-center justify-between">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="unified">All Notes & HEPs</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="live-notes">
               Live Notes {selectedSession && <Badge variant="secondary" className="ml-2">Active</Badge>}
@@ -465,6 +686,146 @@ const TreatmentNotes = () => {
             </Button>
           )}
         </div>
+
+        {/* Unified Notes Tab - Shows all treatment notes + HEPs */}
+        <TabsContent value="unified">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Notes List */}
+            <div className="lg:col-span-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    All Notes & HEPs
+                  </CardTitle>
+                  <CardDescription>
+                    {unifiedNotes.length} note{unifiedNotes.length !== 1 ? 's' : ''} available
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Client Filter */}
+                  <Select value={selectedClient} onValueChange={setSelectedClient}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Search */}
+                  <Input
+                    placeholder="Search notes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                  />
+
+                  {/* Notes List */}
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                    {unifiedNotes
+                      .filter(note => {
+                        if (selectedClient !== 'all' && note.client_id !== selectedClient) return false;
+                        if (searchTerm && !note.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+                            !note.note_type.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+                        return true;
+                      })
+                      .map((note) => (
+                        <div
+                          key={note.id}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                            selectedNote?.id === note.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                          onClick={() => setSelectedNote(note)}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{note.client_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(note.session_date)}
+                              </p>
+                            </div>
+                            <Badge className={getNoteTypeColor(note.note_type)}>
+                              {getNoteTypeLabel(note.note_type)}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>
+                              {new Date(note.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    {unifiedNotes.filter(note => {
+                      if (selectedClient !== 'all' && note.client_id !== selectedClient) return false;
+                      if (searchTerm && !note.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+                          !note.note_type.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+                      return true;
+                    }).length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No notes found</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Note Viewer */}
+            <div className="lg:col-span-2">
+              {selectedNote ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      {selectedNote.note_type === 'hep' ? (
+                        <Activity className="h-5 w-5" />
+                      ) : (
+                        <UserIcon className="h-5 w-5" />
+                      )}
+                      {selectedNote.client_name}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedNote.note_type === 'hep' ? (
+                        <>Exercise Program on {formatDate(selectedNote.session_date)} • Home Exercise Program (HEP)</>
+                      ) : (
+                        <>Session on {formatDate(selectedNote.session_date)} • {getNoteTypeLabel(selectedNote.note_type)} Note</>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedNote.note_type === 'hep' && selectedNote.program_id ? (
+                      <HEPViewer programId={selectedNote.program_id} clientId={selectedNote.client_id} />
+                    ) : selectedNote.session_id ? (
+                      <SOAPNotesViewer sessionId={selectedNote.session_id} />
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p>Note content not available</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="text-center py-12">
+                  <CardContent>
+                    <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">Select a Note</h3>
+                    <p className="text-muted-foreground">
+                      Choose a note or exercise program from the list to view its contents
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </TabsContent>
 
         {/* Overview Tab */}
         <TabsContent value="overview">
@@ -511,7 +872,7 @@ const TreatmentNotes = () => {
                   {filteredNotes.map((note) => (
                     <Card 
                       key={note.id} 
-                      className={`cursor-pointer hover:shadow-md transition-shadow ${
+                      className={`cursor-pointer transition-[border-color,background-color] duration-200 ease-out ${
                         selectedSession?.id === note.id ? 'ring-2 ring-primary bg-primary/5' : ''
                       }`} 
                       onClick={() => setSelectedSession(note)}
@@ -615,13 +976,7 @@ const TreatmentNotes = () => {
 
         {/* Progress Tracking Tab */}
         <TabsContent value="progress">
-          {selectedSession ? (
-            <ClientProgressTracker
-              clientId={selectedSession.client_id}
-              clientName={selectedSession.client_name || selectedSession.client}
-              sessionId={selectedSession.id}
-            />
-          ) : (
+          {!selectedSession ? (
             <Card>
               <CardContent className="p-8">
                 <div className="text-center text-muted-foreground">
@@ -631,6 +986,32 @@ const TreatmentNotes = () => {
                 </div>
               </CardContent>
             </Card>
+          ) : resolvingProgressClientId ? (
+            <Card>
+              <CardContent className="p-8">
+                <div className="text-center text-muted-foreground">
+                  <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
+                  <p>Loading client progress...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : !resolvedProgressClientId ? (
+            <Card>
+              <CardContent className="p-8">
+                <div className="text-center text-muted-foreground">
+                  <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
+                  <p className="text-lg font-medium">Unable to load progress</p>
+                  <p className="text-sm">Could not resolve client ID for this session</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <ClientProgressTracker
+              clientId={resolvedProgressClientId}
+              clientName={selectedSession.client_name || selectedSession.client}
+              sessionId={selectedSession.id}
+              readOnly={false}
+            />
           )}
         </TabsContent>
       </Tabs>
@@ -829,3 +1210,5 @@ const TreatmentNotes = () => {
 };
 
 export default TreatmentNotes;
+
+

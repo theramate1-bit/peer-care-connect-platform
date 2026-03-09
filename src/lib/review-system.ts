@@ -9,7 +9,8 @@ import { toast } from 'sonner';
 export interface ReviewSubmission {
   sessionId: string;
   practitionerId: string;
-  clientId: string;
+  clientId?: string; // Optional for guest reviews
+  clientEmail?: string; // For guest reviews
   overallRating: number; // 1-5 stars
   title: string;
   comment: string;
@@ -33,9 +34,23 @@ export interface ReviewData {
 export class ReviewSystem {
   /**
    * Submit a review for a completed session
+   * Supports both authenticated users (with clientId) and guests (with clientEmail)
    */
   static async submitReview(review: ReviewSubmission): Promise<{ success: boolean; error?: string }> {
     try {
+      // For guest reviews, validate via email + session_id using RPC
+      if (!review.clientId && review.clientEmail) {
+        return await this.submitGuestReview(review);
+      }
+
+      // For authenticated users, use existing validation
+      if (!review.clientId) {
+        return {
+          success: false,
+          error: 'Client ID or email is required'
+        };
+      }
+
       // Validate session exists and is completed
       const { data: session, error: sessionError } = await supabase
         .from('client_sessions')
@@ -58,7 +73,7 @@ export class ReviewSystem {
         .select('id')
         .eq('session_id', review.sessionId)
         .eq('client_id', review.clientId)
-        .single();
+        .maybeSingle();
 
       if (existingReview) {
         return {
@@ -118,6 +133,111 @@ export class ReviewSystem {
   }
 
   /**
+   * Submit a review for a guest (validates via email + session_id)
+   */
+  private static async submitGuestReview(review: ReviewSubmission): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!review.clientEmail) {
+        return {
+          success: false,
+          error: 'Email is required for guest reviews'
+        };
+      }
+
+      // Validate session via RPC function (similar to BookingSuccess)
+      const { data: sessionData, error: rpcError } = await supabase
+        .rpc('get_session_by_email_and_id', {
+          p_session_id: review.sessionId,
+          p_email: review.clientEmail
+        });
+
+      if (rpcError || !sessionData || (Array.isArray(sessionData) && sessionData.length === 0)) {
+        return {
+          success: false,
+          error: 'Session not found or email does not match'
+        };
+      }
+
+      const session = Array.isArray(sessionData) ? sessionData[0] : sessionData;
+
+      // Check if session is completed
+      if (session.status !== 'completed') {
+        return {
+          success: false,
+          error: 'You can only review completed sessions'
+        };
+      }
+
+      // Check if review already exists (by session_id only for guests)
+      const { data: existingReview } = await supabase
+        .from('reviews')
+        .select('id')
+        .eq('session_id', review.sessionId)
+        .maybeSingle();
+
+      if (existingReview) {
+        return {
+          success: false,
+          error: 'Review already submitted for this session'
+        };
+      }
+
+      // Validate rating
+      if (review.overallRating < 1 || review.overallRating > 5) {
+        return {
+          success: false,
+          error: 'Rating must be between 1 and 5 stars'
+        };
+      }
+
+      // Get client_id from session (even guests have a client_id after booking)
+      const clientId = session.client_id;
+
+      // Submit review
+      const { data: newReview, error: reviewError } = await supabase
+        .from('reviews')
+        .insert({
+          client_id: clientId, // Use the client_id from the session
+          therapist_id: review.practitionerId,
+          session_id: review.sessionId,
+          overall_rating: review.overallRating,
+          title: review.title,
+          comment: review.comment,
+          is_anonymous: review.isAnonymous,
+          is_verified_session: true,
+          review_status: 'published'
+        })
+        .select()
+        .single();
+
+      if (reviewError) {
+        console.error('Review submission error:', reviewError);
+        return {
+          success: false,
+          error: 'Failed to submit review'
+        };
+      }
+
+      // Send notification to practitioner
+      if (clientId) {
+        await this.sendReviewNotification(review.practitionerId, clientId, review.overallRating, newReview.id);
+      }
+
+      // Update practitioner's average rating
+      await this.updatePractitionerRating(review.practitionerId);
+
+      return { success: true };
+
+    } catch (error) {
+      console.error('Guest review submission error:', error);
+      return {
+        success: false,
+        error: 'Review submission failed'
+      };
+    }
+  }
+
+  /**
    * Get reviews for a practitioner
    */
   static async getPractitionerReviews(practitionerId: string): Promise<ReviewData[]> {
@@ -157,6 +277,7 @@ export class ReviewSystem {
 
   /**
    * Get practitioner's average rating and review count
+   * Combines ratings from both reviews and practitioner_ratings tables
    */
   static async getPractitionerStats(practitionerId: string): Promise<{
     averageRating: number;
@@ -164,16 +285,31 @@ export class ReviewSystem {
     ratingBreakdown: { [key: number]: number };
   }> {
     try {
-      const { data, error } = await supabase
+      // Get ratings from reviews table (public reviews)
+      const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
         .select('overall_rating')
         .eq('therapist_id', practitionerId)
         .eq('review_status', 'published');
 
-      if (error) throw error;
+      if (reviewsError) throw reviewsError;
 
-      const reviews = data || [];
-      const totalReviews = reviews.length;
+      // Also get ratings from practitioner_ratings table (private feedback)
+      const { data: practitionerRatings, error: ratingsError } = await supabase
+        .from('practitioner_ratings')
+        .select('rating')
+        .eq('practitioner_id', practitionerId)
+        .eq('status', 'active');
+
+      if (ratingsError) throw ratingsError;
+
+      // Combine ratings from both tables
+      const allRatings = [
+        ...(reviews || []).map(r => r.overall_rating),
+        ...(practitionerRatings || []).map(r => r.rating)
+      ];
+
+      const totalReviews = allRatings.length;
 
       if (totalReviews === 0) {
         return {
@@ -183,23 +319,21 @@ export class ReviewSystem {
         };
       }
 
-      const totalRating = reviews.reduce((sum, review) => sum + review.overall_rating, 0);
-      const averageRating = Math.round((totalRating / totalReviews) * 10) / 10; // Round to 1 decimal
+      const averageRating = allRatings.reduce((sum, r) => sum + r, 0) / totalReviews;
 
       // Calculate rating breakdown
-      const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      reviews.forEach(review => {
-        ratingBreakdown[review.overall_rating as keyof typeof ratingBreakdown]++;
+      const ratingBreakdown: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      allRatings.forEach(rating => {
+        ratingBreakdown[rating as keyof typeof ratingBreakdown] = (ratingBreakdown[rating as keyof typeof ratingBreakdown] || 0) + 1;
       });
 
       return {
-        averageRating,
+        averageRating: Math.round(averageRating * 100) / 100, // Round to 2 decimal places
         totalReviews,
         ratingBreakdown
       };
-
     } catch (error) {
-      console.error('Error fetching practitioner stats:', error);
+      console.error('Error getting practitioner stats:', error);
       return {
         averageRating: 0,
         totalReviews: 0,
@@ -240,19 +374,21 @@ export class ReviewSystem {
    */
   private static async sendReviewNotification(
     practitionerId: string,
-    clientId: string,
+    clientId: string | null | undefined,
     rating: number,
     reviewId: string
   ): Promise<void> {
     try {
+      if (!clientId) return;
+
       // Get client name
       const { data: client } = await supabase
         .from('users')
         .select('first_name, last_name')
         .eq('id', clientId)
-        .single();
+        .maybeSingle();
 
-      if (!client) return;
+      const clientName = client ? `${client.first_name} ${client.last_name}` : 'A client';
 
       await supabase
         .from('notifications')
@@ -260,10 +396,10 @@ export class ReviewSystem {
           user_id: practitionerId,
           type: 'review_received',
           title: 'New Review Received',
-          message: `${client.first_name} ${client.last_name} left you a ${rating}-star review!`,
+          message: `${clientName} left you a ${rating}-star review!`,
           data: {
             review_id: reviewId,
-            client_name: `${client.first_name} ${client.last_name}`,
+            client_name: clientName,
             rating: rating
           }
         });

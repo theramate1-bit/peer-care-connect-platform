@@ -7,7 +7,7 @@ import {
   ChevronRight, 
   Calendar, 
   Clock, 
-  User, 
+  User as UserIcon, 
   FileText,
   Stethoscope,
   ArrowLeft,
@@ -252,3 +252,5 @@ export const VisitHistoryNavigation: React.FC<VisitHistoryNavigationProps> = ({
 };
 
 export default VisitHistoryNavigation;
+
+

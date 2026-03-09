@@ -88,8 +88,8 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
           client_id: clientId,
           therapist_id: therapistId,
           overall_rating: overallRating,
-          review_text: reviewText,
-          review_status: 'pending',
+          comment: reviewText, // Fixed: use 'comment' instead of 'review_text'
+          review_status: 'published', // Auto-publish reviews (can be changed to 'pending' if moderation is needed)
           is_verified_session: true // Assuming this is a verified session
         })
         .select()

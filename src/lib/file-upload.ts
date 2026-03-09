@@ -4,12 +4,15 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizeFileName, sanitizePathSegment } from '@/lib/file-path-sanitizer';
 
 export interface FileUploadOptions {
   maxSize?: number; // in bytes
   allowedTypes?: string[];
   compressImages?: boolean;
   quality?: number; // 0-1 for image compression
+  /** Optional path segment under user folder (e.g. 'clinic' for profile-photos bucket) */
+  pathPrefix?: string;
 }
 
 export interface UploadedFile {
@@ -54,10 +57,28 @@ export class FileUploadService {
     this.validateFile(file, opts);
 
     try {
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
+      // Get current user for profile-photos bucket (required by RLS policy)
+      let userId: string | null = null;
+      if (bucket === 'profile-photos') {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          throw new Error('User must be authenticated to upload profile photos');
+        }
+        userId = user.id;
+      }
+
+      // Sanitize file name to prevent path traversal
+      const sanitizedOriginalName = sanitizeFileName(file.name);
+      const fileExt = sanitizedOriginalName.split('.').pop() || 'bin';
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `uploads/${fileName}`;
+      
+      // Use user-specific path for profile-photos bucket (to match RLS policy),
+      // otherwise use uploads/ folder for other buckets
+      const sanitizedUserId = userId ? sanitizePathSegment(userId) : '';
+      const prefix = opts.pathPrefix ? `${sanitizePathSegment(opts.pathPrefix)}/` : '';
+      const filePath = bucket === 'profile-photos' && sanitizedUserId
+        ? `${sanitizedUserId}/${prefix}${fileName}`
+        : `uploads/${fileName}`;
 
       let fileToUpload = file;
 

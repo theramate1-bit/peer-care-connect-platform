@@ -12,7 +12,7 @@ import {
   Video, 
   Mail, 
   Clock, 
-  User, 
+  User as UserIcon, 
   CheckCircle,
   AlertCircle,
   Plus,
@@ -165,7 +165,7 @@ export const ClientCommunicationHub: React.FC<ClientCommunicationHubProps> = ({
         .from('messages')
         .select(`
           *,
-          sender:sender_id (first_name, last_name)
+          sender:sender_id.users(first_name, last_name)
         `)
         .eq('conversation_id', selectedConversation.id)
         .order('created_at', { ascending: true });
@@ -379,7 +379,7 @@ export const ClientCommunicationHub: React.FC<ClientCommunicationHubProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                      <User className="h-5 w-5 text-primary" />
+                      <UserIcon className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <CardTitle className="text-lg">{selectedConversation.therapist_name}</CardTitle>
@@ -471,3 +471,5 @@ export const ClientCommunicationHub: React.FC<ClientCommunicationHubProps> = ({
     </div>
   );
 };
+
+

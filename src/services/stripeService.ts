@@ -225,7 +225,7 @@ export async function createSetupIntent(customerId: string) {
 /**
  * Calculate platform fee for a given amount
  */
-export function calculatePlatformFee(amountPence: number, feePercentage: number = 4): number {
+export function calculatePlatformFee(amountPence: number, feePercentage: number = 1.5): number {
   return Math.round(amountPence * (feePercentage / 100));
 }
 

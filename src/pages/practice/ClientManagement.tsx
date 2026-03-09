@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 const ClientManagement = () => {
   const { user } = useAuth();
   const [clients, setClients] = useState([]);
+  const [totals, setTotals] = useState<{ total_clients: number; total_paid_sessions: number; total_revenue_cents: number; avg_rating: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -25,54 +26,30 @@ const ClientManagement = () => {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      
-      // Fetch clients who have sessions with this therapist
-      const { data: sessions, error } = await supabase
-        .from('client_sessions')
-        .select(`
-          *,
-          users!client_sessions_client_id_fkey (
-            id,
-            first_name,
-            last_name,
-            email,
-            phone
-          )
-        `)
-        .eq('therapist_id', user?.id)
-        .order('session_date', { ascending: false });
+      // Paid-only totals
+      const { data: totalsRows, error: totalsErr } = await supabase.from('v_practice_totals').select('*');
+      if (totalsErr) throw totalsErr;
+      setTotals(totalsRows?.[0] ?? null);
 
-      if (error) throw error;
+      // Paid-only per-client stats
+      const { data: stats, error: statsErr } = await supabase
+        .from('v_client_stats')
+        .select('client_id, full_name, paid_sessions, revenue_cents, is_active, avg_rating');
+      if (statsErr) throw statsErr;
 
-      // Group sessions by client and create client objects
-      const clientMap = new Map();
-      
-      sessions?.forEach(session => {
-        const clientId = session.client_id;
-        const clientData = session.users;
-        
-        if (!clientMap.has(clientId)) {
-          clientMap.set(clientId, {
-            id: clientId,
-            name: `${clientData.first_name} ${clientData.last_name}`,
-            email: clientData.email,
-            phone: clientData.phone || 'No phone',
-            status: 'active',
-            lastSession: session.session_date,
-            totalSessions: 1,
-            avatar: null
-          });
-        } else {
-          const existingClient = clientMap.get(clientId);
-          existingClient.totalSessions += 1;
-          // Keep the most recent session date
-          if (new Date(session.session_date) > new Date(existingClient.lastSession)) {
-            existingClient.lastSession = session.session_date;
-          }
-        }
-      });
-
-      setClients(Array.from(clientMap.values()));
+      const mapped = (stats ?? []).map((row: any) => ({
+        id: row.client_id,
+        name: row.full_name,
+        email: '',
+        phone: '',
+        status: row.is_active ? 'active' : 'inactive',
+        lastSession: '',
+        totalSessions: row.paid_sessions,
+        revenueCents: row.revenue_cents,
+        avgRating: row.avg_rating,
+        avatar: null,
+      }));
+      setClients(mapped);
     } catch (error) {
       console.error('Error fetching clients:', error);
       toast.error('Failed to load clients');
@@ -119,51 +96,33 @@ const ClientManagement = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{clients.length}</div>
+            <div className="text-2xl font-bold">{totals?.total_clients ?? 0}</div>
             <p className="text-xs text-muted-foreground">
-              {loading ? 'Loading...' : 'All time clients'}
+              {loading ? 'Loading...' : 'Paid clients'}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Clients</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {clients.filter(c => c.status === 'active').length}
-            </div>
+            <div className="text-2xl font-bold">{totals?.total_paid_sessions ?? 0}</div>
             <p className="text-xs text-muted-foreground">
-              Currently active
+              Paid sessions (all time)
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {clients.reduce((total, client) => total + client.totalSessions, 0)}
-            </div>
+            <div className="text-2xl font-bold">£{(((totals?.total_revenue_cents ?? 0) / 100).toFixed(2))}</div>
             <p className="text-xs text-muted-foreground">
-              Total sessions
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Sessions</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {clients.length > 0 ? (clients.reduce((total, client) => total + client.totalSessions, 0) / clients.length).toFixed(1) : '0'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Per client
+              From all clients (paid)
             </p>
           </CardContent>
         </Card>
@@ -208,7 +167,7 @@ const ClientManagement = () => {
               {clients
                 .filter(client => 
                   client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  client.email.toLowerCase().includes(searchTerm.toLowerCase())
+                  (client.email || '').toLowerCase().includes(searchTerm.toLowerCase())
                 )
                 .map((client) => (
               <div
@@ -228,7 +187,7 @@ const ClientManagement = () => {
                       {client.email} • {client.phone}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Last session: {client.lastSession} • {client.totalSessions} sessions
+                      {client.totalSessions} paid sessions • £{((client.revenueCents ?? 0)/100).toFixed(2)} • Avg rating {client.avgRating?.toFixed?.(1) ?? '0.0'}
                     </div>
                   </div>
                 </div>

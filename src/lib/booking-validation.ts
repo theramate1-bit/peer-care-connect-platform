@@ -5,6 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { TimezoneUtils } from './timezone-utils';
+import { getOverlappingBlocks } from './block-time-utils';
 
 export interface BookingValidationResult {
   isValid: boolean;
@@ -14,7 +15,7 @@ export interface BookingValidationResult {
 }
 
 export interface BookingConflict {
-  type: 'time_conflict' | 'availability_conflict' | 'practitioner_unavailable' | 'invalid_time';
+  type: 'time_conflict' | 'availability_conflict' | 'practitioner_unavailable' | 'invalid_time' | 'blocked_time';
   message: string;
   conflictingSession?: any;
 }
@@ -59,7 +60,19 @@ export class BookingValidator {
         result.isValid = false;
       }
 
-      // 3. Check for time conflicts
+      // 3. Check for blocked/unavailable time
+      const blockedTimeCheck = await this.checkBlockedTime(
+        practitionerId,
+        sessionDate,
+        startTime,
+        durationMinutes
+      );
+      if (!blockedTimeCheck.isValid) {
+        result.conflicts.push(...blockedTimeCheck.conflicts);
+        result.isValid = false;
+      }
+
+      // 4. Check for time conflicts
       const conflictCheck = await this.checkTimeConflicts(
         practitionerId, 
         sessionDate, 
@@ -71,7 +84,7 @@ export class BookingValidator {
         result.isValid = false;
       }
 
-      // 4. Check practitioner working hours
+      // 5. Check practitioner working hours
       const workingHoursCheck = await this.checkWorkingHours(
         practitionerId, 
         sessionDate, 
@@ -83,7 +96,7 @@ export class BookingValidator {
         result.isValid = false;
       }
 
-      // 5. Check for duplicate bookings (same client, same practitioner, same time)
+      // 6. Check for duplicate bookings (same client, same practitioner, same time)
       if (clientId) {
         const duplicateCheck = await this.checkDuplicateBookings(
           practitionerId, 
@@ -97,14 +110,21 @@ export class BookingValidator {
         }
       }
 
-      // 6. Check for future date
+      // 7. Check for future date
       const futureDateCheck = this.checkFutureDate(sessionDate);
       if (!futureDateCheck.isValid) {
         result.errors.push(...futureDateCheck.errors);
         result.isValid = false;
       }
 
-      // 7. Check for reasonable booking advance (not too far in future)
+      // 8. Check for 2-hour minimum booking advance
+      const minimumAdvanceCheck = this.checkMinimumBookingAdvance(sessionDate, startTime);
+      if (!minimumAdvanceCheck.isValid) {
+        result.errors.push(...minimumAdvanceCheck.errors);
+        result.isValid = false;
+      }
+
+      // 9. Check for reasonable booking advance (not too far in future)
       const advanceBookingCheck = this.checkBookingAdvance(sessionDate);
       if (!advanceBookingCheck.isValid) {
         result.warnings.push(...advanceBookingCheck.warnings);
@@ -139,9 +159,10 @@ export class BookingValidator {
       errors.push('Invalid start time format');
     }
 
-    // Check duration
-    if (!durationMinutes || durationMinutes < 15 || durationMinutes > 480) {
-      errors.push('Duration must be between 15 minutes and 8 hours');
+    // Check duration - must be one of: 30, 45, 60, 75, 90 minutes
+    const allowedDurations = [30, 45, 60, 75, 90];
+    if (!durationMinutes || !allowedDurations.includes(durationMinutes)) {
+      errors.push('Duration must be 30, 45, 60, 75, or 90 minutes');
     }
 
     return {
@@ -228,6 +249,42 @@ export class BookingValidator {
   }
 
   /**
+   * Check for blocked/unavailable time
+   */
+  private static async checkBlockedTime(
+    practitionerId: string,
+    sessionDate: string,
+    startTime: string,
+    durationMinutes: number
+  ): Promise<{ isValid: boolean; conflicts: BookingConflict[] }> {
+    const conflicts: BookingConflict[] = [];
+
+    try {
+      const blocks = await getOverlappingBlocks(
+        practitionerId,
+        sessionDate,
+        startTime,
+        durationMinutes
+      );
+
+      if (blocks.length > 0) {
+        for (const block of blocks) {
+          const blockType = block.event_type === 'block' ? 'blocked' : 'unavailable';
+          conflicts.push({
+            type: 'blocked_time',
+            message: `This time is ${blockType}${block.title ? `: ${block.title}` : ''}`
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking blocked time:', error);
+      // Don't fail validation on query error, but log it
+    }
+
+    return { isValid: conflicts.length === 0, conflicts };
+  }
+
+  /**
    * Check for time conflicts with existing bookings
    */
   private static async checkTimeConflicts(
@@ -241,10 +298,10 @@ export class BookingValidator {
     try {
       const { data: existingBookings, error } = await supabase
         .from('client_sessions')
-        .select('id, start_time, duration_minutes, status, client_name')
+        .select('id, start_time, duration_minutes, status, client_name, expires_at')
         .eq('therapist_id', practitionerId)
         .eq('session_date', sessionDate)
-        .in('status', ['scheduled', 'confirmed', 'in-progress']);
+        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
 
       if (error) {
         console.error('Error fetching existing bookings:', error);
@@ -255,14 +312,26 @@ export class BookingValidator {
         const [requestedHour, requestedMinute] = startTime.split(':').map(Number);
         const requestedStartMinutes = requestedHour * 60 + requestedMinute;
         const requestedEndMinutes = requestedStartMinutes + durationMinutes;
+        const nowIso = new Date().toISOString();
 
         for (const booking of existingBookings) {
+          // Skip expired pending_payment sessions (they've expired and slot is available)
+          if (booking.status === 'pending_payment' && booking.expires_at && booking.expires_at < nowIso) {
+            continue;
+          }
+
           const [bookingHour, bookingMinute] = booking.start_time.split(':').map(Number);
           const bookingStartMinutes = bookingHour * 60 + bookingMinute;
           const bookingEndMinutes = bookingStartMinutes + (booking.duration_minutes || 60);
+          const bookingWithBufferEnd = bookingEndMinutes + 15;
+          const requestedWithBufferEnd = requestedEndMinutes + 15;
 
-          // Check for overlap
-          if (requestedStartMinutes < bookingEndMinutes && requestedEndMinutes > bookingStartMinutes) {
+          // Conflict: direct overlap or 15-minute buffer violation
+          const overlaps =
+            (requestedStartMinutes < bookingEndMinutes && requestedEndMinutes > bookingStartMinutes) ||
+            (requestedStartMinutes >= bookingEndMinutes && requestedStartMinutes < bookingWithBufferEnd) ||
+            (bookingStartMinutes >= requestedEndMinutes && bookingStartMinutes < requestedWithBufferEnd);
+          if (overlaps) {
             conflicts.push({
               type: 'time_conflict',
               message: `Time conflicts with existing booking for ${booking.client_name} (${booking.start_time})`,
@@ -329,14 +398,23 @@ export class BookingValidator {
     try {
       const { data: existingBookings } = await supabase
         .from('client_sessions')
-        .select('id, start_time, status')
+        .select('id, start_time, status, expires_at')
         .eq('therapist_id', practitionerId)
         .eq('client_id', clientId)
         .eq('session_date', sessionDate)
         .eq('start_time', startTime)
-        .in('status', ['scheduled', 'confirmed', 'pending']);
+        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
 
-      if (existingBookings && existingBookings.length > 0) {
+      // Filter out expired pending_payment sessions
+      const nowIso = new Date().toISOString();
+      const activeBookings = existingBookings?.filter(booking => {
+        if (booking.status === 'pending_payment' && booking.expires_at && booking.expires_at < nowIso) {
+          return false;
+        }
+        return true;
+      });
+
+      if (activeBookings && activeBookings.length > 0) {
         conflicts.push({
           type: 'time_conflict',
           message: 'You already have a booking at this time with this practitioner'
@@ -366,6 +444,33 @@ export class BookingValidator {
       errors.push('Cannot book sessions in the past');
     }
 
+    return { isValid: errors.length === 0, errors };
+  }
+
+  /**
+   * Check if booking meets minimum 2-hour advance requirement
+   */
+  private static checkMinimumBookingAdvance(
+    sessionDate: string,
+    startTime: string
+  ): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    const now = new Date();
+    const [hours, minutes] = startTime.split(':').map(Number);
+    
+    // Create booking datetime
+    const bookingDateTime = new Date(sessionDate);
+    bookingDateTime.setHours(hours, minutes, 0, 0);
+    
+    // Calculate difference in milliseconds
+    const diffMs = bookingDateTime.getTime() - now.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    // Check if booking is at least 2 hours in the future
+    if (diffHours < 2) {
+      errors.push('Bookings must be made at least 2 hours in advance');
+    }
+    
     return { isValid: errors.length === 0, errors };
   }
 

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Flow Testing - TheraMate</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background-color: #f9fafb;
+        }
+        .test-section h2 {
+            color: #374151;
+            margin-top: 0;
+        }
+        .test-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        .test-item h3 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .test-item p {
+            margin: 5px 0;
+            color: #6b7280;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status.pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .status.success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .status.failed {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .console-log {
+            background-color: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .log-entry.role {
+            color: #fbbf24;
+        }
+        .log-entry.success {
+            color: #10b981;
+        }
+        .log-entry.error {
+            color: #ef4444;
+        }
+        .log-entry.info {
+            color: #3b82f6;
+        }
+        .test-button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background-color: #2563eb;
+        }
+        .test-button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .instructions {
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1e40af;
+        }
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 OAuth Flow Testing - TheraMate</h1>
+        
+        <div class="test-section">
+            <h2>📊 Test Results Summary</h2>
+            <div class="test-item">
+                <h3>Production URL Status</h3>
+                <p><strong>URL:</strong> <a href="https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app" target="_blank">https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app</a></p>
+                <p><strong>Status:</strong> <span class="status success">✅ Deployed</span></p>
+                <p><strong>Last Test:</strong> <span id="lastTestTime">Running test...</span></p>
+            </div>
+            
+            <div class="test-item">
+                <h3>Page Accessibility</h3>
+                <p><strong>Main Page:</strong> <span class="status success">✅ Accessible</span></p>
+                <p><strong>Login Page:</strong> <span class="status success">✅ Accessible</span></p>
+                <p><strong>Register Page:</strong> <span class="status success">✅ Accessible</span></p>
+                <p><strong>OAuth Content:</strong> <span class="status success">✅ Found</span></p>
+            </div>
+            
+            <div class="test-item">
+                <h3>Supabase Connection</h3>
+                <p><strong>API Endpoint:</strong> <span class="status success">✅ Connected</span></p>
+                <p><strong>Auth Endpoint:</strong> <span class="status pending">⚠️ Requires Authentication</span></p>
+            </div>
+            
+            <div class="test-item">
+                <h3>OAuth Endpoints</h3>
+                <p><strong>Auth Callback:</strong> <span class="status success">✅ Accessible</span></p>
+                <p><strong>Role Selection:</strong> <span class="status success">✅ Accessible</span></p>
+                <p><strong>Onboarding:</strong> <span class="status success">✅ Accessible</span></p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Manual Testing Checklist</h2>
+            
+            <div class="instructions">
+                <h4>📝 Testing Instructions</h4>
+                <ol>
+                    <li>Open the production URL in a new browser tab</li>
+                    <li>Open browser developer tools (F12) and go to Console tab</li>
+                    <li>Follow the test steps below and check console logs</li>
+                    <li>Mark each test as completed when done</li>
+                </ol>
+            </div>
+
+            <div class="test-item">
+                <h3>Test 1: Client Registration</h3>
+                <p><strong>Status:</strong> <span class="status pending" id="test1Status">⏳ Pending</span></p>
+                <p><strong>Description:</strong> Test Google OAuth registration as a client user</p>
+                <button class="test-button" onclick="startTest(1)">Start Test 1</button>
+                <button class="test-button" onclick="markTestComplete(1)">Mark Complete</button>
+                <div class="instructions">
+                    <h4>Steps:</h4>
+                    <ol>
+                        <li>Click "Start Test 1" button above</li>
+                        <li>Navigate to the production URL</li>
+                        <li>Click "Register" or go to /register</li>
+                        <li>Click "Client" button</li>
+                        <li>Click "Continue with Google"</li>
+                        <li>Complete Google OAuth flow</li>
+                        <li>Check console for role assignment logs</li>
+                        <li>Verify you're redirected to onboarding</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="test-item">
+                <h3>Test 2: Practitioner Registration</h3>
+                <p><strong>Status:</strong> <span class="status pending" id="test2Status">⏳ Pending</span></p>
+                <p><strong>Description:</strong> Test Google OAuth registration as a practitioner user</p>
+                <button class="test-button" onclick="startTest(2)">Start Test 2</button>
+                <button class="test-button" onclick="markTestComplete(2)">Mark Complete</button>
+                <div class="instructions">
+                    <h4>Steps:</h4>
+                    <ol>
+                        <li>Click "Start Test 2" button above</li>
+                        <li>Navigate to the production URL</li>
+                        <li>Click "Register" or go to /register</li>
+                        <li>Click "Practitioner" button</li>
+                        <li>Click "Continue with Google"</li>
+                        <li>Complete Google OAuth flow</li>
+                        <li>Check console for role assignment logs</li>
+                        <li>Verify you're redirected to onboarding</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="test-item">
+                <h3>Test 3: Role Assignment Verification</h3>
+                <p><strong>Status:</strong> <span class="status pending" id="test3Status">⏳ Pending</span></p>
+                <p><strong>Description:</strong> Verify that users get the correct roles assigned</p>
+                <button class="test-button" onclick="startTest(3)">Start Test 3</button>
+                <button class="test-button" onclick="markTestComplete(3)">Mark Complete</button>
+                <div class="instructions">
+                    <h4>Steps:</h4>
+                    <ol>
+                        <li>Complete Test 1 and Test 2 above</li>
+                        <li>Check browser console for these specific logs:</li>
+                        <li>🎯 Consumed intended role: client</li>
+                        <li>🎯 Consumed intended role: sports_therapist</li>
+                        <li>✅ Role assigned successfully</li>
+                        <li>Check Supabase dashboard for user profiles</li>
+                        <li>Verify user_role field is set correctly</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="test-item">
+                <h3>Test 4: Onboarding Flow</h3>
+                <p><strong>Status:</strong> <span class="status pending" id="test4Status">⏳ Pending</span></p>
+                <p><strong>Description:</strong> Test the onboarding flow completion</p>
+                <button class="test-button" onclick="startTest(4)">Start Test 4</button>
+                <button class="test-button" onclick="markTestComplete(4)">Mark Complete</button>
+                <div class="instructions">
+                    <h4>Steps:</h4>
+                    <ol>
+                        <li>After completing OAuth registration</li>
+                        <li>Verify you're redirected to /onboarding</li>
+                        <li>Complete the onboarding form</li>
+                        <li>Check that profile is saved correctly</li>
+                        <li>Verify you're redirected to appropriate dashboard</li>
+                        <li>Check that onboarding_status is updated</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Console Log Monitoring</h2>
+            <div class="test-item">
+                <h3>Expected Console Logs</h3>
+                <p>Look for these specific log messages in the browser console:</p>
+                <div class="console-log" id="expectedLogs">
+                    <div class="log-entry info">🔄 AuthCallback: Processing auth callback...</div>
+                    <div class="log-entry info">=== ROLE DEBUG ===</div>
+                    <div class="log-entry role">🎯 Consumed intended role: client</div>
+                    <div class="log-entry role">🎯 Consumed intended role: sports_therapist</div>
+                    <div class="log-entry success">✅ Role assigned successfully</div>
+                    <div class="log-entry info">👤 Profile found: { user_role: "client", onboarding_status: "pending" }</div>
+                    <div class="log-entry info">🔄 User needs onboarding</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Troubleshooting</h2>
+            <div class="test-item">
+                <h3>Common Issues & Solutions</h3>
+                <div class="instructions">
+                    <h4>Issue: OAuth callback fails</h4>
+                    <p><strong>Solution:</strong> Check that redirect URLs are configured in Google Cloud Console and Supabase</p>
+                    
+                    <h4>Issue: Role not assigned</h4>
+                    <p><strong>Solution:</strong> Check console logs for "RoleManager" messages and verify sessionStorage</p>
+                    
+                    <h4>Issue: User stuck on role selection</h4>
+                    <p><strong>Solution:</strong> Clear browser storage and try again</p>
+                    
+                    <h4>Issue: Onboarding doesn't complete</h4>
+                    <p><strong>Solution:</strong> Check form validation and required fields</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update last test time
+        document.getElementById('lastTestTime').textContent = new Date().toLocaleString();
+
+        function startTest(testNumber) {
+            const statusElement = document.getElementById(`test${testNumber}Status`);
+            statusElement.textContent = '🔄 In Progress';
+            statusElement.className = 'status pending';
+            
+            // Open production URL in new tab
+            window.open('https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app', '_blank');
+        }
+
+        function markTestComplete(testNumber) {
+            const statusElement = document.getElementById(`test${testNumber}Status`);
+            statusElement.textContent = '✅ Complete';
+            statusElement.className = 'status success';
+        }
+
+        // Auto-refresh expected logs
+        function updateExpectedLogs() {
+            const logs = [
+                '🔄 AuthCallback: Processing auth callback...',
+                '=== ROLE DEBUG ===',
+                '🎯 Consumed intended role: client',
+                '🎯 Consumed intended role: sports_therapist', 
+                '✅ Role assigned successfully',
+                '👤 Profile found: { user_role: "client", onboarding_status: "pending" }',
+                '🔄 User needs onboarding'
+            ];
+            
+            const logContainer = document.getElementById('expectedLogs');
+            logContainer.innerHTML = logs.map(log => 
+                `<div class="log-entry ${log.includes('🎯') ? 'role' : log.includes('✅') ? 'success' : 'info'}">${log}</div>`
+            ).join('');
+        }
+
+        updateExpectedLogs();
+    </script>
+</body>
+</html>

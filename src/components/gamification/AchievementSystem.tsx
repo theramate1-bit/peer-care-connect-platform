@@ -226,7 +226,7 @@ export const AchievementSystem: React.FC<AchievementSystemProps> = ({
         {filteredAchievements.map((achievement) => (
           <Card
             key={achievement.id}
-            className={`transition-all duration-200 hover:shadow-md ${
+            className={`transition-[border-color,background-color] duration-200 ease-out ${
               achievement.unlocked ? 'ring-2 ring-green-500 bg-green-50' : 'opacity-75'
             }`}
           >

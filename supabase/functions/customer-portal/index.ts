@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const logStep = (step: string, details?: any) => {
@@ -13,8 +14,15 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Access-Control-Max-Age": "86400",
+      }
+    });
   }
 
   try {
@@ -96,22 +104,94 @@ serve(async (req) => {
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    if (customers.data.length === 0) {
-      logStep("ERROR: No Stripe customer found for this user");
-      return new Response(JSON.stringify({ error: "No Stripe customer found for this user" }), {
+    
+    // Get customer ID - try multiple methods
+    let customerId: string | null = null;
+    
+    // Method 1: Get from subscription's Stripe subscription object (most reliable)
+    try {
+      const { data: subscription } = await supabaseClient
+        .from("subscriptions")
+        .select("stripe_subscription_id, stripe_customer_id")
+        .eq("user_id", user.id)
+        .in("status", ["active", "trialing", "incomplete", "past_due"])
+        .order("current_period_end", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (subscription?.stripe_subscription_id) {
+        // Retrieve subscription from Stripe to get customer ID
+        try {
+          const stripeSubscription = await stripe.subscriptions.retrieve(subscription.stripe_subscription_id);
+          customerId = typeof stripeSubscription.customer === 'string' 
+            ? stripeSubscription.customer 
+            : stripeSubscription.customer?.id || null;
+          
+          if (customerId) {
+            logStep("Found Stripe customer from subscription object", { customerId, subscriptionId: subscription.stripe_subscription_id });
+          }
+        } catch (stripeError) {
+          logStep("Could not retrieve subscription from Stripe", { error: stripeError instanceof Error ? stripeError.message : String(stripeError) });
+        }
+      }
+      
+      // Method 2: Check database column if available
+      if (!customerId && subscription?.stripe_customer_id) {
+        customerId = subscription.stripe_customer_id;
+        logStep("Found Stripe customer from subscription column", { customerId });
+      }
+    } catch (dbError) {
+      logStep("Error querying subscriptions table", { error: dbError instanceof Error ? dbError.message : String(dbError) });
+    }
+    
+    // Method 3: Try customers table
+    if (!customerId) {
+      try {
+        const { data: customer } = await supabaseClient
+          .from("customers")
+          .select("stripe_customer_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (customer?.stripe_customer_id) {
+          customerId = customer.stripe_customer_id;
+          logStep("Found Stripe customer from customers table", { customerId });
+        }
+      } catch (dbError) {
+        logStep("Error querying customers table", { error: dbError instanceof Error ? dbError.message : String(dbError) });
+      }
+    }
+    
+    // Method 4: Fallback - search Stripe by email
+    if (!customerId) {
+      try {
+        logStep("Searching Stripe for customer by email", { email: user.email });
+        const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+        if (customers.data.length > 0) {
+          customerId = customers.data[0].id;
+          logStep("Found Stripe customer by email search", { customerId });
+        }
+      } catch (stripeError) {
+        logStep("Error searching Stripe by email", { error: stripeError instanceof Error ? stripeError.message : String(stripeError) });
+      }
+    }
+    
+    if (!customerId) {
+      logStep("ERROR: Could not determine Stripe customer ID");
+      return new Response(JSON.stringify({ error: "No Stripe customer found for this user. Please contact support." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 404,
       });
     }
-    
-    const customerId = customers.data[0].id;
-    logStep("Found Stripe customer", { customerId });
 
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    // Get return URL from request origin or use default
+    const origin = req.headers.get("origin") || req.headers.get("referer")?.split("/").slice(0, 3).join("/") || "https://theramate.co.uk";
+    const returnUrl = `${origin}/settings/subscription`;
+    
+    logStep("Creating portal session", { customerId, returnUrl });
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${origin}/dashboard`,
+      return_url: returnUrl,
     });
     logStep("Customer portal session created", { sessionId: portalSession.id, url: portalSession.url });
 

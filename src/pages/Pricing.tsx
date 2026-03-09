@@ -1,5 +1,5 @@
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { HeaderClean } from "@/components/landing/HeaderClean";
+import { FooterClean } from "@/components/FooterClean";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Settings, RefreshCw, Check, Star, Heart, TrendingUp, User, Users, Building2, ArrowRight, Mail, Phone, MessageSquare } from "lucide-react";
+import { Settings, RefreshCw, Check, Users, Building2, ArrowRight, Mail, Phone } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import MetaTags from "@/components/SEO/MetaTags";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -23,18 +22,58 @@ const Pricing = () => {
   const { subscribed, subscriptionTier, subscriptionEnd, loading, checkSubscription, manageSubscription, createCheckout } = useSubscription();
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [isYearly, setIsYearly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState("clients");
+  const [activeTab, setActiveTab] = useState("practitioners");
 
   // Handle URL parameters for tab switching
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['clients', 'practitioners', 'enterprise'].includes(tab)) {
+    if (tab && ['practitioners', 'enterprise'].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  // Force subscription check for practitioners only (not clients)
+  useEffect(() => {
+    if (user && userProfile) {
+      const isPractitioner = ['sports_therapist', 'massage_therapist', 'osteopath'].includes(userProfile.user_role);
+      if (isPractitioner) {
+        // Force a fresh check to prevent stale data
+        checkSubscription(true);
+      }
+    }
+  }, [user?.id, userProfile?.id]); // Only depend on IDs, not the full objects
+
+  // Practitioners with incomplete onboarding should finish onboarding first, not stay on pricing.
+  useEffect(() => {
+    if (!user || !userProfile) return;
+
+    const isPractitioner = ['sports_therapist', 'massage_therapist', 'osteopath'].includes(userProfile.user_role);
+    const needsOnboarding = userProfile.onboarding_status !== 'completed' || !userProfile.profile_completed;
+
+    if (isPractitioner && needsOnboarding) {
+      navigate('/onboarding', {
+        replace: true,
+        state: {
+          message: 'Complete onboarding to continue setup.',
+          from: '/pricing',
+        },
+      });
+    }
+  }, [user?.id, userProfile?.id, userProfile?.user_role, userProfile?.onboarding_status, userProfile?.profile_completed, navigate]);
+
+  // Redirect subscribed practitioners to dashboard to prevent loop
+  useEffect(() => {
+    if (!loading && subscribed && userProfile) {
+      const isPractitioner = ['sports_therapist', 'massage_therapist', 'osteopath'].includes(userProfile.user_role);
+      if (isPractitioner && userProfile.onboarding_status === 'completed') {
+        console.log('✅ Practitioner has active subscription, redirecting to dashboard');
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [loading, subscribed, userProfile?.id, userProfile?.user_role, userProfile?.onboarding_status, navigate]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -50,26 +89,7 @@ const Pricing = () => {
       return;
     }
 
-    if (planId !== 'client' && userProfile?.user_role === 'client') {
-      toast({
-        title: "Access Restricted",
-        description: "Subscription plans are only available for healthcare professionals. Clients can book sessions for free.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (planId === 'client' && userProfile?.user_role !== 'client') {
-      toast({
-        title: "Access Restricted", 
-        description: "This plan is for clients only. Healthcare professionals should use the practitioner plans.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const billing = isYearly ? 'yearly' : 'monthly';
-    await createCheckout(planId, billing);
+    await createCheckout(planId, 'monthly');
   };
 
   const handleCustomPricingSubmit = async (e: React.FormEvent) => {
@@ -119,60 +139,37 @@ const Pricing = () => {
     }
   };
 
-  const clientFeatures = [
-    "Browse unlimited healthcare professional profiles",
-    "Direct messaging with practitioners", 
-    "Easy booking system with real-time availability",
-    "Session history and progress tracking",
-    "Review and rating system",
-    "Email notifications and reminders",
-    "Community access and support",
-    "No hidden fees or charges",
-    "Secure payment processing"
-  ];
-
   const practitionerPlans = [
     {
       id: "professional",
-      name: "For Healthcare Professionals",
+      name: "Starter",
       monthlyPrice: 30,
-      yearlyPrice: 27,
+      yearlyPrice: 30,
       description: "Complete platform access for licensed healthcare professionals",
       badge: "",
       features: [
         "Professional profile listing",
-        "Advanced booking calendar",
+        "Booking calendar",
         "Client management system",
-        "Credit-based exchange system",
-        "Marketing tools & analytics",
-        "Priority search placement",
-        "Video consultation support",
-        "Professional verification badge",
-        "Custom availability settings",
-        "Secure messaging platform"
+        "Secure messaging platform",
+        "Credit-based exchange system"
       ],
-      buttonText: "Start as Professional",
+      buttonText: "Start Starter Plan",
       buttonVariant: "default" as const,
       popular: false
     },
     {
       id: "professional-pro",
-      name: "For Healthcare Professionals Pro",
+      name: "Pro",
       monthlyPrice: 50,
-      yearlyPrice: 45,
-      description: "AI-powered features for enhanced professional practice management",
+      yearlyPrice: 50,
+      description: "Enhanced features for growing practices",
       badge: "Best Value",
       features: [
-        "Everything in Healthcare Professional plan",
-        "AI-powered SOAP notes recording",
-        "Voice-to-text transcription",
-        "Automated session documentation",
-        "Smart appointment scheduling",
+        "Everything in Starter plan",
         "Advanced analytics & insights",
-        "Client progress tracking",
-        "Custom treatment plans",
-        "Priority customer support",
-        "Advanced reporting tools"
+        "AI notes taker",
+        "Voice recorder for notes"
       ],
       buttonText: "Start Pro Plan",
       buttonVariant: "default" as const,
@@ -183,56 +180,43 @@ const Pricing = () => {
   return (
     <>
       <MetaTags
-        title="Pricing Plans | TheraMate - Affordable Therapy Services"
-        description="Transparent pricing for therapy services. Free client access, professional plans starting at £30/month. Book sessions with qualified healthcare professionals."
-        keywords="therapy pricing, healthcare professional plans, sports therapy cost, massage therapy rates, osteopathy pricing, therapy platform pricing, affordable therapy"
+        title="Pricing Plans | TheraMate - Professional Plans for Healthcare Practitioners"
+        description="Transparent pricing for healthcare practitioners. Professional plans starting at £30/month. Grow your practice with our comprehensive platform and tools."
+        keywords="therapy pricing, healthcare professional plans, sports therapy cost, massage therapy rates, osteopathy pricing, therapy platform pricing, practitioner plans"
         canonicalUrl="https://theramate.com/pricing"
         structuredData={{
           "@context": "https://schema.org",
           "@type": "WebPage",
           "name": "Pricing Plans | TheraMate",
-          "description": "Transparent pricing for therapy services. Free client access, professional plans starting at £30/month.",
+          "description": "Professional plans for healthcare practitioners starting at £30/month.",
           "url": "https://theramate.com/pricing",
           "mainEntity": {
             "@type": "ItemList",
-            "name": "Therapy Service Plans",
-            "description": "Pricing plans for therapy services and healthcare professional subscriptions",
+            "name": "Healthcare Professional Plans",
+            "description": "Pricing plans for healthcare professional subscriptions",
             "itemListElement": [
               {
                 "@type": "Offer",
-                "name": "Client Access",
-                "description": "Free access with pay-per-session model",
-                "price": "0",
+                "name": "Starter Plan",
+                "description": "Complete platform access for licensed healthcare professionals",
+                "price": "30",
                 "priceCurrency": "GBP",
                 "priceSpecification": {
                   "@type": "UnitPriceSpecification",
-                  "price": "0",
+                  "price": "30",
                   "priceCurrency": "GBP",
                   "unitText": "per month"
                 }
               },
               {
                 "@type": "Offer",
-                "name": "Professional Practitioner Plan",
-                "description": "Advanced tools for established practitioners - 3% marketplace fee",
-                "price": "79.99",
+                "name": "Pro Plan",
+                "description": "Enhanced features for growing practices",
+                "price": "50",
                 "priceCurrency": "GBP",
                 "priceSpecification": {
                   "@type": "UnitPriceSpecification",
-                  "price": "79.99",
-                  "priceCurrency": "GBP",
-                  "unitText": "per month"
-                }
-              },
-              {
-                "@type": "Offer",
-                "name": "Premium Practitioner Plan",
-                "description": "Complete suite for top practitioners - 1% marketplace fee",
-                "price": "199.99",
-                "priceCurrency": "GBP",
-                "priceSpecification": {
-                  "@type": "UnitPriceSpecification",
-                  "price": "199.99",
+                  "price": "50",
                   "priceCurrency": "GBP",
                   "unitText": "per month"
                 }
@@ -241,10 +225,10 @@ const Pricing = () => {
           }
         }}
       />
-    <div className="min-h-screen flex flex-col">
-      <Header />
+    <div className="min-h-screen flex flex-col bg-white dark:bg-slate-950">
+      <HeaderClean />
       
-      <main className="flex-1">
+      <main className="flex-1 mt-16">
         {/* Back Button */}
         <section className="py-8 bg-muted/30">
           <div className="container mx-auto px-4">
@@ -329,17 +313,12 @@ const Pricing = () => {
                   <span className="block text-primary">TheraMate Plan</span>
                 </h2>
                 <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-                  Clear pricing for every role: <strong>Free access for clients seeking care</strong> or 
-                  <strong> professional plans for healthcare providers</strong>. Plus custom enterprise solutions.
+                  Professional plans designed for healthcare practitioners. Start growing your practice today with our comprehensive platform and tools.
                 </p>
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-12">
-                  <TabsTrigger value="clients" className="flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    For Clients
-                  </TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 mb-12">
                   <TabsTrigger value="practitioners" className="flex items-center gap-2">
                     <Users className="w-4 h-4" />
                     For Practitioners
@@ -350,102 +329,6 @@ const Pricing = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Client Pricing */}
-                <TabsContent value="clients" className="space-y-8">
-                  <div className="text-center mb-8">
-                    <h3 className="text-2xl font-bold mb-4">Client Pricing</h3>
-                    <p className="text-muted-foreground">
-                      Access to qualified healthcare professionals completely free. You only pay for the sessions you book.
-                    </p>
-                  </div>
-
-                  {/* Explicit notice: clients don't need subscriptions or packages */}
-                  <div className="max-w-3xl mx-auto">
-                    <div className="p-3 md:p-4 rounded-md border bg-blue-50 border-blue-200 text-blue-900 text-sm">
-                      <strong className="font-medium">No subscriptions or fixed packages for clients.</strong>
-                      <span className="ml-1">You only pay per session at the price set by each practitioner.</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                    {/* Free Client Plan */}
-                    <Card className="shadow-lg border-2 border-green-200">
-                      <CardHeader className="text-center pb-6">
-                        <Badge className="w-fit mx-auto mb-4 bg-green-100 text-green-800">
-                          Free Forever
-                        </Badge>
-                        <CardTitle className="text-2xl mb-2">Client Access</CardTitle>
-                        <div className="mb-4">
-                          <span className="text-4xl font-bold text-green-600">Free</span>
-                          <span className="text-muted-foreground">/forever</span>
-                        </div>
-                        <p className="text-muted-foreground leading-relaxed">
-                          Complete access to browse, book, and connect with healthcare professionals. 
-                          You only pay for the sessions you book with practitioners.
-                        </p>
-                      </CardHeader>
-                      
-                      <CardContent className="space-y-6">
-                        <ul className="space-y-3">
-                          {clientFeatures.map((feature, index) => (
-                            <li key={index} className="flex items-start gap-3">
-                              <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm">{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
-                         
-                        <Button 
-                          variant="default" 
-                          className="w-full" 
-                          size="lg"
-                          onClick={() => handlePlanSelect('client')}
-                        >
-                          Start Free as Client
-                        </Button>
-                      </CardContent>
-                    </Card>
-
-                    {/* Session Pricing Info */}
-                    <Card className="shadow-lg">
-                      <CardHeader className="text-center pb-6">
-                        <CardTitle className="text-2xl mb-2">Session Pricing</CardTitle>
-                        <p className="text-muted-foreground">
-                          Pay only for the sessions you book with practitioners
-                        </p>
-                      </CardHeader>
-                      
-                      <CardContent className="space-y-6">
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
-                            <span className="font-medium">60-minute session</span>
-                            <Badge className="bg-blue-100 text-blue-700">£60-120</Badge>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
-                            <span className="font-medium">90-minute session</span>
-                            <Badge className="bg-blue-100 text-blue-700">£90-180</Badge>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
-                            <span className="font-medium">Initial consultation</span>
-                            <Badge className="bg-blue-100 text-blue-700">£80-150</Badge>
-                          </div>
-                        </div>
-                        
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Pricing varies by practitioner and service type
-                          </p>
-                          <Button variant="outline" size="lg" asChild>
-                            <Link to="/marketplace">
-                              Browse Practitioners
-                            </Link>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
                 {/* Practitioner Pricing */}
                 <TabsContent value="practitioners" className="space-y-8">
                   <div className="text-center mb-8">
@@ -453,29 +336,11 @@ const Pricing = () => {
                     <p className="text-muted-foreground">
                       Professional plans for healthcare providers to offer services on our platform
                     </p>
-                    
-                    {/* Billing Toggle */}
-                    <div className="flex items-center justify-center gap-4 mt-6">
-                      <span className={`text-sm ${!isYearly ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                        Monthly
-                      </span>
-                      <Switch
-                        checked={isYearly}
-                        onCheckedChange={setIsYearly}
-                        className="data-[state=checked]:bg-primary"
-                      />
-                      <span className={`text-sm ${isYearly ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                        Yearly
-                      </span>
-                      <Badge variant="secondary" className="ml-2">
-                        Save 10%
-                      </Badge>
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     {practitionerPlans.map((plan, index) => {
-                      const currentPrice = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
+                      const currentPrice = plan.monthlyPrice;
                       const isCurrentPlan = subscribed && subscriptionTier === plan.id;
                       
                       return (
@@ -505,12 +370,7 @@ const Pricing = () => {
                             <CardTitle className="text-2xl mb-2">{plan.name}</CardTitle>
                             <div className="mb-4">
                               <span className="text-4xl font-bold text-primary">£{currentPrice}</span>
-                              <span className="text-muted-foreground">/{isYearly ? 'month' : 'month'}</span>
-                              {isYearly && (
-                                <div className="text-sm text-muted-foreground">
-                                  Billed annually (£{(currentPrice * 12).toFixed(0)}/year)
-                                </div>
-                              )}
+                              <span className="text-muted-foreground">/month</span>
                             </div>
                             <p className="text-muted-foreground leading-relaxed">
                               {plan.description}
@@ -571,33 +431,6 @@ const Pricing = () => {
                       </CardHeader>
                       
                       <CardContent className="space-y-6">
-                        <ul className="space-y-3">
-                          <li className="flex items-start gap-3">
-                            <Check className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">Custom integrations with your existing systems</span>
-                          </li>
-                          <li className="flex items-start gap-3">
-                            <Check className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">Dedicated account management</span>
-                          </li>
-                          <li className="flex items-start gap-3">
-                            <Check className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">Priority support and training</span>
-                          </li>
-                          <li className="flex items-start gap-3">
-                            <Check className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">Custom branding and white-labeling</span>
-                          </li>
-                          <li className="flex items-start gap-3">
-                            <Check className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">Advanced analytics and reporting</span>
-                          </li>
-                          <li className="flex items-start gap-3">
-                            <Check className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">Volume discounts and flexible billing</span>
-                          </li>
-                        </ul>
-                         
                         <Button 
                           variant="default" 
                           className="w-full" 
@@ -714,78 +547,15 @@ const Pricing = () => {
           </div>
         </section>
 
-        {/* Trust Indicators - Hidden on Enterprise tab */}
-        {activeTab !== "enterprise" && (
-          <section className="py-16 bg-background">
-            <div className="container mx-auto px-4">
-              <div className="max-w-6xl mx-auto">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <Card className="text-center p-6 shadow-lg">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mb-4">
-                      <Heart className="w-6 h-6 text-green-600" />
-                    </div>
-                    <h4 className="font-semibold mb-2">Free Forever for Clients</h4>
-                    <p className="text-sm text-muted-foreground">
-                      No hidden fees or charges. Browse, book, and connect with healthcare professionals completely free.
-                    </p>
-                  </Card>
-                  
-                  <Card className="text-center p-6 shadow-lg">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mb-4">
-                      <Star className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <h4 className="font-semibold mb-2">AI-Powered Features</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Advanced AI for SOAP notes, transcription, and practice management included in professional plans.
-                    </p>
-                  </Card>
-                  
-                  <Card className="text-center p-6 shadow-lg">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mb-4">
-                      <TrendingUp className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <h4 className="font-semibold mb-2">Flexible Pricing</h4>
-                    <p className="text-sm text-muted-foreground">
-                      From free client access to custom enterprise solutions, we have pricing for every need.
-                    </p>
-                  </Card>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
 
-        {/* CTA */}
-          <section className="py-16 bg-muted/30">
-            <div className="container mx-auto px-4">
-              <div className="max-w-2xl mx-auto text-center">
-              <h2 className="text-3xl font-bold mb-6">Questions About Pricing?</h2>
-                <p className="text-muted-foreground mb-8">
-                Our team is here to help you choose the right plan for your needs.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button variant="outline" size="lg" asChild>
-                  <Link to="/contact">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Contact Support
-                  </Link>
-                </Button>
-                <Button variant="outline" size="lg" asChild>
-                  <Link to="/help">
-                    <Phone className="w-4 h-4 mr-2" />
-                    Help Center
-                  </Link>
-                </Button>
-              </div>
-              </div>
-            </div>
-          </section>
       </main>
       
-      <Footer />
+      <FooterClean />
     </div>
     </>
   );
 };
 
 export default Pricing;
+
+

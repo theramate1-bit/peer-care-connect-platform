@@ -53,5 +53,5 @@ if (typeof (globalThis as any).global === 'undefined') {
   (globalThis as any).global = globalThis;
 }
 
-console.log('Browser polyfills loaded successfully');
+// Browser polyfills loaded
 

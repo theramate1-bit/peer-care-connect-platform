@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Building2, 
-  User, 
+  User as UserIcon, 
   CreditCard, 
   CheckCircle, 
   AlertCircle,
@@ -316,7 +316,7 @@ const ConnectAccountSetup: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {connectAccount ? <Building2 className="h-5 w-5" /> : <User className="h-5 w-5" />}
+              {connectAccount ? <Building2 className="h-5 w-5" /> : <UserIcon className="h-5 w-5" />}
               {connectAccount ? 'Update Account Details' : 'Create Connect Account'}
             </CardTitle>
             <CardDescription>
@@ -616,3 +616,6 @@ const ConnectAccountSetup: React.FC = () => {
 };
 
 export default ConnectAccountSetup;
+
+
+

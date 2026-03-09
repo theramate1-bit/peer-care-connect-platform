@@ -27,7 +27,7 @@ import {
   ArrowRight,
   Settings,
   Bell,
-  User,
+  User as UserIcon,
   Mail,
   Phone,
   MapPin,
@@ -751,4 +751,6 @@ const DesignSystem = () => {
 };
 
 export default DesignSystem;
+
+
 

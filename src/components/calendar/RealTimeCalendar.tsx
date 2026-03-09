@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Calendar, 
   Clock, 
-  User, 
+  User as UserIcon, 
   CheckCircle, 
   XCircle,
   ArrowLeft,
@@ -337,3 +337,5 @@ export const RealTimeCalendar: React.FC<RealTimeCalendarProps> = ({
     </Card>
   );
 };
+
+

@@ -1,193 +1,261 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Users, Activity, Heart, Bone, ArrowRight } from "lucide-react";
+import { Users, Activity, Heart, Bone, user, Stethoscope, Hand } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 const RoleSelection = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<string>('');
+  const { user, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showPractitionerTypes, setShowPractitionerTypes] = useState(false);
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/login');
-    }
-  }, [user, authLoading, navigate]);
-
-  const roles = [
-    {
-      value: 'client',
-      title: 'Client',
-      description: 'Looking for healthcare services',
-      icon: Users,
-      details: 'Book sessions with qualified healthcare professionals in your area'
-    },
-    {
-      value: 'sports_therapist',
-      title: 'Sports Therapist',
-      description: 'Sports injury specialist',
-      icon: Activity,
-      details: 'Provide sports therapy and injury rehabilitation services'
-    },
-    {
-      value: 'massage_therapist',
-      title: 'Massage Therapist',
-      description: 'Licensed massage professional',
-      icon: Heart,
-      details: 'Offer various massage therapy techniques and treatments'
-    },
-    {
-      value: 'osteopath',
-      title: 'Osteopath',
-      description: 'Registered osteopathic practitioner',
-      icon: Bone,
-      details: 'Provide holistic osteopathic treatment and care'
-    }
-  ];
-
-  const handleContinue = async () => {
-    if (!selectedRole) {
-      toast.error('Please select your role to continue');
-      return;
-    }
-
+  const handleRoleSelection = async (role: 'client' | 'sports_therapist' | 'massage_therapist' | 'osteopath') => {
     if (!user) {
-      toast.error('Please sign in to continue');
-      navigate('/login');
+      toast.error("Please log in first");
+      navigate("/login");
       return;
     }
 
+    console.log('🎯 RoleSelection: Starting role selection', { userId: user.id, role });
     setLoading(true);
     try {
-      // Update user metadata
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          user_role: selectedRole,
-        }
+      // Update user role in database using the proper function
+      console.log('🎯 RoleSelection: Updating user role in database');
+      const { data, error } = await supabase.rpc('assign_user_role', {
+        user_id: user.id,
+        role_name: role
       });
 
-      if (updateError) {
-        throw updateError;
+      console.log('🎯 RoleSelection: Database update result', { data, error });
+
+      if (error) {
+        console.error('❌ RoleSelection: Role update error:', error);
+        toast.error(`Failed to set role: ${error.message}`);
+        return;
       }
 
-      // Update user profile in database
-      const { error: profileError } = await supabase
-        .from('users')
-        .update({
-          user_role: selectedRole,
-          onboarding_status: selectedRole === 'client' ? 'pending' : 'role_selected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      toast.success('Role selected successfully!');
+      console.log('✅ RoleSelection: Role updated successfully');
+      toast.success(`Welcome as a ${role.replace('_', ' ')}!`);
       
-      // Navigate based on role
-      if (selectedRole === 'client') {
-        navigate('/onboarding', { replace: true });
-      } else {
-        navigate('/onboarding', { replace: true });
-      }
-
-    } catch (error: any) {
-      console.error('Role selection error:', error);
-      toast.error('Failed to update role. Please try again.');
+      // Refresh the user profile to get the updated role
+      console.log('🔄 RoleSelection: Refreshing user profile');
+      await refreshProfile();
+      
+      // Redirect to role-specific onboarding
+      console.log('🎯 RoleSelection: Redirecting to onboarding');
+      navigate(`/onboarding?role=${role}`);
+    } catch (error) {
+      console.error('❌ RoleSelection: Unexpected error:', error);
+      toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
 
-  // Show loading while auth is loading
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-            <p className="text-muted-foreground text-center">
-              Loading...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const handlePractitionerSelection = () => {
+    setShowPractitionerTypes(true);
+  };
+
+  const handleBackToMain = () => {
+    setShowPractitionerTypes(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to TheraMate!</CardTitle>
-          <CardDescription>
-            Please select your role to customize your experience
+          <CardTitle className="text-3xl">Welcome to TheraMate.</CardTitle>
+          <CardDescription className="text-lg">
+            Please choose your role to get started
           </CardDescription>
         </CardHeader>
         
-        <CardContent className="space-y-6">
-          <RadioGroup
-            value={selectedRole}
-            onValueChange={setSelectedRole}
-            className="space-y-4"
-          >
-            {roles.map((role) => {
-              const IconComponent = role.icon;
-              return (
-                <div key={role.value} className="relative">
-                  <RadioGroupItem
-                    value={role.value}
-                    id={role.value}
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor={role.value}
-                    className="flex items-start space-x-4 p-6 rounded-lg border-2 border-muted cursor-pointer hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/5 transition-all"
-                  >
+        <CardContent className="space-y-8">
+          {!showPractitionerTypes ? (
+            <>
+              {/* Client Option */}
+          <div className="border rounded-lg p-6 transition-[border-color,background-color] duration-200 ease-out">
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Users className="w-6 h-6 text-gray-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">I'm a Client</h3>
+                <p className="text-gray-600 mb-4">
+                  I'm looking for musculoskeletal health services from qualified practitioners.
+                </p>
+                <ul className="text-sm text-gray-500 space-y-1 mb-4">
+                  <li>• Book sessions with osteopaths, sports therapists, and massage therapists</li>
+                  <li>• Track your treatment progress and health goals</li>
+                  <li>• Access your treatment notes and session history</li>
+                  <li>• Communicate directly with your practitioners</li>
+                </ul>
+                <Button
+                  onClick={() => handleRoleSelection('client')}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  Continue as Client
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Practitioner Option */}
+          <div className="border rounded-lg p-6 transition-[border-color,background-color] duration-200 ease-out">
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-gray-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">I'm a Practitioner</h3>
+                <p className="text-gray-600 mb-4">
+                  I'm a qualified musculoskeletal health professional providing services to clients.
+                </p>
+                <ul className="text-sm text-gray-500 space-y-1 mb-4">
+                  <li>• Manage your practice and client bookings</li>
+                  <li>• Document treatment sessions and client progress</li>
+                  <li>• Accept payments and manage your earnings</li>
+                  <li>• Grow your client base through our platform</li>
+                </ul>
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Practitioner Types:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      <Bone className="w-3 h-3 mr-1" />
+                      Osteopath
+                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      <Activity className="w-3 h-3 mr-1" />
+                      Sports Therapist
+                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      <Heart className="w-3 h-3 mr-1" />
+                      Massage Therapist
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  onClick={handlePractitionerSelection}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Continue as Practitioner
+                </Button>
+              </div>
+            </div>
+          </div>
+
+              {/* Help Text */}
+              <div className="text-center text-sm text-gray-500">
+                <p>
+                  Don't worry, you can always update your profile information later.
+                  This helps us customize your experience.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-6">
+              {/* Back Button */}
+              <Button 
+                variant="outline" 
+                onClick={handleBackToMain}
+                className="mb-4"
+              >
+                ← Back to Role Selection
+              </Button>
+
+              {/* Practitioner Types */}
+              <div className="space-y-4">
+                {/* Sports Therapist */}
+                <div 
+                  className="border rounded-lg p-6 transition-[border-color,background-color] duration-200 ease-out cursor-pointer"
+                  onClick={() => handleRoleSelection('sports_therapist')}
+                >
+                  <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <IconComponent className="w-6 h-6 text-primary" />
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Activity className="w-6 h-6 text-gray-600" />
                       </div>
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold text-lg">{role.title}</div>
-                      <div className="text-sm text-muted-foreground mb-2">{role.description}</div>
-                      <div className="text-sm">{role.details}</div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Sports Therapist</h3>
+                      <p className="text-gray-600 mb-4">
+                        Specialized in sports injury prevention, treatment, and rehabilitation.
+                      </p>
+                      <Button 
+                        className="w-full" 
+                        disabled={loading}
+                      >
+                        Continue as Sports Therapist
+                      </Button>
                     </div>
-                    <div className="flex-shrink-0">
-                      <ArrowRight className="w-5 h-5 text-muted-foreground peer-checked:text-primary" />
-                    </div>
-                  </Label>
+                  </div>
                 </div>
-              );
-            })}
-          </RadioGroup>
 
-          <Button
-            onClick={handleContinue}
-            disabled={loading || !selectedRole}
-            className="w-full"
-            size="lg"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Setting up your account...
-              </>
-            ) : (
-              'Continue to Onboarding'
-            )}
-          </Button>
+                {/* Massage Therapist */}
+                <div 
+                  className="border rounded-lg p-6 transition-[border-color,background-color] duration-200 ease-out cursor-pointer"
+                  onClick={() => handleRoleSelection('massage_therapist')}
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Hand className="w-6 h-6 text-gray-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Massage Therapist</h3>
+                      <p className="text-gray-600 mb-4">
+                        Focused on therapeutic massage, relaxation, and soft tissue treatment.
+                      </p>
+                      <Button 
+                        className="w-full" 
+                        disabled={loading}
+                      >
+                        Continue as Massage Therapist
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Osteopath */}
+                <div 
+                  className="border rounded-lg p-6 transition-[border-color,background-color] duration-200 ease-out cursor-pointer"
+                  onClick={() => handleRoleSelection('osteopath')}
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Stethoscope className="w-6 h-6 text-gray-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Osteopath</h3>
+                      <p className="text-gray-600 mb-4">
+                        Holistic approach to musculoskeletal health through manual therapy and diagnosis.
+                      </p>
+                      <Button 
+                        className="w-full" 
+                        disabled={loading}
+                      >
+                        Continue as Osteopath
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

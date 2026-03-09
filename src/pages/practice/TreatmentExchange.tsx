@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { 
@@ -28,8 +29,21 @@ import MutualAvailabilityCalendar from '@/components/treatment-exchange/MutualAv
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
+// Helper function to get tier label
+const getStarTierLabel = (rating: number | null | undefined): string => {
+  if (!rating || rating === 0) return '0-1 Stars';
+  if (rating >= 4) return '4-5 Stars';
+  if (rating >= 2) return '2-3 Stars';
+  return '0-1 Stars';
+};
+
+// Helper function to calculate credit cost (1 credit per minute)
+const calculateCreditCost = (durationMinutes: number): number => {
+  return durationMinutes; // 1 credit per minute
+};
+
 const TreatmentExchange: React.FC = () => {
-  const { userProfile } = useAuth();
+  const { userProfile, updateProfile } = useAuth();
   const [practitioners, setPractitioners] = useState<EligiblePractitioner[]>([]);
   const [filteredPractitioners, setFilteredPractitioners] = useState<EligiblePractitioner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +53,7 @@ const TreatmentExchange: React.FC = () => {
   const [creditBalance, setCreditBalance] = useState<number>(0);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<MutualAvailabilitySlot | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -136,9 +151,29 @@ const TreatmentExchange: React.FC = () => {
     try {
       setRequestLoading(true);
       
+      // Log the request details for debugging
+      console.log('Sending treatment exchange request:', {
+        requesterId: userProfile?.id,
+        requesterName: `${userProfile?.first_name} ${userProfile?.last_name}`,
+        recipientId: selectedPractitioner.id,
+        recipientUserId: selectedPractitioner.user_id,
+        recipientName: `${selectedPractitioner.first_name} ${selectedPractitioner.last_name}`,
+        requestData,
+        selectedPractitioner: selectedPractitioner
+      });
+      
+      // Use user_id if available, otherwise fall back to id
+      // The EligiblePractitioner interface has both id and user_id, but user_id is the actual users.id
+      const recipientUserId = selectedPractitioner.user_id || selectedPractitioner.id;
+      
+      console.log('Using recipient user ID:', recipientUserId, 'from practitioner:', {
+        id: selectedPractitioner.id,
+        user_id: selectedPractitioner.user_id
+      });
+      
       await TreatmentExchangeService.sendExchangeRequest(
         userProfile?.id!,
-        selectedPractitioner.id,
+        recipientUserId,
         requestData
       );
 
@@ -155,7 +190,30 @@ const TreatmentExchange: React.FC = () => {
       });
     } catch (error) {
       console.error('Error sending exchange request:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to send exchange request');
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to send exchange request';
+      if (error instanceof Error) {
+        const errorMsg = error.message;
+        
+        if (errorMsg.includes('not enabled treatment exchange')) {
+          errorMessage = `${selectedPractitioner?.first_name} ${selectedPractitioner?.last_name} has not enabled treatment exchange. They may have disabled it recently. Please refresh the list and try another practitioner.`;
+          // Refresh the practitioner list to remove ineligible practitioners
+          loadPractitioners();
+        } else if (errorMsg.includes('Insufficient credits')) {
+          errorMessage = errorMsg;
+        } else if (errorMsg.includes('Tier mismatch')) {
+          errorMessage = 'Rating tier mismatch. You can only exchange with practitioners in the same rating tier.';
+        } else if (errorMsg.includes('profile is not completed')) {
+          errorMessage = `${selectedPractitioner?.first_name} ${selectedPractitioner?.last_name}'s profile is not completed.`;
+        } else {
+          errorMessage = errorMsg;
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000, // Show for 5 seconds for longer messages
+      });
     } finally {
       setRequestLoading(false);
     }
@@ -190,51 +248,108 @@ const TreatmentExchange: React.FC = () => {
     );
   }
 
-  // Not opted-in prompt
-  if (!userProfile?.treatment_exchange_enabled) {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
-              Treatment Exchange Not Enabled
-            </CardTitle>
-            <CardDescription>
-              You haven’t opted in for the Treatment Exchange feature. Go to profile settings to enable it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => (window.location.href = '/profile')}>
-              Go to Profile Settings
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Handle opt-in toggle
+  const handleTreatmentExchangeOptInToggle = async (checked: boolean) => {
+    try {
+      setToggling(true);
+      const { error } = await updateProfile({ treatment_exchange_opt_in: checked });
+
+      if (error) throw error;
+
+      toast.success(
+        checked
+          ? 'You are now opted in to treatment exchange'
+          : 'You have opted out of treatment exchange'
+      );
+
+      // Reload data to update UI
+      if (checked) {
+        loadPractitioners();
+      }
+    } catch (error) {
+      console.error('Error updating treatment exchange opt-in:', error);
+      toast.error('Failed to update treatment exchange settings');
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const isOptedIn = userProfile?.treatment_exchange_opt_in || userProfile?.treatment_exchange_enabled;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2">Treatment Exchange</h1>
-        <p className="text-muted-foreground mb-4">
-          Exchange treatments with other practitioners using credits
-        </p>
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <Coins className="h-5 w-5 text-yellow-500" />
-          <span className="text-lg font-medium">Your Credits: {creditBalance}</span>
-          {creditBalance === 0 && (
-            <Badge variant="destructive" className="ml-2">
-              No Credits Available
-            </Badge>
-          )}
-        </div>
-      </div>
+      {/* Treatment Exchange Opt-In Toggle Card */}
+      <Card className={isOptedIn ? 'border-primary/20' : 'border-muted'}>
+        <CardContent className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isOptedIn ? 'bg-primary/10' : 'bg-muted'}`}>
+                  <Users className={`h-5 w-5 ${isOptedIn ? 'text-primary' : 'text-muted-foreground'}`} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-base">
+                    {isOptedIn ? 'Participating in Treatment Exchange' : 'Enable Treatment Exchange'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {isOptedIn 
+                      ? 'Other practitioners can book sessions with you using credits'
+                      : 'Allow other practitioners to book sessions with you using credits. You can also book sessions with them.'}
+                  </p>
+                </div>
+              </div>
+              {!isOptedIn && (
+                <div className="mt-3 p-3 rounded-md bg-muted/50 border border-muted">
+                  <p className="text-xs text-muted-foreground">
+                    Enable this feature to view and book sessions with other practitioners.
+                  </p>
+                </div>
+              )}
+            </div>
+            <Switch
+              checked={isOptedIn ?? false}
+              onCheckedChange={handleTreatmentExchangeOptInToggle}
+              disabled={toggling}
+              className="flex-shrink-0"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Filters */}
-      <Card>
+      {/* Only show content if opted in */}
+      {!isOptedIn && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Treatment Exchange Not Enabled</h3>
+            <p className="text-muted-foreground">
+              Enable the toggle above to start exchanging treatments with other practitioners.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isOptedIn && (
+        <>
+          {/* Header */}
+          <div className="text-center">
+            <h1 className="text-3xl font-bold mb-2">Treatment Exchange</h1>
+            <p className="text-muted-foreground mb-4">
+              Exchange treatments with other practitioners using credits
+            </p>
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <Coins className="h-5 w-5 text-yellow-500" />
+              <span className="text-lg font-medium">Your Credits: {creditBalance}</span>
+              {creditBalance === 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  No Credits Available
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Filters */}
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -310,7 +425,7 @@ const TreatmentExchange: React.FC = () => {
       {/* Practitioners List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredPractitioners.map((practitioner) => (
-          <Card key={practitioner.id} className="hover:shadow-lg transition-shadow">
+          <Card key={practitioner.id} className="transition-[border-color,background-color] duration-200 ease-out">
             <CardHeader className="pb-3">
               <div className="flex items-start gap-3">
                 <Avatar className="h-12 w-12">
@@ -327,12 +442,15 @@ const TreatmentExchange: React.FC = () => {
                     <Badge className={getRoleColor(practitioner.user_role)}>
                       {getRoleDisplayName(practitioner.user_role)}
                     </Badge>
-                    {practitioner.average_rating && practitioner.average_rating > 0 && (
+                    {practitioner.average_rating !== undefined && (
                       <div className="flex items-center gap-1">
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                         <span className="text-sm font-medium">
-                          {practitioner.average_rating.toFixed(1)}
+                          {practitioner.average_rating > 0 ? practitioner.average_rating.toFixed(1) : '0.0'}
                         </span>
+                        <Badge variant="outline" className="text-xs">
+                          {getStarTierLabel(practitioner.average_rating)} Tier
+                        </Badge>
                       </div>
                     )}
                   </div>
@@ -415,8 +533,8 @@ const TreatmentExchange: React.FC = () => {
 
       {/* Request Form Modal */}
       {showRequestForm && selectedPractitioner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <Card className="w-full max-w-md max-h-[92vh] sm:max-h-[90vh] overflow-y-auto mt-2 sm:mt-0">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Send Exchange Request</CardTitle>
@@ -447,7 +565,7 @@ const TreatmentExchange: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="start-time">Start Time *</Label>
                   <Input
@@ -488,6 +606,9 @@ const TreatmentExchange: React.FC = () => {
                     duration_minutes: parseInt(e.target.value) || 60
                   }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Cost: {calculateCreditCost(requestData.duration_minutes)} credits
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -527,18 +648,37 @@ const TreatmentExchange: React.FC = () => {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="bg-muted p-3 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Total Cost:</span>
+                  <div className="flex items-center gap-1">
+                    <Coins className="h-4 w-4 text-yellow-600" />
+                    <span className="font-medium">{calculateCreditCost(requestData.duration_minutes)} credits</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm">Your Balance:</span>
+                  <span className="text-sm">{creditBalance} credits</span>
+                </div>
+                {creditBalance < calculateCreditCost(requestData.duration_minutes) && (
+                  <p className="text-xs text-destructive mt-1">
+                    Insufficient credits. You need {calculateCreditCost(requestData.duration_minutes)} credits.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => setShowRequestForm(false)}
-                  className="flex-1"
+                  className="w-full sm:flex-1"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSendRequest}
-                  disabled={requestLoading}
-                  className="flex-1"
+                  disabled={requestLoading || creditBalance < calculateCreditCost(requestData.duration_minutes)}
+                  className="w-full sm:flex-1"
                 >
                   {requestLoading ? (
                     <>
@@ -560,8 +700,8 @@ const TreatmentExchange: React.FC = () => {
 
       {/* Mutual Availability Calendar Modal */}
       {showCalendar && selectedPractitioner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="w-full max-w-6xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto mt-2 sm:mt-0">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -628,6 +768,8 @@ const TreatmentExchange: React.FC = () => {
             </Card>
           </div>
         </div>
+        )}
+      </>
       )}
     </div>
   );

@@ -24,11 +24,15 @@ import {
   MessageCircle,
   ExternalLink,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Car
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { BookingFlow } from '@/components/marketplace/BookingFlow';
+import { MobileBookingRequestFlow } from '@/components/marketplace/MobileBookingRequestFlow';
+import { HybridBookingChooser } from '@/components/booking/HybridBookingChooser';
+import { canBookClinic, canRequestMobile } from '@/lib/booking-flow-type';
 import { Analytics } from '@/lib/analytics';
 import { ProfessionSpecificProfile } from '@/components/practitioner/ProfessionSpecificProfile';
 import { PractitionerRatings } from '@/components/practitioner/PractitionerRatings';
@@ -70,6 +74,16 @@ interface EnhancedTherapistProfile {
   profile_verified_at: string;
   profile_verified_by: string;
   verification_notes: string;
+  therapist_type?: 'clinic_based' | 'mobile' | 'hybrid' | null;
+  base_latitude?: number | null;
+  base_longitude?: number | null;
+  mobile_service_radius_km?: number | null;
+  stripe_connect_account_id?: string | null;
+  clinic_latitude?: number | null;
+  clinic_longitude?: number | null;
+  first_name?: string;
+  last_name?: string;
+  user_role?: string;
   users?: {
     first_name: string;
     last_name: string;
@@ -97,6 +111,18 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
   const [profile, setProfile] = useState<EnhancedTherapistProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingFlow, setShowBookingFlow] = useState(false);
+  const [showMobileRequestFlow, setShowMobileRequestFlow] = useState(false);
+  const [profileProducts, setProfileProducts] = useState<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    price_amount: number;
+    currency: string;
+    duration_minutes: number;
+    service_type?: 'clinic' | 'mobile' | 'both';
+    is_active: boolean;
+    stripe_price_id?: string;
+  }>>([]);
   const [isFavorite, setIsFavorite] = useState(false);
   const [ratings, setRatings] = useState<any[]>([]);
   const [cpdCourses, setCpdCourses] = useState<any[]>([]);
@@ -117,25 +143,8 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
       
       const { data, error } = await supabase
         .from('users')
-        .select(`
-          *,
-          user_profiles (
-            first_name,
-            last_name,
-            user_role,
-            professional_body,
-            membership_number,
-            registration_number,
-            qualification_type,
-            qualification_expiry,
-            itmmif_status,
-            atmmif_status,
-            pitch_side_trauma,
-            goc_registration,
-            cnhc_registration
-          )
-        `)
-        .eq('user_id', therapistId)
+        .select('*, has_liability_insurance')
+        .eq('id', therapistId)
         .single();
 
       if (error) throw error;
@@ -143,6 +152,14 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
       await Analytics.trackEvent('profile_view', { practitionerId: therapistId });
       
       setProfile(data);
+
+      // Fetch active products for booking flow routing
+      const { data: productsData } = await supabase
+        .from('practitioner_products')
+        .select('id, name, description, price_amount, currency, duration_minutes, service_type, is_active, stripe_price_id')
+        .eq('practitioner_id', therapistId)
+        .eq('is_active', true);
+      setProfileProducts(productsData ?? []);
       
       // Increment profile views
       if (data) {
@@ -348,11 +365,37 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
     );
   }
 
+  const profileForBooking = {
+    therapist_type: profile.therapist_type ?? undefined,
+    mobile_service_radius_km: profile.mobile_service_radius_km ?? undefined,
+    base_latitude: profile.base_latitude ?? undefined,
+    base_longitude: profile.base_longitude ?? undefined,
+    products: profileProducts.map((p) => ({ is_active: p.is_active, service_type: p.service_type })),
+  };
+  const offerClinic = canBookClinic(profileForBooking);
+  const offerMobile = canRequestMobile(profileForBooking);
+
   const practitioner = {
-    user_id: profile.user_id,
-    hourly_rate: profile.hourly_rate,
-    specializations: profile.specializations,
-    experience_years: profile.experience_years
+    id: profile.id ?? profile.user_id,
+    user_id: profile.user_id ?? profile.id,
+    first_name: profile.first_name ?? profile.users?.first_name ?? '',
+    last_name: profile.last_name ?? profile.users?.last_name ?? '',
+    location: profile.location ?? '',
+    hourly_rate: profile.hourly_rate ?? 0,
+    specializations: profile.specializations ?? [],
+    bio: profile.bio ?? '',
+    experience_years: profile.experience_years ?? 0,
+    user_role: profile.user_role ?? profile.users?.user_role ?? 'practitioner',
+    average_rating: profile.average_rating ?? 0,
+    total_sessions: profile.total_sessions ?? 0,
+    therapist_type: profile.therapist_type,
+    mobile_service_radius_km: profile.mobile_service_radius_km,
+    base_latitude: profile.base_latitude,
+    base_longitude: profile.base_longitude,
+    stripe_connect_account_id: profile.stripe_connect_account_id,
+    clinic_latitude: profile.clinic_latitude,
+    clinic_longitude: profile.clinic_longitude,
+    products: profileProducts,
   };
 
   return (
@@ -377,21 +420,22 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
               <Avatar className="h-24 w-24">
                 <AvatarImage src={profile.profile_photo_url} />
                 <AvatarFallback className="text-2xl">
-                  {profile.users?.first_name?.[0]}{profile.users?.last_name?.[0]}
+                  {profile.first_name?.[0] || ''}{profile.last_name?.[0] || ''}
                 </AvatarFallback>
               </Avatar>
               
               <div className="flex-1 space-y-2">
                 <div className="flex items-center space-x-3">
                   <h1 className="text-3xl font-bold">
-                    {profile.users?.first_name} {profile.users?.last_name}
+                    {profile.first_name || ''} {profile.last_name || ''}
                   </h1>
                   {getVerificationBadge()}
                   {getProfileCompletionBadge()}
+                  {profile.has_liability_insurance && <Badge className="bg-blue-100 text-blue-800 border-blue-200">Liability Insured</Badge>}
                 </div>
                 
                 <p className="text-xl text-muted-foreground">
-                  {profile.users?.user_role?.replace('_', ' ').toUpperCase()}
+                  {profile.user_role?.replace(/_/g, ' ').toUpperCase()}
                 </p>
                 
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
@@ -413,19 +457,56 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
               
               <div className="flex flex-col space-y-2">
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-primary">
-                    £{profile.hourly_rate || 0}/hr
+                  <div className="text-sm text-muted-foreground">
+                    Pricing available in booking
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {profile.response_time_hours ? `Responds within ${profile.response_time_hours}h` : 'Response time not specified'}
                   </div>
                 </div>
                 
-                <div className="flex space-x-2">
-                  <Button onClick={() => { Analytics.trackEvent('profile_book_click', { practitionerId: therapistId }); setShowBookingFlow(true); }}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Book Session
-                  </Button>
+                <div className="flex flex-wrap gap-2">
+                  {offerClinic && offerMobile ? (
+                    <HybridBookingChooser
+                      onBookClinic={() => {
+                        Analytics.trackEvent('profile_book_click', { practitionerId: therapistId });
+                        setShowMobileRequestFlow(false);
+                        setShowBookingFlow(true);
+                      }}
+                      onRequestMobile={() => {
+                        Analytics.trackEvent('profile_request_mobile_click', { practitionerId: therapistId });
+                        setShowBookingFlow(false);
+                        setShowMobileRequestFlow(true);
+                      }}
+                      practitionerName={`${profile.first_name || ''} ${profile.last_name || ''}`.trim()}
+                      buttonSize="default"
+                      clinicLabel="Book at Clinic"
+                      mobileLabel="Request Visit to My Location"
+                    />
+                  ) : offerClinic ? (
+                    <Button
+                      onClick={() => {
+                        Analytics.trackEvent('profile_book_click', { practitionerId: therapistId });
+                        setShowMobileRequestFlow(false);
+                        setShowBookingFlow(true);
+                      }}
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Book Session
+                    </Button>
+                  ) : null}
+                  {!offerClinic && offerMobile && (
+                    <Button
+                      onClick={() => {
+                        Analytics.trackEvent('profile_request_mobile_click', { practitionerId: therapistId });
+                        setShowBookingFlow(false);
+                        setShowMobileRequestFlow(true);
+                      }}
+                    >
+                      <Car className="h-4 w-4 mr-2" />
+                      Request Mobile Session
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -460,11 +541,11 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="credentials">Credentials</TabsTrigger>
-                <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                <TabsTrigger value="reviews">Reviews</TabsTrigger>
+              <TabsList className="w-full flex overflow-x-auto whitespace-nowrap gap-2 p-1">
+                <TabsTrigger value="overview" className="shrink-0">Overview</TabsTrigger>
+                <TabsTrigger value="credentials" className="shrink-0">Credentials</TabsTrigger>
+                <TabsTrigger value="portfolio" className="shrink-0">Portfolio</TabsTrigger>
+                <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6">
@@ -810,8 +891,8 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
             )}
 
             {/* Profession-Specific Profile */}
-            {profile.users && (
-              <ProfessionSpecificProfile practitioner={profile.users} />
+            {profile && (
+              <ProfessionSpecificProfile practitioner={profile} />
             )}
 
             {/* Practitioner Ratings */}
@@ -836,6 +917,19 @@ const ProfileViewer = ({ therapistId }: ProfileViewerProps) => {
             open={showBookingFlow}
             onOpenChange={setShowBookingFlow}
             practitioner={practitioner}
+            onRedirectToMobile={() => {
+              setShowBookingFlow(false);
+              setShowMobileRequestFlow(true);
+            }}
+          />
+        )}
+        {/* Mobile request flow (address + practitioner accept) */}
+        {showMobileRequestFlow && (
+          <MobileBookingRequestFlow
+            open={showMobileRequestFlow}
+            onOpenChange={setShowMobileRequestFlow}
+            practitioner={practitioner}
+            clientLocation={null}
           />
         )}
       </div>

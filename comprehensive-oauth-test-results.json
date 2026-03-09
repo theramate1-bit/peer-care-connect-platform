@@ -1,0 +1,76 @@
+{
+  "timestamp": "2025-09-28T16:54:49.289Z",
+  "productionUrl": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app",
+  "results": [
+    {
+      "testName": "Main Page",
+      "hasGoogleOAuth": true,
+      "hasClientRole": false,
+      "hasPractitionerRole": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334
+    },
+    {
+      "testName": "Register Page",
+      "hasGoogleOAuth": true,
+      "hasClientRole": false,
+      "hasPractitionerRole": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334
+    },
+    {
+      "testName": "Login Page",
+      "hasGoogleOAuth": true,
+      "hasClientRole": false,
+      "hasPractitionerRole": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334
+    },
+    {
+      "testName": "Auth Callback",
+      "hasGoogleOAuth": true,
+      "hasClientRole": false,
+      "hasPractitionerRole": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334
+    },
+    {
+      "testName": "Role Selection",
+      "hasGoogleOAuth": true,
+      "hasClientRole": false,
+      "hasPractitionerRole": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334
+    },
+    {
+      "testName": "Onboarding",
+      "hasGoogleOAuth": true,
+      "hasClientRole": false,
+      "hasPractitionerRole": true,
+      "hasRoleManager": false,
+      "hasOAuthCallback": true,
+      "hasReactApp": true,
+      "contentLength": 8334
+    }
+  ],
+  "summary": {
+    "hasGoogleOAuth": true,
+    "hasClientRole": false,
+    "hasPractitionerRole": true,
+    "hasRoleManager": false,
+    "hasOAuthCallback": true,
+    "hasReactApp": true,
+    "readyComponents": 4,
+    "totalComponents": 5
+  }
+}

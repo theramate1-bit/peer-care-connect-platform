@@ -19,7 +19,7 @@ export function ProtectedRoute({
   requireSubscription = false
 }: ProtectedRouteProps) {
   const { user, userProfile, loading } = useAuth();
-  const { subscribed, loading: subscriptionLoading } = useSubscription();
+  const { subscribed, loading: subscriptionLoading, practitionerAccess } = useSubscription();
   const location = useLocation();
 
   if (loading || subscriptionLoading) {
@@ -61,8 +61,18 @@ export function ProtectedRoute({
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // Subscription-based access control for practitioners
-  if (requireSubscription && isPractitioner(userRole) && !subscribed) {
+  // Subscription-based access control
+  // Practitioners need BOTH subscription AND Stripe Connect
+  if (requireSubscription && isPractitioner(userRole) && !practitionerAccess) {
+    return <Navigate to="/pricing" state={{ 
+      message: !subscribed 
+        ? "Active subscription AND Stripe Connect account required" 
+        : "Stripe Connect account required" 
+    }} replace />;
+  }
+  
+  // Non-practitioners just need subscription
+  if (requireSubscription && !isPractitioner(userRole) && !subscribed) {
     return <Navigate to="/pricing" state={{ message: "Active subscription required to access this feature" }} replace />;
   }
 

@@ -14,7 +14,7 @@ import {
   CreditCard,
   Calendar,
   Clock,
-  User,
+  User as UserIcon,
   MapPin,
   Download,
   CheckCircle,
@@ -245,7 +245,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <User className="h-5 w-5" />
+                  <UserIcon className="h-5 w-5" />
                   Therapist Information
                 </CardTitle>
               </CardHeader>
@@ -369,3 +369,5 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     </Dialog>
   );
 };
+
+

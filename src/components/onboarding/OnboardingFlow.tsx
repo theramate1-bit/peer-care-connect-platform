@@ -96,7 +96,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, onSk
             ].map((item, index) => (
               <div 
                 key={index} 
-                className={`flex items-start space-x-4 p-4 rounded-lg cursor-pointer transition-all duration-200 ${
+                className={`flex items-start space-x-4 p-4 rounded-lg cursor-pointer transition-[border-color,background-color] duration-200 ease-out ${
                   index === currentStep - 1 ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50 hover:bg-gray-100'
                 }`}
                 onClick={() => handleStepClick(index + 1)}
@@ -207,7 +207,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete, onSk
                     e.stopPropagation();
                     handleStepClick(index);
                   }}
-                  className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 ${
+                  className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-[border-color,transform] duration-200 ease-out cursor-pointer hover:scale-105 active:scale-95 ${
                     index === currentStep
                       ? 'bg-blue-600 border-blue-600 text-white shadow-lg ring-2 ring-blue-300'
                       : completedSteps.includes(step.id)

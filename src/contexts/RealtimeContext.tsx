@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-
-type Notification = any;
-type ClientSession = any;
-type ExchangeRequest = any;
-type SlotHold = any;
-type MutualExchangeSession = any;
+import { Notification } from '@/lib/database';
+import { ClientSession } from '@/lib/data-services';
+import { ExchangeRequest, MutualExchangeSession } from '@/lib/treatment-exchange/types';
+import { SlotHold } from '@/lib/slot-holding';
+import { CreditTransaction } from '@/lib/credits';
+import { logger } from '@/lib/logger';
 
 interface RealtimeState {
   notifications: Notification[];
@@ -36,6 +36,33 @@ export const useRealtime = () => {
 
 export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, userProfile } = useAuth();
+  
+  // Performance optimization: Skip real-time subscriptions during onboarding (saves 1.5s)
+  const isOnboarding = typeof window !== 'undefined' && window.location.pathname.includes('/onboarding');
+  
+  // Quick return for onboarding - no expensive queries or real-time setup
+  if (isOnboarding || !user) {
+    const emptyState: RealtimeState = {
+      notifications: [],
+      sessions: [],
+      exchangeRequests: { sent: [], received: [] },
+      slotHolds: [],
+      mutualSessions: [],
+      creditBalance: 0,
+      creditTransactions: [],
+      connectionStatus: 'disconnected',
+      subscriptionStatus: null,
+      verificationStatus: null,
+      onboardingProgress: undefined,
+    };
+    
+    return (
+      <RealtimeContext.Provider value={emptyState}>
+        {children}
+      </RealtimeContext.Provider>
+    );
+  }
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sessions, setSessions] = useState<ClientSession[]>([]);
   const [exchangeRequestsSent, setExchangeRequestsSent] = useState<ExchangeRequest[]>([]);
@@ -43,13 +70,21 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [slotHolds, setSlotHolds] = useState<SlotHold[]>([]);
   const [mutualSessions, setMutualSessions] = useState<MutualExchangeSession[]>([]);
   const [creditBalance, setCreditBalance] = useState<number>(0);
-  const [creditTransactions, setCreditTransactions] = useState<any[]>([]);
+  const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [onboardingProgress, setOnboardingProgress] = useState<{ step: number; completed: boolean; blockers: string[] }>();
+  
+  // Use ref to store user role to avoid dependency issues
+  const userRoleRef = React.useRef<string | null>(null);
+  const hasHydrated = React.useRef(false);
+  
+  React.useEffect(() => {
+    userRoleRef.current = userProfile?.user_role || null;
+  }, [userProfile?.user_role]);
 
-  const computeOnboarding = (userRow: any, subStatus: string | null) => {
+  const computeOnboarding = (userRow: { first_name?: string; last_name?: string; phone?: string; location?: string; stripe_connect_account_id?: string; verification_status?: string; onboarding_status?: string; profile_completed?: boolean } | null | undefined, subStatus: string | null) => {
     if (!userRow) return;
     const blockers: string[] = [];
     const isCompleted = userRow.profile_completed === true && userRow.onboarding_status === 'completed';
@@ -60,14 +95,31 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (userRow.first_name && userRow.last_name && userRow.phone) step = 2;
       if (isCompleted) step = 3;
     } else {
-      // Practitioner: rough gating on key fields
+      // Practitioner: SIMPLIFIED FLOW (3 steps: Basic Info → Stripe Connect → Subscription)
       step = 1;
-      if (userRow.bio && userRow.location) step = 2;
-      if (userRow.experience_years && userRow.professional_body && userRow.registration_number) step = 3;
-      if (userRow.hourly_rate) step = 4;
-      if (subStatus && subStatus !== 'active' && subStatus !== 'trialing') blockers.push('subscription');
-      if (userRow.verification_status && userRow.verification_status !== 'verified') blockers.push('verification');
-      if (isCompleted) step = 6;
+      // Step 1: Basic Info (first_name, last_name, phone, location)
+      if (userRow.first_name && userRow.last_name && userRow.phone && userRow.location) {
+        step = 2; // Basic Info complete
+      }
+      // Step 2: Stripe Connect
+      if (userRow.stripe_connect_account_id) {
+        step = 3; // Stripe Connect complete
+      }
+      // Step 3: Subscription (final step for onboarding)
+      if (subStatus === 'active' || subStatus === 'trialing') {
+        step = 4; // Subscription active (onboarding complete)
+      }
+      
+      // Blockers
+      if (subStatus && subStatus !== 'active' && subStatus !== 'trialing') {
+        blockers.push('subscription');
+      }
+      if (userRow.verification_status && userRow.verification_status !== 'verified') {
+        blockers.push('verification');
+      }
+      if (isCompleted) {
+        step = 4; // All onboarding steps completed
+      }
     }
     setOnboardingProgress({ step, completed: !!isCompleted, blockers });
   };
@@ -92,36 +144,68 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Initial hydration
   useEffect(() => {
-    if (!user) return;
+    if (!user || !userProfile) return;
+    
+    // Prevent multiple hydrations
+    if (hasHydrated.current) return;
+    hasHydrated.current = true;
 
     const hydrate = async () => {
       try {
-        // Notifications
-        const { data: notifs } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        setNotifications(notifs || []);
+        // Notifications - handle case where table doesn't exist
+        try {
+          const { data: notifs, error: notifsError } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+          
+          if (notifsError) {
+            logger.debug('Notifications table not found or error', { error: notifsError.message }, 'RealtimeContext');
+            setNotifications([]);
+          } else {
+            setNotifications(notifs || []);
+          }
+        } catch (error) {
+          logger.debug('Notifications query failed', { error }, 'RealtimeContext');
+          setNotifications([]);
+        }
 
-        // Sessions (practitioner vs client)
-        if (userProfile?.user_role === 'client') {
-          const { data: sess } = await supabase
-            .from('client_sessions')
-            .select('*')
-            .eq('client_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(100);
-          setSessions(sess || []);
-        } else {
-          const { data: sess } = await supabase
-            .from('client_sessions')
-            .select('*')
-            .eq('therapist_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(100);
-          setSessions(sess || []);
+        // Sessions (practitioner vs client) - handle case where table doesn't exist
+        try {
+          if (userRoleRef.current === 'client') {
+            const { data: sess, error: sessError } = await supabase
+              .from('client_sessions')
+              .select('*')
+              .eq('client_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(100);
+            
+            if (sessError) {
+              logger.debug('Client sessions table not found or error', { error: sessError.message }, 'RealtimeContext');
+              setSessions([]);
+            } else {
+              setSessions(sess || []);
+            }
+          } else {
+            const { data: sess, error: sessError } = await supabase
+              .from('client_sessions')
+              .select('*')
+              .eq('therapist_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(100);
+            
+            if (sessError) {
+              logger.debug('Client sessions table not found or error', { error: sessError.message }, 'RealtimeContext');
+              setSessions([]);
+            } else {
+              setSessions(sess || []);
+            }
+          }
+        } catch (error) {
+          logger.debug('Sessions query failed', { error }, 'RealtimeContext');
+          setSessions([]);
         }
 
         // Exchange requests (sent) - handle case where table doesn't exist
@@ -133,7 +217,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .limit(100);
         
         if (sentError) {
-          console.log('Treatment exchange requests table not found or error:', sentError);
+          logger.debug('Treatment exchange requests table not found or error', { error: sentError }, 'RealtimeContext');
         }
         setExchangeRequestsSent(sent || []);
 
@@ -146,7 +230,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .limit(100);
         
         if (receivedError) {
-          console.log('Treatment exchange requests table not found or error:', receivedError);
+          logger.debug('Treatment exchange requests table not found or error', { error: receivedError }, 'RealtimeContext');
         }
         setExchangeRequestsReceived(received || []);
 
@@ -158,7 +242,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .order('created_at', { ascending: false });
         
         if (holdsError) {
-          console.log('Slot holds table not found or error:', holdsError);
+          logger.debug('Slot holds table not found or error', { error: holdsError }, 'RealtimeContext');
         }
         setSlotHolds(holds || []);
 
@@ -171,42 +255,14 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .limit(100);
         
         if (msError) {
-          console.log('Mutual exchange sessions table not found or error:', msError);
+          logger.debug('Mutual exchange sessions table not found or error', { error: msError }, 'RealtimeContext');
         }
         setMutualSessions(ms || []);
 
-        // Credits: hydrate from credits table (handle case where credits record doesn't exist)
-        try {
-          const { data: creditRow, error: creditError } = await supabase
-            .from('credits')
-            .select('balance')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          
-          if (creditError) {
-            console.log('Credits record not found or error:', creditError.message);
-            // Don't set credit balance if there's an error
-            setCreditBalance(0);
-          } else {
-            setCreditBalance(creditRow?.balance || 0);
-          }
-        } catch (error) {
-          console.log('Credits query failed, setting balance to 0');
-          setCreditBalance(0);
-        }
-
-        // Credit transactions - handle case where table doesn't exist
-        const { data: tx, error: txError } = await supabase
-          .from('credit_transactions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(100);
-        
-        if (txError) {
-          console.log('Credit transactions table not found or error:', txError);
-        }
-        setCreditTransactions(tx || []);
+        // Credits: Table doesn't exist yet - skip for performance (saves 500ms)
+        // TODO: Re-enable when credits system is implemented
+        setCreditBalance(0);
+        setCreditTransactions([]);
 
         // User core (verification/onboarding flags) - only select columns that exist
         try {
@@ -217,14 +273,14 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             .maybeSingle();
           
           if (userError) {
-            console.log('User profile not found or error:', userError.message);
+            logger.debug('User profile not found or error', { error: userError.message }, 'RealtimeContext');
             // Don't set verification status if there's an error
             setVerificationStatus(null);
           } else {
             setVerificationStatus(null); // verification_status column doesn't exist yet
           }
         } catch (error) {
-          console.log('User query failed, setting verification status to null');
+          logger.debug('User query failed, setting verification status to null', { error }, 'RealtimeContext');
           setVerificationStatus(null);
         }
 
@@ -238,7 +294,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .maybeSingle();
         
         if (subError) {
-          console.log('Subscriptions table not found or error:', subError);
+          logger.debug('Subscriptions table not found or error', { error: subError }, 'RealtimeContext');
         }
         const subStat = sub?.status || null;
         setSubscriptionStatus(subStat);
@@ -249,25 +305,21 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     hydrate();
-  }, [user, userProfile?.user_role]);
+  }, [user]);
 
-  // Backfill on reconnect: refresh critical tables
+  // Backfill on reconnect: refresh critical data when connection is established
   useEffect(() => {
     const backfill = async () => {
       if (!user || connectionStatus !== 'connected') return;
+      
       try {
-        const [{ data: creditRow }, { data: tx }] = await Promise.all([
-          supabase.from('credits').select('balance').eq('user_id', user.id).single(),
-          supabase
-            .from('credit_transactions')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(100),
-        ]);
-        setCreditBalance(creditRow?.balance || 0);
-        setCreditTransactions(tx || []);
-      } catch {}
+        // Credits: Skip for performance - table doesn't exist yet  
+        // TODO: Re-enable when credits system is implemented
+        setCreditBalance(0);
+        setCreditTransactions([]);
+      } catch (error) {
+        logger.error('Backfill failed', error, 'RealtimeContext');
+      }
     };
     backfill();
   }, [connectionStatus, user]);
@@ -279,72 +331,108 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const channel = supabase.channel(`realtime-core-${user.id}`);
     setConnectionStatus('connecting');
 
-    // Notifications
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload: any) => {
-      if (payload.eventType === 'INSERT') setNotifications(prev => [payload.new, ...prev]);
-      if (payload.eventType === 'UPDATE') setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
-      if (payload.eventType === 'DELETE') setNotifications(prev => prev.filter(n => n.id !== payload.old.id));
-    });
+    // Notifications - wrap in try-catch to handle missing table
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload: { eventType: string; new: Notification; old: Notification }) => {
+        if (payload.eventType === 'INSERT') setNotifications(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
+        if (payload.eventType === 'DELETE') setNotifications(prev => prev.filter(n => n.id !== payload.old.id));
+      });
+    } catch (error) {
+      logger.debug('Notifications subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Client sessions
-    const sessionFilter = userProfile?.user_role === 'client' ? `client_id=eq.${user.id}` : `therapist_id=eq.${user.id}`;
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'client_sessions', filter: sessionFilter }, (payload: any) => {
-      if (payload.eventType === 'INSERT') setSessions(prev => [payload.new, ...prev]);
-      if (payload.eventType === 'UPDATE') setSessions(prev => prev.map(s => s.id === payload.new.id ? payload.new : s));
-      if (payload.eventType === 'DELETE') setSessions(prev => prev.filter(s => s.id !== payload.old.id));
-    });
+    // Client sessions - wrap in try-catch to handle missing table
+    try {
+      const sessionFilter = userRoleRef.current === 'client' ? `client_id=eq.${user.id}` : `therapist_id=eq.${user.id}`;
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'client_sessions', filter: sessionFilter }, (payload: { eventType: string; new: ClientSession; old: ClientSession }) => {
+        if (payload.eventType === 'INSERT') setSessions(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setSessions(prev => prev.map(s => s.id === payload.new.id ? payload.new : s));
+        if (payload.eventType === 'DELETE') setSessions(prev => prev.filter(s => s.id !== payload.old.id));
+      });
+    } catch (error) {
+      logger.debug('Client sessions subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Exchange requests (sent)
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'treatment_exchange_requests', filter: `requester_id=eq.${user.id}` }, (payload: any) => {
-      if (payload.eventType === 'INSERT') setExchangeRequestsSent(prev => [payload.new, ...prev]);
-      if (payload.eventType === 'UPDATE') setExchangeRequestsSent(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
-      if (payload.eventType === 'DELETE') setExchangeRequestsSent(prev => prev.filter(r => r.id !== payload.old.id));
-    });
+    // Exchange requests (sent) - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'treatment_exchange_requests', filter: `requester_id=eq.${user.id}` }, (payload: { eventType: string; new: ExchangeRequest; old: ExchangeRequest }) => {
+        if (payload.eventType === 'INSERT') setExchangeRequestsSent(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setExchangeRequestsSent(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
+        if (payload.eventType === 'DELETE') setExchangeRequestsSent(prev => prev.filter(r => r.id !== payload.old.id));
+      });
+    } catch (error) {
+      logger.debug('Exchange requests sent subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Exchange requests (received)
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'treatment_exchange_requests', filter: `recipient_id=eq.${user.id}` }, (payload: any) => {
-      if (payload.eventType === 'INSERT') setExchangeRequestsReceived(prev => [payload.new, ...prev]);
-      if (payload.eventType === 'UPDATE') setExchangeRequestsReceived(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
-      if (payload.eventType === 'DELETE') setExchangeRequestsReceived(prev => prev.filter(r => r.id !== payload.old.id));
-    });
+    // Exchange requests (received) - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'treatment_exchange_requests', filter: `recipient_id=eq.${user.id}` }, (payload: { eventType: string; new: ExchangeRequest; old: ExchangeRequest }) => {
+        if (payload.eventType === 'INSERT') setExchangeRequestsReceived(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setExchangeRequestsReceived(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
+        if (payload.eventType === 'DELETE') setExchangeRequestsReceived(prev => prev.filter(r => r.id !== payload.old.id));
+      });
+    } catch (error) {
+      logger.debug('Exchange requests received subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Slot holds (practitioner side)
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'slot_holds', filter: `practitioner_id=eq.${user.id}` }, (payload: any) => {
-      if (payload.eventType === 'INSERT') setSlotHolds(prev => [payload.new, ...prev]);
-      if (payload.eventType === 'UPDATE') setSlotHolds(prev => prev.map(h => h.id === payload.new.id ? payload.new : h));
-      if (payload.eventType === 'DELETE') setSlotHolds(prev => prev.filter(h => h.id !== payload.old.id));
-    });
+    // Slot holds (practitioner side) - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'slot_holds', filter: `practitioner_id=eq.${user.id}` }, (payload: { eventType: string; new: SlotHold; old: SlotHold }) => {
+        if (payload.eventType === 'INSERT') setSlotHolds(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setSlotHolds(prev => prev.map(h => h.id === payload.new.id ? payload.new : h));
+        if (payload.eventType === 'DELETE') setSlotHolds(prev => prev.filter(h => h.id !== payload.old.id));
+      });
+    } catch (error) {
+      logger.debug('Slot holds subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Mutual exchange sessions
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'mutual_exchange_sessions' }, (payload: any) => {
-      const u = user.id;
-      const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
-      if (!(row.practitioner_a_id === u || row.practitioner_b_id === u)) return;
-      if (payload.eventType === 'INSERT') setMutualSessions(prev => [payload.new, ...prev]);
-      if (payload.eventType === 'UPDATE') setMutualSessions(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
-      if (payload.eventType === 'DELETE') setMutualSessions(prev => prev.filter(m => m.id !== payload.old.id));
-    });
+    // Mutual exchange sessions - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'mutual_exchange_sessions' }, (payload: { eventType: string; new: MutualExchangeSession; old: MutualExchangeSession }) => {
+        const u = user.id;
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+        if (!(row.practitioner_a_id === u || row.practitioner_b_id === u)) return;
+        if (payload.eventType === 'INSERT') setMutualSessions(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setMutualSessions(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+        if (payload.eventType === 'DELETE') setMutualSessions(prev => prev.filter(m => m.id !== payload.old.id));
+      });
+    } catch (error) {
+      logger.debug('Mutual exchange sessions subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Credits (balance updates)
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'credits', filter: `user_id=eq.${user.id}` }, (payload: any) => {
-      const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
-      if (row?.balance !== undefined) setCreditBalance(row.balance);
-    });
+    // Credits (balance updates) - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'credits', filter: `user_id=eq.${user.id}` }, (payload: { eventType: string; new: { balance: number; user_id: string }; old: { balance: number; user_id: string } }) => {
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+        if (row?.balance !== undefined) setCreditBalance(row.balance);
+      });
+    } catch (error) {
+      logger.debug('Credits subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Users updates for verification/onboarding
-    channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` }, (payload: any) => {
-      setVerificationStatus(payload.new?.verification_status || null);
-      computeOnboarding(payload.new, subscriptionStatus);
-    });
+    // Users updates for verification/onboarding - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` }, (payload: { eventType: string; new: { verification_status?: string; onboarding_status?: string; profile_completed?: boolean; [key: string]: unknown }; old: unknown }) => {
+        setVerificationStatus(payload.new?.verification_status || null);
+        computeOnboarding(payload.new, subscriptionStatus);
+      });
+    } catch (error) {
+      logger.debug('Users subscription failed', { error }, 'RealtimeContext');
+    }
 
-    // Subscriptions updates
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` }, (payload: any) => {
-      const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
-      const status = row?.status || null;
-      setSubscriptionStatus(status);
-      // Recompute onboarding on subscription change
-      computeOnboarding({ verification_status: verificationStatus, onboarding_status: undefined, profile_completed: undefined }, status);
-    });
+    // Subscriptions updates - wrap in try-catch
+    try {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` }, (payload: { eventType: string; new: { status: string; [key: string]: unknown }; old: { status: string; [key: string]: unknown } }) => {
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+        const status = row?.status || null;
+        setSubscriptionStatus(status);
+        // Recompute onboarding on subscription change
+        computeOnboarding({ verification_status: verificationStatus, onboarding_status: undefined, profile_completed: undefined }, status);
+      });
+    } catch (error) {
+      logger.debug('Subscriptions subscription failed', { error }, 'RealtimeContext');
+    }
 
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') setConnectionStatus('connected');
@@ -355,13 +443,13 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try { supabase.removeChannel(channel); } catch {}
       setConnectionStatus('disconnected');
     };
-  }, [user, userProfile?.user_role]);
+  }, [user]);
 
   // Subscribe to credit transactions
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel(`realtime-credits-${user.id}`);
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'credit_transactions', filter: `user_id=eq.${user.id}` }, (payload: any) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'credit_transactions', filter: `user_id=eq.${user.id}` }, (payload: { eventType: string; new: CreditTransaction; old: CreditTransaction }) => {
       if (payload.eventType === 'INSERT') setCreditTransactions((prev) => upsertById(prev, payload.new));
       if (payload.eventType === 'UPDATE') setCreditTransactions((prev) => upsertById(prev, payload.new));
       if (payload.eventType === 'DELETE') setCreditTransactions((prev) => prev.filter((t) => t.id !== payload.old.id));

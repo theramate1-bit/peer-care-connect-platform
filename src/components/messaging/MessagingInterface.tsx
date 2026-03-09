@@ -5,13 +5,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, 
-  MoreVertical, 
-  Phone, 
-  Video, 
   Search,
   Archive,
   Block,
-  User
+  User as UserIcon
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -215,7 +212,7 @@ const MessagingInterface: React.FC = () => {
         .from('messages')
         .select(`
           *,
-          sender:users(
+          sender:sender_id.users(
             id,
             first_name,
             last_name,
@@ -226,7 +223,7 @@ const MessagingInterface: React.FC = () => {
             id,
             encrypted_content,
             message_type,
-            sender:users(first_name, last_name)
+            sender:sender_id.users(first_name, last_name)
           )
         `)
         .eq('conversation_id', conversationId)
@@ -381,18 +378,6 @@ const MessagingInterface: React.FC = () => {
                           <p className="text-sm text-gray-500">Active now</p>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Phone className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Video className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </div>
                     </div>
                   </CardHeader>
 
@@ -444,7 +429,7 @@ const MessagingInterface: React.FC = () => {
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="text-center">
-                    <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                    <UserIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                     <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
                     <p className="text-sm">Choose a conversation from the list to start messaging</p>
                   </div>

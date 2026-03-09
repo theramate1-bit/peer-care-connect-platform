@@ -7,7 +7,7 @@ import { generateAvatarUrl } from '@/lib/avatar-generator';
 import { 
   MessageSquare, 
   Clock, 
-  User, 
+  User as UserIcon, 
   Phone,
   Mail,
   MapPin,
@@ -285,18 +285,19 @@ export const MessagesList: React.FC<MessagesListProps> = ({
             ))}
           </div>
         ) : (
-          <div className="text-center py-8">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-medium mb-2">No Conversations Yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Start a conversation with your therapist to begin messaging.
-            </p>
-            <Button variant="outline" size="sm">
-              Find Therapists
-            </Button>
-          </div>
+          <EmptyMessages
+            onStartConversation={() => {
+              // Navigate to marketplace or find therapists
+              if (typeof window !== 'undefined') {
+                window.location.href = '/marketplace';
+              }
+            }}
+            variant="minimal"
+          />
         )}
       </CardContent>
     </Card>
   );
 };
+
+

@@ -35,7 +35,7 @@ export const PaymentStatus = ({ sessionId, showEarnings = false }: PaymentStatus
     if (user) {
       fetchPayments();
     }
-  }, [user, sessionId]);
+  }, [User as UserIcon, sessionId]);
 
   const fetchPayments = async () => {
     try {

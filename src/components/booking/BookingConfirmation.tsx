@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Clock, User, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
+import { Calendar, Clock, User as UserIcon, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import { BookingValidationResult } from '@/lib/booking-validation';
 
 interface BookingConfirmationProps {
@@ -19,6 +19,7 @@ interface BookingConfirmationProps {
     time: string;
     duration: number;
     type: string;
+    price?: number; // Price from selected service
   };
   validation: BookingValidationResult;
   onConfirm: () => void;
@@ -44,7 +45,11 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   };
 
   const formatTime = (timeString: string) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-GB', {
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = timeString?.includes(':') && timeString.split(':').length === 3
+      ? timeString.substring(0, 5)
+      : timeString;
+    return new Date(`2000-01-01T${timeWithoutSeconds}`).toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
@@ -52,7 +57,8 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   };
 
   const calculateTotal = () => {
-    return (practitioner.hourly_rate * sessionDetails.duration) / 60;
+    // Use price from selected service if available, otherwise show 0
+    return sessionDetails.price || 0;
   };
 
   const formatDuration = (minutes: number) => {
@@ -118,7 +124,7 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           {/* Practitioner Details */}
           <div className="space-y-3">
             <h4 className="font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
+              <UserIcon className="h-4 w-4" />
               Practitioner
             </h4>
             <div className="pl-6 space-y-2">
@@ -133,7 +139,7 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                 ))}
               </div>
               <p className="text-sm text-muted-foreground">
-                £{practitioner.hourly_rate}/hour
+                Pricing available in booking
               </p>
             </div>
           </div>
@@ -178,13 +184,13 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                 <span>£{calculateTotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Platform fee (3%)</span>
-                <span>£{(calculateTotal() * 0.03).toFixed(2)}</span>
+                <span className="text-sm text-muted-foreground">Platform fee (0.5%)</span>
+                <span>£{(calculateTotal() * 0.005).toFixed(2)}</span>
               </div>
               <div className="border-t pt-2">
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
-                  <span>£{(calculateTotal() * 1.03).toFixed(2)}</span>
+                  <span>£{(calculateTotal() * 1.005).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -232,3 +238,6 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
 };
 
 export default BookingConfirmation;
+
+
+

@@ -28,42 +28,42 @@ export interface AvatarStyle {
   description: string;
 }
 
-// Available avatar styles
+// Available avatar styles - Updated to use stable v7 API
 export const AVATAR_STYLES: AvatarStyle[] = [
   {
     name: 'avataaars',
     displayName: 'Cartoon Style',
-    url: 'https://api.dicebear.com/9.x/avataaars/svg',
+    url: 'https://api.dicebear.com/7.x/avataaars/svg',
     description: 'Friendly cartoon avatars with lots of customization options'
   },
   {
     name: 'personas',
     displayName: 'Professional Style',
-    url: 'https://api.dicebear.com/9.x/personas/svg',
+    url: 'https://api.dicebear.com/7.x/personas/svg',
     description: 'More professional-looking avatars'
   },
   {
     name: 'pixelart',
     displayName: 'Pixel Art Style',
-    url: 'https://api.dicebear.com/9.x/pixel-art/svg',
+    url: 'https://api.dicebear.com/7.x/pixel-art/svg',
     description: 'Retro pixel art avatars'
   },
   {
     name: 'initials',
     displayName: 'Initials Style',
-    url: 'https://api.dicebear.com/9.x/initials/svg',
+    url: 'https://api.dicebear.com/7.x/initials/svg',
     description: 'Simple initials-based avatars'
   }
 ];
 
-// Default avatar preferences
+// Default avatar preferences - Updated with hex color codes
 export const DEFAULT_AVATAR_PREFERENCES: AvatarPreferences = {
-  hairColor: 'brown',
-  clothingColor: 'blue',
+  hairColor: '8B4513', // Brown
+  clothingColor: '0066CC', // Blue
   accessories: [],
   backgroundColor: 'f0f0f0',
-  skinColor: 'light',
-  clothing: 'shirt',
+  skinColor: 'FDBB2D', // Light
+  clothing: undefined, // Remove invalid clothing value
   hairStyle: 'short',
   eyes: 'default',
   eyebrows: 'default',
@@ -87,25 +87,25 @@ export function testSimpleAvatar() {
   return simpleUrl;
 }
 
-// Available customization options
+// Available customization options - Updated with hex color codes for DiceBear v7
 export const AVATAR_OPTIONS = {
   hairColors: [
-    { value: 'auburn', label: 'Auburn' },
-    { value: 'black', label: 'Black' },
-    { value: 'blonde', label: 'Blonde' },
-    { value: 'brown', label: 'Brown' },
-    { value: 'pastel', label: 'Pastel' },
-    { value: 'red', label: 'Red' },
-    { value: 'gray', label: 'Gray' }
+    { value: 'A55728', label: 'Auburn' },
+    { value: '2C1B18', label: 'Black' },
+    { value: 'F8D25C', label: 'Blonde' },
+    { value: '8B4513', label: 'Brown' },
+    { value: 'FFB6C1', label: 'Pastel Pink' },
+    { value: 'DC143C', label: 'Red' },
+    { value: '808080', label: 'Gray' }
   ],
   clothingColors: [
-    { value: 'black', label: 'Black' },
-    { value: 'blue', label: 'Blue' },
-    { value: 'gray', label: 'Gray' },
-    { value: 'green', label: 'Green' },
-    { value: 'red', label: 'Red' },
-    { value: 'white', label: 'White' },
-    { value: 'yellow', label: 'Yellow' }
+    { value: '000000', label: 'Black' },
+    { value: '0066CC', label: 'Blue' },
+    { value: '808080', label: 'Gray' },
+    { value: '00AA00', label: 'Green' },
+    { value: 'CC0000', label: 'Red' },
+    { value: 'FFFFFF', label: 'White' },
+    { value: 'FFD700', label: 'Yellow' }
   ],
   accessories: [
     { value: 'sunglasses', label: 'Sunglasses' },
@@ -116,19 +116,20 @@ export const AVATAR_OPTIONS = {
     { value: 'prescription02', label: 'Reading Glasses' }
   ],
   skinColors: [
-    { value: 'light', label: 'Light' },
-    { value: 'tanned', label: 'Tanned' },
-    { value: 'yellow', label: 'Yellow' },
-    { value: 'pale', label: 'Pale' },
-    { value: 'brown', label: 'Brown' },
-    { value: 'dark', label: 'Dark' }
+    { value: 'FDBB2D', label: 'Light' },
+    { value: 'FD8D3C', label: 'Tanned' },
+    { value: 'FED976', label: 'Yellow' },
+    { value: 'F7F7F7', label: 'Pale' },
+    { value: 'D08B5B', label: 'Brown' },
+    { value: '8D5524', label: 'Dark' }
   ],
   clothing: [
-    { value: 'blazer', label: 'Blazer' },
-    { value: 'hoodie', label: 'Hoodie' },
-    { value: 'shirt', label: 'Shirt' },
-    { value: 'sweater', label: 'Sweater' },
-    { value: 'tank', label: 'Tank Top' }
+    // Note: Clothing options are disabled until we find valid values
+    // { value: 'blazer', label: 'Blazer' },
+    // { value: 'hoodie', label: 'Hoodie' },
+    // { value: 'sweater', label: 'Sweater' },
+    // { value: 'tank', label: 'Tank Top' },
+    // { value: 'graphicShirt', label: 'Graphic Shirt' }
   ],
   hairStyles: [
     { value: 'short', label: 'Short' },
@@ -141,7 +142,7 @@ export const AVATAR_OPTIONS = {
 };
 
 /**
- * Generates a customized avatar URL using DiceBear API
+ * Generates a customized avatar URL using DiceBear API v7
  */
 export function generateAvatarUrl(
   seed: string,
@@ -154,7 +155,7 @@ export function generateAvatarUrl(
   // Add seed
   params.append('seed', seed);
   
-  // Add preferences with correct DiceBear parameter names
+  // Add preferences with correct DiceBear v7 parameter names
   if (preferences.hairColor) {
     params.append('hair', preferences.hairColor);
   }
@@ -167,10 +168,15 @@ export function generateAvatarUrl(
   if (preferences.backgroundColor) {
     params.append('backgroundColor', preferences.backgroundColor);
   }
+  if (preferences.clothing) {
+    params.append('clothing', preferences.clothing);
+  }
+  if (preferences.hairStyle) {
+    params.append('hairStyle', preferences.hairStyle);
+  }
   if (preferences.accessories && preferences.accessories.length > 0) {
-    preferences.accessories.forEach(accessory => {
-      params.append('accessories[]', accessory);
-    });
+    // For v7 API, accessories are comma-separated
+    params.append('accessories', preferences.accessories.join(','));
   }
   
   // Add cache-busting parameter to force browser reload

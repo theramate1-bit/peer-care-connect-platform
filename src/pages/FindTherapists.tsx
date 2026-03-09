@@ -66,7 +66,23 @@ const FindTherapists = () => {
     }
   };
 
-  const specialties = ["All Specialties", "deep_tissue", "swedish", "sports_therapy", "trigger_point", "myofascial_release", "hot_stone", "prenatal"];
+  // User-friendly specialty mapping
+  const specialtyMapping = {
+    "All Specialties": "All Specialties",
+    "deep_tissue": "Deep Tissue Massage",
+    "swedish": "Swedish Massage", 
+    "sports_therapy": "Sports Therapy",
+    "trigger_point": "Trigger Point Therapy",
+    "myofascial_release": "Myofascial Release",
+    "hot_stone": "Hot Stone Massage",
+    "prenatal": "Prenatal Massage",
+    "injury_rehabilitation": "Injury Rehabilitation",
+    "performance_training": "Performance Training",
+    "osteopathy": "Osteopathy",
+    "massage_therapy": "Massage Therapy"
+  };
+
+  const specialties = Object.keys(specialtyMapping);
 
   const filteredTherapists = therapists.filter(therapist => {
     const matchesSearch = searchQuery === "" || 
@@ -141,7 +157,7 @@ const FindTherapists = () => {
               <SelectContent>
                 {specialties.map((specialty) => (
                   <SelectItem key={specialty} value={specialty}>
-                    {specialty}
+                    {specialtyMapping[specialty as keyof typeof specialtyMapping]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -230,7 +246,7 @@ const FindTherapists = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredTherapists.length > 0 ? (
             filteredTherapists.map((therapist) => (
-              <Card key={therapist.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <Card key={therapist.id} className="overflow-hidden transition-[border-color,background-color] duration-200 ease-out">
                 <CardContent className="p-6">
                   <div className="flex space-x-4">
                     <Avatar className="h-16 w-16">
@@ -290,7 +306,7 @@ const FindTherapists = () => {
                         <div className="text-right">
                           <div className="flex items-center space-x-1 text-primary font-medium">
                             <CreditCard className="h-4 w-4" />
-                            <span>Exchange Rate: £{therapist.hourly_rate || 0}/hr</span>
+                            <span className="text-sm text-muted-foreground">Pricing available in booking</span>
                           </div>
                         </div>
                       </div>

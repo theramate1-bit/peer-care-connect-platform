@@ -11,7 +11,7 @@ import {
   FileText, 
   Save, 
   Clock, 
-  User, 
+  User as UserIcon, 
   Activity,
   TrendingUp,
   AlertTriangle,
@@ -29,12 +29,14 @@ import {
   Calendar,
   Play,
   Pause,
-  StopCircle
+  StopCircle,
+  Send
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
+import { MessagingManager } from '@/lib/messaging';
 
 interface TreatmentNote {
   id: string;
@@ -76,6 +78,7 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
   const [saving, setSaving] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [editNoteType, setEditNoteType] = useState<'subjective' | 'objective' | 'assessment' | 'plan' | 'data' | 'general'>('subjective');
   const [autoSave, setAutoSave] = useState(true);
 
   // Real-time subscription for treatment notes
@@ -193,11 +196,19 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
       return;
     }
 
+    // Validate that the note type matches the current format
+    const validTypesForFormat = getNoteFormatOptions().map(opt => opt.value);
+    if (!validTypesForFormat.includes(editNoteType)) {
+      toast.error(`Invalid note type for ${noteFormat.toUpperCase()} format`);
+      return;
+    }
+
     try {
       setLoading(true);
       const { error } = await supabase
         .from('treatment_notes')
         .update({
+          note_type: editNoteType,
           content: editContent.trim(),
           updated_at: new Date().toISOString()
         })
@@ -208,21 +219,22 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
       setNotes(prev => 
         prev.map(note => 
           note.id === noteId 
-            ? { ...note, content: editContent.trim(), updated_at: new Date().toISOString() }
+            ? { ...note, note_type: editNoteType, content: editContent.trim(), updated_at: new Date().toISOString() }
             : note
         )
       );
 
       if (onNotesUpdate) {
         onNotesUpdate(notes.map(note => 
-          note.id === noteId 
-            ? { ...note, content: editContent.trim(), updated_at: new Date().toISOString() }
+          note.id === noteId
+            ? { ...note, note_type: editNoteType, content: editContent.trim(), updated_at: new Date().toISOString() }
             : note
         ));
       }
 
       setEditingNote(null);
       setEditContent('');
+      setEditNoteType('subjective');
       toast.success('Note updated successfully');
     } catch (error) {
       console.error('Error updating note:', error);
@@ -254,19 +266,66 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
     }
   };
 
+  const handleShareNoteWithClient = async () => {
+    if (!user || notes.length === 0) return;
+
+    try {
+      // Create conversation
+      const conversationId = await MessagingManager.getOrCreateConversation(
+        user.id,
+        clientId
+      );
+
+      // Generate summary (combine all notes, limit length)
+      const allNotes = notes
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .map(note => `**${note.note_type.toUpperCase()}:** ${note.content}`)
+        .join('\n\n');
+
+      const summary = `📋 **Treatment Summary for ${clientName}**\n\nDate: ${new Date().toLocaleDateString()}\n\n${allNotes.substring(0, 800)}${allNotes.length > 800 ? '...\n\nFull notes are available in your session history.' : ''}`;
+
+      // Send message
+      await MessagingManager.sendMessage(
+        conversationId,
+        user.id,
+        summary,
+        'text'
+      );
+
+      toast.success('Treatment summary sent to client');
+    } catch (error) {
+      console.error('Error sharing note:', error);
+      toast.error('Failed to share note');
+    }
+  };
+
   const startEditing = (note: TreatmentNote) => {
     setEditingNote(note.id);
     setEditContent(note.content);
+    setEditNoteType(note.note_type);
+    
+    // Determine the note format based on the note type
+    // SOAP: subjective, objective, assessment, plan
+    // DAP: data, assessment, plan
+    // Free Text: general
+    if (['subjective', 'objective', 'assessment', 'plan'].includes(note.note_type)) {
+      setNoteFormat('soap');
+    } else if (['data', 'assessment', 'plan'].includes(note.note_type)) {
+      setNoteFormat('dap');
+    } else {
+      setNoteFormat('free_text');
+    }
   };
 
   const cancelEditing = () => {
     setEditingNote(null);
     setEditContent('');
+    setEditNoteType('subjective');
   };
 
   const getNoteTypeIcon = (type: string) => {
     switch (type) {
-      case 'subjective': return <User className="h-4 w-4" />;
+      case 'subjective': return <UserIcon className="h-4 w-4" />;
       case 'objective': return <Eye className="h-4 w-4" />;
       case 'assessment': return <Brain className="h-4 w-4" />;
       case 'plan': return <Target className="h-4 w-4" />;
@@ -308,7 +367,7 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
             value: 'subjective', 
             label: 'Subjective', 
             description: 'Patient-reported symptoms, history, pain levels, lifestyle factors',
-            icon: <User className="h-4 w-4" />
+            icon: <UserIcon className="h-4 w-4" />
           },
           { 
             value: 'objective', 
@@ -399,167 +458,182 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
+    <div className="space-y-4">
+      {/* Compact Header - Settings */}
+      <Card className="border-2">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Stethoscope className="h-5 w-5" />
-              Treatment Notes - {clientName}
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Stethoscope className="h-5 w-5 text-primary" />
+              {clientName}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge className={getSessionStatusColor(sessionStatus)}>
                 {sessionStatus.replace('_', ' ')}
               </Badge>
-              <Badge variant="outline">
-                {notes.length} notes
+              <Badge 
+                variant="outline" 
+                className="cursor-pointer hover:bg-muted transition-colors"
+                onClick={() => {
+                  // Scroll to notes history section
+                  const notesSection = document.getElementById('session-notes-history');
+                  notesSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                title="Click to view notes history"
+              >
+                {notes.length} {notes.length === 1 ? 'note' : 'notes'}
               </Badge>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {/* Note Format and Timing Selector */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Note Format Selector */}
-              <div>
-                <Label className="text-sm font-medium">Note Format</Label>
-                <div className="flex gap-2 mt-2">
-                  <Button
-                    variant={noteFormat === 'soap' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setNoteFormat('soap')}
-                    className="flex items-center gap-2"
-                  >
-                    <BookOpen className="h-4 w-4" />
-                    SOAP Notes
-                  </Button>
-                  <Button
-                    variant={noteFormat === 'dap' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setNoteFormat('dap')}
-                    className="flex items-center gap-2"
-                  >
-                    <ClipboardList className="h-4 w-4" />
-                    DAP Notes
-                  </Button>
-                  <Button
-                    variant={noteFormat === 'free_text' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setNoteFormat('free_text')}
-                    className="flex items-center gap-2"
-                  >
-                    <Type className="h-4 w-4" />
-                    Free Text
-                  </Button>
-                </div>
-              </div>
-
-              {/* Note Timing Selector */}
-              <div>
-                <Label className="text-sm font-medium">Note Timing</Label>
-                <div className="flex gap-2 mt-2">
-                  <Button
-                    variant={noteTiming === 'live' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setNoteTiming('live')}
-                    className="flex items-center gap-2"
-                    disabled={sessionStatus === 'completed'}
-                  >
-                    <Play className="h-4 w-4" />
-                    Live Notes
-                  </Button>
-                  <Button
-                    variant={noteTiming === 'post_session' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setNoteTiming('post_session')}
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    Post-Session
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Note Format Description */}
-            <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                {noteFormat === 'soap' && (
-                  <>
-                    <strong>SOAP Notes:</strong> Most widely used in physiotherapy and chiropractic practice. 
-                    Structured format with Subjective, Objective, Assessment, and Plan sections.
-                  </>
-                )}
-                {noteFormat === 'dap' && (
-                  <>
-                    <strong>DAP Notes:</strong> Simpler than SOAP; often used when time is limited or where detail can be streamlined. 
-                    Combines Data, Assessment, and Plan sections.
-                  </>
-                )}
-                {noteFormat === 'free_text' && (
-                  <>
-                    <strong>Free Text:</strong> Unstructured notes for detailed observations and personalized documentation.
-                    Follow best practices: be clear, concise, and objective.
-                  </>
-                )}
-              </p>
-            </div>
-
-            {/* Auto-save Toggle for Live Notes */}
-            {noteTiming === 'live' && (
-              <div className="flex items-center gap-2">
+        <CardContent className="pt-0 space-y-4 pb-4">
+          {/* Compact Format and Timing Selector */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Note Format Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">Note Format</Label>
+              <div className="flex gap-3">
                 <Button
-                  variant="outline"
+                  variant={noteFormat === 'soap' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setAutoSave(!autoSave)}
-                  className={autoSave ? 'bg-green-100 text-green-800' : ''}
+                  onClick={() => setNoteFormat('soap')}
+                  className="flex-1"
                 >
-                  Auto-save {autoSave ? 'ON' : 'OFF'}
+                  <BookOpen className="h-4 w-4 mr-1.5" />
+                  SOAP Notes
                 </Button>
-                <span className="text-xs text-muted-foreground">
-                  Auto-saves notes after 3 seconds of inactivity
-                </span>
+                <Button
+                  variant={noteFormat === 'dap' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNoteFormat('dap')}
+                  className="flex-1"
+                >
+                  <ClipboardList className="h-4 w-4 mr-1.5" />
+                  DAP Notes
+                </Button>
+                <Button
+                  variant={noteFormat === 'free_text' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNoteFormat('free_text')}
+                  className="flex-1"
+                >
+                  <Type className="h-4 w-4 mr-1.5" />
+                  Free Text
+                </Button>
               </div>
-            )}
+            </div>
+
+            {/* Note Timing Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">Note Timing</Label>
+              <div className="flex gap-3">
+                <Button
+                  variant={noteTiming === 'live' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNoteTiming('live')}
+                  className="flex-1"
+                  disabled={sessionStatus === 'completed'}
+                >
+                  <Play className="h-4 w-4 mr-1.5" />
+                  Live Notes
+                </Button>
+                <Button
+                  variant={noteTiming === 'post_session' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNoteTiming('post_session')}
+                  className="flex-1"
+                >
+                  <Calendar className="h-4 w-4 mr-1.5" />
+                  Post-Session
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Note Format Description */}
+          <div className="bg-muted/50 p-4 rounded-lg mt-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {noteFormat === 'soap' && (
+                <>
+                  <strong>SOAP Notes:</strong> Most widely used in physiotherapy and chiropractic practice. 
+                  Structured format with Subjective, Objective, Assessment, and Plan sections.
+                </>
+              )}
+              {noteFormat === 'dap' && (
+                <>
+                  <strong>DAP Notes:</strong> Simpler than SOAP; often used when time is limited or where detail can be streamlined. 
+                  Combines Data, Assessment, and Plan sections.
+                </>
+              )}
+              {noteFormat === 'free_text' && (
+                <>
+                  <strong>Free Text:</strong> Unstructured notes for detailed observations and personalized documentation.
+                  Follow best practices: be clear, concise, and objective.
+                </>
+              )}
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Note Input */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Add New Note</CardTitle>
+      {/* Prominent Note Input Card - Main Focus */}
+      <Card className="border-2 border-primary/20 shadow-xl mt-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Plus className="h-5 w-5 text-primary" />
+            Add New Note
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Note Type</Label>
-              <Select value={selectedNoteType} onValueChange={(value: any) => setSelectedNoteType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {getNoteFormatOptions().map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <div className="flex items-center gap-2">
-                        {option.icon}
-                        <div className="flex flex-col">
-                          <span className="font-medium">{option.label}</span>
-                          <span className="text-xs text-muted-foreground">{option.description}</span>
-                        </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Note Type</Label>
+            <Select value={selectedNoteType} onValueChange={(value: any) => setSelectedNoteType(value)}>
+              <SelectTrigger className="h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {getNoteFormatOptions().map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex items-center gap-2 py-1">
+                      {option.icon}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{option.label}</span>
+                        <span className="text-xs text-muted-foreground">{option.description}</span>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Show description when note type is selected */}
+            {getNoteFormatOptions().find(opt => opt.value === selectedNoteType) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {getNoteFormatOptions().find(opt => opt.value === selectedNoteType)?.description}
+              </p>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Note Content</Label>
+            <Textarea
+              value={currentNote}
+              onChange={(e) => setCurrentNote(e.target.value)}
+              placeholder={`Enter your ${getNoteTypeLabel(selectedNoteType).toLowerCase()} notes...`}
+              className="min-h-[160px] resize-y text-base"
+            />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {noteTiming === 'live' ? 'Live' : 'Post-Session'}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {currentNote.length} characters
+                </span>
+              </div>
               <Button 
                 onClick={saveNote} 
                 disabled={saving || !currentNote.trim()}
-                className="w-full"
+                size="default"
               >
                 {saving ? (
                   <>
@@ -575,45 +649,30 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
               </Button>
             </div>
           </div>
-          
-          <div>
-            <Label>Note Content</Label>
-            <Textarea
-              value={currentNote}
-              onChange={(e) => setCurrentNote(e.target.value)}
-              placeholder={`Enter your ${getNoteTypeLabel(selectedNoteType).toLowerCase()} notes...`}
-              className="min-h-[120px]"
-            />
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-xs text-muted-foreground">
-                {noteTiming === 'live' ? 'Live session notes' : 'Post-session documentation'}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {currentNote.length} characters
-              </span>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
       {/* Notes History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Session Notes</CardTitle>
+      <Card id="session-notes-history">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Session Notes ({notes.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {notes.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4" />
-              <p>No notes yet</p>
+              <p className="text-base mb-2">No notes yet</p>
               <p className="text-sm">Start documenting your session above</p>
             </div>
           ) : (
             <div className="space-y-4">
               {notes.map((note) => (
-                <div key={note.id} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
+                <div key={note.id} className="border rounded-lg p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3 flex-wrap">
                       {getNoteTypeIcon(note.note_type)}
                       <Badge className={getNoteTypeColor(note.note_type)}>
                         {getNoteTypeLabel(note.note_type)}
@@ -643,14 +702,55 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
                   </div>
                   
                   {editingNote === note.id ? (
-                    <div className="space-y-2">
-                      <Textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        className="min-h-[100px]"
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => updateNote(note.id)}>
+                    <div className="space-y-4 pt-2">
+                      {/* Note Type Selector - Structured Format */}
+                      <div>
+                        <Label className="text-sm font-medium mb-2 block">Note Type</Label>
+                        <Select 
+                          value={editNoteType} 
+                          onValueChange={(value: any) => setEditNoteType(value)}
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getNoteFormatOptions().map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <div className="flex items-center gap-2 py-1">
+                                  {option.icon}
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{option.label}</span>
+                                    <span className="text-xs text-muted-foreground">{option.description}</span>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Format: <strong>{noteFormat.toUpperCase()}</strong> - Only structured note types are allowed
+                        </p>
+                      </div>
+                      
+                      {/* Note Content */}
+                      <div>
+                        <Label className="text-sm font-medium mb-2 block">Note Content</Label>
+                        <Textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          placeholder={`Enter your ${getNoteTypeLabel(editNoteType).toLowerCase()} notes...`}
+                          className="min-h-[140px] resize-y"
+                        />
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex gap-3 pt-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => updateNote(note.id)}
+                          disabled={!editContent.trim()}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
                           Save Changes
                         </Button>
                         <Button size="sm" variant="outline" onClick={cancelEditing}>
@@ -672,3 +772,6 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
     </div>
   );
 };
+
+
+

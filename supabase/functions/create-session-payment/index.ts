@@ -54,22 +54,83 @@ serve(async (req) => {
 
     logStep("Found practitioner", { practitionerId: practitioner.user_id });
 
-    // Check if customer exists
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId;
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Found existing customer", { customerId });
+    // Retrieve or create Stripe customer
+    // CRITICAL: Check customers table first (source of truth) to prevent duplicates
+    logStep("Checking for existing customer in database", { userId: user.id, email: user.email });
+    let customerId: string;
+    
+    const { data: existingCustomer } = await supabaseClient
+      .from("customers")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (existingCustomer?.stripe_customer_id) {
+      // Customer exists in database - use it
+      customerId = existingCustomer.stripe_customer_id;
+      logStep("Found existing customer in database", { customerId });
+      
+      // Ensure customer metadata has user_id (in case it was missing)
+      await stripe.customers.update(customerId, {
+        metadata: { 
+          supabase_user_id: user.id,
+          user_id: user.id  // Add both for compatibility
+        }
+      });
+    } else {
+      // Customer not in database - check Stripe for existing customer by email
+      logStep("Customer not in database, checking Stripe", { email: user.email });
+      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      
+      if (customers.data.length > 0) {
+        // Found in Stripe but not in DB - save it to prevent duplicates
+        customerId = customers.data[0].id;
+        logStep("Found existing customer in Stripe, saving to database", { customerId });
+        
+        // Save to database to prevent future duplicates
+        await supabaseClient.from("customers").insert({
+          user_id: user.id,
+          stripe_customer_id: customerId,
+          email: user.email,
+        });
+        
+        // Ensure customer metadata has user_id
+        await stripe.customers.update(customerId, {
+          metadata: { 
+            supabase_user_id: user.id,
+            user_id: user.id
+          }
+        });
+      } else {
+        // No customer found anywhere - create new one
+        logStep("Creating new Stripe customer", { email: user.email });
+        const customer = await stripe.customers.create({
+          email: user.email,
+          metadata: { 
+            supabase_user_id: user.id,
+            user_id: user.id  // Add both for compatibility
+          },
+        });
+        customerId = customer.id;
+        logStep("Created new customer", { customerId });
+        
+        // Save to database to prevent duplicates
+        await supabaseClient.from("customers").insert({
+          user_id: user.id,
+          stripe_customer_id: customer.id,
+          email: user.email,
+        });
+      }
     }
 
-    // Platform commission (5%)
-    const platformFee = Math.round(amount * 0.05);
+    // Platform commission (0.5%)
+    const platformFee = Math.round(amount * 0.005);
     const practitionerAmount = amount - platformFee;
 
     // Create payment session for marketplace transaction
+    // CRITICAL: Always use customer parameter (never customer_email) to prevent auto-creation
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
       line_items: [
         {
           price_data: {

@@ -54,30 +54,78 @@ serve(async (req) => {
     const binaryAudio = processBase64Chunks(audio)
     console.log(`Processed audio size: ${binaryAudio.length} bytes`)
     
+    // Validate Lemonfox API Key
+    const lemonfoxApiKey = Deno.env.get('LEMONFOX_API_KEY')
+    if (!lemonfoxApiKey) {
+      console.error('LEMONFOX_API_KEY not found in environment variables')
+      return new Response(
+        JSON.stringify({ 
+          error: 'LEMONFOX_API_KEY environment variable is not set. Please configure this in your Supabase project settings.' 
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
     // Prepare form data
     const formData = new FormData()
     const blob = new Blob([binaryAudio], { type: 'audio/webm' })
     formData.append('file', blob, 'audio.webm')
-    formData.append('model', 'whisper-1')
+    // Lemonfox.ai doesn't require 'model' parameter - it uses Whisper v3 by default
+    formData.append('response_format', 'json')
+    formData.append('language', 'english') // Optional but can improve accuracy
 
-    console.log('Sending to OpenAI Whisper API...')
-    // Send to OpenAI
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    console.log('Sending to Lemonfox.ai Whisper API...')
+    console.log(`API Key present: ${lemonfoxApiKey ? 'Yes' : 'No'}`)
+    console.log(`Audio size: ${binaryAudio.length} bytes`)
+    
+    // Send to Lemonfox.ai
+    const response = await fetch('https://api.lemonfox.ai/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${lemonfoxApiKey}`,
+        // Don't set Content-Type header - let browser set it with boundary for FormData
       },
       body: formData,
     })
 
+    console.log(`Lemonfox.ai response status: ${response.status} ${response.statusText}`)
+
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('OpenAI API error:', errorText)
-      throw new Error(`OpenAI API error: ${errorText}`)
+      console.error('Lemonfox.ai API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+      
+      let errorMessage = `Lemonfox.ai API error (${response.status}): ${errorText}`
+      
+      // Try to parse error JSON if possible
+      try {
+        const errorJson = JSON.parse(errorText)
+        if (errorJson.error) {
+          errorMessage = errorJson.error.message || errorJson.error || errorText
+        }
+      } catch {
+        // Not JSON, use text as-is
+      }
+      
+      throw new Error(errorMessage)
     }
 
     const result = await response.json()
     console.log('Transcription completed successfully')
+    console.log('Response structure:', Object.keys(result))
+
+    // Handle response - Lemonfox.ai returns { text: "..." } format
+    if (!result.text) {
+      console.error('Unexpected response format:', result)
+      throw new Error('Invalid response format from Lemonfox.ai API')
+    }
 
     return new Response(
       JSON.stringify({ text: result.text }),

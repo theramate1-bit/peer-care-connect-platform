@@ -16,7 +16,7 @@ import {
   Calendar,
   Clock,
   MapPin,
-  User,
+  User as UserIcon,
   Mail,
   Phone,
   Star
@@ -42,6 +42,7 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
   onCancel
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [userInfo, setUserInfo] = useState({
     firstName: '',
     lastName: '',
@@ -54,18 +55,23 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
 
   const steps = [
     { id: 'review', title: 'Review', icon: <Calendar className="h-4 w-4" /> },
-    { id: 'details', title: 'Details', icon: <User className="h-4 w-4" /> },
+    { id: 'details', title: 'Details', icon: <UserIcon className="h-4 w-4" /> },
     { id: 'payment', title: 'Payment', icon: <CreditCard className="h-4 w-4" /> },
     { id: 'confirm', title: 'Confirm', icon: <CheckCircle className="h-4 w-4" /> }
   ];
 
   const progress = ((currentStep + 1) / steps.length) * 100;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      onComplete({ userInfo, paymentMethod, isGuest, termsAccepted });
+      setIsProcessing(true);
+      try {
+        await Promise.resolve(onComplete({ userInfo, paymentMethod, isGuest, termsAccepted }));
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -155,7 +161,7 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
                 onClick={() => setIsGuest(false)}
                 className="flex-1 text-sm"
               >
-                <User className="h-4 w-4 mr-1" />
+                <UserIcon className="h-4 w-4 mr-1" />
                 Account
               </Button>
               <Button
@@ -371,7 +377,7 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
       {/* Header */}
       <div className="bg-white border-b px-4 py-3 sticky top-0 z-10">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={isProcessing}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="font-semibold">Checkout</h1>
@@ -402,7 +408,7 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-600">
             {currentStep > 0 && (
-              <Button variant="ghost" size="sm" onClick={handlePrevious}>
+              <Button variant="ghost" size="sm" onClick={handlePrevious} disabled={isProcessing}>
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Back
               </Button>
@@ -411,7 +417,7 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
           
           <div className="flex-1 text-center">
             <div className="text-sm font-medium">
-              {currentStep === steps.length - 1 ? 'Complete Booking' : `Step ${currentStep + 1}`}
+              {isProcessing ? 'Processing...' : (currentStep === steps.length - 1 ? 'Complete Booking' : `Step ${currentStep + 1}`)}
             </div>
             <div className="text-xs text-gray-500">
               {currentStep === steps.length - 1 ? '£' + bookingDetails.price : steps[currentStep].title}
@@ -422,16 +428,25 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
             {currentStep === steps.length - 1 ? (
               <Button
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() || isProcessing}
                 className="bg-green-600 hover:bg-green-700 text-white px-6"
               >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Pay Now
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Pay Now
+                  </>
+                )}
               </Button>
             ) : (
               <Button
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() || isProcessing}
                 className="px-6"
               >
                 Next
@@ -462,3 +477,5 @@ export const MobileCheckout: React.FC<MobileCheckoutProps> = ({
 };
 
 export default MobileCheckout;
+
+

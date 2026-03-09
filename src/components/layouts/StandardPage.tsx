@@ -1,6 +1,6 @@
 import React from 'react';
-import { Header } from '@/components/Header';
-import { Footer } from '@/components/Footer';
+import { HeaderClean } from '@/components/landing/HeaderClean';
+import { FooterClean } from '@/components/FooterClean';
 import { BackButton } from '@/components/BackButton';
 import { Badge } from '@/components/ui/badge';
 
@@ -20,9 +20,9 @@ const StandardPage: React.FC<StandardPageProps> = ({
   heroClassName = "bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5" 
 }) => {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <section className={`${heroClassName} py-12 sm:py-16 md:py-20 lg:py-24`}>
+    <div className="min-h-screen bg-white dark:bg-slate-950">
+      <HeaderClean />
+      <section className={`${heroClassName} py-12 sm:py-16 md:py-20 lg:py-24 mt-16`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="mb-4 sm:mb-6">
             <BackButton />
@@ -42,12 +42,12 @@ const StandardPage: React.FC<StandardPageProps> = ({
           )}
         </div>
       </section>
-      <main className="py-8 sm:py-12 md:py-16 lg:py-20">
+      <main id="main-content" className="py-8 sm:py-12 md:py-16 lg:py-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           {children}
         </div>
       </main>
-      <Footer />
+      <FooterClean />
     </div>
   );
 };

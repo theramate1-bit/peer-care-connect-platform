@@ -88,9 +88,9 @@ const PaymentDemo = () => {
                 <div className="p-4 bg-purple-50 rounded-lg">
                   <h4 className="font-semibold text-purple-900 mb-2">Fee Breakdown:</h4>
                   <ul className="text-sm text-purple-800 space-y-1">
-                    <li>• Platform fee: 3%</li>
+                    <li>• Platform fee: 1.5%</li>
                     <li>• Stripe processing: 1.4% + 20p (UK cards)</li>
-                    <li>• Therapist receives: ~94.1%</li>
+                    <li>• Therapist receives: ~97.1%</li>
                   </ul>
                 </div>
                 <div className="text-xs text-gray-500">

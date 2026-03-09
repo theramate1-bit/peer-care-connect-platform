@@ -9,9 +9,6 @@ import {
   Send, 
   Paperclip, 
   Smile, 
-  Phone,
-  Video,
-  MoreVertical,
   ArrowLeft,
   Star,
   Heart
@@ -341,37 +338,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </div>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm">
-              <Phone className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm">
-              <Video className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
       </CardHeader>
       
       <CardContent className="p-0">
         {/* Messages Area */}
-        <div className="h-64 overflow-y-auto p-4 space-y-4">
+        <div className="h-64 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
           {messages.map((message) => {
             const isOwnMessage = message.sender_id === user?.id;
             
             return (
               <div
                 key={message.id}
-                className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} px-2 sm:px-0`}
               >
-                <div className={`max-w-xs lg:max-w-md ${isOwnMessage ? 'order-2' : 'order-1'}`}>
+                <div className={`max-w-[85%] sm:max-w-xs md:max-w-sm lg:max-w-md ${isOwnMessage ? 'order-2' : 'order-1'}`}>
                   <div
-                    className={`px-4 py-2 rounded-lg ${
+                    className={`px-3 sm:px-4 py-2 rounded-lg break-words ${
                       isOwnMessage
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-white text-gray-900 border border-gray-200'
                         : 'bg-muted'
                     }`}
                   >
@@ -380,10 +365,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         <img 
                           src={message.file_url} 
                           alt={message.content}
-                          className="max-w-xs rounded-lg cursor-pointer"
+                          className="max-w-full rounded-lg cursor-pointer"
                           onClick={() => window.open(message.file_url, '_blank')}
                         />
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-sm break-words">{message.content}</p>
                       </div>
                     ) : message.message_type === 'file' && message.file_url ? (
                       <div className="space-y-2">
@@ -391,18 +376,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           className="flex items-center gap-2 p-2 bg-white/10 rounded cursor-pointer hover:bg-white/20"
                           onClick={() => window.open(message.file_url, '_blank')}
                         >
-                          <span className="text-lg">{FileUploadService.getFileIcon('file')}</span>
-                          <div>
-                            <p className="text-sm font-medium">{message.content}</p>
+                          <span className="text-lg flex-shrink-0">{FileUploadService.getFileIcon('file')}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium break-words">{message.content}</p>
                             <p className="text-xs opacity-75">Click to download</p>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm">{message.content}</p>
+                      <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                     )}
                   </div>
-                  <div className={`text-xs text-muted-foreground mt-1 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                  <div className={`text-xs text-muted-foreground mt-1.5 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
                     {formatTime(message.created_at)}
                     {isOwnMessage && message.read_at && (
                       <span className="ml-1">✓✓</span>
@@ -416,17 +401,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
         
         {/* Message Input */}
-        <div className="border-t p-4">
-          <div className="flex items-center gap-2">
+        <div className="border-t p-2 sm:p-4">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button 
               variant="ghost" 
               size="sm"
               onClick={handleFileClick}
               disabled={uploading}
+              className="hidden sm:flex flex-shrink-0"
             >
               <Paperclip className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="hidden sm:flex flex-shrink-0">
               <Smile className="h-4 w-4" />
             </Button>
             
@@ -435,7 +421,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type a message..."
-              className="flex-1"
+              className="flex-1 min-w-0 text-sm sm:text-base"
               disabled={sending || uploading}
             />
             
@@ -443,6 +429,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               onClick={sendMessage} 
               disabled={!newMessage.trim() || sending || uploading}
               size="sm"
+              className="flex-shrink-0"
             >
               {uploading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>

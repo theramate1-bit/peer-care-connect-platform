@@ -15,15 +15,26 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
+import { hasValidAvailability } from '@/lib/profile-completion';
 
-const AppointmentScheduler = () => {
+type AppointmentSchedulerProps = { embedded?: boolean; className?: string };
+
+const AppointmentScheduler = ({ embedded, className }: AppointmentSchedulerProps) => {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingAvailability, setSavingAvailability] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  // Practitioner preferences state
+  const [practitionerPreferences, setPractitionerPreferences] = useState<{
+    default_session_time: string;
+    default_duration_minutes: number;
+    default_session_type: string;
+  } | null>(null);
+
   const [newAppointment, setNewAppointment] = useState({
     client_name: '',
     client_email: '',
@@ -58,6 +69,7 @@ const AppointmentScheduler = () => {
   useEffect(() => {
     if (user) {
       fetchAppointments();
+      fetchAvailability();
     }
   }, [user, currentDate]);
 
@@ -72,6 +84,62 @@ const AppointmentScheduler = () => {
       setAppointments(filteredAppointments);
     }
   }, [realtimeAppointments]);
+
+  // Load practitioner preferences
+  const loadPractitionerPreferences = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('practitioner_availability')
+        .select('default_session_time, default_duration_minutes, default_session_type, working_hours')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching preferences:', error);
+        return;
+      }
+
+      if (data) {
+        const preferences = {
+          default_session_time: data.default_session_time || '10:00',
+          default_duration_minutes: data.default_duration_minutes || 60,
+          default_session_type: data.default_session_type || 'Treatment Session'
+        };
+        setPractitionerPreferences(preferences);
+        
+        // Update new appointment form with preferences
+        setNewAppointment(prev => ({
+          ...prev,
+          start_time: preferences.default_session_time,
+          duration_minutes: preferences.default_duration_minutes,
+          session_type: preferences.default_session_type
+        }));
+
+        if (data.working_hours) {
+          setAvailability(data.working_hours);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    }
+  };
+
+  const fetchAvailability = async () => {
+    await loadPractitionerPreferences();
+  };
+
+  // Real-time subscription for practitioner preferences
+  useRealtimeSubscription(
+    'practitioner_availability',
+    `user_id=eq.${user?.id}`,
+    async (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        await loadPractitionerPreferences();
+      }
+    }
+  );
 
   const fetchAppointments = async () => {
     try {
@@ -145,6 +213,97 @@ const AppointmentScheduler = () => {
     }
 
     try {
+      // Check for conflicts before creating
+      const { data: conflictingBookings, error: conflictError } = await supabase
+        .from('client_sessions')
+        .select('id, start_time, duration_minutes, status, expires_at, client_name, session_type')
+        .eq('therapist_id', user?.id)
+        .eq('session_date', newAppointment.session_date)
+        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
+
+      if (conflictError) {
+        console.error('Error checking conflicts:', conflictError);
+      }
+
+      // Check for overlapping bookings
+      const nowIso = new Date().toISOString();
+      const bookingStart = new Date(`${newAppointment.session_date}T${newAppointment.start_time}`);
+      const bookingEnd = new Date(bookingStart.getTime() + newAppointment.duration_minutes * 60000);
+
+      const hasConflict = conflictingBookings?.some((booking: any) => {
+        // Skip expired pending_payment sessions
+        if (booking.status === 'pending_payment' && booking.expires_at && booking.expires_at < nowIso) {
+          return false;
+        }
+
+        const existingStart = new Date(`${newAppointment.session_date}T${booking.start_time}`);
+        const existingEnd = new Date(existingStart.getTime() + (booking.duration_minutes || 60) * 60000);
+
+        // Check for overlap (including 15-minute buffer)
+        const bufferMs = 15 * 60000; // 15 minutes in milliseconds
+        return (
+          (bookingStart < existingEnd && bookingEnd > existingStart) ||
+          (bookingStart >= existingEnd && bookingStart < new Date(existingEnd.getTime() + bufferMs)) ||
+          (existingStart >= bookingEnd && existingStart < new Date(bookingEnd.getTime() + bufferMs))
+        );
+      });
+
+      if (hasConflict) {
+        const conflictingBooking = conflictingBookings?.find((booking: any) => {
+          const existingStart = new Date(`${newAppointment.session_date}T${booking.start_time}`);
+          const existingEnd = new Date(existingStart.getTime() + (booking.duration_minutes || 60) * 60000);
+          const bufferMs = 15 * 60000;
+          return (
+            (bookingStart < existingEnd && bookingEnd > existingStart) ||
+            (bookingStart >= existingEnd && bookingStart < new Date(existingEnd.getTime() + bufferMs)) ||
+            (existingStart >= bookingEnd && existingStart < new Date(bookingEnd.getTime() + bufferMs))
+          );
+        });
+
+        const conflictMessage = conflictingBooking
+          ? `This time slot conflicts with an existing appointment: ${conflictingBooking.client_name || 'Client'} at ${conflictingBooking.start_time} (${conflictingBooking.session_type || 'Session'}). Please select another time.`
+          : 'This time slot conflicts with an existing appointment. Please select another time.';
+
+        toast.error(conflictMessage, {
+          duration: 5000
+        });
+        return;
+      }
+
+      // Check for blocked time
+      const { data: blockedTime, error: blockedError } = await supabase
+        .from('calendar_events')
+        .select('id, start_time, end_time, event_type, title')
+        .eq('user_id', user?.id)
+        .in('event_type', ['block', 'unavailable'])
+        .eq('status', 'confirmed');
+
+      if (blockedError) {
+        console.error('Error checking blocked time:', blockedError);
+      }
+
+      const hasBlockedTime = blockedTime?.some((block: any) => {
+        const blockStart = new Date(block.start_time);
+        const blockEnd = new Date(block.end_time);
+        return bookingStart < blockEnd && bookingEnd > blockStart;
+      });
+
+      if (hasBlockedTime) {
+        const block = blockedTime?.find((block: any) => {
+          const blockStart = new Date(block.start_time);
+          const blockEnd = new Date(block.end_time);
+          return bookingStart < blockEnd && bookingEnd > blockStart;
+        });
+
+        const blockType = block?.event_type === 'block' ? 'blocked' : 'unavailable';
+        const blockTitle = block?.title ? `: ${block.title}` : '';
+        toast.error(`This time slot is ${blockType}${blockTitle}. Please select another time.`, {
+          duration: 5000
+        });
+        return;
+      }
+
+      // No conflicts, proceed with creation
       const { error } = await supabase
         .from('client_sessions')
         .insert({
@@ -165,20 +324,74 @@ const AppointmentScheduler = () => {
       
       toast.success('Appointment created successfully');
       setShowAddDialog(false);
-      setNewAppointment({
-        client_name: '',
-        client_email: '',
-        session_date: new Date().toISOString().split('T')[0],
-        start_time: '10:00',
-        duration_minutes: 60,
-        session_type: 'Treatment Session',
-        notes: '',
-        status: 'scheduled'
-      });
+        setNewAppointment({
+          client_name: '',
+          client_email: '',
+          session_date: new Date().toISOString().split('T')[0],
+          start_time: practitionerPreferences?.default_session_time || '10:00',
+          duration_minutes: practitionerPreferences?.default_duration_minutes || 60,
+          session_type: practitionerPreferences?.default_session_type || 'Treatment Session',
+          notes: '',
+          status: 'scheduled'
+        });
       fetchAppointments();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating appointment:', error);
-      toast.error('Failed to create appointment');
+      
+      // Check if it's a conflict error from database trigger
+      if (error?.code === '23505' || error?.message?.includes('conflict') || error?.message?.includes('overlap')) {
+        toast.error('This time slot conflicts with an existing appointment. Please select another time.', {
+          duration: 5000
+        });
+      } else {
+        toast.error(error?.message || 'Failed to create appointment');
+      }
+    }
+  };
+
+  const handleSaveAvailability = async () => {
+    if (!user?.id) {
+      toast.error('User not found');
+      return;
+    }
+
+    try {
+      setSavingAvailability(true);
+
+      // Use shared validation function for consistency
+      if (!hasValidAvailability(availability)) {
+        toast.error('Please enable at least one day with valid working hours');
+        setSavingAvailability(false);
+        return;
+      }
+
+      // Fetch existing timezone or use default
+      const { data: existing } = await supabase
+        .from('practitioner_availability')
+        .select('timezone')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      // Save availability to database
+      const { error } = await supabase
+        .from('practitioner_availability')
+        .upsert({
+          user_id: user.id,
+          working_hours: availability,
+          timezone: existing?.timezone || 'Europe/London',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+      
+      toast.success('Availability settings saved successfully');
+    } catch (error) {
+      console.error('Error saving availability:', error);
+      toast.error('Failed to save availability settings');
+    } finally {
+      setSavingAvailability(false);
     }
   };
 
@@ -214,216 +427,19 @@ const AppointmentScheduler = () => {
   const timeSlots = getTimeSlots();
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${className || ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Appointment Scheduler</h1>
-          <p className="text-muted-foreground">
-            Manage your appointments and availability
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Select value={view} onValueChange={(value: 'day' | 'week' | 'month') => setView(value)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Day</SelectItem>
-              <SelectItem value="week">Week</SelectItem>
-              <SelectItem value="month">Month</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Appointment
-          </Button>
-        </div>
+      {!embedded && (
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Schedule & Availability</h1>
+        <p className="text-muted-foreground">
+          Set your working hours and availability
+        </p>
       </div>
+      )}
 
-      {/* Tabbed Interface */}
-      <Tabs defaultValue="appointments" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="appointments">Appointments</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="appointments" className="space-y-6">
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{appointments.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Scheduled for today
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Confirmed</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {appointments.filter(a => a.status === 'confirmed').length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Ready to go
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {appointments.filter(a => a.status === 'scheduled').length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Scheduled appointments
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {appointments.reduce((total, apt) => total + (apt.duration_minutes || 0), 0) / 60}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Hours scheduled
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Calendar View */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Calendar */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Schedule</CardTitle>
-              <div className="flex items-center space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() - 1);
-                    setCurrentDate(newDate);
-                  }}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium">
-                  {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() + 1);
-                    setCurrentDate(newDate);
-                  }}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {timeSlots.map((slot) => (
-                <div
-                  key={slot.time}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    slot.hasAppointment 
-                      ? 'bg-blue-50 border-blue-200' 
-                      : 'hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{slot.time}</span>
-                  </div>
-                  {slot.hasAppointment && (
-                    <Badge variant="secondary">Booked</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Today's Appointments */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Today's Appointments</CardTitle>
-            <CardDescription>
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {appointments.map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className="flex items-start space-x-3 p-3 border rounded-lg"
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={undefined} />
-                    <AvatarFallback>
-                      {appointment.client_name?.split(' ').map(n => n[0]).join('') || 'C'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium truncate">
-                        {appointment.client_name}
-                      </p>
-                      <Badge className={getStatusColor(appointment.status)}>
-                        {appointment.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {appointment.start_time} • {appointment.duration_minutes}min
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {appointment.session_type}
-                    </p>
-                    {appointment.notes && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {appointment.notes}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="availability" className="space-y-6">
+      {/* Availability Interface */}
+      <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -485,141 +501,16 @@ const AppointmentScheduler = () => {
               ))}
               <div className="flex justify-end">
                 <Button
-                  onClick={() => {
-                    // TODO: Implement save availability functionality
-                    toast.info('Save availability functionality coming soon!');
-                  }}
+                  onClick={handleSaveAvailability}
+                  disabled={savingAvailability}
                 >
-                  Save Availability
+                  {savingAvailability ? 'Saving...' : 'Save Availability'}
                 </Button>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appointment Analytics</CardTitle>
-              <CardDescription>
-                Insights into your appointment patterns and performance
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-medium text-muted-foreground">Analytics Coming Soon</h3>
-                <p className="text-sm text-muted-foreground">
-                  Detailed appointment analytics and insights will be available soon.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Add Appointment Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Appointment</DialogTitle>
-            <DialogDescription>
-              Schedule a new appointment with a client
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="client-name">Client Name *</Label>
-              <Input
-                id="client-name"
-                value={newAppointment.client_name}
-                onChange={(e) => setNewAppointment(prev => ({ ...prev, client_name: e.target.value }))}
-                placeholder="Enter client name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="client-email">Client Email *</Label>
-              <Input
-                id="client-email"
-                type="email"
-                value={newAppointment.client_email}
-                onChange={(e) => setNewAppointment(prev => ({ ...prev, client_email: e.target.value }))}
-                placeholder="Enter client email"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="session-date">Date *</Label>
-                <Input
-                  id="session-date"
-                  type="date"
-                  value={newAppointment.session_date}
-                  onChange={(e) => setNewAppointment(prev => ({ ...prev, session_date: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="start-time">Start Time</Label>
-                <Input
-                  id="start-time"
-                  type="time"
-                  value={newAppointment.start_time}
-                  onChange={(e) => setNewAppointment(prev => ({ ...prev, start_time: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="duration">Duration (minutes)</Label>
-                <select
-                  id="duration"
-                  value={newAppointment.duration_minutes}
-                  onChange={(e) => setNewAppointment(prev => ({ ...prev, duration_minutes: parseInt(e.target.value) }))}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                >
-                  <option value="30">30 minutes</option>
-                  <option value="60">60 minutes</option>
-                  <option value="90">90 minutes</option>
-                  <option value="120">120 minutes</option>
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="session-type">Session Type</Label>
-                <select
-                  id="session-type"
-                  value={newAppointment.session_type}
-                  onChange={(e) => setNewAppointment(prev => ({ ...prev, session_type: e.target.value }))}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                >
-                  <option value="Initial Consultation">Initial Consultation</option>
-                  <option value="Treatment Session">Treatment Session</option>
-                  <option value="Follow-up Session">Follow-up Session</option>
-                  <option value="Sports Therapy">Sports Therapy</option>
-                  <option value="Massage Therapy">Massage Therapy</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={newAppointment.notes}
-                onChange={(e) => setNewAppointment(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Add any notes about this appointment..."
-                className="min-h-[80px]"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateAppointment}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Appointment
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

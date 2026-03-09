@@ -18,16 +18,21 @@ const RouteGuard = ({ children }: RouteGuardProps) => {
     const searchParams = new URLSearchParams(location.search);
     
     // Handle password reset URLs with code parameter (token hash) - do this BEFORE auth loading check
+    // Only redirect if we're on homepage with code parameter (not already on reset-password-confirm)
     if (searchParams.has('code') && currentPath === '/') {
-      console.log('🔄 Password reset token hash detected, redirecting to reset password confirm');
-      navigate('/auth/reset-password-confirm', { 
-        state: { 
-          token_hash: searchParams.get('code'),
-          type: 'recovery'
-        },
-        replace: true 
-      });
-      return;
+      const type = searchParams.get('type');
+      // If it's a recovery type or no type specified (likely password reset), redirect
+      if (type === 'recovery' || !type) {
+        console.log('🔄 Password reset token hash detected on homepage, redirecting to reset password confirm');
+        navigate('/auth/reset-password-confirm', { 
+          state: { 
+            token_hash: searchParams.get('code'),
+            type: type || 'recovery'
+          },
+          replace: true 
+        });
+        return;
+      }
     }
 
     // Don't redirect while auth is loading (but only after handling password reset)
@@ -35,10 +40,18 @@ const RouteGuard = ({ children }: RouteGuardProps) => {
     
     // If user is not authenticated, allow access to public routes
     if (!user || !userProfile) {
-      const publicRoutes = ['/', '/marketplace', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy', '/login', '/register', '/reset-password'];
+      const publicRoutes = ['/', '/marketplace', '/explore', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy', '/cookies', '/login', '/register', '/reset-password', '/booking-success'];
       const authRoutes = ['/auth/', '/onboarding'];
       
-      if (!publicRoutes.includes(currentPath) && !currentPath.startsWith('/auth/')) {
+      // Allow public therapist profile routes
+      // Match pattern: /therapist/:therapistId/public
+      const isPublicTherapistProfile = /^\/therapist\/[^/]+\/public\/?$/.test(currentPath);
+      
+      // Allow direct booking links
+      // Match pattern: /book/:slug
+      const isDirectBookingLink = /^\/book\/[^/]+\/?$/.test(currentPath);
+      
+      if (!publicRoutes.includes(currentPath) && !currentPath.startsWith('/auth/') && !isPublicTherapistProfile && !isDirectBookingLink) {
         console.log('🚫 Unauthenticated user accessing protected route, redirecting to login');
         navigate('/login', { replace: true });
       }
@@ -51,7 +64,8 @@ const RouteGuard = ({ children }: RouteGuardProps) => {
     console.log('📋 Onboarding status:', userProfile.onboarding_status);
 
     // Check if user should be redirected to onboarding
-    if (shouldRedirectToOnboarding(userProfile)) {
+    // EXCEPTION: Don't redirect if user is on password reset page - they need to complete password reset first
+    if (shouldRedirectToOnboarding(userProfile) && currentPath !== '/auth/reset-password-confirm') {
       console.log('🔄 User needs onboarding, redirecting from:', currentPath);
       navigate('/onboarding', { replace: true });
       return;
@@ -87,7 +101,7 @@ const RouteGuard = ({ children }: RouteGuardProps) => {
     // Special handling for role-specific routes
     if (userProfile.user_role === 'client') {
       // Clients should not access practitioner routes
-      const practitionerRoutes = ['/dashboard', '/practice', '/cpd', '/analytics', '/payments', '/booking'];
+      const practitionerRoutes = ['/dashboard', '/practice', '/cpd', '/analytics', '/booking'];
       if (practitionerRoutes.some(route => currentPath.startsWith(route))) {
         console.log('🚫 Client accessing practitioner route:', currentPath);
         navigate('/client/dashboard', { replace: true });

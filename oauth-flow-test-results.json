@@ -1,0 +1,430 @@
+{
+  "timestamp": "2025-09-28T17:13:10.646Z",
+  "productionUrl": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app",
+  "tests": [
+    {
+      "endpoint": "Main Page",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Main Page - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Main Page - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Main Page - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Main Page - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Main Page - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Register Page",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/register",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Register Page - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Register Page - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Register Page - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Register Page - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Register Page - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Login Page",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/login",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Login Page - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Login Page - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Login Page - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Login Page - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Login Page - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Auth Callback Page",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/callback",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Auth Callback Page - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Auth Callback Page - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Auth Callback Page - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Auth Callback Page - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Auth Callback Page - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Role Selection Page",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/role-selection",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Role Selection Page - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Role Selection Page - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Role Selection Page - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Role Selection Page - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Role Selection Page - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Onboarding Page",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/onboarding",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Onboarding Page - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Onboarding Page - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Onboarding Page - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Onboarding Page - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Onboarding Page - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Valid Client Callback",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/callback?code=test-code&state=valid-state",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Valid Client Callback - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Valid Client Callback - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Valid Client Callback - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Valid Client Callback - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Valid Client Callback - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Valid Practitioner Callback",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/callback?code=test-code&state=valid-state",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Valid Practitioner Callback - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Valid Practitioner Callback - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Valid Practitioner Callback - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Valid Practitioner Callback - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Valid Practitioner Callback - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Missing Code Parameter",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/callback?state=valid-state",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Missing Code Parameter - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Missing Code Parameter - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Missing Code Parameter - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Missing Code Parameter - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Missing Code Parameter - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Missing State Parameter",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/callback?code=test-code",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Missing State Parameter - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Missing State Parameter - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Missing State Parameter - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Missing State Parameter - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Missing State Parameter - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    },
+    {
+      "endpoint": "Invalid State Format",
+      "url": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app/auth/callback?code=test-code&state=invalid-state",
+      "statusCode": 200,
+      "status": "PASS",
+      "message": "Status: 200, Body length: 8334 bytes",
+      "contentAnalysis": [
+        {
+          "test": "Invalid State Format - React App Root",
+          "status": "PASS",
+          "message": "React app root element found."
+        },
+        {
+          "test": "Invalid State Format - Client OAuth Button",
+          "status": "FAIL",
+          "message": "Client OAuth button text NOT found."
+        },
+        {
+          "test": "Invalid State Format - Practitioner OAuth Button",
+          "status": "FAIL",
+          "message": "Practitioner OAuth button text NOT found."
+        },
+        {
+          "test": "Invalid State Format - Google OAuth Integration",
+          "status": "PASS",
+          "message": "Google OAuth integration detected."
+        },
+        {
+          "test": "Invalid State Format - JavaScript Bundle",
+          "status": "PASS",
+          "message": "JavaScript bundle found."
+        }
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "content-length": "8334"
+      }
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "errors": 0
+  }
+}

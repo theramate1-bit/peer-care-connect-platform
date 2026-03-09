@@ -21,7 +21,7 @@ const CreateProfile = () => {
       navigate('/dashboard');
       return;
     }
-  }, [user, userProfile, navigate]);
+  }, [User as UserIcon, userProfile, navigate]);
 
   if (!user || userProfile?.user_role === 'client') {
     return null;

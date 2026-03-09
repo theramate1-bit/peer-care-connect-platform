@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Star, MessageSquare, User } from "lucide-react";
+import { Star, MessageSquare, User as UserIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -40,13 +40,14 @@ export const ReviewsSection = ({ therapistId, averageRating, reviewCount }: Revi
         .from('reviews')
         .select('*')
         .eq('therapist_id', therapistId)
+        .in('review_status', ['approved', 'published']) // Fixed: show approved/published reviews
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       const formattedReviews = (reviewsData || []).map(review => ({
         id: review.id,
-        rating: review.rating,
+        rating: review.overall_rating || 0, // Fixed: use 'overall_rating' instead of 'rating'
         title: review.title || '',
         comment: review.comment || '',
         is_anonymous: review.is_anonymous,
@@ -156,13 +157,13 @@ export const ReviewsSection = ({ therapistId, averageRating, reviewCount }: Revi
           </Card>
         ) : (
           reviews.map(review => (
-            <Card key={review.id} className="hover:shadow-md transition-shadow">
+            <Card key={review.id} className="transition-[border-color,background-color] duration-200 ease-out">
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-primary/10 text-primary">
                       {review.is_anonymous ? (
-                        <User className="h-5 w-5" />
+                        <UserIcon className="h-5 w-5" />
                       ) : (
                         review.client_name.charAt(0)
                       )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, MessageSquare, Calendar, User, Filter } from 'lucide-react';
+import { Star, MessageSquare, Calendar, User as UserIcon, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -56,7 +56,7 @@ const Reviews = () => {
           review_status
         `)
         .eq('therapist_id', userProfile?.id)
-        .eq('review_status', 'published')
+        .in('review_status', ['approved', 'published']) // Fixed: show approved or published reviews
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -66,7 +66,7 @@ const Reviews = () => {
         (data || []).map(async (review) => {
           // Get client details
           const { data: client, error: clientError } = await supabase
-            .from('users')
+            .from('user_profiles')
             .select('first_name, last_name')
             .eq('id', review.client_id)
             .single();
@@ -272,7 +272,7 @@ const Reviews = () => {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-primary" />
+                          <UserIcon className="h-5 w-5 text-primary" />
                         </div>
                         <div>
                           <h4 className="font-medium">
@@ -320,3 +320,5 @@ const Reviews = () => {
 };
 
 export default Reviews;
+
+

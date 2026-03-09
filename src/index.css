@@ -72,120 +72,268 @@
   background: white !important;
 }
 
+/* Ensure Leaflet maps stay below modals (Dialog z-index is 100-101) */
+.leaflet-container,
+.leaflet-pane,
+.leaflet-map-pane,
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-shadow-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane,
+.leaflet-control,
+.leaflet-interactive,
+.leaflet-interactive path,
+.leaflet-interactive svg {
+  z-index: 50 !important;
+}
+
 /* Wellness-focused design system for therapist platform */
 
 @layer base {
   :root {
-    /* Calming wellness color palette */
-    --background: 35 20% 98%;
-    --foreground: 200 15% 20%;
+    /* Minimal wellness palette with cooler neutrals */
+    --background: 210 20% 98%;
+    --foreground: 220 22% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 15% 20%;
+    --card-foreground: 220 22% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 15% 20%;
+    --popover-foreground: 220 22% 14%;
 
-    /* Wellness primary - calming sage green */
-    --primary: 140 35% 45%;
+    /* Refined wellness primary (sage-teal) */
+    --primary: 158 46% 36%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 140 35% 55%;
-    --primary-dark: 140 35% 35%;
+    --primary-light: 158 46% 48%;
+    --primary-dark: 158 46% 26%;
+    --primary-50: 158 46% 36% / 0.05;
+    --primary-100: 158 46% 36% / 0.1;
+    --primary-200: 158 46% 36% / 0.2;
+    --primary-300: 158 46% 36% / 0.3;
+    --primary-400: 158 46% 36% / 0.4;
+    --primary-500: 158 46% 36%;
+    --primary-600: 158 46% 28%;
+    --primary-700: 158 46% 22%;
+    --primary-800: 158 46% 18%;
+    --primary-900: 158 46% 14%;
 
-    /* Warm secondary tones */
-    --secondary: 25 25% 90%;
-    --secondary-foreground: 200 15% 20%;
+    /* Neutral supporting tone */
+    --secondary: 215 20% 93%;
+    --secondary-foreground: 220 22% 20%;
 
-    /* Soft muted tones */
-    --muted: 35 15% 95%;
-    --muted-foreground: 200 10% 50%;
+    /* Muted text + surfaces */
+    --muted: 215 16% 92%;
+    --muted-foreground: 220 10% 40%;
 
-    /* Trust-building accent - professional blue */
-    --accent: 210 45% 60%;
+    /* Trust accent (ocean blue) */
+    --accent: 205 82% 46%;
     --accent-foreground: 0 0% 100%;
-    --accent-light: 210 45% 70%;
+    --accent-light: 205 82% 56%;
+    --accent-dark: 205 82% 36%;
+    --accent-50: 205 82% 46% / 0.05;
+    --accent-100: 205 82% 46% / 0.1;
+    --accent-200: 205 82% 46% / 0.2;
+    --accent-300: 205 82% 46% / 0.3;
+    --accent-400: 205 82% 46% / 0.4;
 
-    /* Wellness gradients */
+    /* Semantic tokens */
+    --success: 158 48% 38%;
+    --success-foreground: 0 0% 100%;
+    --success-50: 158 48% 38% / 0.05;
+    --success-100: 158 48% 38% / 0.1;
+    --success-500: 158 48% 38%;
+    --success-600: 158 48% 30%;
+    --success-700: 158 48% 24%;
+
+    --warning: 34 92% 55%;
+    --warning-foreground: 0 0% 100%;
+    --warning-50: 34 92% 55% / 0.05;
+    --warning-100: 34 92% 55% / 0.1;
+    --warning-500: 34 92% 55%;
+    --warning-600: 34 92% 45%;
+    --warning-700: 34 92% 38%;
+
+    --error: 0 70% 50%;
+    --error-foreground: 0 0% 100%;
+    --error-50: 0 70% 50% / 0.05;
+    --error-100: 0 70% 50% / 0.1;
+    --error-500: 0 70% 50%;
+    --error-600: 0 70% 40%;
+    --error-700: 0 70% 34%;
+
+    --info: 205 82% 46%;
+    --info-foreground: 0 0% 100%;
+    --info-50: 205 82% 46% / 0.05;
+    --info-100: 205 82% 46% / 0.1;
+    --info-500: 205 82% 46%;
+    --info-600: 205 82% 38%;
+    --info-700: 205 82% 32%;
+
+    /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-light)));
     --gradient-secondary: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-light)));
     --gradient-hero: linear-gradient(135deg, hsl(var(--primary-dark)), hsl(var(--primary)), hsl(var(--accent-light)));
     --gradient-card: linear-gradient(180deg, hsl(var(--card)), hsl(var(--muted)));
 
-    /* Professional shadows */
-    --shadow-soft: 0 4px 20px -4px hsl(var(--primary) / 0.15);
-    --shadow-medium: 0 8px 30px -6px hsl(var(--primary) / 0.2);
-    --shadow-strong: 0 12px 40px -8px hsl(var(--primary) / 0.3);
+    /* Minimal shadows */
+    --shadow-soft: 0 18px 40px -28px rgba(15, 23, 42, 0.35), 0 2px 8px -4px rgba(15, 23, 42, 0.08);
+    --shadow-medium: 0 25px 55px -30px rgba(15, 23, 42, 0.35), 0 6px 18px -8px rgba(15, 23, 42, 0.12);
+    --shadow-strong: 0 35px 65px -32px rgba(15, 23, 42, 0.38), 0 10px 28px -10px rgba(15, 23, 42, 0.16);
+
+    /* Enhanced 3-layer shadow system (inspired by onghost.com) */
+    --shadow-depth-1: 
+      0 0.6px 1.6px -1px rgba(0, 0, 0, 0.15),
+      0 2.3px 6px -2px rgba(0, 0, 0, 0.14),
+      0 10px 26px -3px rgba(0, 0, 0, 0.1);
+    --shadow-depth-2:
+      0 1.2px 3.2px -1px rgba(0, 0, 0, 0.18),
+      0 4.6px 12px -2px rgba(0, 0, 0, 0.16),
+      0 20px 52px -3px rgba(0, 0, 0, 0.12);
+    --shadow-depth-3:
+      0 1.8px 4.8px -1px rgba(0, 0, 0, 0.2),
+      0 6.9px 18px -2px rgba(0, 0, 0, 0.18),
+      0 30px 78px -3px rgba(0, 0, 0, 0.14);
 
     /* Healing energy glow effects */
     --glow-primary: 0 0 30px hsl(var(--primary) / 0.3);
     --glow-accent: 0 0 25px hsl(var(--accent) / 0.25);
 
-    --destructive: 350 65% 55%;
+    /* Token-based color system with fallbacks (onghost.com pattern) */
+    /* Critical colors with fallback values for graceful degradation */
+    --token-primary: var(--primary, 158 46% 36%);
+    --token-primary-hex: #1f7a5a;
+    --token-accent: var(--accent, 205 82% 46%);
+    --token-accent-hex: #1d8cf8;
+    --token-background: var(--background, 210 20% 98%);
+    --token-background-hex: #f4f6f9;
+    --token-foreground: var(--foreground, 220 22% 14%);
+    --token-foreground-hex: #162230;
+
+    /* Will-change optimization tokens */
+    --will-change-transform: transform;
+    --will-change-opacity: opacity;
+    --will-change-filter: filter;
+    --will-change-auto: auto;
+    --will-change-override: var(--will-change-transform, transform);
+
+    /* Aspect-ratio support tokens */
+    --aspect-ratio-supported: 1;
+    --aspect-ratio-fallback: auto;
+
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 35 15% 88%;
-    --input: 35 15% 88%;
-    --ring: 140 35% 45%;
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 158 46% 36%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Mask property support for gradient overlays */
+    --mask-gradient-fade: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+    --mask-gradient-fade-top: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+    --mask-gradient-fade-sides: linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%);
 
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
+    --sidebar-foreground: 220 10% 28%;
+    --sidebar-primary: 220 15% 12%;
     --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 16% 94%;
+    --sidebar-accent-foreground: 220 15% 18%;
+    --sidebar-border: 220 16% 90%;
+    --sidebar-ring: 205 82% 46%;
   }
 
   .dark {
-    /* Dark mode wellness colors */
-    --background: 200 20% 8%;
-    --foreground: 35 15% 95%;
+    /* Dark mode wellness palette */
+    --background: 215 30% 8%;
+    --foreground: 210 20% 94%;
 
-    --card: 200 15% 12%;
-    --card-foreground: 35 15% 95%;
+    --card: 215 24% 12%;
+    --card-foreground: 210 20% 94%;
 
-    --popover: 200 15% 12%;
-    --popover-foreground: 35 15% 95%;
+    --popover: 215 24% 12%;
+    --popover-foreground: 210 20% 94%;
 
-    --primary: 140 35% 55%;
-    --primary-foreground: 200 20% 8%;
-    --primary-light: 140 35% 65%;
-    --primary-dark: 140 35% 45%;
+    --primary: 158 46% 50%;
+    --primary-foreground: 214 32% 10%;
+    --primary-light: 158 46% 60%;
+    --primary-dark: 158 46% 40%;
+    --primary-50: 158 46% 50% / 0.05;
+    --primary-100: 158 46% 50% / 0.1;
+    --primary-200: 158 46% 50% / 0.2;
+    --primary-300: 158 46% 50% / 0.3;
+    --primary-400: 158 46% 50% / 0.4;
+    --primary-500: 158 46% 50%;
+    --primary-600: 158 46% 42%;
+    --primary-700: 158 46% 36%;
+    --primary-800: 158 46% 32%;
+    --primary-900: 158 46% 26%;
 
-    --secondary: 200 15% 18%;
-    --secondary-foreground: 35 15% 95%;
+    --secondary: 215 18% 18%;
+    --secondary-foreground: 210 20% 92%;
 
-    --muted: 200 15% 15%;
-    --muted-foreground: 35 10% 70%;
+    --muted: 215 20% 16%;
+    --muted-foreground: 210 10% 70%;
 
-    --accent: 210 45% 65%;
-    --accent-foreground: 200 20% 8%;
-    --accent-light: 210 45% 75%;
+    --accent: 205 82% 58%;
+    --accent-foreground: 214 32% 10%;
+    --accent-light: 205 82% 68%;
+    --accent-dark: 205 82% 46%;
+    --accent-50: 205 82% 58% / 0.05;
+    --accent-100: 205 82% 58% / 0.1;
+    --accent-200: 205 82% 58% / 0.2;
+    --accent-300: 205 82% 58% / 0.3;
+    --accent-400: 205 82% 58% / 0.4;
 
-    --destructive: 350 65% 60%;
+    --success: 158 48% 52%;
+    --success-foreground: 214 32% 10%;
+    --success-50: 158 48% 52% / 0.05;
+    --success-100: 158 48% 52% / 0.1;
+    --success-500: 158 48% 52%;
+    --success-600: 158 48% 44%;
+    --success-700: 158 48% 38%;
+
+    --warning: 34 92% 60%;
+    --warning-foreground: 214 32% 10%;
+    --warning-50: 34 92% 60% / 0.05;
+    --warning-100: 34 92% 60% / 0.1;
+    --warning-500: 34 92% 60%;
+    --warning-600: 34 92% 50%;
+    --warning-700: 34 92% 44%;
+
+    --error: 0 70% 58%;
+    --error-foreground: 0 0% 100%;
+    --error-50: 0 70% 58% / 0.05;
+    --error-100: 0 70% 58% / 0.1;
+    --error-500: 0 70% 58%;
+    --error-600: 0 70% 48%;
+    --error-700: 0 70% 42%;
+
+    --info: 205 82% 58%;
+    --info-foreground: 214 32% 10%;
+    --info-50: 205 82% 58% / 0.05;
+    --info-100: 205 82% 58% / 0.1;
+    --info-500: 205 82% 58%;
+    --info-600: 205 82% 48%;
+    --info-700: 205 82% 42%;
+
+    --destructive: 0 70% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 200 15% 25%;
-    --input: 200 15% 25%;
-    --ring: 140 35% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 215 22% 24%;
+    --input: 215 22% 24%;
+    --ring: 158 46% 50%;
+    --sidebar-background: 215 28% 10%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 205 82% 50%;
+    --sidebar-primary-foreground: 214 32% 10%;
+    --sidebar-accent: 215 22% 16%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 215 22% 18%;
+    --sidebar-ring: 205 82% 58%;
   }
 }
 
@@ -205,12 +353,173 @@
 .mobile-container { padding-left: 1rem; padding-right: 1rem; }
 
 @layer base {
+  /* Variable font support - Inter Variable */
+  /* Inter Variable font is loaded via Google Fonts in index.html with font-display: swap */
+  /* Fallback to system fonts ensures fast loading */
+  /* Font loading is optimized with:
+     - font-display: swap (prevents invisible text during font load)
+     - Preconnect to Google Fonts domains
+     - Preload for critical font weights
+  */
+
   * {
     @apply border-border;
   }
 
+  html {
+    /* Optimize font rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Prevent layout shift when Radix Select/Dialog open and lock body scroll (no more "screen shake") */
+    scrollbar-gutter: stable;
+  }
+
+  /* When Radix locks scroll (Select, Dialog, etc.), don't add extra margin – we already reserved space via scrollbar-gutter */
+  body[data-scroll-locked] {
+    --removed-body-scroll-bar-size: 0 !important;
+    margin-right: 0 !important;
+  }
+
   body {
     @apply bg-background text-foreground font-inter;
+    /* Optimal line length for readability (65-75ch) */
+    max-width: 100%;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    letter-spacing: -0.011em;
+  }
+
+  /* Typography hierarchy - 2025 refined scale */
+  h1, .h1 {
+    font-size: clamp(2rem, 5vw + 1rem, 3.5rem);
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    @apply text-foreground;
+  }
+
+  h2, .h2 {
+    font-size: clamp(1.5rem, 4vw + 0.5rem, 2.5rem);
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    @apply text-foreground;
+  }
+
+  h3, .h3 {
+    font-size: clamp(1.25rem, 3vw + 0.25rem, 2rem);
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    @apply text-foreground;
+  }
+
+  h4, .h4 {
+    font-size: clamp(1.125rem, 2vw + 0.125rem, 1.5rem);
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    @apply text-foreground;
+  }
+
+  h5, .h5 {
+    font-size: clamp(1rem, 1.5vw + 0.125rem, 1.25rem);
+    line-height: 1.4;
+    font-weight: 600;
+    letter-spacing: normal;
+    @apply text-foreground;
+  }
+
+  h6, .h6 {
+    font-size: clamp(0.875rem, 1vw + 0.125rem, 1rem);
+    line-height: 1.45;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    @apply text-foreground;
+  }
+
+  p, .text-base {
+    font-size: clamp(0.9375rem, 1vw + 0.125rem, 1rem);
+    line-height: 1.6;
+    letter-spacing: -0.008em;
+    @apply text-foreground;
+  }
+
+  /* Optimal reading width */
+  .prose, .readable-content {
+    max-width: 65ch;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .prose-wide {
+    max-width: 75ch;
+  }
+
+  /* Consistent spacing utilities for visual hierarchy */
+  .section-spacing {
+    padding-top: var(--section-spacing-top, 4rem);
+    padding-bottom: var(--section-spacing-bottom, 4rem);
+  }
+
+  .section-spacing-sm {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .section-spacing-lg {
+    padding-top: 6rem;
+    padding-bottom: 6rem;
+  }
+
+  /* Container spacing improvements */
+  .container-content {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-content {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-content {
+      padding-left: 2.5rem;
+      padding-right: 2.5rem;
+    }
+  }
+
+  /* Improved text contrast for better readability */
+  .text-muted-foreground {
+    color: hsl(var(--muted-foreground));
+    opacity: 0.85;
+  }
+
+  /* Small text improvements */
+  small, .text-sm {
+    font-size: clamp(0.8125rem, 0.75vw + 0.125rem, 0.875rem);
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+  }
+
+  /* Large text improvements */
+  .text-lg {
+    font-size: clamp(1.0625rem, 1.25vw + 0.125rem, 1.125rem);
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+  }
+
+  /* Extra large text */
+  .text-xl {
+    font-size: clamp(1.1875rem, 1.5vw + 0.125rem, 1.25rem);
+    line-height: 1.5;
+    letter-spacing: -0.012em;
   }
 }
 
@@ -295,8 +604,397 @@
   
 
   
+  /* Enhanced micro-interactions and transitions - 2025 refined */
+  .transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .transition-bounce {
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  /* Smooth hover lift effect */
+  .hover-lift {
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+  }
+
+  /* Subtle glow on hover */
+  .hover-glow:hover {
+    box-shadow: var(--glow-primary);
+  }
+
+  /* Active press feedback */
+  .active-scale:active {
+    transform: scale(0.98);
+  }
+
+  /* Focus ring improvements */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  /* Smooth fade in animations */
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-in-down {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.3s ease-out;
+  }
+
+  .animate-fade-in-down {
+    animation: fade-in-down 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.2s ease-out;
+  }
+
+  /* Modern UI patterns - 2025 aesthetic */
+  
+  /* Glassmorphism effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .glass-dark {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Skeleton loading shimmer effect */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted) / 0.5) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Empty state styling */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .empty-state-icon {
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  /* Card hover elevation */
+  .card-hover {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium);
+  }
+
+  /* Depth layering with shadows */
+  .elevation-1 {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+
+  .elevation-2 {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .elevation-3 {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .elevation-4 {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Enhanced depth shadows (3-layer system) */
+  .shadow-depth-1 {
+    box-shadow: var(--shadow-depth-1);
+  }
+
+  .shadow-depth-2 {
+    box-shadow: var(--shadow-depth-2);
+  }
+
+  .shadow-depth-3 {
+    box-shadow: var(--shadow-depth-3);
+  }
+
+  /* Will-change optimization utilities */
+  .will-change-transform {
+    will-change: var(--will-change-transform, transform);
+  }
+
+  .will-change-opacity {
+    will-change: var(--will-change-opacity, opacity);
+  }
+
+  .will-change-filter {
+    will-change: var(--will-change-filter, filter);
+  }
+
+  .will-change-auto {
+    will-change: var(--will-change-auto, auto);
+  }
+
+  /* Mask property utilities for gradient overlays */
+  .mask-fade {
+    mask: var(--mask-gradient-fade);
+    -webkit-mask: var(--mask-gradient-fade);
+  }
+
+  .mask-fade-top {
+    mask: var(--mask-gradient-fade-top);
+    -webkit-mask: var(--mask-gradient-fade-top);
+  }
+
+  .mask-fade-sides {
+    mask: var(--mask-gradient-fade-sides);
+    -webkit-mask: var(--mask-gradient-fade-sides);
+  }
+
+  /* Aspect-ratio utilities with fallback support */
+  .aspect-ratio-supported {
+    aspect-ratio: var(--aspect-ratio, 16 / 9);
+  }
+
+  /* Min-content and max-content sizing utilities */
+  .h-min-content {
+    height: min-content;
+  }
+
+  .h-max-content {
+    height: max-content;
+  }
+
+  .w-min-content {
+    width: min-content;
+  }
+
+  .w-max-content {
+    width: max-content;
+  }
+  
   /* Professional transitions */
   .transition-wellness {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Enhanced micro-interactions */
+  .interactive-element {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .interactive-element:hover {
+    transform: translateY(-1px);
+  }
+
+  .interactive-element:active {
+    transform: translateY(0);
+  }
+
+  /* Responsive design refinements */
+  @media (max-width: 768px) {
+    /* Ensure touch targets meet accessibility standards */
+    button:not(.icon-button),
+    a[role="button"],
+    input[type="button"],
+    input[type="submit"] {
+      min-height: 44px;
+    }
+
+    /* Better mobile spacing */
+    .section-spacing {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    .section-spacing-lg {
+      padding-top: 3rem;
+      padding-bottom: 3rem;
+    }
+
+    /* Container padding adjustments */
+    .container-content {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+
+  /* Focus visible improvements for keyboard navigation */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Skip link for accessibility */
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    padding: 0.5rem 1rem;
+    z-index: 100;
+    text-decoration: none;
+  }
+
+  .skip-link:focus {
+    top: 0;
+  }
+
+  /* Screen reader only content */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Tawk.to Live Chat Widget - Compact Styling */
+  /* Target the widget container and make it more compact */
+  #tawkchat-container,
+  #tawkchat-container * {
+    box-sizing: border-box;
+  }
+
+  /* Lower z-index so it doesn't block modals */
+  #tawkchat-container {
+    z-index: 40 !important;
+  }
+
+  /* Make the widget button smaller */
+  #tawkchat-container .tawk-button {
+    width: 48px !important;
+    height: 48px !important;
+    bottom: 16px !important;
+    right: 16px !important;
+    border-radius: 50% !important;
+    z-index: 40 !important;
+  }
+
+  /* Reduce spacing when widget is open */
+  #tawkchat-container iframe {
+    bottom: 72px !important;
+    right: 16px !important;
+    max-width: 380px !important;
+    max-height: calc(100vh - 100px) !important;
+    z-index: 40 !important;
+  }
+  
+  /* Hide Tawk widget when modals/dialogs are open */
+  body:has([role="dialog"]:not([hidden])) #tawkchat-container,
+  body:has([data-radix-dialog-overlay]) #tawkchat-container,
+  body:has(.booking-modal) #tawkchat-container,
+  body:has([data-state="open"][role="dialog"]) #tawkchat-container {
+    display: none !important;
+  }
+
+  /* Compact widget on mobile */
+  @media (max-width: 768px) {
+    #tawkchat-container .tawk-button {
+      width: 44px !important;
+      height: 44px !important;
+      bottom: 12px !important;
+      right: 12px !important;
+    }
+
+    #tawkchat-container iframe {
+      bottom: 64px !important;
+      right: 12px !important;
+      max-width: calc(100vw - 24px) !important;
+      max-height: calc(100vh - 80px) !important;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    :root {
+      --border: 0 0% 0%;
+      --ring: 0 0% 0%;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Onboarding smoothness: isolate active step and animate compositor-safe properties only. */
+  .onboarding-step-layer {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    backface-visibility: hidden;
   }
 }

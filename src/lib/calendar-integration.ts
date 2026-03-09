@@ -43,7 +43,7 @@ export class CalendarIntegrationService {
     const icsHeader = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//Peer Care Connect//Calendar Integration//EN',
+      'PRODID:-//TheraMate//Calendar Integration//EN',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH'
     ].join('\r\n');
@@ -215,10 +215,37 @@ export class CalendarIntegrationService {
     return slots;
   }
 
-  // Sync with external calendar (placeholder for actual implementation)
+  // Sync with external calendar (actual Google Calendar API integration)
   async syncWithExternalCalendar(): Promise<CalendarEvent[]> {
-    // This would integrate with actual calendar APIs
-    // For now, return empty array
+    if (this.config.provider === 'google' && this.config.enabled) {
+      const { GoogleCalendarService } = await import('./google-calendar-service');
+      const result = await GoogleCalendarService.syncEvents();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Sync failed');
+      }
+
+      // Fetch synced events from database
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: events } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .eq('provider', 'google')
+        .order('start_time', { ascending: true });
+
+      return (events || []).map(event => ({
+        id: event.external_event_id || event.id,
+        title: event.title,
+        start: new Date(event.start_time),
+        end: new Date(event.end_time),
+        description: event.description,
+        location: event.location,
+        attendees: event.attendees || [],
+        status: event.status as 'confirmed' | 'tentative' | 'cancelled',
+        source: 'google' as const,
+      }));
+    }
+    
     return [];
   }
 

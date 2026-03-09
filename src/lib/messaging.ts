@@ -193,6 +193,123 @@ export class MessagingManager {
   }
 
   /**
+   * Send a message to a guest (creates guest conversation if needed)
+   */
+  static async sendMessageToGuest(
+    practitionerId: string,
+    guestEmail: string,
+    content: string,
+    messageType: 'text' | 'image' | 'file' | 'system' = 'text'
+  ): Promise<string> {
+    try {
+      // First check if guest already has an account
+      const { data: guestUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', guestEmail)
+        .single();
+
+      // If guest has account, use normal flow
+      if (guestUser) {
+        return await this.sendMessageToUser(practitionerId, guestUser.id, content, messageType);
+      }
+
+      // Get or create guest conversation
+      const { data: conversationId, error: convError } = await supabase
+        .rpc('get_or_create_guest_conversation', {
+          p_practitioner_id: practitionerId,
+          p_guest_email: guestEmail
+        });
+
+      if (convError || !conversationId) {
+        throw new Error(convError?.message || 'Failed to create guest conversation');
+      }
+
+      // Send message
+      const messageId = await this.sendMessage(conversationId, practitionerId, content, messageType);
+
+      // Send email notification
+      try {
+        const { NotificationSystem } = await import('@/lib/notification-system');
+        const { data: practitioner } = await supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', practitionerId)
+          .single();
+
+        const practitionerName = practitioner 
+          ? `${practitioner.first_name} ${practitioner.last_name}`
+          : 'Your practitioner';
+
+        await NotificationSystem.sendGuestMessageNotification(
+          conversationId,
+          guestEmail,
+          content,
+          practitionerName
+        );
+      } catch (emailError) {
+        console.error('Error sending guest message notification:', emailError);
+        // Don't throw - email failures shouldn't block message sending
+      }
+
+      return messageId;
+    } catch (error) {
+      console.error('Error sending message to guest:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link guest conversations to user when account is created
+   */
+  static async linkGuestConversationsToUser(
+    email: string,
+    userId: string
+  ): Promise<void> {
+    try {
+      const { error } = await supabase
+        .rpc('link_guest_conversations_to_user', {
+          p_email: email,
+          p_user_id: userId
+        });
+
+      if (error) {
+        console.error('Error linking guest conversations:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error linking guest conversations to user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link guest sessions to user when account is created
+   */
+  static async linkGuestSessionsToUser(
+    email: string,
+    userId: string
+  ): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('link_guest_sessions_to_user', {
+          p_email: email,
+          p_user_id: userId
+        });
+
+      if (error) {
+        console.error('Error linking guest sessions:', error);
+        throw error;
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('Error linking guest sessions to user:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Subscribe to real-time messages for a conversation
    */
   static subscribeToConversation(

@@ -79,7 +79,7 @@ export const therapistProfileSchema = z.object({
   state: z.string().max(50),
   country: z.string().max(50),
   postalCode: postalCodeSchema,
-  specializations: z.array(z.string()).min(1, 'Please select at least one specialization'),
+  specializations: z.array(z.string()).optional(), // Specializations are optional
   qualifications: z.array(z.string()).min(1, 'Please add at least one qualification'),
   experienceYears: experienceSchema,
   hourlyRate: hourlyRateSchema,
@@ -90,7 +90,10 @@ export const therapistProfileSchema = z.object({
 // Session booking validation
 export const sessionBookingSchema = z.object({
   sessionType: z.string().min(1, 'Please select a session type'),
-  duration: z.number().min(15, 'Session must be at least 15 minutes').max(240, 'Session cannot exceed 4 hours'),
+  duration: z.number().refine(
+    (val) => [30, 45, 60, 75, 90].includes(val),
+    'Duration must be 30, 45, 60, 75, or 90 minutes'
+  ),
   sessionDate: z.date().min(new Date(), 'Session date must be in the future'),
   sessionTime: z.string().min(1, 'Please select a session time'),
   notes: z.string().max(500, 'Notes must be less than 500 characters').optional(),
@@ -203,14 +206,31 @@ export const validateRateLimit = (attempts: number, maxAttempts: number, timeWin
 };
 
 // XSS prevention
+import DOMPurify from 'dompurify';
+
 export const sanitizeHtml = (html: string): string => {
-  const div = document.createElement('div');
-  div.textContent = html;
-  return div.innerHTML;
+  // Use DOMPurify for proper HTML sanitization
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [],
+    KEEP_CONTENT: true,
+    ALLOW_DATA_ATTR: false
+  });
 };
 
-// SQL injection prevention (basic)
+/**
+ * SQL injection prevention (basic)
+ * @deprecated This function is insufficient for SQL injection prevention.
+ * ALWAYS use parameterized queries with Supabase client instead of string concatenation.
+ * This function may be removed in a future version.
+ * 
+ * Example of CORRECT usage:
+ * ✅ const { data } = await supabase.from('table').select('*').eq('column', userInput);
+ * 
+ * Example of INCORRECT usage:
+ * ❌ const query = `SELECT * FROM table WHERE column = '${sanitizeSqlInput(userInput)}'`;
+ */
 export const sanitizeSqlInput = (input: string): string => {
+  console.warn('sanitizeSqlInput() is deprecated. Use parameterized queries instead.');
   return input
     .replace(/['"]/g, '')
     .replace(/;/g, '')

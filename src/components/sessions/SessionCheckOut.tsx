@@ -6,6 +6,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useNavigate } from 'react-router-dom';
 import { 
   Star, 
   MessageSquare, 
@@ -19,7 +21,8 @@ import {
   Download,
   Share,
   Clock,
-  User
+  User as UserIcon,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,10 +45,14 @@ export const SessionCheckOut: React.FC<SessionCheckOutProps> = ({
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [existingFeedback, setExistingFeedback] = useState<any>(null);
+  const [showReviewPrompt, setShowReviewPrompt] = useState(false);
+  const [reviewPromptDismissed, setReviewPromptDismissed] = useState(false);
   
   // Feedback form state
   const [rating, setRating] = useState(5);
@@ -58,7 +65,44 @@ export const SessionCheckOut: React.FC<SessionCheckOutProps> = ({
 
   useEffect(() => {
     fetchSessionInfo();
+    fetchExistingFeedback();
   }, [sessionId]);
+
+  const fetchExistingFeedback = async () => {
+    if (!sessionId || !user?.id) return;
+
+    try {
+      // Try to fetch from session_feedback table
+      const { data, error } = await supabase
+        .from('session_feedback')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('client_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching existing feedback:', error);
+        return;
+      }
+
+      if (data) {
+        setExistingFeedback(data);
+        setSubmitted(true); // Mark as submitted if feedback exists
+        // Pre-fill form with existing data
+        setRating(data.rating || 5);
+        setPainLevel(data.pain_level_before || data.pain_level || 0);
+        setFeedback(data.feedback_text || data.feedback || '');
+        setWhatWentWell(data.what_went_well || '');
+        setAreasForImprovement(data.areas_for_improvement || '');
+        setWouldRecommend(data.would_recommend ? 'yes' : 'no');
+        setNextSessionInterest(data.next_session_interest ? 'yes' : 'no');
+      }
+    } catch (error) {
+      console.error('Error fetching existing feedback:', error);
+    }
+  };
 
   const fetchSessionInfo = async () => {
     try {
@@ -129,6 +173,28 @@ export const SessionCheckOut: React.FC<SessionCheckOutProps> = ({
       });
 
       setSubmitted(true);
+      // Reload existing feedback to show it
+      await fetchExistingFeedback();
+      
+      // Show review prompt after successful feedback submission
+      // Only show if user is the client (session is now completed after checkout)
+      if (sessionInfo?.client_id === user?.id) {
+        // Check if review already exists
+        const { data: existingReview } = await supabase
+          .from('reviews')
+          .select('id')
+          .eq('session_id', sessionId)
+          .eq('client_id', user.id)
+          .maybeSingle();
+        
+        if (!existingReview && !reviewPromptDismissed) {
+          // Small delay to let the success message show first
+          setTimeout(() => {
+            setShowReviewPrompt(true);
+          }, 1500);
+        }
+      }
+      
       toast({
         title: "Feedback Submitted",
         description: "Thank you for your feedback! Your session has been completed."
@@ -159,7 +225,7 @@ export const SessionCheckOut: React.FC<SessionCheckOutProps> = ({
       case 'osteopath':
         return <Bone className="h-5 w-5 text-orange-600" />;
       default:
-        return <User className="h-5 w-5 text-gray-600" />;
+        return <UserIcon className="h-5 w-5 text-gray-600" />;
     }
   };
 
@@ -174,17 +240,78 @@ export const SessionCheckOut: React.FC<SessionCheckOutProps> = ({
     });
   };
 
-  if (submitted) {
+  if (submitted || existingFeedback) {
     return (
       <Card className={className}>
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="h-8 w-8 text-green-600" />
+        <CardContent className="p-8">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Session Complete!</h2>
+            <p className="text-muted-foreground mb-6">
+              {existingFeedback 
+                ? "Your feedback has been submitted. Thank you!"
+                : "Thank you for your feedback. Your session has been completed successfully."}
+            </p>
           </div>
-          <h2 className="text-2xl font-bold mb-2">Session Complete!</h2>
-          <p className="text-muted-foreground mb-6">
-            Thank you for your feedback. Your session has been completed successfully.
-          </p>
+
+          {/* Display Submitted Feedback */}
+          {existingFeedback && (
+            <div className="mb-6 p-4 bg-muted/50 rounded-lg border">
+              <h3 className="font-medium mb-3 flex items-center gap-2">
+                <Star className="h-4 w-4 text-yellow-400" />
+                Your Submitted Feedback
+              </h3>
+              
+              <div className="space-y-3">
+                <div>
+                  <span className="text-sm text-muted-foreground">Rating: </span>
+                  <div className="flex items-center gap-1 mt-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          star <= (existingFeedback.rating || 0)
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                    <span className="ml-2 text-sm">({existingFeedback.rating}/5)</span>
+                  </div>
+                </div>
+
+                {existingFeedback.feedback_text && (
+                  <div>
+                    <span className="text-sm text-muted-foreground">Feedback: </span>
+                    <p className="text-sm mt-1">{existingFeedback.feedback_text}</p>
+                  </div>
+                )}
+
+                {existingFeedback.what_went_well && (
+                  <div>
+                    <span className="text-sm text-muted-foreground">What Went Well: </span>
+                    <p className="text-sm mt-1">{existingFeedback.what_went_well}</p>
+                  </div>
+                )}
+
+                {existingFeedback.areas_for_improvement && (
+                  <div>
+                    <span className="text-sm text-muted-foreground">Areas for Improvement: </span>
+                    <p className="text-sm mt-1">{existingFeedback.areas_for_improvement}</p>
+                  </div>
+                )}
+
+                {existingFeedback.created_at && (
+                  <div className="text-xs text-muted-foreground pt-2 border-t">
+                    Submitted on {new Date(existingFeedback.created_at).toLocaleDateString()} at{' '}
+                    {new Date(existingFeedback.created_at).toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           
           <div className="space-y-4">
             <div className="p-4 bg-blue-50 rounded-lg">
@@ -507,6 +634,56 @@ export const SessionCheckOut: React.FC<SessionCheckOutProps> = ({
           }}
         />
       )}
+
+      {/* Review Prompt Modal */}
+      <Dialog open={showReviewPrompt} onOpenChange={setShowReviewPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500 fill-current" />
+              How was your session?
+            </DialogTitle>
+            <DialogDescription>
+              Share your experience to help other clients and support your practitioner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Your feedback helps practitioners improve and helps other clients make informed decisions.
+            </p>
+            <div className="space-y-2">
+              <ul className="text-sm space-y-1 text-muted-foreground">
+                <li>• Help other clients find the right practitioner</li>
+                <li>• Support your practitioner's practice</li>
+                <li>• Share your experience with the community</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowReviewPrompt(false);
+                setReviewPromptDismissed(true);
+              }}
+              className="w-full sm:w-auto"
+            >
+              Remind Me Later
+            </Button>
+            <Button
+              onClick={() => {
+                setShowReviewPrompt(false);
+                setReviewPromptDismissed(true);
+                navigate(`/reviews/submit/${sessionId}`);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <Star className="h-4 w-4 mr-2" />
+              Leave a Review
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

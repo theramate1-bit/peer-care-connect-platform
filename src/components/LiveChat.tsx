@@ -20,7 +20,7 @@ const LiveChat = ({ widgetId }: LiveChatProps) => {
       return;
     }
 
-    // Create the script element with error handling
+    // Load directly from Tawk (CSP allows embed.tawk.to in script-src; proxy caused 403 and wrong MIME type)
     const script = document.createElement('script');
     script.async = true;
     script.src = `https://embed.tawk.to/${actualWidgetId}?disableAnalytics=true&disablePerformanceLogging=true`;
@@ -38,7 +38,6 @@ const LiveChat = ({ widgetId }: LiveChatProps) => {
       };
     
     script.onload = () => {
-      console.log('Tawk.to widget loaded successfully');
       setIsBlocked(false); // Clear blocked state on successful load
     };
     
@@ -87,65 +86,120 @@ const LiveChat = ({ widgetId }: LiveChatProps) => {
     //   originalConsoleError.apply(console, args);
     // };
     
-    // Configure Tawk.to settings
+    // Configure Tawk.to settings with lower z-index to not block modals
     window.Tawk_API.customStyle = {
-      zIndex: 1000,
+      zIndex: 40,
+      visibility: {
+        desktop: {
+          position: 'br', // bottom-right
+          xOffset: 16,
+          yOffset: 16,
+        },
+        mobile: {
+          position: 'br',
+          xOffset: 12,
+          yOffset: 12,
+        }
+      }
+    };
+
+    // Consolidated onLoad handler - handles all widget configurations
+    window.Tawk_API.onLoad = function() {
+      // Build attributes object with all configurations
+      const attributes: any = {
+        widgetSize: 'compact',
+        widgetPosition: 'br',
+        widgetOffset: {
+          x: 16,
+          y: 16
+        }
+      };
+
+      // Disable notification sounds based on config
+      if (!LIVE_CHAT_CONFIG.CUSTOMIZATION.sound.enabled) {
+        attributes.disableSound = true;
+        attributes.soundEnabled = false;
+      }
+
+      // Configure AI features
+      if (LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.enabled) {
+        attributes.enableAI = true;
+        attributes.aiBot = true;
+        attributes.knowledgeBase = LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.knowledgeBase;
+        attributes.websiteContent = LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.websiteContent;
+        attributes.customData = LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.customData;
+      }
+
+      // Configure Smart Reply
+      if (LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.smartReply.enabled) {
+        attributes.smartReply = true;
+        attributes.aiSuggestions = true;
+        attributes.responseTone = LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.smartReply.tone;
+        attributes.aiCommands = LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.smartReply.commands;
+      }
+
+      // Apply all attributes at once
+      if (window.Tawk_API && window.Tawk_API.setAttributes) {
+        window.Tawk_API.setAttributes(attributes);
+      }
+      
+      // Apply custom CSS to make widget smaller and more compact
+      const style = document.createElement('style');
+      style.id = 'tawk-compact-styles';
+      style.textContent = `
+        /* Base Tawk widget styles */
+        #tawkchat-container {
+          z-index: 40 !important;
+        }
+        
+        #tawkchat-container .tawk-button {
+          width: 48px !important;
+          height: 48px !important;
+          bottom: 16px !important;
+          right: 16px !important;
+          z-index: 40 !important;
+        }
+        
+        #tawkchat-container iframe {
+          bottom: 72px !important;
+          right: 16px !important;
+          max-width: 380px !important;
+          max-height: calc(100vh - 100px) !important;
+          z-index: 40 !important;
+        }
+        
+        /* Hide Tawk widget when modals/dialogs are open */
+        body:has([role="dialog"]:not([hidden])) #tawkchat-container,
+        body:has([data-radix-dialog-overlay]) #tawkchat-container,
+        body:has(.booking-modal) #tawkchat-container,
+        body:has([data-state="open"][role="dialog"]) #tawkchat-container {
+          display: none !important;
+        }
+        
+        @media (max-width: 768px) {
+          #tawkchat-container .tawk-button {
+            width: 44px !important;
+            height: 44px !important;
+            bottom: 12px !important;
+            right: 12px !important;
+          }
+          #tawkchat-container iframe {
+            bottom: 64px !important;
+            right: 12px !important;
+            max-width: calc(100vw - 24px) !important;
+            max-height: calc(100vh - 80px) !important;
+          }
+        }
+      `;
+      // Only add style if it doesn't already exist
+      if (!document.getElementById('tawk-compact-styles')) {
+        document.head.appendChild(style);
+      }
     };
     
     // Disable Tawk.to performance logging to prevent blocked requests
     window.Tawk_API.disablePerformanceLogging = true;
     window.Tawk_API.performanceLogging = false;
-    
-    // Disable notification sounds based on config
-    if (!LIVE_CHAT_CONFIG.CUSTOMIZATION.sound.enabled) {
-      window.Tawk_API.setAttributes = function(attributes: any) {
-        attributes.disableSound = true;
-        attributes.soundEnabled = false;
-        return attributes;
-      };
-      
-      // Override the sound settings when widget loads
-      window.Tawk_API.onLoad = function() {
-        // Disable all sounds
-        if (window.Tawk_API && window.Tawk_API.setAttributes) {
-          window.Tawk_API.setAttributes({
-            disableSound: true,
-            soundEnabled: false
-          });
-        }
-      };
-    }
-    
-    // Configure AI features
-    if (LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.enabled) {
-      window.Tawk_API.onLoad = function() {
-        // Enable Apollo AI Bot
-        if (window.Tawk_API && window.Tawk_API.setAttributes) {
-          window.Tawk_API.setAttributes({
-            enableAI: true,
-            aiBot: true,
-            knowledgeBase: LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.knowledgeBase,
-            websiteContent: LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.websiteContent,
-            customData: LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.apolloBot.customData
-          });
-        }
-      };
-    }
-    
-    // Configure Smart Reply
-    if (LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.smartReply.enabled) {
-      window.Tawk_API.onLoad = function() {
-        // Enable Smart Reply
-        if (window.Tawk_API && window.Tawk_API.setAttributes) {
-          window.Tawk_API.setAttributes({
-            smartReply: true,
-            aiSuggestions: true,
-            responseTone: LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.smartReply.tone,
-            aiCommands: LIVE_CHAT_CONFIG.CUSTOMIZATION.ai.smartReply.commands
-          });
-        }
-      };
-    }
 
     // TEMPORARILY DISABLED: Global error handler causing issues
     // const handleGlobalError = (event: ErrorEvent) => {
@@ -167,7 +221,7 @@ const LiveChat = ({ widgetId }: LiveChatProps) => {
     return () => {
       clearTimeout(loadTimeout);
       // window.removeEventListener('error', handleGlobalError); // DISABLED
-      const existingScript = document.querySelector(`script[src*="tawk.to"]`);
+      const existingScript = document.querySelector('script[src*="tawk"]');
       if (existingScript) {
         existingScript.remove();
       }

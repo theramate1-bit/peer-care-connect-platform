@@ -81,9 +81,40 @@ export interface GeocodeResult {
 
 export class LocationManager {
   /**
-   * Get user's current location using HTML5 Geolocation API
+   * Check if user has consented to location tracking
+   * Required for UK GDPR and PECR compliance
    */
-  static async getCurrentLocation(): Promise<{ latitude: number; longitude: number } | null> {
+  static async hasLocationConsent(userId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .rpc('has_location_consent', { p_user_id: userId });
+      
+      if (error) {
+        console.warn('Error checking location consent:', error);
+        return false; // Default to no consent if check fails
+      }
+      
+      return data === true;
+    } catch (error) {
+      console.warn('Error checking location consent:', error);
+      return false; // Default to no consent if check fails
+    }
+  }
+
+  /**
+   * Get user's current location using HTML5 Geolocation API
+   * Now checks for consent before accessing location (UK GDPR/PECR compliance)
+   */
+  static async getCurrentLocation(userId?: string): Promise<{ latitude: number; longitude: number } | null> {
+    // Check consent if userId provided
+    if (userId) {
+      const hasConsent = await this.hasLocationConsent(userId);
+      if (!hasConsent) {
+        console.warn('Location consent not granted. Please grant consent before accessing location.');
+        return null;
+      }
+    }
+
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         console.error('Geolocation is not supported by this browser');
@@ -174,7 +205,7 @@ export class LocationManager {
     postalCode: string | null,
     latitude: number,
     longitude: number,
-    serviceRadiusKm: number = 25,
+    serviceRadiusKm: number | null = null,
     isPrimary: boolean = true
   ): Promise<string> {
     try {
@@ -198,7 +229,7 @@ export class LocationManager {
           latitude,
           longitude,
           location_point: pointData,
-          service_radius_km: serviceRadiusKm,
+          service_radius_km: serviceRadiusKm ?? null,
           is_primary: isPrimary,
           updated_at: new Date().toISOString()
         })
@@ -541,27 +572,148 @@ export class LocationManager {
    */
   static async getLocationSuggestions(query: string): Promise<any[]> {
     try {
-      // Use Nominatim API for location suggestions
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query
-        )}&limit=5&addressdetails=1&countrycodes=us`
-      );
+      // Use proxy in development to avoid CORS issues, Supabase Edge Function in production
+      const isDev = import.meta.env.DEV;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const proxyUrl = isDev 
+        ? `/api/photon/?q=${encodeURIComponent(query)}&limit=10&lang=en`
+        : `${supabaseUrl}/functions/v1/location-proxy?q=${encodeURIComponent(query)}&limit=10&lang=en`;
+      
+      // Try Photon API first (better for autocomplete, faster, no rate limits)
+      // Add headers for Chrome compatibility and proper CORS handling
+      const photonResponse = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...(isDev ? {} : {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
+          }),
+        },
+        mode: 'cors',
+        cache: 'default',
+      });
+      
+      if (photonResponse.ok) {
+        const photonData = await photonResponse.json();
+        const features = photonData.features || [];
+        
+        // Filter and prioritize UK addresses
+        const ukFeatures = features.filter((feature: any) => {
+          const country = feature.properties?.country?.toLowerCase() || '';
+          return country === 'united kingdom' || country === 'gb' || country === 'great britain';
+        });
+        
+        // If we have UK results, use them; otherwise use all results
+        const resultsToUse = ukFeatures.length > 0 ? ukFeatures : features.slice(0, 5);
+        
+        return resultsToUse.map((feature: any) => {
+          const props = feature.properties || {};
+          const coordinates = feature.geometry?.coordinates || [];
+          const lon = coordinates[0];
+          const lat = coordinates[1];
+          
+          const name = props.name || '';
+          const street = props.street || '';
+          const housenumber = props.housenumber || '';
+          const city = props.city || props.town || props.village || props.district || '';
+          const state = props.state || props.county || '';
+          const country = props.country || 'United Kingdom';
+          const postcode = props.postcode || '';
+          
+          // Build display name with UK formatting
+          const parts = [];
+          if (housenumber && street) parts.push(`${housenumber} ${street}`);
+          else if (street) parts.push(street);
+          else if (name) parts.push(name);
+          
+          if (city) parts.push(city);
+          if (state && state !== city) parts.push(state);
+          if (postcode) parts.push(postcode);
+          if (country && country.toLowerCase() !== 'united kingdom') parts.push(country);
+          
+          const displayName = parts.length > 0 ? parts.join(', ') : name || 'Location';
+          
+          return {
+            display_name: displayName,
+            latitude: typeof lat === 'number' ? lat : parseFloat(lat) || 0,
+            longitude: typeof lon === 'number' ? lon : parseFloat(lon) || 0,
+            address: {
+              street: street,
+              housenumber: housenumber,
+              city: city,
+              state: state,
+              country: country,
+              postcode: postcode
+            },
+            city: city,
+            state: state,
+            country: country,
+            postal_code: postcode
+          };
+        });
+      }
+      
+      // Fallback to Nominatim API if Photon fails
+      // Prioritize UK addresses with countrycodes=gb
+      const nominatimProxyUrl = isDev
+        ? `/api/nominatim/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1&countrycodes=gb&accept-language=en-GB`
+        : `${supabaseUrl}/functions/v1/location-proxy?service=nominatim&q=${encodeURIComponent(query)}&limit=10&addressdetails=1&countrycodes=gb&accept-language=en-GB`;
+      
+      const response = await fetch(nominatimProxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...(isDev ? {} : {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
+          }),
+        },
+        mode: 'cors',
+        cache: 'default',
+      });
+      
+      if (!response.ok) {
+        console.error(`Nominatim API error: ${response.status} ${response.statusText}`);
+        throw new Error(`Nominatim API error: ${response.status}`);
+      }
       
       const data = await response.json();
       
-      return data.map((item: any) => ({
+      // Filter and prioritize UK addresses, then format
+      const ukResults = data.filter((item: any) => {
+        const country = item.address?.country?.toLowerCase() || '';
+        const countryCode = item.address?.country_code?.toLowerCase() || '';
+        return country === 'united kingdom' || countryCode === 'gb' || country.includes('britain');
+      });
+      
+      const resultsToUse = ukResults.length > 0 ? ukResults : data.slice(0, 5);
+      
+      return resultsToUse.map((item: any) => ({
         display_name: item.display_name,
         latitude: parseFloat(item.lat),
         longitude: parseFloat(item.lon),
         address: item.address,
-        city: item.address?.city || item.address?.town || item.address?.village,
-        state: item.address?.state,
-        country: item.address?.country,
+        city: item.address?.city || item.address?.town || item.address?.village || item.address?.suburb,
+        state: item.address?.state || item.address?.county,
+        country: item.address?.country || 'United Kingdom',
         postal_code: item.address?.postcode
       }));
     } catch (error) {
       console.error('Error getting location suggestions:', error);
+      // Log more details for debugging Chrome issues
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+        console.error('Network error - possible CORS or connectivity issue:', {
+          userAgent: navigator.userAgent,
+          isChrome: isChrome,
+          origin: window.location.origin,
+          error: error.message,
+          suggestion: isChrome ? 'Try using the Supabase Edge Function proxy in production' : 'Check network connectivity'
+        });
+      }
+      
+      // Return empty array instead of throwing to prevent UI crashes
       return [];
     }
   }

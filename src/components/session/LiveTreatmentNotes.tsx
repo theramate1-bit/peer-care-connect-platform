@@ -11,7 +11,7 @@ import {
   Mic, 
   Save, 
   Clock, 
-  User, 
+  User as UserIcon, 
   Activity,
   TrendingUp,
   AlertTriangle,
@@ -251,7 +251,7 @@ export const LiveTreatmentNotes: React.FC<LiveTreatmentNotesProps> = ({
 
   const getNoteTypeIcon = (type: string) => {
     switch (type) {
-      case 'subjective': return <User className="h-4 w-4" />;
+      case 'subjective': return <UserIcon className="h-4 w-4" />;
       case 'objective': return <Activity className="h-4 w-4" />;
       case 'assessment': return <TrendingUp className="h-4 w-4" />;
       case 'plan': return <CheckCircle className="h-4 w-4" />;
@@ -424,3 +424,6 @@ export const LiveTreatmentNotes: React.FC<LiveTreatmentNotesProps> = ({
     </div>
   );
 };
+
+
+

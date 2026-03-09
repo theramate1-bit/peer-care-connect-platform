@@ -18,6 +18,7 @@ import {
   Leaf,
   Sparkles,
   Shield,
+  FileText,
   BookOpen,
   CreditCard,
   Star,
@@ -25,7 +26,10 @@ import {
   Plus,
   LogOut,
   UserCheck,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Package,
+  Inbox,
+  MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -70,28 +74,34 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         return [
           ...baseItems,
           {
-            label: 'Find Therapists',
-            href: '/marketplace',
-            icon: Search,
-            description: 'Browse qualified therapists'
-          },
-          {
-            label: 'My Bookings',
+            label: 'Sessions',
             href: '/client/sessions',
             icon: Calendar,
-            description: 'View your sessions'
+            description: 'View your sessions and progress metrics'
           },
           {
-            label: 'My Profile',
+            label: 'My Exercises',
+            href: '/client/exercises',
+            icon: Target,
+            description: 'View your exercise programs from your practitioner'
+          },
+          {
+            label: 'Progress',
+            href: '/client/progress',
+            icon: Activity,
+            description: 'Track your progress and metrics'
+          },
+          {
+            label: 'Goals',
+            href: '/client/goals',
+            icon: Target,
+            description: 'View and track your treatment goals'
+          },
+          {
+            label: 'Profile',
             href: '/client/profile',
             icon: Settings,
             description: 'Manage your profile'
-          },
-          {
-            label: 'Messages',
-            href: '/messages',
-            icon: MessageSquare,
-            description: 'Communicate with therapists'
           }
         ];
 
@@ -99,46 +109,58 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         return [
           ...baseItems,
           {
+            label: 'Diary',
+            href: '/practice/schedule',
+            icon: Calendar,
+            description: 'Manage your schedule'
+          },
+          {
             label: 'Client Management',
             href: '/practice/clients',
             icon: Users,
-            description: 'Manage your clients'
+            description: 'Manage your clients and session notes'
           },
           {
-            label: 'Treatment Notes',
-            href: '/practice/notes',
-            icon: Activity,
-            description: 'Create session notes'
-          },
-          {
-            label: 'Schedule',
+            label: 'Services & Pricing',
             href: '/practice/scheduler',
-            icon: Calendar,
-            description: 'Manage appointments'
-          },
-          {
-            label: 'Peer Treatment',
-            href: '/practice/peer-treatment',
-            icon: UserCheck,
-            description: 'Book treatment with peers'
+            icon: Package,
+            description: 'Configure services and packages'
           },
           {
             label: 'Treatment Exchange',
-            href: '/practice/treatment-exchange',
+            href: '/credits',
             icon: ArrowLeftRight,
             description: 'Exchange treatments with other practitioners'
           },
           {
-            label: 'Credits',
+            label: 'Exchange Requests',
+            href: '/practice/exchange-requests',
+            icon: Inbox,
+            description: 'Review and respond to treatment exchange requests'
+          },
+          {
+            label: 'Mobile requests',
+            href: '/practice/mobile-requests',
+            icon: MapPin,
+            description: 'Review and respond to mobile booking requests'
+          },
+          {
+            label: 'Treatment Exchange',
             href: '/credits',
-            icon: Coins,
-            description: 'Manage your credit balance'
+            icon: ArrowLeftRight,
+            description: 'Exchange treatments with other practitioners'
           },
           {
             label: 'Analytics',
             href: '/practice/analytics',
             icon: BarChart3,
             description: 'View performance data'
+          },
+          {
+            label: 'Reviews',
+            href: '/reviews',
+            icon: Star,
+            description: 'View client reviews and ratings'
           },
           {
             label: 'Profile',
@@ -152,16 +174,16 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         return [
           ...baseItems,
           {
-            label: 'Client Wellness',
-            href: '/practice/clients',
-            icon: Heart,
-            description: 'Track client wellness'
+            label: 'Diary',
+            href: '/practice/schedule',
+            icon: Calendar,
+            description: 'Manage your schedule'
           },
           {
-            label: 'Massage Techniques',
-            href: '/practice/notes',
-            icon: Waves,
-            description: 'Manage techniques'
+            label: 'Client Management',
+            href: '/practice/clients',
+            icon: Users,
+            description: 'Manage your clients and session notes'
           },
           {
             label: 'Relaxation Programs',
@@ -176,34 +198,46 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
             description: 'Monitor improvements'
           },
           {
-            label: 'Schedule',
+            label: 'Services & Pricing',
             href: '/practice/scheduler',
-            icon: Calendar,
-            description: 'Manage appointments'
-          },
-          {
-            label: 'Peer Treatment',
-            href: '/practice/peer-treatment',
-            icon: UserCheck,
-            description: 'Book treatment with peers'
+            icon: Package,
+            description: 'Configure services and packages'
           },
           {
             label: 'Treatment Exchange',
-            href: '/practice/treatment-exchange',
+            href: '/credits',
             icon: ArrowLeftRight,
             description: 'Exchange treatments with other practitioners'
           },
           {
-            label: 'Credits',
+            label: 'Exchange Requests',
+            href: '/practice/exchange-requests',
+            icon: Inbox,
+            description: 'Review and respond to treatment exchange requests'
+          },
+          {
+            label: 'Mobile requests',
+            href: '/practice/mobile-requests',
+            icon: MapPin,
+            description: 'Review and respond to mobile booking requests'
+          },
+          {
+            label: 'Treatment Exchange',
             href: '/credits',
-            icon: Coins,
-            description: 'Manage your credit balance'
+            icon: ArrowLeftRight,
+            description: 'Exchange treatments with other practitioners'
           },
           {
             label: 'Analytics',
             href: '/practice/analytics',
             icon: BarChart3,
             description: 'View wellness data'
+          },
+          {
+            label: 'Reviews',
+            href: '/reviews',
+            icon: Star,
+            description: 'View client reviews and ratings'
           },
           {
             label: 'Profile',
@@ -217,16 +251,16 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         return [
           ...baseItems,
           {
+            label: 'Diary',
+            href: '/practice/schedule',
+            icon: Calendar,
+            description: 'Manage your schedule'
+          },
+          {
             label: 'Patient Management',
             href: '/practice/clients',
             icon: Users,
             description: 'Manage patient cases'
-          },
-          {
-            label: 'Structural Assessment',
-            href: '/practice/notes',
-            icon: Bone,
-            description: 'Conduct assessments'
           },
           {
             label: 'Treatment Planning',
@@ -241,34 +275,46 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
             description: 'Monitor pain reduction'
           },
           {
-            label: 'Schedule',
+            label: 'Services & Pricing',
             href: '/practice/scheduler',
-            icon: Calendar,
-            description: 'Manage appointments'
-          },
-          {
-            label: 'Peer Treatment',
-            href: '/practice/peer-treatment',
-            icon: UserCheck,
-            description: 'Book treatment with peers'
+            icon: Package,
+            description: 'Configure services and packages'
           },
           {
             label: 'Treatment Exchange',
-            href: '/practice/treatment-exchange',
+            href: '/credits',
             icon: ArrowLeftRight,
             description: 'Exchange treatments with other practitioners'
           },
           {
-            label: 'Credits',
+            label: 'Exchange Requests',
+            href: '/practice/exchange-requests',
+            icon: Inbox,
+            description: 'Review and respond to treatment exchange requests'
+          },
+          {
+            label: 'Mobile requests',
+            href: '/practice/mobile-requests',
+            icon: MapPin,
+            description: 'Review and respond to mobile booking requests'
+          },
+          {
+            label: 'Treatment Exchange',
             href: '/credits',
-            icon: Coins,
-            description: 'Manage your credit balance'
+            icon: ArrowLeftRight,
+            description: 'Exchange treatments with other practitioners'
           },
           {
             label: 'Analytics',
             href: '/analytics',
             icon: BarChart3,
             description: 'View treatment data'
+          },
+          {
+            label: 'Reviews',
+            href: '/reviews',
+            icon: Star,
+            description: 'View client reviews and ratings'
           },
           {
             label: 'Profile',
@@ -283,40 +329,52 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         return [
           ...baseItems,
           {
+            label: 'Diary',
+            href: '/practice/schedule',
+            icon: Calendar,
+            description: 'Manage your schedule'
+          },
+          {
             label: 'Client Management',
             href: '/practice/clients',
             icon: Users,
             description: 'Manage your clients'
           },
           {
-            label: 'Schedule',
+            label: 'Services & Pricing',
             href: '/practice/scheduler',
-            icon: Calendar,
-            description: 'Manage appointments'
-          },
-          {
-            label: 'Treatment Notes',
-            href: '/practice/notes',
-            icon: BookOpen,
-            description: 'Create session notes'
-          },
-          {
-            label: 'Peer Treatment',
-            href: '/practice/peer-treatment',
-            icon: UserCheck,
-            description: 'Book treatment with peers'
+            icon: Package,
+            description: 'Configure services and packages'
           },
           {
             label: 'Treatment Exchange',
-            href: '/practice/treatment-exchange',
+            href: '/credits',
             icon: ArrowLeftRight,
             description: 'Exchange treatments with other practitioners'
+          },
+          {
+            label: 'Exchange Requests',
+            href: '/practice/exchange-requests',
+            icon: Inbox,
+            description: 'Review and respond to treatment exchange requests'
+          },
+          {
+            label: 'Mobile requests',
+            href: '/practice/mobile-requests',
+            icon: MapPin,
+            description: 'Review and respond to mobile booking requests'
           },
           {
             label: 'Analytics',
             href: '/analytics',
             icon: BarChart3,
             description: 'View practice data'
+          },
+          {
+            label: 'Reviews',
+            href: '/reviews',
+            icon: Star,
+            description: 'View client reviews and ratings'
           },
           {
             label: 'Profile',
@@ -329,10 +387,8 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
   };
 
   const navigationItems = getRoleSpecificItems();
-  // Conditionally hide Treatment Exchange if not opted-in
-  const filteredItems = userProfile.treatment_exchange_enabled
-    ? navigationItems
-    : navigationItems.filter(item => item.href !== '/practice/treatment-exchange');
+  // Show all navigation items - Treatment Exchange page handles opt-in state internally
+  const filteredItems = navigationItems;
 
   const isActive = (href: string) => {
     return location.pathname === href || location.pathname.startsWith(href + '/');
@@ -356,7 +412,7 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
   const getRoleTitle = () => {
     switch (userProfile.user_role) {
       case 'client':
-        return 'Client Portal';
+        return 'TheraMate';
       case 'sports_therapist':
         return 'Sports Therapy Portal';
       case 'massage_therapist':
@@ -369,12 +425,16 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
   };
 
   if (variant === 'header') {
-    // For practitioners, include Credits in the header navigation
+    // For practitioners, include Treatment Exchange in the header navigation
+    // Order: Dashboard, Diary, Client Management (or Patient Management), Services & Pricing, Treatment Exchange
+    // For clients, show: Dashboard, Sessions, Progress
     const headerItems = isPractitioner(userProfile.user_role) 
       ? filteredItems.filter(item => 
-          ['Dashboard', 'Client Management', 'Treatment Notes', 'Schedule', 'Credits'].includes(item.label)
+          ['Dashboard', 'Diary', 'Client Management', 'Patient Management', 'Services & Pricing', 'Treatment Exchange'].includes(item.label)
         ).slice(0, 5)
-      : filteredItems.slice(0, 4);
+      : filteredItems.filter(item => 
+          ['Dashboard', 'Sessions', 'My Exercises', 'Progress'].includes(item.label)
+        ).slice(0, 4);
     
     return (
       <nav className={cn("flex items-center space-x-1", className)}>
@@ -405,32 +465,70 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
   }
 
   if (variant === 'mobile') {
+    // Filter items for mobile view - only show specific items
+    // Strict filter: only these exact labels are allowed
+    const mobileAllowedLabels = [
+      'Dashboard',
+      'Diary',
+      'Patient Management',
+      'Client Management',
+      'Services & Pricing',
+      'Treatment Exchange',
+      'Messages',
+      'Profile'
+    ];
+    
+    // Strictly filter - remove everything else (explicitly exclude unwanted items)
+    let mobileItems = filteredItems.filter(item => {
+      // Only include items that are explicitly in the allowed list
+      return mobileAllowedLabels.includes(item.label);
+    });
+    
+    // Ensure proper order: Dashboard, Diary, Patient Management, Services & Pricing, Treatment Exchange, Messages, Profile
+    const orderedItems: NavigationItem[] = [];
+    const order = ['Dashboard', 'Diary', 'Patient Management', 'Client Management', 'Services & Pricing', 'Treatment Exchange', 'Messages', 'Profile'];
+    
+    order.forEach(label => {
+      const item = mobileItems.find(i => i.label === label);
+      if (item) {
+        orderedItems.push(item);
+      }
+    });
+    
+    // Add Messages if it doesn't exist and user is practitioner
+    const hasMessages = orderedItems.find(item => item.label === 'Messages');
+    if (!hasMessages && isPractitioner(userProfile.user_role)) {
+      orderedItems.push({
+        label: 'Messages',
+        href: '/messages',
+        icon: MessageSquare,
+        description: 'View and send messages'
+      });
+    }
+    
+    mobileItems = orderedItems;
+    
     return (
-      <div className={cn("space-y-2", className)}>
-        <div className="flex items-center space-x-2 p-3 bg-muted/50 rounded-lg">
-          {getRoleIcon()}
-          <div>
-            <p className="font-medium text-sm">{getRoleTitle()}</p>
-            <p className="text-xs text-muted-foreground">
-              {userProfile.first_name} {userProfile.last_name}
-            </p>
-          </div>
-        </div>
-        
+      <nav className={cn("space-y-2", className)} role="navigation" aria-label="Mobile navigation">
         <div className="space-y-1">
-          {filteredItems.map((item) => (
+          {mobileItems.map((item) => (
             <Button
               key={item.href}
               variant={isActive(item.href) ? 'default' : 'ghost'}
-              className="w-full justify-start"
+              className="w-full justify-start h-auto min-h-[44px] px-4 py-3"
               asChild
             >
-              <Link to={item.href}>
-                <item.icon className="h-4 w-4 mr-3" />
-                <div className="flex-1 text-left">
-                  <div className="font-medium">{item.label}</div>
+              <Link 
+                to={item.href}
+                onClick={() => {
+                  // Close mobile menu on navigation (handled by parent)
+                }}
+              >
+                <item.icon className="h-5 w-5 mr-3 flex-shrink-0" />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="font-medium text-base">{item.label}</div>
                   {item.description && (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                       {item.description}
                     </div>
                   )}
@@ -438,7 +536,7 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
                 {item.badge && (
                   <Badge 
                     variant="secondary" 
-                    className={cn("text-xs", item.badgeColor)}
+                    className={cn("text-xs ml-2 flex-shrink-0", item.badgeColor)}
                   >
                     {item.badge}
                   </Badge>
@@ -447,7 +545,7 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
             </Button>
           ))}
         </div>
-      </div>
+      </nav>
     );
   }
 

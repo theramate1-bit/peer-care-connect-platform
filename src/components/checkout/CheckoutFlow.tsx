@@ -16,7 +16,7 @@ import {
   CheckCircle, 
   ArrowRight, 
   ArrowLeft,
-  User,
+  User as UserIcon,
   Mail,
   Phone,
   MapPin,
@@ -95,7 +95,7 @@ export const CheckoutFlow: React.FC<CheckoutFlowProps> = ({
       id: 'contact',
       title: 'Contact Information',
       description: 'Enter your details',
-      icon: <User className="h-5 w-5" />,
+      icon: <UserIcon className="h-5 w-5" />,
       status: 'upcoming'
     },
     {
@@ -228,7 +228,7 @@ export const CheckoutFlow: React.FC<CheckoutFlowProps> = ({
           onClick={() => setIsGuest(false)}
           className="flex-1"
         >
-          <User className="h-4 w-4 mr-2" />
+          <UserIcon className="h-4 w-4 mr-2" />
           Create Account
         </Button>
         <Button
@@ -653,3 +653,5 @@ export const CheckoutFlow: React.FC<CheckoutFlowProps> = ({
 };
 
 export default CheckoutFlow;
+
+

@@ -154,7 +154,7 @@ export const PaymentOptions: React.FC<PaymentOptionsProps> = ({
           {paymentOptions.map((option) => (
             <Card
               key={option.id}
-              className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+              className={`cursor-pointer transition-[border-color,background-color] duration-200 ease-out ${
                 selectedMethod === option.id
                   ? 'ring-2 ring-blue-500 bg-blue-50'
                   : 'hover:bg-gray-50'

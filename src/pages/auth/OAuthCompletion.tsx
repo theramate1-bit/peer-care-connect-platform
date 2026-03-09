@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { User, CheckCircle, AlertTriangle } from "lucide-react";
+import { User as UserIcon, CheckCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -152,7 +152,7 @@ const OAuthCompletion = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <User className="h-6 w-6 text-primary" />
+            <UserIcon className="h-6 w-6 text-primary" />
           </div>
           <CardTitle className="text-2xl">Complete Your Registration</CardTitle>
           <CardDescription>
@@ -316,3 +316,6 @@ const OAuthCompletion = () => {
 };
 
 export default OAuthCompletion;
+
+
+

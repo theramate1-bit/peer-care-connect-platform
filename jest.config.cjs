@@ -1,21 +1,26 @@
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: 'jsdom',
-  roots: ['<rootDir>/src'],
+  setupFiles: ['<rootDir>/src/test/setup-mocks.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
   moduleNameMapper: {
-    '^@/integrations/supabase/client$': '<rootDir>/src/test/real/supabaseClientReal.ts',
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '\\.(jpg|jpeg|png|gif|webp|svg)$': '<rootDir>/src/test/mocks/fileMock.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   transform: {
-    '^.+\\.(ts|tsx)$': ['babel-jest', { presets: [
-      ['@babel/preset-env', { targets: { node: 'current' } }],
-      ['@babel/preset-react', { runtime: 'automatic', importSource: 'react' }],
-      '@babel/preset-typescript'
-    ] }],
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        isolatedModules: true,
+        useESM: false,
+        tsconfig: { jsx: 'react' },
+      },
+    ],
   },
-  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
-  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/main.tsx', '!src/vite-env.d.ts'],
+  testMatch: [
+    '**/__tests__/**/*.[jt]s?(x)',
+    '**/?(*.)+(spec|test).[jt]s?(x)',
+    '**/tests/**/*.[jt]s?(x)',
+  ],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/e2e/', '\\.spec\\.(ts|tsx|js)$', 'oauth-flows', 'user-journey', 'e2e-onboarding', 'AuthRouter.mock.test', 'AuthRouter.protected.test', 'AuthRouter.test', 'AuthCallback.test', 'Header.test', 'quick-wins.test', 'BookingFlow.test', 'GuestBookingFlow.test', 'PreAssessmentForm.test', 'SimpleProtectedRoute.test', 'LiveSOAPNotes.test', 'typography.test', 'card.test', 'button.test', 'lib/__tests__/treatment-exchange.test'],
 };

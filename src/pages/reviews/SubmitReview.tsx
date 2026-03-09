@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, User, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, User as UserIcon, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -239,7 +239,7 @@ const SubmitReview: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <User className="w-5 h-5 text-gray-500" />
+                    <UserIcon className="w-5 h-5 text-gray-500" />
                     <div>
                       <p className="font-medium text-gray-900">{session.therapist_name}</p>
                       <p className="text-sm text-gray-600">Therapist</p>
@@ -300,3 +300,6 @@ const SubmitReview: React.FC = () => {
 };
 
 export default SubmitReview;
+
+
+

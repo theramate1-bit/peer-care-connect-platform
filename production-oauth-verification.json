@@ -1,0 +1,96 @@
+{
+  "timestamp": "2025-09-28T16:50:39.326Z",
+  "productionUrl": "https://theramate-ax7rldtpt-theras-projects-6dfd5a34.vercel.app",
+  "tests": [
+    {
+      "name": "Page Accessibility Test",
+      "startTime": "2025-09-28T16:50:39.333Z",
+      "steps": [
+        {
+          "step": "Main page access",
+          "success": true,
+          "statusCode": 200,
+          "contentLength": 8334,
+          "timestamp": "2025-09-28T16:50:39.697Z"
+        },
+        {
+          "step": "Login page access",
+          "success": true,
+          "statusCode": 200,
+          "contentLength": 8334,
+          "timestamp": "2025-09-28T16:50:39.949Z"
+        },
+        {
+          "step": "Register page access",
+          "success": true,
+          "statusCode": 200,
+          "contentLength": 8334,
+          "timestamp": "2025-09-28T16:50:39.965Z"
+        },
+        {
+          "step": "OAuth content detection",
+          "success": true,
+          "oauthContentFound": 3,
+          "timestamp": "2025-09-28T16:50:39.965Z"
+        },
+        {
+          "step": "Role content detection",
+          "success": false,
+          "roleContentFound": 0,
+          "timestamp": "2025-09-28T16:50:39.965Z"
+        }
+      ],
+      "success": false,
+      "endTime": "2025-09-28T16:50:39.965Z",
+      "duration": 632
+    },
+    {
+      "name": "Supabase Connection Test",
+      "startTime": "2025-09-28T16:50:39.965Z",
+      "steps": [
+        {
+          "step": "Supabase API access",
+          "success": true,
+          "statusCode": 200,
+          "timestamp": "2025-09-28T16:50:41.712Z"
+        },
+        {
+          "step": "Supabase Auth access",
+          "success": false,
+          "statusCode": 401,
+          "timestamp": "2025-09-28T16:50:41.730Z"
+        }
+      ],
+      "success": false,
+      "endTime": "2025-09-28T16:50:41.730Z",
+      "duration": 1765
+    },
+    {
+      "name": "OAuth Endpoints Test",
+      "startTime": "2025-09-28T16:50:41.730Z",
+      "steps": [
+        {
+          "step": "Auth callback endpoint",
+          "success": true,
+          "statusCode": 200,
+          "timestamp": "2025-09-28T16:50:41.866Z"
+        },
+        {
+          "step": "Role selection endpoint",
+          "success": true,
+          "statusCode": 200,
+          "timestamp": "2025-09-28T16:50:42.051Z"
+        },
+        {
+          "step": "Onboarding endpoint",
+          "success": true,
+          "statusCode": 200,
+          "timestamp": "2025-09-28T16:50:42.175Z"
+        }
+      ],
+      "success": true,
+      "endTime": "2025-09-28T16:50:42.175Z",
+      "duration": 445
+    }
+  ]
+}

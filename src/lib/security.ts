@@ -159,29 +159,36 @@ export class SecurityService {
 
   /**
    * Encrypt sensitive data
+   * @deprecated This function uses base64 encoding, not encryption. Use a proper encryption library like crypto-js.
+   * DO NOT USE FOR PRODUCTION - This provides no security.
    */
   static encrypt(data: string): string {
+    console.warn('SecurityService.encrypt() is deprecated and insecure. Use a proper encryption library.');
     try {
-      // Simple encryption for demo purposes
-      // In production, use a proper encryption library
+      // WARNING: This is base64 encoding, NOT encryption!
+      // Use crypto-js or Web Crypto API for real encryption
       const encoded = btoa(data);
       return encoded;
     } catch (error) {
-      console.error('Encryption error:', error);
-      return data;
+      console.error('Encoding error:', error);
+      throw new Error('Encoding failed - do not use for sensitive data');
     }
   }
 
   /**
    * Decrypt sensitive data
+   * @deprecated This function uses base64 decoding, not decryption. Use a proper encryption library like crypto-js.
+   * DO NOT USE FOR PRODUCTION - This provides no security.
    */
   static decrypt(encryptedData: string): string {
+    console.warn('SecurityService.decrypt() is deprecated and insecure. Use a proper encryption library.');
     try {
+      // WARNING: This is base64 decoding, NOT decryption!
       const decoded = atob(encryptedData);
       return decoded;
     } catch (error) {
-      console.error('Decryption error:', error);
-      return encryptedData;
+      console.error('Decoding error:', error);
+      throw new Error('Decoding failed');
     }
   }
 
@@ -201,8 +208,12 @@ export class SecurityService {
 
   /**
    * Hash password
+   * @deprecated This function uses SHA-256 which is insecure for password hashing.
+   * Supabase Auth handles password hashing securely. DO NOT USE THIS FUNCTION.
+   * If you need password hashing, use bcrypt or argon2 with proper salt.
    */
   static async hashPassword(password: string): Promise<string> {
+    console.warn('SecurityService.hashPassword() is deprecated and insecure. Supabase Auth handles password hashing.');
     try {
       const encoder = new TextEncoder();
       const data = encoder.encode(password);
@@ -212,14 +223,17 @@ export class SecurityService {
       return hashHex;
     } catch (error) {
       console.error('Password hashing error:', error);
-      throw new Error('Password hashing failed');
+      throw new Error('Password hashing failed - use Supabase Auth instead');
     }
   }
 
   /**
    * Verify password
+   * @deprecated This function uses SHA-256 which is insecure for password verification.
+   * Supabase Auth handles password verification securely. DO NOT USE THIS FUNCTION.
    */
   static async verifyPassword(password: string, hash: string): Promise<boolean> {
+    console.warn('SecurityService.verifyPassword() is deprecated and insecure. Supabase Auth handles password verification.');
     try {
       const passwordHash = await this.hashPassword(password);
       return passwordHash === hash;
@@ -259,19 +273,26 @@ export class SecurityService {
 
   /**
    * Content Security Policy
+   * @param nonce Optional nonce for inline scripts (recommended for production)
    */
-  static getCSPHeader(): string {
+  static getCSPHeader(nonce?: string): string {
+    // Build script-src with nonce if provided, otherwise strict
+    const scriptSrc = nonce 
+      ? `'self' 'nonce-${nonce}'`
+      : "'self'";
+    
     return [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
+      `script-src ${scriptSrc}`, // Removed 'unsafe-inline' and 'unsafe-eval'
+      "style-src 'self' 'unsafe-inline'", // CSS can keep unsafe-inline for Tailwind
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-      "frame-src 'none'",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com", // Allow Stripe iframes
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self'"
+      "form-action 'self'",
+      "upgrade-insecure-requests" // Force HTTPS
     ].join('; ');
   }
 
@@ -376,10 +397,21 @@ export class SecurityService {
   ): boolean {
     // Check if request is from allowed origin
     const origin = request.headers.get('origin');
+    
+    // Get allowed origins from environment or use defaults
+    const envOrigins = typeof process !== 'undefined' && process.env?.VITE_ALLOWED_ORIGINS
+      ? process.env.VITE_ALLOWED_ORIGINS.split(',').map(o => o.trim())
+      : [];
+    
     const allowedOrigins = [
       'http://localhost:3000',
-      'https://theramate.com',
-      'https://app.theramate.com'
+      'http://localhost:5173',
+      'https://theramate.co.uk',
+      'https://www.theramate.co.uk',
+      'https://app.theramate.co.uk',
+      'https://peercareconnect.com',
+      'https://www.peercareconnect.com',
+      ...envOrigins
     ];
 
     if (origin && !allowedOrigins.includes(origin)) {

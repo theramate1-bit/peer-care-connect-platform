@@ -25,12 +25,19 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
+    // Keep session persistence so users can sign in reliably in SPA
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
     persistSession: true,
     autoRefreshToken: true,
     flowType: 'pkce',
     detectSessionInUrl: true,
+    storageKey: 'theramate-auth',
     onAuthStateChange: (_event, _session) => {
+    }
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'theramate-client'
     }
   }
 });

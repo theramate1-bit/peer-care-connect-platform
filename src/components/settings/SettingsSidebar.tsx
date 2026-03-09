@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 import { 
-  User, 
+  User as UserIcon, 
   Bell, 
   Shield, 
   CreditCard, 
@@ -27,7 +28,7 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   {
     label: 'Profile',
     href: '/settings/profile',
-    icon: User,
+    icon: User as UserIcon,
     description: 'Manage your personal information'
   },
   {
@@ -43,10 +44,10 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     description: 'Control your privacy and security settings'
   },
   {
-    label: 'Billing & Payments',
-    href: '/settings/billing',
+    label: 'Subscription',
+    href: '/settings/subscription',
     icon: CreditCard,
-    description: 'Manage your subscription and payment methods'
+    description: 'Manage your subscription and billing'
   },
   {
     label: 'Password & Security',

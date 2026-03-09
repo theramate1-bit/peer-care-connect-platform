@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,82 +7,317 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Heart, User, MapPin, Award, CheckCircle, Shield, LogOut, AlertCircle } from 'lucide-react';
+import { User as UserIcon, CheckCircle, LogOut, AlertCircle, Loader2, Check, Shield, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { getDashboardRoute } from '@/lib/dashboard-routing';
-import { completePractitionerOnboarding, completeClientOnboarding, validateOnboardingData } from '@/lib/onboarding-utils';
+import { completePractitionerOnboarding, completeClientOnboarding, validateOnboardingData, markOnboardingInProgress } from '@/lib/onboarding-utils';
 import { SubscriptionSelection } from '@/components/onboarding/SubscriptionSelection';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { generateAvatarUrl, DEFAULT_AVATAR_PREFERENCES, AVATAR_OPTIONS, AVATAR_STYLES, type AvatarPreferences } from '@/lib/avatar-generator';
 import { UserRole } from '@/types/roles';
-import AvailabilitySetup from '@/components/onboarding/AvailabilitySetup';
-import { LocationSetup } from '@/components/onboarding/LocationSetup';
 import { Analytics } from '@/lib/analytics';
 import { useRealtime } from '@/contexts/RealtimeContext';
+import SmartLocationPicker from '@/components/ui/SmartLocationPicker';
+import SmartPhonePicker from '@/components/ui/SmartPhonePicker';
+import { useSupabaseOnboardingProgress } from '@/hooks/useSupabaseOnboardingProgress';
+import { Building2, Car, Building } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { onboardingFadeVariants, onboardingSpring, onboardingStepVariants } from '@/components/onboarding/onboarding-motion';
+import { validateDetailedStreetAddress } from '@/lib/address-validation';
+
+const PaymentSetupStep = lazy(() => import('@/components/onboarding/PaymentSetupStep'));
+
+// Step constants for practitioner onboarding - SIMPLIFIED FLOW
+const PRACTITIONER_STEPS = {
+  THERAPIST_TYPE: 0,
+  BASIC_INFO: 1,
+  LOCATION: 2,
+  RADIUS: 3,
+  STRIPE_CONNECT: 4,
+  SUBSCRIPTION: 5
+} as const;
+
+const ValidationErrorDisplay = React.memo(({ errors }: { errors: Record<string, string> }) => {
+  if (Object.keys(errors).length === 0) return null;
+  return (
+    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+      <div className="flex items-center mb-2">
+        <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
+        <h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+      </div>
+      <ul className="text-sm text-red-700 space-y-1">
+        {Object.entries(errors).map(([field, error]) => (
+          <li key={field} className="flex items-center">
+            <span className="w-2 h-2 bg-red-600 rounded-full mr-2"></span>
+            <span className="capitalize">{field.replace(/([A-Z])/g, ' $1').trim()}: {error}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+
+ValidationErrorDisplay.displayName = 'ValidationErrorDisplay';
+
+/**
+ * Determines the actual step based on form data completeness.
+ * This ensures that saved progress matches the actual state of form completion.
+ */
+const getActualStepFromFormData = (formData: any, savedStep: number): number => {
+  // Step 0: Therapist Type - check if therapistType is set
+  if (!formData.therapistType) return PRACTITIONER_STEPS.THERAPIST_TYPE;
+  
+  // Step 1: Basic Info - check if firstName, lastName, phone are set
+  if (!formData.firstName?.trim() || !formData.lastName?.trim() || !formData.phone?.trim()) {
+    return PRACTITIONER_STEPS.BASIC_INFO;
+  }
+  
+  // Step 2: Location - check if location data is set based on therapistType
+  if (formData.therapistType === 'clinic_based' && !formData.clinicAddress?.trim()) {
+    return PRACTITIONER_STEPS.LOCATION;
+  }
+  if (formData.therapistType === 'mobile' && !formData.baseAddress?.trim()) {
+    return PRACTITIONER_STEPS.LOCATION;
+  }
+  if (formData.therapistType === 'mobile' && !validateDetailedStreetAddress(formData.baseAddress).isValid) {
+    return PRACTITIONER_STEPS.LOCATION;
+  }
+  if (formData.therapistType === 'hybrid' && (!formData.clinicAddress?.trim() || !formData.baseAddress?.trim())) {
+    return PRACTITIONER_STEPS.LOCATION;
+  }
+  if (formData.therapistType === 'hybrid' && !validateDetailedStreetAddress(formData.baseAddress).isValid) {
+    return PRACTITIONER_STEPS.LOCATION;
+  }
+  
+  // Step 3: Radius - only for mobile/hybrid, check if radius is set
+  if ((formData.therapistType === 'mobile' || formData.therapistType === 'hybrid') && !formData.mobileServiceRadiusKm) {
+    return PRACTITIONER_STEPS.RADIUS;
+  }
+  
+  // Return the saved step if all previous steps are complete
+  return Math.min(savedStep, 5);
+};
 
 const Onboarding = () => {
-  const { userProfile, updateProfile, signOut, loading: authLoading } = useAuth();
+  const { user, userProfile, updateProfile, refreshProfile, signOut, loading: authLoading, profileLoading } = useAuth();
   const { subscribed, subscriptionTier, checkSubscription } = useSubscription();
   const realtime = useRealtime();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
+  const location = useLocation();
+  const { progress, loading: progressLoading, saving: progressSaving, hasProgress, saveProgress, clearProgress, loadProgress } = useSupabaseOnboardingProgress();
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [stepProcessing, setStepProcessing] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false); // Track successful saves
   const [subscriptionCompleted, setSubscriptionCompleted] = useState(false);
   const [subscriptionVerifying, setSubscriptionVerifying] = useState(false);
-  const [showAvatarCustomization, setShowAvatarCustomization] = useState(false);
-  const [avatarKey, setAvatarKey] = useState(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  
+  // Simplified form data - removed fields moved to profile setup
   const [formData, setFormData] = useState({
     phone: '',
     location: '',
-    bio: '',
-    experience_years: '',
-    specializations: [] as string[],
-    qualifications: [] as string[],
-    hourly_rate: '',
-    availability: {},
-    timezone: 'Europe/London',
-    professional_body: '',
-    professional_body_other: '',
-    registration_number: '',
-    qualification_type: '',
-    qualification_file: null as File | null,
-    qualification_expiry: '',
-    user_role: userProfile?.user_role || '',
-    // New marketplace fields
-    professional_statement: '',
-    treatment_philosophy: '',
-    response_time_hours: '',
+    // Removed: bio, experience_years, specializations, qualifications, etc.
     // Client-specific fields
     firstName: '',
     lastName: '',
-    primaryGoal: '',
-    preferredTherapyTypes: [] as string[],
-    // Avatar customization
-    avatarPreferences: DEFAULT_AVATAR_PREFERENCES as AvatarPreferences,
-    customizeAvatar: false,
     // Location data
     latitude: null as number | null,
     longitude: null as number | null,
-    service_radius_km: 25,
-    services_offered: [] as string[]
+    // Liability insurance
+    hasLiabilityInsurance: false,
+    // Therapist type selection
+    therapistType: null as 'clinic_based' | 'mobile' | 'hybrid' | null,
+    // Clinic address (for clinic-based and hybrid)
+    clinicAddress: '',
+    clinicLatitude: null as number | null,
+    clinicLongitude: null as number | null,
+    // Base address (for mobile and hybrid)
+    baseAddress: '',
+    baseLatitude: null as number | null,
+    baseLongitude: null as number | null,
+    // Service radius (for mobile and hybrid)
+    mobileServiceRadiusKm: 25,
+    // Structured primary address fields (for clinic/base)
+    addressLine1: '',
+    addressLine2: '',
+    addressCity: '',
+    addressCounty: '',
+    addressPostcode: '',
+    addressCountry: 'GB',
   });
 
-  // Check localStorage for role fallback
+  // SINGLE SOURCE OF TRUTH: Get role from userProfile first, then URL params, then localStorage
+  const urlParams = new URLSearchParams(window.location.search);
+  const roleFromUrl = urlParams.get('intendedRole') || urlParams.get('role'); // support ?role=client and ?intendedRole=client
   const localStorageRole = localStorage.getItem('selectedRole');
   const roleSelectionTime = localStorage.getItem('roleSelectionTimestamp');
   const isRecentRoleSelection = roleSelectionTime && (Date.now() - parseInt(roleSelectionTime)) < 300000; // 5 minutes
-  
-  // Use localStorage role if database role is missing and selection was recent
-  const effectiveRole = userProfile?.user_role || (isRecentRoleSelection ? localStorageRole : null);
+
+  // Resolved profile: use real profile when loaded, or minimal from session when we have role from URL (so client onboarding isn't stuck)
+  const resolvedProfile = useMemo(() => {
+    if (userProfile) return userProfile;
+    if (user && roleFromUrl) {
+      return {
+        id: user.id,
+        email: user.email ?? '',
+        first_name: (user.user_metadata as Record<string, unknown>)?.first_name as string ?? 'User',
+        last_name: (user.user_metadata as Record<string, unknown>)?.last_name as string ?? 'User',
+        user_role: (roleFromUrl === 'client' ? 'client' : roleFromUrl) as 'client' | 'sports_therapist' | 'massage_therapist' | 'osteopath' | 'admin' | null ?? null,
+        onboarding_status: 'pending' as const,
+        profile_completed: false,
+      };
+    }
+    return null;
+  }, [userProfile, user, roleFromUrl]);
+
+  // Priority: resolvedProfile.user_role > URL params > recent localStorage
+  const effectiveRole = resolvedProfile?.user_role || roleFromUrl || (isRecentRoleSelection ? localStorageRole : null);
+
+  // Refs to prevent infinite loops from replaceState
+  const stripeStateProcessedRef = useRef<boolean>(false);
+  const urlParamsProcessedRef = useRef<boolean>(false);
+  const progressCorrectedRef = useRef<boolean>(false);
+
+  // Detect navigation from Stripe Connect completion and force progress reload
+  useEffect(() => {
+    const state = location.state as { stripeConnectComplete?: boolean; timestamp?: number } | null;
+    
+    if (!state?.stripeConnectComplete) {
+      stripeStateProcessedRef.current = false;
+      return;
+    }
+    
+    if (stripeStateProcessedRef.current) return;
+    
+    if (state?.stripeConnectComplete && state?.timestamp) {
+      const recentThreshold = 5000; // 5 seconds
+      if (Date.now() - state.timestamp < recentThreshold) {
+        console.log('🔄 Reloading progress after Stripe Connect completion');
+        stripeStateProcessedRef.current = true;
+        loadProgress();
+        const currentPath = window.location.pathname;
+        navigate(currentPath, { replace: true, state: {} });
+      }
+    }
+  }, [location.state, loadProgress, navigate]);
+
+  // Auto-resume saved progress
+  useEffect(() => {
+    if (!progressLoading && hasProgress && effectiveRole !== 'client' && effectiveRole !== null && progress) {
+      // Prevent multiple corrections
+      if (progressCorrectedRef.current) return;
+      
+      console.log('✅ Auto-resuming from saved progress:', progress);
+      
+      // Validate that saved step matches form data
+      const actualStep = getActualStepFromFormData(progress.formData, progress.currentStep);
+      const safeStep = Math.min(actualStep, 5);
+      
+      // Only restore if step is valid
+      if (actualStep !== progress.currentStep) {
+        console.warn(`⚠️ Step mismatch detected. Saved: ${progress.currentStep}, Actual: ${actualStep}. Correcting...`);
+        progressCorrectedRef.current = true;
+        // Update progress with corrected step to prevent future mismatches
+        saveProgress(actualStep, progress.formData, progress.completedSteps || []).catch(err => {
+          console.error('Failed to update corrected progress:', err);
+          progressCorrectedRef.current = false; // Reset on error so we can try again
+        });
+      }
+      
+      setStep(safeStep);
+      
+      // Filter out any obsolete fields from saved progress
+      const safeFormData = { ...progress.formData };
+      setFormData(prev => ({ ...prev, ...safeFormData }));
+      
+      if (safeStep > 0) {
+        toast.success('Welcome back! Your progress has been restored.', {
+          duration: 3000,
+        });
+      }
+    }
+  }, [progressLoading, hasProgress, effectiveRole, progress, saveProgress]);
+
+  // Mark onboarding as 'in_progress' when user enters the onboarding page
+  // This ensures we have a clear state transition: pending -> in_progress -> completed
+  // And helps diagnose issues where completion fails
+  const inProgressMarkedRef = useRef<boolean>(false);
+  useEffect(() => {
+    // Only mark in_progress once per session, and only for practitioners
+    if (inProgressMarkedRef.current) return;
+    if (!resolvedProfile?.id) return;
+    if (effectiveRole === 'client' || effectiveRole === null) return;
+    if (resolvedProfile.onboarding_status === 'completed') return; // Don't overwrite completed status
+    
+    // Mark as in_progress to track that user has started onboarding
+    inProgressMarkedRef.current = true;
+    markOnboardingInProgress(resolvedProfile.id).then(({ error }) => {
+      if (error) {
+        console.warn('Could not mark onboarding as in_progress:', error);
+      } else {
+        console.log('✅ Onboarding marked as in_progress for tracking');
+      }
+    });
+  }, [resolvedProfile?.id, resolvedProfile?.onboarding_status, effectiveRole]);
+
+  // Handle return from Stripe Connect onboarding
+  useEffect(() => {
+    if (effectiveRole === 'client' || effectiveRole === null) {
+      urlParamsProcessedRef.current = false;
+      return;
+    }
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const connectComplete = urlParams.get('connect_complete');
+    const accountId = urlParams.get('account_id');
+    
+    if (!connectComplete || !accountId) {
+      urlParamsProcessedRef.current = false;
+      return;
+    }
+    
+    if (urlParamsProcessedRef.current) return;
+    
+    // Check if we are on the stripe step (now step 4)
+    if (connectComplete === 'true' && accountId && step === PRACTITIONER_STEPS.STRIPE_CONNECT) {
+      console.log('✅ Returning from Stripe Connect onboarding');
+      urlParamsProcessedRef.current = true;
+      
+      const checkConnectStatus = async () => {
+        try {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('stripe_connect_account_id')
+            .eq('id', resolvedProfile?.id)
+            .single();
+          
+          if (userData?.stripe_connect_account_id) {
+            await refreshProfile();
+            toast.success('Stripe Connect setup complete!');
+            const currentPath = window.location.pathname;
+            navigate(currentPath, { replace: true });
+          } else {
+            toast.warning('Stripe Connect setup not complete. Please try again.');
+            urlParamsProcessedRef.current = false;
+          }
+        } catch (error) {
+          console.error('Error verifying Stripe Connect:', error);
+          toast.error('Could not verify Stripe Connect status');
+          urlParamsProcessedRef.current = false;
+        }
+      };
+      
+      checkConnectStatus();
+    }
+  }, [step, effectiveRole, resolvedProfile?.id, refreshProfile, navigate]);
 
   // Field validation function
-  const validateField = (fieldName: string, value: any) => {
+  const validateField = useCallback((fieldName: string, value: any) => {
     const errors: Record<string, string> = {};
     
     switch (fieldName) {
@@ -101,174 +336,377 @@ const Onboarding = () => {
       case 'location':
         if (!value?.trim()) errors.location = 'Location is required';
         break;
-      case 'bio':
-        if (!value?.trim()) errors.bio = 'Bio is required';
-        else if (value.trim().length < 50) {
-          errors.bio = 'Bio must be at least 50 characters long';
-        }
-        break;
-      case 'experience_years':
-        if (!value?.trim()) errors.experience_years = 'Years of experience is required';
-        else if (isNaN(Number(value)) || Number(value) < 0) {
-          errors.experience_years = 'Please enter a valid number of years';
-        }
-        break;
-      case 'hourly_rate':
-        if (!value?.trim()) errors.hourly_rate = 'Hourly rate is required';
-        else if (isNaN(Number(value)) || Number(value) < 0) {
-          errors.hourly_rate = 'Please enter a valid hourly rate';
-        }
-        break;
-      case 'professional_body':
-        if (!value?.trim()) errors.professional_body = 'Professional body is required';
-        break;
-      case 'registration_number':
-        if (!value?.trim()) errors.registration_number = 'Registration number is required';
-        break;
-      case 'primaryGoal':
-        if (!value?.trim()) errors.primaryGoal = 'Primary goal is required';
-        break;
-      case 'preferredTherapyTypes':
-        if (!value || value.length === 0) errors.preferredTherapyTypes = 'Please select at least one therapy type';
-        break;
-      case 'specializations':
-        if (!value || value.length === 0) errors.specializations = 'Please select at least one specialization';
-        break;
-      case 'qualifications':
-        if (!value || value.length === 0) errors.qualifications = 'Please add at least one qualification';
-        break;
     }
     
     return errors;
-  };
+  }, []);
 
   // Handle field changes with real-time validation
-  const handleFieldChange = (fieldName: string, value: any) => {
+  const handleFieldChange = useCallback((fieldName: string, value: any) => {
     setFormData(prev => ({ ...prev, [fieldName]: value }));
     
-    // Clear previous error for this field
     setValidationErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[fieldName];
       return newErrors;
     });
     
-    // Validate field in real-time
     const fieldErrors = validateField(fieldName, value);
     if (Object.keys(fieldErrors).length > 0) {
       setValidationErrors(prev => ({ ...prev, ...fieldErrors }));
     }
-  };
+  }, [validateField]);
 
-  // Get field error class for styling
-  const getFieldErrorClass = (fieldName: string) => {
+  const handleLocationSelect = useCallback((lat: number, lon: number, address: string) => {
+    // This is a fallback handler - specific handlers (handleClinicLocationSelect, handleBaseLocationSelect) 
+    // should be used for clinic and base addresses
+    setFormData(prev => ({
+      ...prev,
+      location: address,
+      latitude: lat,
+      longitude: lon
+    }));
+    
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.location;
+      return newErrors;
+    });
+  }, []);
+
+  const handleClinicAddressChange = useCallback((address: string) => {
+      setFormData(prev => ({
+        ...prev,
+      clinicAddress: address,
+      location: address, // Also update location for backward compatibility
+    }));
+
+    // Clear validation errors immediately when user types
+      setValidationErrors(prev => {
+        const next = { ...prev };
+      if (address && address.trim().length > 0) {
+        delete next.clinicAddress;
+        delete next.location;
+      }
+        return next;
+      });
+  }, []);
+
+  const handleClinicLocationSelect = useCallback((lat: number, lon: number, address: string) => {
+    setFormData(prev => ({
+      ...prev,
+      clinicAddress: address,
+      clinicLatitude: lat,
+      clinicLongitude: lon,
+      location: address,
+      latitude: lat,
+      longitude: lon,
+    }));
+
+    setValidationErrors(prev => {
+      const next = { ...prev };
+      delete next.clinicAddress;
+      delete next.location;
+      return next;
+    });
+  }, []);
+
+  const handleBaseAddressChange = useCallback((address: string) => {
+      setFormData(prev => ({
+        ...prev,
+      baseAddress: address,
+      location: prev.therapistType === 'mobile' ? address : prev.location,
+    }));
+
+    // Clear validation errors immediately when user types
+      setValidationErrors(prevErrors => {
+        const next = { ...prevErrors };
+      if (address && address.trim().length > 0) {
+        delete next.baseAddress;
+        delete next.location;
+      }
+        return next;
+      });
+  }, []);
+
+  const handleBaseLocationSelect = useCallback((lat: number, lon: number, address: string) => {
+    setFormData(prev => ({
+      ...prev,
+      baseAddress: address,
+      baseLatitude: lat,
+      baseLongitude: lon,
+      location: prev.therapistType === 'mobile' ? address : prev.location,
+      latitude: prev.therapistType === 'mobile' ? lat : prev.latitude,
+      longitude: prev.therapistType === 'mobile' ? lon : prev.longitude,
+    }));
+
+    setValidationErrors(prev => {
+      const next = { ...prev };
+      delete next.baseAddress;
+      if (prev.therapistType === 'mobile') {
+        delete next.location;
+      }
+      return next;
+    });
+  }, []);
+
+  const getFieldErrorClass = useCallback((fieldName: string) => {
     return validationErrors[fieldName] 
       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
       : '';
-  };
+  }, [validationErrors]);
   
-  const totalSteps = (effectiveRole === 'client' || effectiveRole === null) ? (showAvatarCustomization ? 3 : 2) : 6; // Enhanced professional flow: 6 steps (added availability and location steps)
-  const progress = (step / totalSteps) * 100;
-  
-  // Debug logging
-  console.log('🔍 Onboarding Debug:', {
-    userProfile: userProfile ? {
-      id: userProfile.id,
-      email: userProfile.email,
-      user_role: userProfile.user_role,
-      onboarding_status: userProfile.onboarding_status,
-      profile_completed: userProfile.profile_completed
-    } : null,
-    localStorageRole,
-    effectiveRole,
-    authLoading,
-    step,
-    totalSteps,
-    isClient: effectiveRole === 'client',
-    isPractitioner: effectiveRole !== 'client' && effectiveRole !== null
-  });
+  const totalSteps = useMemo(() => {
+    let steps = (effectiveRole === 'client' || effectiveRole === null) ? 2 : 6;
+    if (effectiveRole !== 'client' && effectiveRole !== null && formData.therapistType === 'clinic_based') {
+      steps = 5;
+    }
+    return steps;
+  }, [effectiveRole, formData.therapistType]);
 
-  const handleNext = () => {
+  // Calculate displayed step number accounting for skipped steps
+  // For clinic_based: Steps are 0,1,2,4,5 (skips 3=Radius) → Display as 1,2,3,4,5
+  // For mobile/hybrid: Steps are 0,1,2,3,4,5 → Display as 1,2,3,4,5,6
+  const getDisplayStepNumber = useCallback((currentStep: number): number => {
+    if (effectiveRole === 'client' || effectiveRole === null) {
+      return currentStep + 1;
+    }
+    
+    // For clinic_based therapists, Radius step (3) is skipped
+    if (formData.therapistType === 'clinic_based') {
+      // Map: 0→1, 1→2, 2→3, 4→4, 5→5
+      if (currentStep <= PRACTITIONER_STEPS.LOCATION) {
+        // Steps 0, 1, 2 → Display as 1, 2, 3
+        return currentStep + 1;
+      } else if (currentStep === PRACTITIONER_STEPS.STRIPE_CONNECT) {
+        // Step 4 (Stripe) → Display as 4 (not 5, because we skipped step 3)
+        return 4;
+      } else if (currentStep === PRACTITIONER_STEPS.SUBSCRIPTION) {
+        // Step 5 (Subscription) → Display as 5
+        return 5;
+      }
+    }
+    
+    // For mobile/hybrid, all steps are shown (no skipping)
+    return currentStep + 1;
+  }, [effectiveRole, formData.therapistType]);
+
+  const displayStepNumber = useMemo(() => getDisplayStepNumber(step), [step, getDisplayStepNumber]);
+  const progressPercent = useMemo(() => (displayStepNumber / totalSteps) * 100, [displayStepNumber, totalSteps]);
+  const stepTransition = prefersReducedMotion ? { duration: 0 } : onboardingSpring;
+
+  const handleNext = async () => {
+    if (stepProcessing) return;
+    setStepProcessing(true);
+    try {
     setShowValidationErrors(true);
     
-    // Validate current step fields
     const currentStepErrors: Record<string, string> = {};
     
     if (effectiveRole === 'client' || effectiveRole === null) {
-      // Client validation
-      if (step === 1) {
+      // Client validation (client steps are 0 and 1; no location required)
+      if (step === 0) {
         if (!formData.phone?.trim()) currentStepErrors.phone = 'Phone number is required';
-        if (!formData.location?.trim()) currentStepErrors.location = 'Location is required';
-      } else if (step === 2) {
+      } else if (step === 1) {
         if (!formData.firstName?.trim()) currentStepErrors.firstName = 'First name is required';
         if (!formData.lastName?.trim()) currentStepErrors.lastName = 'Last name is required';
-        if (!formData.primaryGoal?.trim()) currentStepErrors.primaryGoal = 'Primary goal is required';
-        if (!formData.preferredTherapyTypes || formData.preferredTherapyTypes.length === 0) {
-          currentStepErrors.preferredTherapyTypes = 'Please select at least one therapy type';
-        }
       }
     } else {
       // Practitioner validation
-      if (step === 1) {
+      if (step === PRACTITIONER_STEPS.THERAPIST_TYPE) {
+        if (!formData.therapistType) {
+          currentStepErrors.therapistType = 'Please select your therapist type';
+        }
+      } else if (step === PRACTITIONER_STEPS.BASIC_INFO) {
+        if (!formData.firstName?.trim()) currentStepErrors.firstName = 'First name is required';
+        if (!formData.lastName?.trim()) currentStepErrors.lastName = 'Last name is required';
         if (!formData.phone?.trim()) currentStepErrors.phone = 'Phone number is required';
-        if (!formData.location?.trim()) currentStepErrors.location = 'Location is required';
-        if (!formData.bio?.trim()) currentStepErrors.bio = 'Bio is required';
-      } else if (step === 2) {
-        if (!formData.experience_years?.trim()) currentStepErrors.experience_years = 'Years of experience is required';
-        if (!formData.professional_body?.trim()) currentStepErrors.professional_body = 'Professional body is required';
-        if (!formData.registration_number?.trim()) currentStepErrors.registration_number = 'Registration number is required';
-      } else if (step === 5) {
-        if (!formData.hourly_rate?.trim()) currentStepErrors.hourly_rate = 'Hourly rate is required';
-        if (!formData.specializations || formData.specializations.length === 0) {
-          currentStepErrors.specializations = 'Please select at least one specialization';
+      } else if (step === PRACTITIONER_STEPS.LOCATION) {
+        // Debug logging
+        console.log('📍 Location step validation:', {
+          therapistType: formData.therapistType,
+          clinicAddress: formData.clinicAddress,
+          baseAddress: formData.baseAddress,
+          formData: formData
+        });
+        
+        if (formData.therapistType === 'clinic_based') {
+          const clinicAddr = formData.clinicAddress?.trim();
+          if (!clinicAddr || clinicAddr.length === 0) {
+            currentStepErrors.clinicAddress = 'Clinic address is required';
+          }
+        } else if (formData.therapistType === 'mobile') {
+          const baseAddr = formData.baseAddress?.trim();
+          if (!baseAddr || baseAddr.length === 0) {
+            currentStepErrors.baseAddress = 'Base address is required';
+          } else {
+            const detailedAddressValidation = validateDetailedStreetAddress(baseAddr);
+            if (!detailedAddressValidation.isValid) {
+              currentStepErrors.baseAddress = detailedAddressValidation.message || 'Please enter a full base address';
+            }
+          }
+        } else if (formData.therapistType === 'hybrid') {
+          const clinicAddr = formData.clinicAddress?.trim();
+          const baseAddr = formData.baseAddress?.trim();
+          if (!clinicAddr || clinicAddr.length === 0) {
+            currentStepErrors.clinicAddress = 'Clinic address is required';
+          }
+          if (!baseAddr || baseAddr.length === 0) {
+            currentStepErrors.baseAddress = 'Base address is required';
+          } else {
+            const detailedAddressValidation = validateDetailedStreetAddress(baseAddr);
+            if (!detailedAddressValidation.isValid) {
+              currentStepErrors.baseAddress = detailedAddressValidation.message || 'Please enter a full base address';
+            }
+          }
+        } else {
+          // Fallback: if therapistType is not set, check location field
+          if (!formData.location?.trim() && !formData.clinicAddress?.trim() && !formData.baseAddress?.trim()) {
+            currentStepErrors.location = 'Location is required';
+          }
         }
       }
+      // Step 3 (Radius) - no validation needed, has default
+      // Step 4 (Stripe) and Step 5 (Subscription) don't have form fields to validate here
     }
     
-    // Set validation errors
     setValidationErrors(currentStepErrors);
     
-    // If there are errors, don't proceed
     if (Object.keys(currentStepErrors).length > 0) {
       toast.error('Please fix the errors below before continuing');
+      setStepProcessing(false); // Reset processing state so user can try again
       return;
     }
     
-    // For practitioners, check subscription before allowing progression from step 4 to 5
-    if (effectiveRole !== 'client' && step === 4) {
-      if (!subscribed) {
-        toast.error('Please complete your subscription to continue');
+    // Verify Stripe Connect (Step 4)
+    if (effectiveRole !== 'client' && step === PRACTITIONER_STEPS.STRIPE_CONNECT) {
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('stripe_connect_account_id')
+          .eq('id', resolvedProfile?.id)
+          .single();
+        
+        if (userError) {
+          console.error('Error checking Stripe Connect status:', userError);
+          toast.error('Failed to verify payment setup. Please try again.');
+          setStepProcessing(false);
+          return;
+        }
+        
+        if (!userData?.stripe_connect_account_id) {
+          toast.error('Please complete Stripe Connect setup before continuing');
+          setStepProcessing(false);
+          return;
+        }
+        
+        if (!resolvedProfile?.stripe_connect_account_id && userData.stripe_connect_account_id) {
+          await refreshProfile();
+        }
+      } catch (error) {
+        console.error('Error verifying Stripe Connect:', error);
+        toast.error('Failed to verify payment setup');
+        setStepProcessing(false);
         return;
       }
     }
     
-    // For practitioners, check subscription before allowing progression from step 5 to 6
-    if (effectiveRole !== 'client' && step === 5) {
+    // Verify Subscription (Step 5) - Final Step
+    if (effectiveRole !== 'client' && step === PRACTITIONER_STEPS.SUBSCRIPTION) {
       if (!subscribed) {
-        toast.error('Please complete your subscription to continue');
+        toast.error('Subscription required to complete onboarding', {
+          description: 'Please complete your subscription first'
+        });
         return;
       }
+      // If subscribed, proceed to completion
+      handleComplete();
+      return;
     }
     
-    // For practitioners, check subscription before allowing completion (step 6)
-    if (effectiveRole !== 'client' && step === 6) {
-      if (!subscribed) {
-        toast.error('Please complete your subscription to continue');
+    // Skip radius step for clinic-based therapists
+    if (effectiveRole !== 'client' && effectiveRole !== null && step === PRACTITIONER_STEPS.LOCATION) {
+      const nextStep = (formData.therapistType === 'mobile' || formData.therapistType === 'hybrid') 
+        ? PRACTITIONER_STEPS.RADIUS 
+        : PRACTITIONER_STEPS.STRIPE_CONNECT;
+      
+      // Validate that form data supports the step being saved
+      const validatedStep = getActualStepFromFormData(formData, nextStep);
+      if (validatedStep !== nextStep) {
+        console.warn(`⚠️ Cannot save step ${nextStep}, form data only supports step ${validatedStep}`);
+        toast.error('Please complete all required fields before continuing');
+        setStepProcessing(false);
         return;
       }
+      
+      setStep(nextStep);
+      setShowValidationErrors(false);
+      
+      // Auto-save progress with validated step
+      const completedSteps = Array.from({ length: step + 1 }, (_, i) => i);
+      saveProgress(validatedStep, formData, completedSteps).then((success) => {
+        if (success) {
+          setSaveSuccess(true);
+          setTimeout(() => setSaveSuccess(false), 2000);
+        }
+      });
+      return;
     }
     
+    // Client has 2 steps (0 and 1). On step 1 (last step), complete onboarding instead of advancing
+    if ((effectiveRole === 'client' || effectiveRole === null) && step === 1) {
+      handleComplete();
+      setStepProcessing(false);
+      return;
+    }
+
     if (step < totalSteps) {
-      setStep(step + 1);
-      setShowValidationErrors(false); // Clear validation errors when moving to next step
+      const stepToSave = step + 1;
+      
+      // Validate that form data supports the step being saved
+      if (effectiveRole !== 'client' && effectiveRole !== null) {
+        const validatedStep = getActualStepFromFormData(formData, stepToSave);
+        if (validatedStep !== stepToSave) {
+          console.warn(`⚠️ Cannot save step ${stepToSave}, form data only supports step ${validatedStep}`);
+          toast.error('Please complete all required fields before continuing');
+          setStepProcessing(false);
+          return;
+        }
+        
+        setStep(stepToSave);
+        setShowValidationErrors(false);
+        
+        // Auto-save progress with validated step
+        const completedSteps = Array.from({ length: step + 1 }, (_, i) => i);
+        saveProgress(validatedStep, formData, completedSteps).then((success) => {
+          if (success) {
+            setSaveSuccess(true);
+            setTimeout(() => setSaveSuccess(false), 2000);
+          }
+        });
+      } else {
+        setStep(stepToSave);
+        setShowValidationErrors(false);
+      }
     } else {
       handleComplete();
+    }
+    } finally {
+      setStepProcessing(false);
     }
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
+    if (step > 0) {
+      // Skip radius step when going back for clinic-based therapists
+      if (effectiveRole !== 'client' && effectiveRole !== null && step === PRACTITIONER_STEPS.STRIPE_CONNECT) {
+        const prevStep = (formData.therapistType === 'mobile' || formData.therapistType === 'hybrid')
+          ? PRACTITIONER_STEPS.RADIUS
+          : PRACTITIONER_STEPS.LOCATION;
+        setStep(prevStep);
+      } else {
+        setStep(step - 1);
+      }
     }
   };
 
@@ -283,17 +721,8 @@ const Onboarding = () => {
     }
   };
 
-
   const handleSubscriptionSelected = async (planId: string) => {
-    setSubscriptionCompleted(true);
-    setSubscriptionVerifying(true);
-    toast.success('Subscription initiated! Please complete payment to continue.');
-    
-    // Check subscription status after a short delay
-    setTimeout(async () => {
-      await checkSubscription();
-      setSubscriptionVerifying(false);
-    }, 2000);
+    toast.success('Redirecting to payment...');
   };
 
   const handleVerifySubscription = async () => {
@@ -312,74 +741,83 @@ const Onboarding = () => {
     }
   };
 
-  // Check subscription status when component mounts or when returning from payment
+  // Check subscription status
   useEffect(() => {
-    if (effectiveRole !== 'client' && step === 3) {
+    if (effectiveRole !== 'client' && step === PRACTITIONER_STEPS.SUBSCRIPTION) {
       checkSubscription();
     }
   }, [step, effectiveRole, checkSubscription]);
 
-  // Check subscription status when user returns from payment (URL params)
+  // Preload heavy payment onboarding chunks before users reach Stripe step.
+  useEffect(() => {
+    if (effectiveRole === 'client' || effectiveRole === null) return;
+    if (step >= PRACTITIONER_STEPS.RADIUS - 1) {
+      void import('@/components/onboarding/PaymentSetupStep');
+      void import('@/components/onboarding/EmbeddedStripeOnboarding');
+    }
+  }, [effectiveRole, step]);
+
+  // Check subscription status return from payment
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
     const success = urlParams.get('success');
+    const paymentSuccess = urlParams.get('payment_success');
     
-    if (effectiveRole !== 'client' && step === 3 && (sessionId || success)) {
-      // User returned from Stripe checkout
+    if (effectiveRole !== 'client' && step === PRACTITIONER_STEPS.SUBSCRIPTION && (sessionId || success || paymentSuccess)) {
+      setSubscriptionCompleted(true);
       setSubscriptionVerifying(true);
-      checkSubscription().finally(() => {
+      
+      checkSubscription().then(() => {
+        if (subscribed) {
+          toast.success('Subscription active!');
+          navigate(window.location.pathname, { replace: true });
+        } else {
+          toast.warning('Subscription verification in progress.');
+        }
+      }).finally(() => {
         setSubscriptionVerifying(false);
       });
     }
-  }, [effectiveRole, step, checkSubscription]);
+  }, [effectiveRole, step, checkSubscription, subscribed, navigate]);
 
-  // Initialize form data with user profile values for clients
+  // Pre-populate
   useEffect(() => {
-    if ((effectiveRole === 'client' || effectiveRole === null) && userProfile?.first_name && userProfile?.last_name) {
+    if (resolvedProfile?.first_name || resolvedProfile?.last_name) {
       setFormData(prev => ({
         ...prev,
-        firstName: userProfile.first_name,
-        lastName: userProfile.last_name
+        firstName: resolvedProfile.first_name || prev.firstName,
+        lastName: resolvedProfile.last_name || prev.lastName
       }));
     }
-  }, [userProfile]);
+  }, [resolvedProfile, effectiveRole]);
 
+  // Redirect to role-selection only when we have a profile but no role from any source
+  useEffect(() => {
+    if (authLoading) return;
+    if (userProfile && !userProfile.user_role && !roleFromUrl && !(isRecentRoleSelection && localStorageRole)) {
+      navigate('/auth/role-selection', { replace: true });
+    }
+  }, [userProfile, authLoading, navigate, roleFromUrl, isRecentRoleSelection, localStorageRole]);
 
   const handleComplete = async () => {
     setLoading(true);
     
     try {
-      // Validate onboarding data
+      // Validate onboarding data - Minimal check
       let validation;
       if (effectiveRole === 'client' || effectiveRole === null) {
         const clientData = {
           firstName: formData.firstName,
           lastName: formData.lastName,
           phone: formData.phone,
-          primaryGoal: formData.primaryGoal,
-          preferredTherapyTypes: formData.preferredTherapyTypes,
         };
         validation = validateOnboardingData('client', clientData);
       } else {
-        // For practitioners, create practitioner-specific data object
+        // Practitioner - Minimal Data
         const practitionerData = {
           phone: formData.phone,
-          bio: formData.bio,
           location: formData.location,
-          experience_years: formData.experience_years,
-          specializations: formData.specializations,
-          qualifications: formData.qualifications,
-          hourly_rate: formData.hourly_rate,
-          professional_body: formData.professional_body,
-          professional_body_other: formData.professional_body_other,
-          registration_number: formData.registration_number,
-          qualification_type: formData.qualification_type,
-          qualification_file: formData.qualification_file,
-          qualification_expiry: formData.qualification_expiry,
-          professional_statement: formData.professional_statement,
-          treatment_philosophy: formData.treatment_philosophy,
-          response_time_hours: formData.response_time_hours,
         };
         validation = validateOnboardingData((effectiveRole || 'client') as UserRole, practitionerData);
       }
@@ -391,45 +829,71 @@ const Onboarding = () => {
 
       let error;
       
-      // Complete onboarding using the appropriate function based on user role
       if (effectiveRole === 'client' || effectiveRole === null) {
-        // For clients, use the form data which now includes firstName and lastName
         const clientData = {
-          firstName: formData.firstName || userProfile?.first_name || '',
-          lastName: formData.lastName || userProfile?.last_name || '',
+          firstName: formData.firstName || resolvedProfile?.first_name || '',
+          lastName: formData.lastName || resolvedProfile?.last_name || '',
           phone: formData.phone,
           location: formData.location,
-          primaryGoal: formData.primaryGoal,
-          preferredTherapyTypes: formData.preferredTherapyTypes,
-          avatarPreferences: formData.customizeAvatar ? formData.avatarPreferences : null,
         };
-        
-        const result = await completeClientOnboarding(userProfile?.id || '', clientData);
+        const result = await completeClientOnboarding(resolvedProfile?.id || '', clientData);
         error = result.error;
       } else {
-        // For practitioners, use the existing function
+        let enriched = { ...formData } as any;
+        if (!enriched.firstName || !enriched.lastName) {
+          enriched.firstName = enriched.firstName || resolvedProfile?.first_name || '';
+          enriched.lastName = enriched.lastName || resolvedProfile?.last_name || '';
+        }
+        
+        // Strict mode: therapist type must be explicitly selected (no inference/fallbacks)
+        if (!formData.therapistType) {
+          throw new Error('Please select your practitioner type to complete onboarding.');
+        }
+        const practitionerData = {
+          phone: formData.phone,
+          location: formData.location,
+          firstName: enriched.firstName,
+          lastName: enriched.lastName,
+          has_liability_insurance: formData.hasLiabilityInsurance,
+          therapist_type: formData.therapistType,
+          clinic_address: formData.clinicAddress || null,
+          clinic_latitude: formData.clinicLatitude || null,
+          clinic_longitude: formData.clinicLongitude || null,
+          base_address: formData.baseAddress || null,
+          base_latitude: formData.baseLatitude || null,
+          base_longitude: formData.baseLongitude || null,
+          mobile_service_radius_km:
+            formData.therapistType === 'mobile' || formData.therapistType === 'hybrid'
+              ? (formData.mobileServiceRadiusKm || null)
+              : null,
+          address_line1: formData.addressLine1 || undefined,
+          address_line2: formData.addressLine2 || undefined,
+          address_city: formData.addressCity || undefined,
+          address_county: formData.addressCounty || undefined,
+          address_postcode: formData.addressPostcode || undefined,
+          address_country: formData.addressCountry || undefined,
+        };
+
         const result = await completePractitionerOnboarding(
-          userProfile?.id || '',
+          resolvedProfile?.id || '',
           (effectiveRole || 'client') as UserRole,
-          formData
+          practitionerData
         );
         error = result.error;
       }
 
       if (error) throw error;
 
-      toast.success('Profile setup completed successfully!');
+      if (effectiveRole !== 'client' && effectiveRole !== null) {
+        await clearProgress();
+      }
+
+      toast.success('Account setup completed!');
+      await refreshProfile();
       
-      // Refresh the user profile to get the updated onboarding status
-      await updateProfile({});
-      
-      // Navigate to appropriate dashboard based on user role
       const userRole = effectiveRole || 'client';
       let dashboardRoute = '/client/dashboard';
-      
-      if (userRole === 'client') {
-        dashboardRoute = '/client/dashboard';
-      } else if (['sports_therapist', 'massage_therapist', 'osteopath'].includes(userRole)) {
+      if (['sports_therapist', 'massage_therapist', 'osteopath'].includes(userRole)) {
         dashboardRoute = '/dashboard';
       } else if (userRole === 'admin') {
         dashboardRoute = '/admin/verification';
@@ -453,1026 +917,418 @@ const Onboarding = () => {
     }
   };
 
-  // Validation Error Display Component
-  const ValidationErrorDisplay = ({ errors }: { errors: Record<string, string> }) => {
-    if (Object.keys(errors).length === 0) return null;
-    
-    return (
-      <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-        <div className="flex items-center mb-2">
-          <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
-          <h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
-        </div>
-        <ul className="text-sm text-red-700 space-y-1">
-          {Object.entries(errors).map(([field, error]) => (
-            <li key={field} className="flex items-center">
-              <span className="w-2 h-2 bg-red-600 rounded-full mr-2"></span>
-              <span className="capitalize">{field.replace(/([A-Z])/g, ' $1').trim()}: {error}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  };
-
-  const getProfessionalBodies = () => {
-    // Use formData.user_role if available, otherwise fall back to userProfile
-    const userRole = formData.user_role || effectiveRole;
-    
-    switch (userRole) {
-      case 'sports_therapist':
-        return [
-          { value: 'british_association_of_sports_therapists', label: 'British Association of Sports Rehabilitators and Therapists (BASRaT)' },
-          { value: 'society_of_sports_therapists', label: 'Society of Sports Therapists (SST)' },
-          { value: 'professional_liability_insurance', label: 'Professional Liability Insurance' },
-          { value: 'public_liability_insurance', label: 'Public Liability Insurance' },
-          { value: 'other', label: 'Other - specify' },
-        ];
-      case 'massage_therapist':
-        return [
-          { value: 'society_of_sports_therapists', label: 'Society of Sports Therapists' },
-          { value: 'other', label: 'Other' },
-        ];
-      case 'osteopath':
-        return [
-          { value: 'british_osteopathic_association', label: 'British Osteopathic Association' },
-          { value: 'chartered_society_of_physiotherapy', label: 'Chartered Society of Physiotherapy' },
-          { value: 'other', label: 'Other' },
-        ];
-      default:
-        return [
-          { value: 'british_association_of_sports_therapists', label: 'British Association of Sports Rehabilitators and Therapists (BASRaT)' },
-          { value: 'society_of_sports_therapists', label: 'Society of Sports Therapists (SST)' },
-          { value: 'british_osteopathic_association', label: 'British Osteopathic Association' },
-          { value: 'chartered_society_of_physiotherapy', label: 'Chartered Society of Physiotherapy' },
-          { value: 'other', label: 'Other' },
-        ];
-    }
-  };
-
-  const specializationOptions = {
-    sports_therapist: [
-      { label: 'Sports Injury', value: 'sports_injury' },
-      { label: 'Rehabilitation', value: 'rehabilitation' },
-      { label: 'Strength Training', value: 'strength_training' },
-      { label: 'Injury Prevention', value: 'injury_prevention' }
-    ],
-    massage_therapist: [
-      { label: 'Sports Massage', value: 'sports_massage' },
-      { label: 'Massage Therapy', value: 'massage_therapy' },
-      { label: 'Rehabilitation', value: 'rehabilitation' }
-    ],
-    osteopath: [
-      { label: 'Osteopathy', value: 'osteopathy' },
-      { label: 'Rehabilitation', value: 'rehabilitation' },
-      { label: 'Sports Injury', value: 'sports_injury' }
-    ],
-    client: []
-  };
-
-
-  // Show loading spinner while auth is loading or userProfile is not available
-  if (authLoading || !userProfile) {
+  // Unauthenticated: send to sign-in instead of infinite spinner
+  if (!authLoading && !user) {
+    navigate('/auth/sign-in', { replace: true, state: { from: location.pathname + location.search } });
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4 sm:p-6">
-        {/* Sign Out Button - Top Right */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSignOut}
-          className="absolute top-4 right-4 flex items-center gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </Button>
-        
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-            <p className="text-muted-foreground text-center">
-              {!userProfile ? 'Loading your profile...' : 'Setting up your account...'}
-            </p>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              If this takes too long, try refreshing the page
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => window.location.reload()} 
-              className="mt-4"
-            >
-              Refresh Page
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
-  // Check if user needs role selection (practitioners without roles)
-  if (!userProfile.user_role) {
-    console.log('🎯 User needs role selection:', {
-      userProfile: userProfile,
-      user_role: userProfile.user_role,
-      effectiveRole: effectiveRole,
-      localStorageRole: localStorageRole,
-      isRecentRoleSelection: isRecentRoleSelection
-    });
-    
+  // Loading: initial auth or profile still loading (only block when we have no role from URL to fall back to)
+  const canProceedWithUrlRole = !!(user && roleFromUrl);
+  if (authLoading || (!resolvedProfile && !canProceedWithUrlRole)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4 sm:p-6">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center justify-center p-8">
-            <div className="text-6xl mb-4">🎯</div>
-            <h2 className="text-2xl font-bold text-center mb-2">Select Your Role</h2>
-            <p className="text-muted-foreground text-center mb-6">
-              Please select your professional role to continue
-            </p>
-            <Button 
-              onClick={() => {
-                console.log('🔗 Navigating to role selection...');
-                navigate('/auth/role-selection');
-              }}
-              className="w-full"
-            >
-              Choose Role
-            </Button>
-            <div className="mt-4 text-xs text-muted-foreground text-center">
-              Debug: user_role = {userProfile.user_role || 'null'}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4" />
       </div>
     );
   }
 
-  // Show error if no user profile
-  if (!userProfile) {
+  // Have session but profile not loaded yet and no URL role: brief wait then show spinner (profileLoading not set on initial load, so we rely on resolvedProfile from fallback)
+  if (!resolvedProfile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4 sm:p-6">
-        {/* Sign Out Button - Top Right */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSignOut}
-          className="absolute top-4 right-4 flex items-center gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </Button>
-        
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center justify-center p-8">
-            <p className="text-muted-foreground text-center mb-4">Unable to load your profile. Please try refreshing the page.</p>
-            <div className="space-y-2">
-              <Button onClick={() => window.location.reload()} className="w-full">Refresh Page</Button>
-              <Button variant="outline" onClick={handleSignOut} className="w-full">
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4" />
+      </div>
+    );
+  }
+
+  // Redirect to role-selection only when we have no role from profile, URL, or recent localStorage
+  if (!resolvedProfile.user_role && !roleFromUrl && !(isRecentRoleSelection && localStorageRole)) {
+    navigate('/auth/role-selection', { replace: true });
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4 sm:p-6">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center p-4 sm:p-6">
-      {/* Debug Banner - Top Center */}
-      {userProfile && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-100 border border-yellow-300 rounded-lg px-4 py-2 text-sm">
-          <strong>Debug:</strong> DB Role: {userProfile.user_role || 'NULL'} | 
-          Effective: {effectiveRole || 'NULL'} | 
-          Steps: {totalSteps} | 
-          Type: {(effectiveRole === 'client' || effectiveRole === null) ? 'CLIENT' : 'PRACTITIONER'}
-        </div>
-      )}
-      
-      {/* Sign Out Button - Top Right */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleSignOut}
-        className="absolute top-4 right-4 flex items-center gap-2 text-muted-foreground hover:text-foreground"
-      >
-        <LogOut className="h-4 w-4" />
-        Sign Out
+      <Button variant="ghost" size="sm" onClick={handleSignOut} className="absolute top-4 right-4 flex items-center gap-2 text-muted-foreground hover:text-foreground">
+        <LogOut className="h-4 w-4" /> Sign Out
       </Button>
       
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center p-4 sm:p-6">
+      <motion.div
+        className="w-full max-w-2xl"
+        variants={onboardingFadeVariants}
+        initial="initial"
+        animate="animate"
+        transition={stepTransition}
+      >
+      <Card className="w-full max-w-2xl transition-[border-color,background-color] duration-200 ease-out">
+        <CardHeader className="text-center p-4 sm:p-6 relative">
           <div className="flex items-center justify-center mb-4">
-            <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 mr-3">
-              <img 
-                src="/src/assets/theramatemascot.png" 
-                alt="TheraMate Mascot" 
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <span className="text-xl sm:text-2xl font-bold">TheraMate</span>
+            <span className="text-xl sm:text-2xl font-bold">TheraMate.</span>
           </div>
-          <CardTitle className="text-xl sm:text-2xl">Welcome, {userProfile?.first_name}!</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">Welcome, {resolvedProfile?.first_name || 'User'}!</CardTitle>
           <CardDescription className="text-sm sm:text-base">
-            Let's set up your {getUserTypeLabel()} profile - Step {step} of {totalSteps}
+            Let's set up your {getUserTypeLabel()} profile - Step {displayStepNumber} of {totalSteps}
           </CardDescription>
-          {realtime?.onboardingProgress && (realtime.onboardingProgress.blockers?.length || 0) > 0 && (
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
-              <p className="text-sm font-medium mb-1">Action required to continue</p>
-              <ul className="text-sm list-disc list-inside">
-                {realtime.onboardingProgress.blockers.includes('subscription') && (
-                  <li>Complete subscription to unlock professional features</li>
-                )}
-                {realtime.onboardingProgress.blockers.includes('verification') && (
-                  <li>Verification pending. You can proceed, but marketplace visibility is limited until verified</li>
-                )}
-              </ul>
-            </div>
-          )}
-          {effectiveRole !== 'client' && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Important:</strong> Completing your profile setup is required to start accepting clients and using all platform features.
-              </p>
-            </div>
-          )}
-          <Progress value={progress} className="mt-4" />
-          
+          <Progress value={progressPercent} className="mt-4" />
         </CardHeader>
         
         <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-          {/* Show validation errors if any */}
           {showValidationErrors && <ValidationErrorDisplay errors={validationErrors} />}
-          
-          {step === 1 && (
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`${effectiveRole || 'unknown'}-${step}-${formData.therapistType || 'unset'}`}
+              className="onboarding-step-layer"
+              variants={prefersReducedMotion ? onboardingFadeVariants : onboardingStepVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={stepTransition}
+            >
+          {/* Step 0: Therapist Type Selection (Practitioners only) */}
+          {step === PRACTITIONER_STEPS.THERAPIST_TYPE && effectiveRole !== 'client' && effectiveRole !== null && (
+            <div className="space-y-6">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold mb-2">Choose Your Practice Type</h2>
+                <p className="text-muted-foreground">Select how you'll be providing services to clients</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('therapistType', 'clinic_based')}
+                  className={`p-6 rounded-lg border-2 transition-[border-color,background-color] duration-200 ease-out ${
+                    formData.therapistType === 'clinic_based'
+                      ? 'border-primary bg-primary/5 shadow-md'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Building2 className={`h-12 w-12 mx-auto mb-4 ${
+                    formData.therapistType === 'clinic_based' ? 'text-primary' : 'text-muted-foreground'
+                  }`} />
+                  <h3 className="font-semibold text-lg mb-2">Clinic Based Therapist</h3>
+                  <p className="text-sm text-muted-foreground">
+                    You provide services at a fixed clinic location
+                  </p>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('therapistType', 'mobile')}
+                  className={`p-6 rounded-lg border-2 transition-[border-color,background-color] duration-200 ease-out ${
+                    formData.therapistType === 'mobile'
+                      ? 'border-primary bg-primary/5 shadow-md'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Car className={`h-12 w-12 mx-auto mb-4 ${
+                    formData.therapistType === 'mobile' ? 'text-primary' : 'text-muted-foreground'
+                  }`} />
+                  <h3 className="font-semibold text-lg mb-2">Mobile Therapist</h3>
+                  <p className="text-sm text-muted-foreground">
+                    You travel to clients' locations to provide services
+                  </p>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('therapistType', 'hybrid')}
+                  className={`p-6 rounded-lg border-2 transition-[border-color,background-color] duration-200 ease-out ${
+                    formData.therapistType === 'hybrid'
+                      ? 'border-primary bg-primary/5 shadow-md'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Building className={`h-12 w-12 mx-auto mb-4 ${
+                    formData.therapistType === 'hybrid' ? 'text-primary' : 'text-muted-foreground'
+                  }`} />
+                  <h3 className="font-semibold text-lg mb-2">Hybrid Therapist</h3>
+                  <p className="text-sm text-muted-foreground">
+                    You offer both clinic-based and mobile services
+                  </p>
+                </button>
+              </div>
+              
+              {validationErrors.therapistType && (
+                <p className="text-sm text-red-600 text-center">{validationErrors.therapistType}</p>
+              )}
+            </div>
+          )}
+
+          {/* Step 0: Client – Basic Info (phone only) */}
+          {step === 0 && (effectiveRole === 'client' || effectiveRole === null) && (
             <div className="space-y-4">
               <div className="flex items-center space-x-2 text-primary mb-4">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
+                <span className="font-medium">Basic Information</span>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number *</Label>
+                <SmartPhonePicker id="phone" value={formData.phone} onChange={(value) => handleFieldChange('phone', value)} placeholder="Enter your phone number" error={validationErrors.phone} />
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Practitioner Basic Info */}
+          {step === PRACTITIONER_STEPS.BASIC_INFO && effectiveRole !== 'client' && effectiveRole !== null && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2 text-primary mb-4">
+                <UserIcon className="h-5 w-5" />
                 <span className="font-medium">Basic Information</span>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={formData.phone}
-                  onChange={(e) => handleFieldChange('phone', e.target.value)}
-                  className={getFieldErrorClass('phone')}
-                />
-                {validationErrors.phone && (
-                  <p className="text-sm text-red-600 mt-1">{validationErrors.phone}</p>
-                )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input id="firstName" placeholder="Enter your first name" value={formData.firstName} onChange={(e) => handleFieldChange('firstName', e.target.value)} className={getFieldErrorClass('firstName')} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input id="lastName" placeholder="Enter your last name" value={formData.lastName} onChange={(e) => handleFieldChange('lastName', e.target.value)} className={getFieldErrorClass('lastName')} />
+                </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  placeholder="City, State/Country"
-                  value={formData.location}
-                  onChange={(e) => handleFieldChange('location', e.target.value)}
-                  className={getFieldErrorClass('location')}
-                />
-                {validationErrors.location && (
-                  <p className="text-sm text-red-600 mt-1">{validationErrors.location}</p>
-                )}
+                <Label htmlFor="phone">Phone Number *</Label>
+                <SmartPhonePicker id="phone" value={formData.phone} onChange={(value) => handleFieldChange('phone', value)} placeholder="Enter your phone number" error={validationErrors.phone} />
               </div>
-
-              {effectiveRole !== 'client' && (
+              
+              {effectiveRole !== 'client' && effectiveRole !== null && (
                 <div className="space-y-2">
-                  <Label htmlFor="bio">Professional Bio *</Label>
-                  <textarea
-                    id="bio"
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${getFieldErrorClass('bio')}`}
-                    placeholder="Tell us about your professional background and approach..."
-                    rows={4}
-                    value={formData.bio}
-                    onChange={(e) => handleFieldChange('bio', e.target.value)}
-                  />
-                  {validationErrors.bio && (
-                    <p className="text-sm text-red-600 mt-1">{validationErrors.bio}</p>
-                  )}
+                  <Label className="text-sm font-normal">
+                    <Checkbox
+                      checked={formData.hasLiabilityInsurance}
+                      onCheckedChange={(checked) => handleFieldChange('hasLiabilityInsurance', checked)}
+                      className="mr-2"
+                    />
+                    Do you have liability insurance for ALL of the services you offer?
+                  </Label>
                 </div>
               )}
-
             </div>
           )}
 
-          {step === 2 && (effectiveRole === 'client' || effectiveRole === null) && (
-            <div className="space-y-4">
+          {/* Step 2: Location (Practitioners only) */}
+          {step === PRACTITIONER_STEPS.LOCATION && effectiveRole !== 'client' && effectiveRole !== null && (
+            <div className="space-y-6">
               <div className="flex items-center space-x-2 text-primary mb-4">
-                <CheckCircle className="h-5 w-5" />
-                <span className="font-medium">Health Goals & Preferences</span>
+                <MapPin className="h-5 w-5" />
+                <span className="font-medium">Location Setup</span>
+              </div>
+              
+              {formData.therapistType === 'clinic_based' && (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="clinicAddress" className="text-base font-semibold">Clinic Address *</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      This address will be shown on the marketplace to help clients find you
+                    </p>
+                    <SmartLocationPicker
+                      id="clinicAddress"
+                      value={formData.clinicAddress || ''}
+                      onChange={handleClinicAddressChange}
+                      onLocationSelect={handleClinicLocationSelect}
+                      placeholder="Enter your clinic address (e.g., 123 Main St, London, UK)"
+                      error={validationErrors.clinicAddress}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {formData.therapistType === 'mobile' && (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="baseAddress" className="text-base font-semibold">Base Address *</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      This can be your home address or workspace. It will NOT be shown on the marketplace, but will be used to calculate your service radius.
+                    </p>
+                    <SmartLocationPicker
+                      id="baseAddress"
+                      value={formData.baseAddress || ''}
+                      onChange={handleBaseAddressChange}
+                      onLocationSelect={handleBaseLocationSelect}
+                      placeholder="Enter your base address (e.g., 123 Main St, London, UK)"
+                      error={validationErrors.baseAddress}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {formData.therapistType === 'hybrid' && (
+                <div className="space-y-6">
+                  <div>
+                    <Label htmlFor="clinicAddress" className="text-base font-semibold">Clinic Address *</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      This address will be shown on the marketplace
+                    </p>
+                    <SmartLocationPicker
+                      id="clinicAddress"
+                      value={formData.clinicAddress || ''}
+                      onChange={handleClinicAddressChange}
+                      onLocationSelect={handleClinicLocationSelect}
+                      placeholder="Enter your clinic address (e.g., 123 Main St, London, UK)"
+                      error={validationErrors.clinicAddress}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="baseAddress" className="text-base font-semibold">Base Address *</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Your home or workspace address for mobile services. This will NOT be shown on the marketplace.
+                    </p>
+                    <SmartLocationPicker
+                      id="baseAddress"
+                      value={formData.baseAddress || ''}
+                      onChange={handleBaseAddressChange}
+                      onLocationSelect={handleBaseLocationSelect}
+                      placeholder="Enter your base address (e.g., 123 Main St, London, UK)"
+                      error={validationErrors.baseAddress}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Radius Selection (Mobile and Hybrid only) */}
+          {step === PRACTITIONER_STEPS.RADIUS && effectiveRole !== 'client' && effectiveRole !== null && (formData.therapistType === 'mobile' || formData.therapistType === 'hybrid') && (
+            <div className="space-y-6">
+              <div className="flex items-center space-x-2 text-primary mb-4">
+                <MapPin className="h-5 w-5" />
+                <span className="font-medium">Service Radius</span>
               </div>
               
               <div className="space-y-4">
-                {/* First Name and Last Name fields for clients */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      placeholder="Enter your first name"
-                      value={formData.firstName}
-                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      placeholder="Enter your last name"
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="primaryGoal">What's your primary health goal? *</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, primaryGoal: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your main goal" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="pain_relief">Pain Relief</SelectItem>
-                      <SelectItem value="injury_recovery">Injury Recovery</SelectItem>
-                      <SelectItem value="performance_improvement">Performance Improvement</SelectItem>
-                      <SelectItem value="stress_relief">Stress Relief</SelectItem>
-                      <SelectItem value="general_wellness">General Wellness</SelectItem>
-                      <SelectItem value="preventive_care">Preventive Care</SelectItem>
-                      <SelectItem value="rehabilitation">Rehabilitation</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="preferredTherapyTypes">Preferred therapy types</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: 'Sports Therapy', value: 'sports_therapy' },
-                      { label: 'Massage Therapy', value: 'massage_therapy' },
-                      { label: 'Osteopathy', value: 'osteopathy' },
-                      { label: 'Physiotherapy', value: 'physiotherapy' }
-                    ].map((therapy) => (
-                      <div key={therapy.value} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={therapy.value}
-                          checked={formData.preferredTherapyTypes?.includes(therapy.value) || false}
-                          onCheckedChange={(checked) => {
-                            const currentTypes = formData.preferredTherapyTypes || [];
-                            if (checked) {
-                              setFormData({
-                                ...formData,
-                                preferredTherapyTypes: [...currentTypes, therapy.value]
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                preferredTherapyTypes: currentTypes.filter(t => t !== therapy.value)
-                              });
-                            }
-                          }}
-                        />
-                        <Label htmlFor={therapy.value} className="text-sm">{therapy.label}</Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-
-                <div className="p-4 bg-primary/5 rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    As a client, you can now start finding and booking sessions with qualified therapists in your area.
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm">Search for therapists</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm">Book appointments</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm">Message therapists</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Avatar Customization Option */}
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <User className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Customize Your Avatar (Optional)</span>
-                  </div>
+                <div>
+                  <Label className="text-base font-semibold mb-2 block">
+                    How far are you willing to travel? ({formData.mobileServiceRadiusKm} km)
+                  </Label>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Create a personalized avatar to represent you on the platform. You can skip this and customize later from your profile.
+                    Clients within this radius will be able to see and book your mobile services
                   </p>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="customizeAvatar"
-                      checked={formData.customizeAvatar}
-                      onCheckedChange={(checked) => {
-                        setFormData({...formData, customizeAvatar: checked as boolean});
-                        setShowAvatarCustomization(checked as boolean);
-                      }}
-                    />
-                    <Label htmlFor="customizeAvatar" className="text-sm">
-                      Yes, I'd like to customize my avatar
-                    </Label>
+                  <Slider
+                    value={[formData.mobileServiceRadiusKm]}
+                    onValueChange={(value) => handleFieldChange('mobileServiceRadiusKm', value[0])}
+                    min={5}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                    <span>5 km</span>
+                    <span>100 km</span>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Avatar Customization Step for Clients */}
-          {step === 3 && (effectiveRole === 'client' || effectiveRole === null) && showAvatarCustomization && (
+          {/* Client Step 2 of 2 – Personal Information */}
+          {step === 1 && (effectiveRole === 'client' || effectiveRole === null) && (
             <div className="space-y-4">
               <div className="flex items-center space-x-2 text-primary mb-4">
-                <User className="h-5 w-5" />
-                <span className="font-medium">Customize Your Avatar</span>
+                <CheckCircle className="h-5 w-5" />
+                <span className="font-medium">Personal Information</span>
               </div>
               
-              <div className="text-center mb-6">
-                <p className="text-muted-foreground mb-4">
-                  Personalize your avatar to represent you on the platform
-                </p>
-                
-                {/* Avatar Preview */}
-                <div className="flex justify-center mb-6">
-                  <div className="relative">
-                    <img
-                      key={`avatar-${avatarKey}`}
-                      src={generateAvatarUrl(
-                        `${formData.firstName}${formData.lastName}`,
-                        formData.avatarPreferences
-                      )}
-                      alt="Avatar Preview"
-                      className="w-24 h-24 rounded-full border-4 border-primary/20"
-                      onError={(e) => {
-                        console.error('Avatar failed to load:', e);
-                        // Fallback to initials if avatar fails
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const fallback = document.createElement('div');
-                        fallback.className = 'w-24 h-24 rounded-full border-4 border-primary/20 bg-primary text-white flex items-center justify-center text-xl font-bold';
-                        fallback.textContent = `${formData.firstName?.[0] || ''}${formData.lastName?.[0] || ''}`.toUpperCase();
-                        target.parentNode?.appendChild(fallback);
-                      }}
-                    />
-                    <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-white" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
-                {/* Hair Color */}
                 <div className="space-y-2">
-                  <Label htmlFor="hairColor">Hair Color</Label>
-                  <Select 
-                    value={formData.avatarPreferences.hairColor} 
-                    onValueChange={(value) => {
-                      console.log('🎨 Hair color changed to:', value);
-                      setFormData({
-                        ...formData,
-                        avatarPreferences: {...formData.avatarPreferences, hairColor: value}
-                      });
-                      setAvatarKey(prev => prev + 1);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select hair color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AVATAR_OPTIONS.hairColors.map((color) => (
-                        <SelectItem key={color.value} value={color.value}>
-                          {color.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input id="firstName" placeholder="Enter your first name" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} />
                 </div>
-
-                {/* Clothing Color */}
                 <div className="space-y-2">
-                  <Label htmlFor="clothingColor">Clothing Color</Label>
-                  <Select 
-                    value={formData.avatarPreferences.clothingColor} 
-                    onValueChange={(value) => {
-                      console.log('🎨 Clothing color changed to:', value);
-                      setFormData({
-                        ...formData,
-                        avatarPreferences: {...formData.avatarPreferences, clothingColor: value}
-                      });
-                      setAvatarKey(prev => prev + 1);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select clothing color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AVATAR_OPTIONS.clothingColors.map((color) => (
-                        <SelectItem key={color.value} value={color.value}>
-                          {color.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Skin Color */}
-                <div className="space-y-2">
-                  <Label htmlFor="skinColor">Skin Tone</Label>
-                  <Select 
-                    value={formData.avatarPreferences.skinColor} 
-                    onValueChange={(value) => {
-                      console.log('🎨 Skin color changed to:', value);
-                      setFormData({
-                        ...formData,
-                        avatarPreferences: {...formData.avatarPreferences, skinColor: value}
-                      });
-                      setAvatarKey(prev => prev + 1);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select skin tone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AVATAR_OPTIONS.skinColors.map((color) => (
-                        <SelectItem key={color.value} value={color.value}>
-                          {color.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Accessories */}
-                <div className="space-y-2">
-                  <Label htmlFor="accessories">Accessories</Label>
-                  <Select 
-                    value={formData.avatarPreferences.accessories?.[0] || 'none'} 
-                    onValueChange={(value) => {
-                      console.log('🎨 Accessories changed to:', value);
-                      setFormData({
-                        ...formData,
-                        avatarPreferences: {...formData.avatarPreferences, accessories: value === 'none' ? [] : [value]}
-                      });
-                      setAvatarKey(prev => prev + 1);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select accessories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {AVATAR_OPTIONS.accessories.map((accessory) => (
-                        <SelectItem key={accessory.value} value={accessory.value}>
-                          {accessory.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input id="lastName" placeholder="Enter your last name" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} />
                 </div>
               </div>
 
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  💡 <strong>Tip:</strong> You can always change your avatar later from your profile settings.
-                </p>
+              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div className="space-y-2">
+                    <p className="font-medium text-green-900">Account setup complete!</p>
+                    <p className="text-sm text-green-800">As a client you can now:</p>
+                    <ul className="text-sm text-green-800 space-y-1 list-disc list-inside ml-2">
+                      <li>Start finding a booking session full of our therapist in the area</li>
+                      <li>Track your progress</li>
+                      <li>Ask the search for therapists</li>
+                      <li>Browse on the marketplace</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {step === 2 && effectiveRole !== 'client' && (
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2 text-primary mb-4">
-                <Award className="h-5 w-5" />
-                <span className="font-medium">Professional Details</span>
+          {/* Practitioner Step 2: Stripe Connect */}
+          {step === PRACTITIONER_STEPS.STRIPE_CONNECT && effectiveRole !== 'client' && (
+            <div className="space-y-6">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold mb-2">Connect Your Payment Account</h2>
+                <p className="text-muted-foreground">Set up your Stripe Connect account to receive payments from clients</p>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="experience">Years of Experience *</Label>
-                <Select onValueChange={(value) => setFormData({...formData, experience_years: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your experience level" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="1">1-2 years</SelectItem>
-                    <SelectItem value="3">3-5 years</SelectItem>
-                    <SelectItem value="6">6-10 years</SelectItem>
-                    <SelectItem value="11">11+ years</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-
-              <div className="space-y-2">
-                <Label htmlFor="professionalBody">Professional Body Membership OR INSURANCE *</Label>
-                <Select 
-                  value={formData.professional_body || ""} 
-                  onValueChange={(value) => setFormData({...formData, professional_body: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your professional body or insurance" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border shadow-lg z-50">
-                    {getProfessionalBodies().map((body) => (
-                      <SelectItem key={body.value} value={body.value}>{body.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                {formData.professional_body === 'other' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="professionalBodyOther">Please specify *</Label>
-                    <Input
-                      id="professionalBodyOther"
-                      placeholder="Enter your professional body or insurance details"
-                      value={formData.professional_body_other || ""}
-                      onChange={(e) => setFormData({...formData, professional_body_other: e.target.value})}
-                    />
-                  </div>
+              <Suspense
+                fallback={(
+                  <div className="min-h-[320px] rounded-lg border border-border/60 bg-muted/20 animate-pulse" />
                 )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="qualification">Do you have an ITMMIF / ATMMIF or equivalent qualification? *</Label>
-                <Select 
-                  value={formData.qualification_type || ""} 
-                  onValueChange={(value) => setFormData({...formData, qualification_type: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your qualification type" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="itmmif">ITMMIF</SelectItem>
-                    <SelectItem value="atmmif">ATMMIF</SelectItem>
-                    <SelectItem value="equivalent">Equivalent Qualification</SelectItem>
-                    <SelectItem value="none">No qualification</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.qualification_type && formData.qualification_type !== 'none' && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="qualificationUpload">Upload your qualification certificate *</Label>
-                    <Input
-                      id="qualificationUpload"
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setFormData({...formData, qualification_file: file});
-                        }
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Accepted formats: PDF, JPG, PNG (Max 10MB)
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="qualificationExpiry">Qualification expiry date *</Label>
-                    <Input
-                      id="qualificationExpiry"
-                      type="date"
-                      value={formData.qualification_expiry || ""}
-                      onChange={(e) => setFormData({...formData, qualification_expiry: e.target.value})}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Enter the expiry date of your qualification
-                    </p>
-                  </div>
-                </>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="registrationNumber">Registration Number *</Label>
-                <Input
-                  id="registrationNumber"
-                  placeholder="Enter your professional registration number"
-                  value={formData.registration_number}
-                  onChange={(e) => setFormData({...formData, registration_number: e.target.value})}
-                />
-                <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                  <Shield className="w-3 h-3 inline mr-1" />
-                  Your registration number is used to verify your qualifications
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="qualifications">Qualifications & Certifications</Label>
-                <Textarea
-                  id="qualifications"
-                  value={formData.qualifications.join(', ')}
-                  onChange={(e) => setFormData({...formData, qualifications: e.target.value.split(',').map(q => q.trim()).filter(q => q)})}
-                  placeholder="List your qualifications, certifications, and training (separate each with a comma)"
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Example: Level 3 Sports Massage, First Aid Certificate, Anatomy & Physiology Diploma
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="professionalStatement">Professional Statement</Label>
-                <Textarea
-                  id="professionalStatement"
-                  placeholder="Share your professional approach and what makes you unique..."
-                  value={formData.professional_statement}
-                  onChange={(e) => setFormData({...formData, professional_statement: e.target.value})}
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will be displayed prominently on your profile to help clients understand your approach
-                </p>
+              >
+                <PaymentSetupStep onComplete={handleNext} />
+              </Suspense>
+              <div className="flex space-x-2 pt-4">
+                <Button variant="outline" onClick={handleBack} className="flex-1">Back</Button>
               </div>
             </div>
           )}
 
-          {step === 3 && effectiveRole !== 'client' && (
-            <AvailabilitySetup
-              availability={formData.availability}
-              timezone={formData.timezone}
-              onAvailabilityChange={(availability) => setFormData({...formData, availability})}
-              onTimezoneChange={(timezone) => setFormData({...formData, timezone})}
-              onNext={handleNext}
-              onBack={handleBack}
-            />
-          )}
-
-          {step === 4 && effectiveRole !== 'client' && (
+          {/* Practitioner Step 3: Subscription */}
+          {step === PRACTITIONER_STEPS.SUBSCRIPTION && effectiveRole !== 'client' && (
             <div className="space-y-6">
               {subscribed ? (
                 <div className="text-center space-y-4">
-                  <div className="flex justify-center">
-                    <div className="p-4 rounded-full bg-green-100">
-                      <CheckCircle className="h-8 w-8 text-green-600" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-green-800">Subscription Active!</h3>
-                    <p className="text-green-600">Your {subscriptionTier} plan is now active. You can proceed to complete your profile setup.</p>
-                  </div>
-                  <Button onClick={handleNext} className="w-full">
-                    Continue to Service Setup
-                  </Button>
+                  <div className="flex justify-center"><div className="p-4 rounded-full bg-green-100"><CheckCircle className="h-8 w-8 text-green-600" /></div></div>
+                  <div><h3 className="text-xl font-semibold text-green-800">Subscription Active!</h3><p className="text-green-600">Your {subscriptionTier} plan is now active.</p></div>
+                  <Button onClick={handleComplete} className="w-full">Complete Setup</Button>
                 </div>
               ) : subscriptionCompleted && subscriptionVerifying ? (
                 <div className="text-center space-y-4">
-                  <div className="flex justify-center">
-                    <div className="p-4 rounded-full bg-blue-100">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-blue-800">Verifying Subscription...</h3>
-                    <p className="text-blue-600">Please wait while we verify your payment.</p>
-                  </div>
-                </div>
-              ) : subscriptionCompleted && !subscribed ? (
-                <div className="text-center space-y-4">
-                  <div className="flex justify-center">
-                    <div className="p-4 rounded-full bg-yellow-100">
-                      <Shield className="h-8 w-8 text-yellow-600" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-yellow-800">Payment Processing</h3>
-                    <p className="text-yellow-600">We're processing your payment. If you've completed payment, click below to verify.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Button onClick={handleVerifySubscription} className="w-full" disabled={subscriptionVerifying}>
-                      {subscriptionVerifying ? (
-                        <span className="flex items-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Verifying...
-                        </span>
-                      ) : (
-                        'Verify Payment'
-                      )}
-                    </Button>
-                    <Button variant="outline" onClick={() => setSubscriptionCompleted(false)} className="w-full">
-                      Select Different Plan
-                    </Button>
-                  </div>
+                  <div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                  <div><h3 className="text-xl font-semibold text-blue-800">Verifying Subscription...</h3></div>
                 </div>
               ) : (
-                <SubscriptionSelection
-                  onSubscriptionSelected={handleSubscriptionSelected}
-                  onBack={handleBack}
-                  loading={loading}
-                />
+                <SubscriptionSelection onSubscriptionSelected={handleSubscriptionSelected} onBack={handleBack} loading={loading} />
               )}
             </div>
           )}
+            </motion.div>
+          </AnimatePresence>
 
-          {step === 6 && effectiveRole !== 'client' && (
-            <LocationSetup
-              onComplete={(locationData) => {
-                setFormData({
-                  ...formData,
-                  location: locationData.address,
-                  latitude: locationData.latitude,
-                  longitude: locationData.longitude,
-                  service_radius_km: locationData.serviceRadius
-                });
-                handleNext();
-              }}
-              initialData={{
-                address: formData.location,
-                latitude: formData.latitude,
-                longitude: formData.longitude,
-                serviceRadius: formData.service_radius_km
-              }}
-            />
-          )}
-
-          {step === 5 && effectiveRole !== 'client' && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Services Offered (select all that apply)</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Massage', value: 'massage' },
-                    { label: 'Cupping Therapy', value: 'cupping' },
-                    { label: 'Acupuncture', value: 'acupuncture' },
-                    { label: 'Manipulations', value: 'manipulations' },
-                    { label: 'Mobilisation', value: 'mobilisation' },
-                    { label: 'Stretching', value: 'stretching' }
-                  ].map((svc) => (
-                    <div key={svc.value} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`svc_${svc.value}`}
-                        checked={formData.services_offered.includes(svc.value)}
-                        onCheckedChange={(checked) => {
-                          const current = formData.services_offered;
-                          setFormData({
-                            ...formData,
-                            services_offered: checked
-                              ? [...current, svc.value]
-                              : current.filter((v) => v !== svc.value),
-                          });
-                        }}
-                      />
-                      <Label htmlFor={`svc_${svc.value}`} className="text-sm">{svc.label}</Label>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Use your bio and pricing to detail specific modalities (e.g., deep tissue, sports massage).
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 text-primary mb-4">
-                <Award className="h-5 w-5" />
-                <span className="font-medium">Service Setup & Final Details</span>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRate">Hourly Rate (£) *</Label>
-                <Input
-                  id="hourlyRate"
-                  type="number"
-                  placeholder="e.g., 60"
-                  value={formData.hourly_rate}
-                  onChange={(e) => setFormData({...formData, hourly_rate: e.target.value})}
-                  min="20"
-                  max="200"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will be displayed on your profile and can be changed later
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="treatmentPhilosophy">Treatment Philosophy</Label>
-                <Textarea
-                  id="treatmentPhilosophy"
-                  placeholder="Describe your approach to treatment and client care..."
-                  value={formData.treatment_philosophy}
-                  onChange={(e) => setFormData({...formData, treatment_philosophy: e.target.value})}
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Help clients understand your treatment methodology and approach
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="responseTime">Response Time (hours)</Label>
-                <Select onValueChange={(value) => setFormData({...formData, response_time_hours: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="How quickly do you respond to messages?" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="1">Within 1 hour</SelectItem>
-                    <SelectItem value="2">Within 2 hours</SelectItem>
-                    <SelectItem value="4">Within 4 hours</SelectItem>
-                    <SelectItem value="8">Within 8 hours</SelectItem>
-                    <SelectItem value="24">Within 24 hours</SelectItem>
-                    <SelectItem value="48">Within 48 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  This helps set client expectations for communication
-                </p>
-              </div>
-
-
-              <div className="space-y-3 pt-4">
-                <div className="flex space-x-2">
-                  <Button variant="outline" onClick={handleBack} className="flex-1">
-                    Back
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      Analytics.trackEvent('onboarding_services_selected', { services: formData.services_offered });
-                      handleNext();
-                    }} 
-                    className="flex-1"
-                    disabled={loading || !subscribed || !formData.hourly_rate || !formData.professional_body || !formData.registration_number || !formData.qualification_type || (formData.qualification_type !== 'none' && (!formData.qualification_file || !formData.qualification_expiry)) || (formData.professional_body === 'other' && !formData.professional_body_other)}
-                  >
-                    {loading ? (
-                      <span className="flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Processing...
-                      </span>
-                    ) : !subscribed ? (
-                      'Complete Subscription First'
-                    ) : (
-                      'Complete Setup'
-                    )}
-                  </Button>
-                </div>
-                
-                {/* Sign Out Option */}
-                <div className="text-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-
-          {/* Navigation for non-final steps */}
-          {((step <= totalSteps && (effectiveRole === 'client' || effectiveRole === null)) || 
-            (step < 3 && effectiveRole !== 'client' && effectiveRole !== null) ||
-            (step === 3 && effectiveRole !== 'client' && effectiveRole !== null && !subscribed && !subscriptionCompleted) ||
-            (step === 5 && effectiveRole !== 'client' && effectiveRole !== null && subscribed)) && (
+          {/* Navigation - General */}
+          {((effectiveRole === 'client' || effectiveRole === null) || (effectiveRole !== 'client' && step < 5 && step !== PRACTITIONER_STEPS.STRIPE_CONNECT)) && (
             <div className="space-y-3 pt-4">
               <div className="flex space-x-2">
-                {step > 1 && (
-                  <Button variant="outline" onClick={handleBack} className="flex-1">
-                    Back
-                  </Button>
-                )}
-                <Button onClick={handleNext} className="flex-1" disabled={loading}>
-                  {loading ? (
-                    <span className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Processing...
-                    </span>
-                  ) : (
-                    step === totalSteps ? 'Complete Setup' : 'Continue'
-                  )}
-                </Button>
-              </div>
-              
-              {/* Sign Out Option */}
-              <div className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
+                {step > 0 && <Button variant="outline" onClick={handleBack} className="flex-1">Back</Button>}
+                <Button onClick={handleNext} className="flex-1" disabled={loading || stepProcessing}>
+                  {(loading || stepProcessing) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      {stepProcessing ? 'Verifying...' : 'Processing...'}
+                    </>
+                  ) : ((effectiveRole === 'client' || effectiveRole === null) ? step === 1 : step === totalSteps) ? 'Complete Setup' : 'Continue'}
                 </Button>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 };

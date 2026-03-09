@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { usePlan } from '@/contexts/PlanContext';
 
 interface AnalyticsData {
   totalSessions: number;
@@ -48,6 +49,7 @@ const AnalyticsDashboard = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
+  const { isPro, loading: planLoading } = usePlan();
 
   useEffect(() => {
     if (userProfile) {
@@ -172,7 +174,7 @@ const AnalyticsDashboard = () => {
     }
   };
 
-  if (loading) {
+  if (loading || planLoading) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-center h-64">
@@ -181,6 +183,21 @@ const AnalyticsDashboard = () => {
             <p className="text-muted-foreground">Loading analytics...</p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!isPro) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="text-center py-12 space-y-2">
+            <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+            <h3 className="text-lg font-semibold">Pro plan required</h3>
+            <p className="text-muted-foreground">Advanced analytics are available on the Pro plan.</p>
+            <Button onClick={() => (window.location.href = '/pricing')}>View plans</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

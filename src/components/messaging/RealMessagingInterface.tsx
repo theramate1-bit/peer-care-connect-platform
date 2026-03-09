@@ -121,7 +121,7 @@ export const RealMessagingInterface = () => {
   return (
     <div className="flex h-[calc(100vh-200px)] bg-background border rounded-lg overflow-hidden">
       {/* Conversations Sidebar */}
-      <div className="w-1/3 border-r bg-muted/20">
+      <div className={`${selectedConversation ? 'hidden lg:flex' : 'flex'} w-full lg:w-1/3 border-r bg-muted/20 flex-col`}>
         <div className="p-4 border-b">
           <div className="flex items-center gap-2 mb-4">
             <Search className="h-4 w-4 text-muted-foreground" />
@@ -191,11 +191,11 @@ export const RealMessagingInterface = () => {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 flex flex-col">
+      <div className={`${!selectedConversation ? 'hidden lg:flex' : 'flex'} flex-1 flex flex-col`}>
         {selectedConversation ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b bg-muted/20">
+            <div className="p-3 sm:p-4 border-b bg-muted/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Button
@@ -242,7 +242,7 @@ export const RealMessagingInterface = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
               {messages.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
                   No messages yet. Start the conversation!
@@ -251,22 +251,22 @@ export const RealMessagingInterface = () => {
                 messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'} px-2 sm:px-0`}
                   >
                     <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      className={`max-w-[85%] sm:max-w-xs md:max-w-sm lg:max-w-md px-3 sm:px-4 py-2 rounded-lg break-words ${
                         message.sender_id === user?.id
-                          ? 'bg-primary text-primary-foreground'
+                          ? 'bg-white text-gray-900 border border-gray-200'
                           : 'bg-muted'
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
-                      <p className={`text-xs mt-1 ${
+                      <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                      <p className={`text-xs mt-1.5 ${
                         message.sender_id === user?.id
-                          ? 'text-primary-foreground/70'
+                          ? 'text-gray-500'
                           : 'text-muted-foreground'
                       }`}>
-                        {new Date(message.created_at).toLocaleTimeString()}
+                        {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
@@ -276,25 +276,25 @@ export const RealMessagingInterface = () => {
             </div>
 
             {/* Message Input */}
-            <div className="p-4 border-t bg-muted/20">
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm">
+            <div className="p-2 sm:p-4 border-t bg-muted/20">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Button variant="ghost" size="sm" className="hidden sm:flex">
                   <Paperclip className="h-4 w-4" />
                 </Button>
                 
-                <div className="flex-1 relative">
+                <div className="flex-1 relative min-w-0">
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Type a message..."
                     disabled={sending}
-                    className="pr-12"
+                    className="pr-10 sm:pr-12 text-sm sm:text-base"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 hidden sm:flex"
                   >
                     <Smile className="h-4 w-4" />
                   </Button>
@@ -304,6 +304,7 @@ export const RealMessagingInterface = () => {
                   onClick={sendMessage}
                   disabled={!newMessage.trim() || sending}
                   size="sm"
+                  className="flex-shrink-0"
                 >
                   <Send className="h-4 w-4" />
                 </Button>

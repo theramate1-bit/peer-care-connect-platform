@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Calendar, 
   Clock, 
-  User, 
+  User as UserIcon, 
   MapPin, 
   Phone, 
   CheckCircle,
@@ -17,7 +18,9 @@ import {
   MessageSquare,
   FileText,
   Timer,
-  Bell
+  Bell,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +29,13 @@ import { useRealtimeSubscription } from '@/hooks/use-realtime';
 import { SessionCheckIn } from '@/components/session/SessionCheckIn';
 import { SessionReminderSystem } from '@/components/session/SessionReminderSystem';
 import { ClientProgressTracker } from '@/components/session/ClientProgressTracker';
+import { resolveClientIdFromSession } from '@/lib/client-id-resolver';
+import { getFriendlyDateLabel } from '@/lib/date';
+import { BookingFlow } from '@/components/marketplace/BookingFlow';
+import { RebookingService } from '@/lib/rebooking-service';
+import { RescheduleBooking } from '@/components/booking/RescheduleBooking';
+import { RescheduleService } from '@/lib/reschedule-service';
+import { HEPViewer } from '@/components/client/HEPViewer';
 
 interface Session {
   id: string;
@@ -55,8 +65,12 @@ interface SessionStats {
 
 export const ClientSessionDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  // State for resolving client ID in Progress tab
+  const [resolvedProgressClientId, setResolvedProgressClientId] = useState<string | null>(null);
+  const [resolvingProgressClientId, setResolvingProgressClientId] = useState(false);
   const [sessionStats, setSessionStats] = useState<SessionStats>({
     totalSessions: 0,
     upcomingSessions: 0,
@@ -65,6 +79,13 @@ export const ClientSessionDashboard: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showRebookingModal, setShowRebookingModal] = useState(false);
+  const [selectedPractitioner, setSelectedPractitioner] = useState<any>(null);
+  const [rebookingPayload, setRebookingPayload] = useState<any>(null);
+  const [rebookingLoading, setRebookingLoading] = useState<string | null>(null);
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [sessionToReschedule, setSessionToReschedule] = useState<Session | null>(null);
+  const [practitionerForReschedule, setPractitionerForReschedule] = useState<any>(null);
 
   // Real-time subscription for sessions
   const { data: realtimeSessions } = useRealtimeSubscription(
@@ -99,6 +120,24 @@ export const ClientSessionDashboard: React.FC = () => {
       fetchSessions();
     }
   }, [user]);
+
+  // Resolve client ID for Progress tab when selectedSession changes
+  useEffect(() => {
+    const resolveProgressClientId = async () => {
+      if (!selectedSession) {
+        setResolvedProgressClientId(null);
+        setResolvingProgressClientId(false);
+        return;
+      }
+
+      setResolvingProgressClientId(true);
+      // For client view, we should have valid client_id, but handle null case
+      const clientId = await resolveClientIdFromSession(selectedSession);
+      setResolvedProgressClientId(clientId || user?.id || null);
+      setResolvingProgressClientId(false);
+    };
+    resolveProgressClientId();
+  }, [selectedSession?.id, selectedSession?.client_id, selectedSession?.client_email, user?.id]);
 
   const fetchSessions = async () => {
     try {
@@ -167,30 +206,17 @@ export const ClientSessionDashboard: React.FC = () => {
   };
 
   const formatTime = (timeString: string) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString([], { 
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = timeString.includes(':') && timeString.split(':').length === 3
+      ? timeString.substring(0, 5)
+      : timeString;
+    return new Date(`2000-01-01T${timeWithoutSeconds}`).toLocaleTimeString([], { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
-    } else {
-      return date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-      });
-    }
-  };
+  const formatDate = (dateString: string) => getFriendlyDateLabel(dateString);
 
   const getUpcomingSessions = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -199,6 +225,66 @@ export const ClientSessionDashboard: React.FC = () => {
 
   const getRecentSessions = () => {
     return sessions.filter(s => s.status === 'completed').slice(0, 5);
+  };
+
+  const handleBookAgain = async (session: Session) => {
+    if (!user) {
+      toast.error('Please sign in to rebook');
+      return;
+    }
+
+    try {
+      setRebookingLoading(session.id);
+
+      // Fetch practitioner details
+      const { data: practitionerData, error: practitionerError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.therapist_id)
+        .single();
+
+      if (practitionerError || !practitionerData) {
+        throw new Error('Practitioner not found');
+      }
+
+      // Get rebooking data
+      const payload = await RebookingService.prepareRebookingPayload(session.id);
+
+      if (!payload.rebookingData) {
+        toast.error('Unable to load booking details. Please try again.');
+        return;
+      }
+
+      // Check if no slots available
+      if (!payload.nextSlot) {
+        toast.warning('No available slots found within the next 30 days. Please contact the practitioner directly or try booking manually.');
+        return;
+      }
+
+      // Fetch products for booking-flow routing (clinic vs mobile)
+      const { data: productsData } = await supabase
+        .from('practitioner_products')
+        .select('id, name, description, price_amount, currency, duration_minutes, service_type, is_active, stripe_price_id')
+        .eq('practitioner_id', session.therapist_id)
+        .eq('is_active', true);
+
+      const practitioner = {
+        ...practitionerData,
+        user_id: practitionerData.id,
+        average_rating: 0,
+        total_sessions: 0,
+        products: productsData ?? []
+      };
+
+      setSelectedPractitioner(practitioner);
+      setRebookingPayload(payload);
+      setShowRebookingModal(true);
+    } catch (error) {
+      console.error('Error preparing rebooking:', error);
+      toast.error('Failed to prepare rebooking. Please try again.');
+    } finally {
+      setRebookingLoading(null);
+    }
   };
 
   if (loading) {
@@ -275,11 +361,15 @@ export const ClientSessionDashboard: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="progress">Progress</TabsTrigger>
+          <TabsTrigger value="exercises">
+            <Activity className="h-4 w-4 mr-2" />
+            Exercises
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -305,7 +395,7 @@ export const ClientSessionDashboard: React.FC = () => {
                     {getUpcomingSessions().slice(0, 3).map((session) => (
                       <div
                         key={session.id}
-                        className="border rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                        className="border rounded-lg p-4 cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                         onClick={() => setSelectedSession(session)}
                       >
                         <div className="flex items-center justify-between">
@@ -352,7 +442,7 @@ export const ClientSessionDashboard: React.FC = () => {
                     {getRecentSessions().map((session) => (
                       <div
                         key={session.id}
-                        className="border rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                        className="border rounded-lg p-4 cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                         onClick={() => setSelectedSession(session)}
                       >
                         <div className="flex items-center justify-between">
@@ -413,7 +503,7 @@ export const ClientSessionDashboard: React.FC = () => {
                   {getUpcomingSessions().map((session) => (
                     <div
                       key={session.id}
-                      className="border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow"
+                      className="border rounded-lg p-6 cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                       onClick={() => setSelectedSession(session)}
                     >
                       <div className="flex items-start justify-between">
@@ -428,7 +518,7 @@ export const ClientSessionDashboard: React.FC = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
+                                <UserIcon className="h-4 w-4" />
                                 <span>{session.therapist_name}</span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -459,6 +549,51 @@ export const ClientSessionDashboard: React.FC = () => {
                               </div>
                             </div>
                           </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                // Fetch practitioner data for reschedule
+                                const { data: practitionerData, error } = await supabase
+                                  .from('users')
+                                  .select('*')
+                                  .eq('id', session.therapist_id)
+                                  .single();
+                                
+                                if (error || !practitionerData) {
+                                  toast.error('Unable to load practitioner information');
+                                  return;
+                                }
+                                
+                                const practitioner = {
+                                  ...practitionerData,
+                                  user_id: practitionerData.id,
+                                  average_rating: 0,
+                                  total_sessions: 0
+                                };
+                                
+                                setPractitionerForReschedule(practitioner);
+                                setSessionToReschedule(session);
+                                setRescheduleDialogOpen(true);
+                              }}
+                            >
+                              Reschedule
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Navigate to messages with therapist
+                                window.location.href = `/messages?practitioner=${session.therapist_id}`;
+                              }}
+                            >
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Message
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -487,7 +622,7 @@ export const ClientSessionDashboard: React.FC = () => {
                   {sessions.map((session) => (
                     <div
                       key={session.id}
-                      className="border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow"
+                      className="border rounded-lg p-6 cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
                       onClick={() => setSelectedSession(session)}
                     >
                       <div className="flex items-start justify-between">
@@ -502,7 +637,7 @@ export const ClientSessionDashboard: React.FC = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
+                                <UserIcon className="h-4 w-4" />
                                 <span>{session.therapist_name}</span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -527,6 +662,21 @@ export const ClientSessionDashboard: React.FC = () => {
                               )}
                             </div>
                           </div>
+                          {session.status === 'completed' && (
+                            <div className="mt-4 pt-4 border-t">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleBookAgain(session);
+                                }}
+                                disabled={rebookingLoading === session.id}
+                              >
+                                {rebookingLoading === session.id ? 'Loading...' : 'Book Again'}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -539,13 +689,7 @@ export const ClientSessionDashboard: React.FC = () => {
 
         {/* Progress Tab */}
         <TabsContent value="progress">
-          {selectedSession ? (
-            <ClientProgressTracker
-              clientId={selectedSession.client_id}
-              clientName={selectedSession.client_name}
-              sessionId={selectedSession.id}
-            />
-          ) : (
+          {!selectedSession ? (
             <Card>
               <CardContent className="p-8">
                 <div className="text-center text-muted-foreground">
@@ -555,7 +699,38 @@ export const ClientSessionDashboard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+          ) : resolvingProgressClientId ? (
+            <Card>
+              <CardContent className="p-8">
+                <div className="text-center text-muted-foreground">
+                  <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin" />
+                  <p>Loading progress...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : !resolvedProgressClientId ? (
+            <Card>
+              <CardContent className="p-8">
+                <div className="text-center text-muted-foreground">
+                  <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
+                  <p className="text-lg font-medium">Unable to load progress</p>
+                  <p className="text-sm">Could not resolve client ID for this session</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <ClientProgressTracker
+              clientId={resolvedProgressClientId}
+              clientName={selectedSession.client_name}
+              sessionId={selectedSession.id}
+              readOnly={true}
+            />
           )}
+        </TabsContent>
+
+        {/* Exercises Tab */}
+        <TabsContent value="exercises">
+          <HEPViewer />
         </TabsContent>
       </Tabs>
 
@@ -586,6 +761,60 @@ export const ClientSessionDashboard: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Rebooking Modal */}
+      {showRebookingModal && selectedPractitioner && (
+        <BookingFlow
+          open={showRebookingModal}
+          onOpenChange={(open) => {
+            setShowRebookingModal(open);
+            if (!open) {
+              setSelectedPractitioner(null);
+              setRebookingPayload(null);
+            }
+          }}
+          practitioner={selectedPractitioner}
+          initialRebookingData={rebookingPayload}
+          onRedirectToMobile={() => {
+            setShowRebookingModal(false);
+            setSelectedPractitioner(null);
+            setRebookingPayload(null);
+            navigate(`/client/booking?practitioner=${selectedPractitioner.user_id}&mode=mobile`);
+          }}
+        />
+      )}
+
+      {/* Reschedule Dialog */}
+      {sessionToReschedule && practitionerForReschedule && (
+        <RescheduleBooking
+          booking={{
+            id: sessionToReschedule.id,
+            session_date: sessionToReschedule.session_date,
+            start_time: sessionToReschedule.start_time,
+            duration_minutes: sessionToReschedule.duration_minutes,
+            session_type: sessionToReschedule.session_type,
+            therapist_id: sessionToReschedule.therapist_id,
+            therapist_name: sessionToReschedule.therapist_name,
+            price: sessionToReschedule.price
+          }}
+          practitioner={practitionerForReschedule}
+          open={rescheduleDialogOpen}
+          onClose={() => {
+            setRescheduleDialogOpen(false);
+            setSessionToReschedule(null);
+            setPractitionerForReschedule(null);
+          }}
+          onSuccess={() => {
+            fetchSessions();
+            setRescheduleDialogOpen(false);
+            setSessionToReschedule(null);
+            setPractitionerForReschedule(null);
+          }}
+        />
+      )}
     </div>
   );
 };
+
+
+

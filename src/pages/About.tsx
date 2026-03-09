@@ -21,75 +21,13 @@ import {
   GraduationCap,
   Building2,
   Target,
-  Lightbulb,
-  Globe,
   Zap
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import StandardPage from "@/components/layouts/StandardPage";
 import theramatemascot from "@/assets/theramatemascot.png";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 const About = () => {
-  const [stats, setStats] = useState({
-    totalValue: 0,
-    verifiedPractitioners: 0,
-    successfulSessions: 0,
-    averageRating: 0
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
-    try {
-      // Fetch total value exchanged from payments
-      const { data: payments } = await supabase
-        .from('payments')
-        .select('amount')
-        .eq('payment_status', 'completed');
-
-      // Fetch verified practitioners
-      const { data: practitioners } = await supabase
-        .from('users')
-        .select('id')
-        .in('user_role', ['sports_therapist', 'massage_therapist', 'osteopath'])
-        .eq('is_active', true);
-
-      // Fetch successful sessions
-      const { data: sessions } = await supabase
-        .from('client_sessions')
-        .select('id')
-        .eq('status', 'completed');
-
-      // Fetch average rating from reviews
-      const { data: reviews } = await supabase
-        .from('reviews')
-        .select('overall_rating')
-        .eq('review_status', 'published');
-
-      const totalValue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-      const verifiedPractitioners = practitioners?.length || 0;
-      const successfulSessions = sessions?.length || 0;
-      const averageRating = reviews?.length 
-        ? reviews.reduce((sum, r) => sum + r.overall_rating, 0) / reviews.length 
-        : 0;
-
-      setStats({
-        totalValue: totalValue / 100, // Convert from pence to pounds
-        verifiedPractitioners,
-        successfulSessions,
-        averageRating
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <>
@@ -219,11 +157,6 @@ const About = () => {
                 <p className="text-sm text-muted-foreground">Welcoming all qualified healthcare professionals</p>
               </Card>
               <Card className="text-center p-6">
-                <GraduationCap className="h-8 w-8 text-green-500 mx-auto mb-3" />
-                <h3 className="font-semibold mb-2">Continuous Learning</h3>
-                <p className="text-sm text-muted-foreground">Community-driven development</p>
-              </Card>
-              <Card className="text-center p-6">
                 <Building2 className="h-8 w-8 text-purple-500 mx-auto mb-3" />
                 <h3 className="font-semibold mb-2">Practice Support</h3>
                 <p className="text-sm text-muted-foreground">Tools for successful practice management</p>
@@ -247,7 +180,7 @@ const About = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Professional Exchange */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="transition-[border-color,background-color] duration-200 ease-out">
               <CardHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <Users className="h-6 w-6 text-primary" />
@@ -268,7 +201,7 @@ const About = () => {
             </Card>
 
             {/* Client Marketplace */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="transition-[border-color,background-color] duration-200 ease-out">
               <CardHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <Stethoscope className="h-6 w-6 text-primary" />
@@ -289,7 +222,7 @@ const About = () => {
             </Card>
 
             {/* Practice Management */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="transition-[border-color,background-color] duration-200 ease-out">
               <CardHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <Calendar className="h-6 w-6 text-primary" />
@@ -309,30 +242,8 @@ const About = () => {
               </CardContent>
             </Card>
 
-            {/* Professional Development */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <GraduationCap className="h-6 w-6 text-primary" />
-                  <CardTitle>Professional Development</CardTitle>
-                </div>
-                <CardDescription>
-                  Simple professional development information and resources
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm">
-                  <li>• External provider links</li>
-                  <li>• Simple requirements info</li>
-                  <li>• Professional body guidance</li>
-                  <li>• No complex tracking needed</li>
-                  <li>• 1-2 sessions per year</li>
-                </ul>
-              </CardContent>
-            </Card>
-
             {/* Secure Communication */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="transition-[border-color,background-color] duration-200 ease-out">
               <CardHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <MessageCircle className="h-6 w-6 text-primary" />
@@ -353,7 +264,7 @@ const About = () => {
             </Card>
 
             {/* Analytics & Insights */}
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="transition-[border-color,background-color] duration-200 ease-out">
               <CardHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <TrendingUp className="h-6 w-6 text-primary" />
@@ -476,121 +387,6 @@ const About = () => {
         </div>
       </section>
 
-      {/* Values & Principles */}
-      <section className="py-20">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <Badge className="mb-4">Our Values</Badge>
-            <h2 className="text-3xl font-bold mb-6">Guiding Principles</h2>
-            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              These core values drive every decision we make and every feature we build.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="bg-primary/10 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Shield className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-2">Trust & Safety</h3>
-              <p className="text-sm text-muted-foreground">
-                Every practitioner is verified with professional licenses and background checks.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-primary/10 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Heart className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-2">Professional Care</h3>
-              <p className="text-sm text-muted-foreground">
-                Healthcare professionals deserve the same quality care they provide to others.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-primary/10 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Lightbulb className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-2">Innovation</h3>
-              <p className="text-sm text-muted-foreground">
-                We continuously evolve our platform to meet the changing needs of healthcare professionals.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-primary/10 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Globe className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-2">Accessibility</h3>
-              <p className="text-sm text-muted-foreground">
-                Making quality healthcare services accessible to both professionals and clients.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats & Achievements */}
-      <section className="py-20 bg-primary/5">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <Badge className="mb-4">Platform Impact</Badge>
-            <h2 className="text-3xl font-bold mb-6">Growing Community, Growing Impact</h2>
-            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              TheraMate is rapidly becoming the go-to platform for healthcare professional exchange and practice management.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary mb-2">
-                {loading ? '...' : `£${stats.totalValue.toFixed(0)}`}
-              </div>
-              <p className="text-sm text-muted-foreground">Value Exchanged</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary mb-2">
-                {loading ? '...' : stats.verifiedPractitioners}
-              </div>
-              <p className="text-sm text-muted-foreground">Verified Practitioners</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary mb-2">
-                {loading ? '...' : stats.successfulSessions}
-              </div>
-              <p className="text-sm text-muted-foreground">Successful Sessions</p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary mb-2">
-                {loading ? '...' : `${stats.averageRating.toFixed(1)}★`}
-              </div>
-              <p className="text-sm text-muted-foreground">Average Rating</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Call to Action */}
-      <section className="py-20">
-        <div className="container mx-auto px-6">
-          <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-12 text-center text-white">
-            <h2 className="text-3xl font-bold mb-4">Ready to Join Our Community?</h2>
-            <p className="text-xl mb-8 opacity-90">
-              Whether you're a healthcare professional looking to exchange services or a client 
-              seeking quality care, TheraMate has something for you.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" variant="secondary">
-                <Link to="/register">Get Started Today</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="border-white text-black hover:bg-white hover:text-primary">
-                <Link to="/contact">Contact Our Team</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
       </StandardPage>
     </>
   );

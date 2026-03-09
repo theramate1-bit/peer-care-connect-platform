@@ -1,15 +1,19 @@
-import { Header } from "@/components/Header";
-import { HeroSection } from "@/components/HeroSection";
-import { UserTypesSection } from "@/components/UserTypesSection";
-import { ProductShowcase } from "@/components/ui/ProductShowcase";
-import { TestimonialsSection } from "@/components/ui/TestimonialsSection";
-import { Footer } from "@/components/Footer";
+import { FooterClean } from "@/components/FooterClean";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDashboardRoute } from "@/lib/dashboard-routing";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import MetaTags from "@/components/SEO/MetaTags";
+import {
+  HeroSectionClean,
+  ImpactSection,
+  ServicesSection,
+  HowItWorksSection,
+  TestimonialsSectionClean,
+  CTASection,
+  HeaderClean,
+} from "@/components/landing";
 
 const Index = () => {
   const { user, userProfile, loading } = useAuth();
@@ -69,13 +73,17 @@ const Index = () => {
           }
         }}
       />
-      <div className="min-h-screen bg-background">
-        <Header />
-        <HeroSection />
-        <ProductShowcase />
-        <UserTypesSection />
-        <TestimonialsSection />
-        <Footer />
+      <div className="min-h-screen bg-white dark:bg-slate-950">
+        <HeaderClean />
+        <main id="main-content">
+          <HeroSectionClean />
+          <ImpactSection />
+          <ServicesSection />
+          <HowItWorksSection />
+          <TestimonialsSectionClean />
+          <CTASection />
+        </main>
+        <FooterClean />
       </div>
     </>
   );

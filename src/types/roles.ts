@@ -1,5 +1,6 @@
 // Role-Based Access Control (RBAC) Definitions
-export type UserRole = 'client' | 'sports_therapist' | 'massage_therapist' | 'osteopath' | 'admin';
+// Note: user_role can be null during registration/role selection process
+export type UserRole = 'client' | 'sports_therapist' | 'massage_therapist' | 'osteopath' | 'admin' | null;
 
 export type Permission = 
   // Client permissions
@@ -89,18 +90,22 @@ export const ROLE_PERMISSIONS: RolePermissions = {
 };
 
 // Helper functions
+export const hasRole = (role: UserRole): role is Exclude<UserRole, null> => role !== null;
 export const isClient = (role: UserRole): boolean => role === 'client';
 export const isPractitioner = (role: UserRole): boolean => 
-  ['sports_therapist', 'massage_therapist', 'osteopath'].includes(role);
+  role !== null && ['sports_therapist', 'massage_therapist', 'osteopath'].includes(role);
 export const isAdmin = (role: UserRole): boolean => role === 'admin';
 
 export const hasPermission = (userRole: UserRole, permission: Permission): boolean => {
+  if (!userRole) return false; // Users without roles have no permissions
   const rolePermissions = ROLE_PERMISSIONS[userRole] || [];
   return rolePermissions.includes(permission);
 };
 
 export const getRoleDisplayName = (role: UserRole): string => {
-  const displayNames: Record<UserRole, string> = {
+  if (!role) return 'Role Not Selected';
+  
+  const displayNames: Record<Exclude<UserRole, null>, string> = {
     client: 'Client',
     sports_therapist: 'Sports Therapist',
     massage_therapist: 'Massage Therapist',

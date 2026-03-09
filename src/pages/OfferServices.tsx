@@ -69,7 +69,7 @@ const OfferServices = () => {
           id: index + 1,
           name: spec,
           duration: 60,
-          credits: Math.round(userProfile.hourly_rate || 50),
+          credits: 50, // Default credit value - can be customized per service
           active: true
         }));
         setServices(userServices);
@@ -269,15 +269,6 @@ const OfferServices = () => {
             </div>
             
             <div className="flex justify-end space-x-4">
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  // TODO: Implement save as template functionality
-                  toast.info('Save as template functionality coming soon!');
-                }}
-              >
-                Save as Template
-              </Button>
               <Button
                 onClick={() => {
                   // TODO: Implement update schedule functionality
@@ -309,7 +300,7 @@ const OfferServices = () => {
                         {booking.service} • {booking.date} at {booking.time}
                       </p>
                     </div>
-                    <Badge variant={booking.status === 'confirmed' ? 'default' : 'outline'}>
+                    <Badge variant={booking.status === 'scheduled' ? 'default' : 'outline'}>
                       {booking.status}
                     </Badge>
                   </div>

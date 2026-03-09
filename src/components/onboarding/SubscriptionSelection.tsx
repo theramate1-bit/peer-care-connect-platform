@@ -4,64 +4,62 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, Star, Zap, Crown, CreditCard, Shield, Users, BarChart3, Headphones } from 'lucide-react';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { PRACTITIONER_PLANS } from '@/config/pricing';
 
 interface SubscriptionPlan {
   id: string;
   name: string;
   price: number;
+  yearlyPrice: number; // Add yearly price
   originalPrice?: number;
   description: string;
   features: string[];
   popular?: boolean;
   icon: React.ReactNode;
   marketplaceFee: string;
-  stripePriceId: string;
+  monthlyStripePriceId: string; // Rename for clarity
+  yearlyStripePriceId: string; // Add yearly price ID
 }
 
 const subscriptionPlans: SubscriptionPlan[] = [
   {
     id: 'practitioner',
-    name: 'Professional Plan',
-    price: 79.99,
-    description: 'Advanced tools for established practitioners - 3% marketplace fee',
+    name: 'Starter',
+    price: 30,
+    yearlyPrice: 26.10, // 13% discount
+    description: 'Complete platform access for licensed healthcare professionals',
     features: [
       'Professional profile listing',
-      'Advanced booking calendar',
+      'Booking calendar',
       'Client management system',
-      'Credit-based exchange system',
-      'Marketing tools & analytics',
-      'Priority search placement',
-      'Video consultation support',
-      'Professional verification badge',
-      'Custom availability settings',
-      'Secure messaging platform'
+      'Secure messaging platform',
+      'Credit-based exchange system'
     ],
     icon: <Shield className="h-6 w-6" />,
-    marketplaceFee: '3%',
-    stripePriceId: 'price_1S7eAKFk77knaVvaWcHSypjx' // Professional Practitioner Plan
+    marketplaceFee: '0.5%',
+    monthlyStripePriceId: PRACTITIONER_PLANS.practitioner.monthly,
+    yearlyStripePriceId: PRACTITIONER_PLANS.practitioner.yearly || PRACTITIONER_PLANS.practitioner.monthly
   },
   {
-    id: 'clinic',
-    name: 'Premium Plan',
-    price: 199.99,
-    description: 'Complete suite for top practitioners - 1% marketplace fee',
+    id: 'pro',
+    name: 'Pro',
+    price: 50,
+    yearlyPrice: 43.50, // 13% discount
+    description: 'Enhanced features for growing practices',
     features: [
-      'Everything in Professional Plan',
-      'AI-powered SOAP notes recording',
-      'Voice-to-text transcription',
-      'Automated session documentation',
-      'Smart appointment scheduling',
+      'Everything in Starter plan',
       'Advanced analytics & insights',
-      'Client progress tracking',
-      'Custom treatment plans',
-      'Priority customer support',
-      'Advanced reporting tools'
+      'AI notes taker',
+      'Voice recorder for notes'
     ],
     popular: true,
     icon: <Star className="h-6 w-6" />,
-    marketplaceFee: '1%',
-    stripePriceId: 'price_1S7eANFk77knaVva8L3m7l2Y' // Premium Practitioner Plan
+    marketplaceFee: '0.5%',
+    monthlyStripePriceId: PRACTITIONER_PLANS.pro.monthly,
+    yearlyStripePriceId: PRACTITIONER_PLANS.pro.yearly || PRACTITIONER_PLANS.pro.monthly
   }
 ];
 
@@ -79,50 +77,95 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const { createCheckout } = useSubscription();
+  const { user, session } = useAuth();
 
   const handleSubscribe = async (plan: SubscriptionPlan) => {
     try {
       setSelectedPlan(plan.id);
       
-      // Get the correct price ID based on billing cycle
-      let priceId = plan.stripePriceId;
-      if (billingCycle === 'yearly') {
-        if (plan.id === 'practitioner') {
-          priceId = 'price_1S7eAKFk77knaVvaWcHSypjx'; // Use monthly price for yearly billing
-        } else if (plan.id === 'clinic') {
-          priceId = 'price_1S7eANFk77knaVva8L3m7l2Y'; // Use monthly price for yearly billing
-        }
+      // Debug: Check authentication state
+      console.log('🔵 SUBSCRIPTION SELECTION: Payment button clicked');
+      console.log('Plan:', plan.id);
+      console.log('Billing:', billingCycle);
+      console.log('User from useAuth:', user ? 'EXISTS' : 'NULL');
+      console.log('Session from useAuth:', session ? 'EXISTS' : 'NULL');
+      
+      // Critical: Check if user is authenticated before payment
+      if (!user || !session) {
+        console.error('❌ SUBSCRIPTION SELECTION: No user or session!');
+        toast.error('Your session has expired. Please refresh the page and try again.');
+        setSelectedPlan(null);
+        return;
       }
       
-      // Create Stripe checkout session
-      await createCheckout(plan.id, billingCycle);
+      console.log('✅ User and session verified in component');
       
-      // Only call the callback if checkout was successful (user will be redirected to Stripe)
-      // onSubscriptionSelected(plan.id); // This should only be called after successful payment
+      // CRITICAL: Check if user already has active subscription (SECURITY FIX)
+      console.log('🔍 Checking for existing subscriptions...');
+      const { data: existingSubscription, error: subError } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trialing'])
+        .maybeSingle();
+      
+      if (subError && subError.code !== 'PGRST116') {
+        console.error('❌ Error checking subscription:', subError);
+        toast.error('Could not verify subscription status. Please try again.');
+        setSelectedPlan(null);
+        return;
+      }
+      
+      if (existingSubscription) {
+        console.warn('⚠️ User already has active subscription:', existingSubscription);
+        toast.error(`You already have an active ${existingSubscription.plan} subscription. Please manage your existing subscription instead.`);
+        setSelectedPlan(null);
+        return;
+      }
+      
+      console.log('✅ No existing subscription found, proceeding with checkout');
+      
+      // Show loading toast
+      toast.info('Redirecting to secure payment...', {
+        duration: 3000
+      });
+      
+      // Create Stripe checkout session and redirect
+      // This will redirect the user to Stripe Checkout
+      // After payment, user will be redirected back to verify subscription
+      console.log('🔵 Calling createCheckout...');
+      await createCheckout(plan.id, billingCycle);
+      console.log('✅ createCheckout completed (or redirect happened)');
+      
+      // NOTE: Do NOT call onSubscriptionSelected here
+      // It will be called after successful payment verification
+      // when user returns from Stripe Checkout
       
     } catch (error) {
       console.error('Error creating subscription:', error);
-      toast.error('Failed to start subscription process');
+      
+      // Show specific error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Payment Error: ${errorMessage}. Please try again or contact support.`, {
+        duration: 5000
+      });
+      
+    } finally {
+      // Always reset loading state, whether success or error
       setSelectedPlan(null);
-      // Don't call onSubscriptionSelected on error
     }
   };
 
   const getPrice = (plan: SubscriptionPlan) => {
     if (billingCycle === 'yearly') {
-      // Calculate yearly price based on plan (matching Edge Function)
-      if (plan.id === 'practitioner') {
-        return 71.99; // £71.99/month when billed yearly
-      } else if (plan.id === 'clinic') {
-        return 179.99; // £179.99/month when billed yearly
-      }
+      return plan.yearlyPrice; // Use the yearly price from the plan
     }
     return plan.price;
   };
 
   const getBillingText = (plan: SubscriptionPlan) => {
     if (billingCycle === 'yearly') {
-      return `£${getPrice(plan)}/month (billed yearly)`;
+      return `£${getPrice(plan)}/month (billed yearly) - Save 13%`;
     }
     return `£${getPrice(plan)}/month`;
   };
@@ -152,22 +195,19 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
             onClick={() => setBillingCycle('yearly')}
           >
             Yearly
-            <Badge variant="secondary" className="ml-2 text-xs">
-              Save 20%
-            </Badge>
           </Button>
         </div>
       </div>
 
       {/* Subscription Plans */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
         {subscriptionPlans.map((plan) => (
           <Card 
             key={plan.id} 
-            className={`relative cursor-pointer transition-all duration-200 ${
+            className={`relative cursor-pointer transition-[border-color,background-color] duration-200 ease-out ${
               plan.popular 
                 ? 'ring-2 ring-primary shadow-lg scale-105' 
-                : 'hover:shadow-md'
+                : ''
             }`}
           >
             {plan.popular && (
@@ -216,15 +256,15 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
                 onClick={() => handleSubscribe(plan)}
                 disabled={loading || selectedPlan === plan.id}
               >
-                {loading && selectedPlan === plan.id ? (
+                {selectedPlan === plan.id ? (
                   <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                    Redirecting to Payment...
                   </div>
                 ) : (
                   <>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    Subscribe Now
+                    Continue to Payment
                   </>
                 )}
               </Button>
@@ -252,10 +292,6 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
         <Button variant="outline" onClick={onBack} className="flex-1">
           Back
         </Button>
-        <div className="flex-1 text-center text-sm text-muted-foreground flex items-center justify-center">
-          <Users className="h-4 w-4 mr-2" />
-          Join 500+ practitioners already on TheraMate
-        </div>
       </div>
     </div>
   );

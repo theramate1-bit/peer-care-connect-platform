@@ -12,7 +12,7 @@ import {
   Filter, 
   Calendar,
   Clock,
-  User,
+  User as UserIcon,
   Stethoscope,
   Play,
   Pause,
@@ -645,3 +645,6 @@ export const EnhancedSOAPNotesDashboard: React.FC<EnhancedSOAPNotesDashboardProp
 };
 
 export default EnhancedSOAPNotesDashboard;
+
+
+

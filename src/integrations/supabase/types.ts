@@ -20,6 +20,7 @@ export type Database = {
           client_id: string | null
           client_name: string
           client_phone: string | null
+          client_attended: boolean | null
           created_at: string | null
           credit_cost: number | null
           duration_minutes: number
@@ -41,12 +42,18 @@ export type Database = {
           stripe_payment_intent_id: string | null
           therapist_id: string | null
           updated_at: string | null
+          product_price: number | null
+          currency: string | null
+          pre_assessment_required: boolean | null
+          pre_assessment_completed: boolean | null
+          pre_assessment_form_id: string | null
         }
         Insert: {
           client_email?: string | null
           client_id?: string | null
           client_name: string
           client_phone?: string | null
+          client_attended?: boolean | null
           created_at?: string | null
           credit_cost?: number | null
           duration_minutes: number
@@ -68,12 +75,18 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           therapist_id?: string | null
           updated_at?: string | null
+          product_price?: number | null
+          currency?: string | null
+          pre_assessment_required?: boolean | null
+          pre_assessment_completed?: boolean | null
+          pre_assessment_form_id?: string | null
         }
         Update: {
           client_email?: string | null
           client_id?: string | null
           client_name?: string
           client_phone?: string | null
+          client_attended?: boolean | null
           created_at?: string | null
           credit_cost?: number | null
           duration_minutes?: number
@@ -95,6 +108,11 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           therapist_id?: string | null
           updated_at?: string | null
+          product_price?: number | null
+          currency?: string | null
+          pre_assessment_required?: boolean | null
+          pre_assessment_completed?: boolean | null
+          pre_assessment_form_id?: string | null
         }
         Relationships: [
           {
@@ -109,6 +127,176 @@ export type Database = {
             columns: ["therapist_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sessions_pre_assessment_form_id_fkey"
+            columns: ["pre_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "pre_assessment_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pre_assessment_forms: {
+        Row: {
+          id: string
+          session_id: string
+          client_id: string | null
+          client_email: string
+          client_name: string
+          name: string | null
+          date_of_birth: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          gp_name: string | null
+          gp_address: string | null
+          current_medical_conditions: string | null
+          past_medical_history: string | null
+          area_of_body: string | null
+          time_scale: string | null
+          how_issue_began: string | null
+          activities_affected: string | null
+          body_map_markers: Json | null
+          is_guest_booking: boolean | null
+          is_initial_session: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          client_id?: string | null
+          client_email: string
+          client_name: string
+          name?: string | null
+          date_of_birth?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          gp_name?: string | null
+          gp_address?: string | null
+          current_medical_conditions?: string | null
+          past_medical_history?: string | null
+          area_of_body?: string | null
+          time_scale?: string | null
+          how_issue_began?: string | null
+          activities_affected?: string | null
+          body_map_markers?: Json | null
+          is_guest_booking?: boolean | null
+          is_initial_session?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          client_id?: string | null
+          client_email?: string
+          client_name?: string
+          name?: string | null
+          date_of_birth?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          gp_name?: string | null
+          gp_address?: string | null
+          current_medical_conditions?: string | null
+          past_medical_history?: string | null
+          area_of_body?: string | null
+          time_scale?: string | null
+          how_issue_began?: string | null
+          activities_affected?: string | null
+          body_map_markers?: Json | null
+          is_guest_booking?: boolean | null
+          is_initial_session?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_assessment_forms_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "client_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pre_assessment_forms_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_intents: {
+        Row: {
+          amount: number
+          client_id: string | null
+          client_secret: string | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          idempotency_key: string | null
+          metadata: Json | null
+          practitioner_id: string | null
+          session_id: string | null
+          status: string | null
+          stripe_payment_intent_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id: string
+          idempotency_key?: string | null
+          metadata?: Json | null
+          practitioner_id?: string | null
+          session_id?: string | null
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json | null
+          practitioner_id?: string | null
+          session_id?: string | null
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_practitioner_id_fkey"
+            columns: ["practitioner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "client_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -127,11 +315,13 @@ export type Database = {
           is_verified: boolean | null
           last_login_at: string | null
           last_name: string
+          liability_insured: boolean | null
+          treatment_exchange_opt_in: boolean | null
           location: string | null
           oauth_completed: boolean | null
           onboarding_status:
-            | Database["public"]["Enums"]["onboarding_status"]
-            | null
+          | Database["public"]["Enums"]["onboarding_status"]
+          | null
           phone: string | null
           preferences: Json | null
           professional_body: string | null
@@ -155,11 +345,13 @@ export type Database = {
           is_verified?: boolean | null
           last_login_at?: string | null
           last_name: string
+          liability_insured?: boolean | null
+          treatment_exchange_opt_in?: boolean | null
           location?: string | null
           oauth_completed?: boolean | null
           onboarding_status?:
-            | Database["public"]["Enums"]["onboarding_status"]
-            | null
+          | Database["public"]["Enums"]["onboarding_status"]
+          | null
           phone?: string | null
           preferences?: Json | null
           professional_body?: string | null
@@ -183,11 +375,13 @@ export type Database = {
           is_verified?: boolean | null
           last_login_at?: string | null
           last_name?: string
+          liability_insured?: boolean | null
+          treatment_exchange_opt_in?: boolean | null
           location?: string | null
           oauth_completed?: boolean | null
           onboarding_status?:
-            | Database["public"]["Enums"]["onboarding_status"]
-            | null
+          | Database["public"]["Enums"]["onboarding_status"]
+          | null
           phone?: string | null
           preferences?: Json | null
           professional_body?: string | null
@@ -401,14 +595,14 @@ export type Database = {
           profile_photo_url: string | null
           response_time_hours: number | null
           specializations:
-            | Database["public"]["Enums"]["therapist_specialization"][]
-            | null
+          | Database["public"]["Enums"]["therapist_specialization"][]
+          | null
           total_reviews: number | null
           treatment_philosophy: string | null
           user_id: string | null
           verification_status:
-            | Database["public"]["Enums"]["verification_status"]
-            | null
+          | Database["public"]["Enums"]["verification_status"]
+          | null
         }
         Relationships: [
           {
@@ -426,31 +620,40 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      get_practitioner_connect_account: {
+        Args: {
+          practitioner_user_id: string
+        }
+        Returns: {
+          stripe_account_id: string | null
+          account_status: string | null
+        }[]
+      }
     }
     Enums: {
       onboarding_status: "pending" | "in_progress" | "completed"
-      session_status: "scheduled" | "completed" | "cancelled" | "no_show"
+      session_status: "scheduled" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show"
       user_role:
-        | "sports_therapist"
-        | "massage_therapist"
-        | "osteopath"
-        | "client"
-        | "admin"
+      | "sports_therapist"
+      | "massage_therapist"
+      | "osteopath"
+      | "client"
+      | "admin"
       professional_body:
-        | "society_of_sports_therapists"
-        | "british_association_of_sports_therapists"
-        | "chartered_society_of_physiotherapy"
-        | "british_osteopathic_association"
-        | "other"
+      | "society_of_sports_therapists"
+      | "british_association_of_sports_therapists"
+      | "chartered_society_of_physiotherapy"
+      | "british_osteopathic_association"
+      | "other"
       therapist_specialization:
-        | "sports_injury"
-        | "rehabilitation"
-        | "massage_therapy"
-        | "strength_training"
-        | "injury_prevention"
-        | "sports_massage"
-        | "physiotherapy"
-        | "osteopathy"
+      | "sports_injury"
+      | "rehabilitation"
+      | "massage_therapy"
+      | "strength_training"
+      | "injury_prevention"
+      | "sports_massage"
+      | "physiotherapy"
+      | "osteopathy"
       verification_status: "pending" | "verified" | "rejected" | "under_review"
     }
     CompositeTypes: {
@@ -465,116 +668,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {

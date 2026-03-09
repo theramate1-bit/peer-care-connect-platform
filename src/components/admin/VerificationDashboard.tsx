@@ -12,7 +12,7 @@ import {
   Clock, 
   AlertCircle, 
   Eye, 
-  User, 
+  User as UserIcon, 
   Star,
   Calendar,
   MapPin,
@@ -152,7 +152,7 @@ const VerificationDashboard = () => {
   };
 
   const renderProfileCard = (profile: TherapistProfile) => (
-    <Card key={profile.id} className="hover:shadow-md transition-shadow">
+    <Card key={profile.id} className="transition-[border-color,background-color] duration-200 ease-out">
       <CardContent className="pt-4">
         <div className="flex items-start space-x-4">
           <Avatar className="h-16 w-16">
@@ -448,3 +448,6 @@ const VerificationDashboard = () => {
 };
 
 export default VerificationDashboard;
+
+
+

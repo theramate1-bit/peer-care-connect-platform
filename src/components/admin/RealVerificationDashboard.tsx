@@ -13,7 +13,7 @@ import {
   Clock, 
   AlertCircle, 
   Eye, 
-  User, 
+  User as UserIcon, 
   Star,
   Calendar,
   MapPin,
@@ -175,7 +175,7 @@ export const RealVerificationDashboard = () => {
                 <p className="text-sm font-medium text-muted-foreground">Total Users</p>
                 <p className="text-2xl font-bold">{dashboardData.length}</p>
               </div>
-              <User className="h-8 w-8 text-muted-foreground" />
+              <UserIcon className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -481,7 +481,7 @@ export const RealVerificationDashboard = () => {
           ) : (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground">
-                <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <UserIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Select a user to view their verification details</p>
               </CardContent>
             </Card>
@@ -491,3 +491,6 @@ export const RealVerificationDashboard = () => {
     </div>
   );
 };
+
+
+

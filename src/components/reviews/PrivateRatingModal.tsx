@@ -52,40 +52,91 @@ export const PrivateRatingModal: React.FC<PrivateRatingModalProps> = ({
     }
     setSubmitting(true);
     try {
-      // Prefer private table; fall back gracefully if it doesn't exist
+      // First, check if a rating already exists for this session
+      const { data: existingRating, error: checkError } = await supabase
+        .from('practitioner_ratings')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing rating:', checkError);
+      }
+
+      // Use upsert to insert or update rating (unique constraint ensures one rating per session per client)
+      const isUpdate = !!existingRating;
       const { error } = await supabase
         .from('practitioner_ratings')
-        .insert({
+        .upsert({
           session_id: sessionId,
           client_id: clientId,
-          therapist_id: therapistId,
-          overall_rating: rating,
-          comments,
-          visibility: 'private',
-          created_at: new Date().toISOString(),
+          practitioner_id: therapistId,
+          rating: rating,
+          review_text: comments || null,
+          status: 'active',
+        }, {
+          onConflict: 'session_id,client_id',
+          ignoreDuplicates: false
         });
 
       if (error) {
-        // If table missing, write to session_feedback as private fallback
-        if ((error.message || '').includes('does not exist')) {
-          const { error: fbError } = await supabase.from('session_feedback').insert({
-            session_id: sessionId,
-            client_id: clientId,
-            therapist_id: therapistId,
-            rating,
-            comments,
-            is_public: false,
-            created_at: new Date().toISOString(),
-          });
-          if (fbError) throw fbError;
+        // If table missing or other error, write to session_feedback as private fallback
+        if ((error.message || '').includes('does not exist') || error.code === 'PGRST116') {
+          // Check if feedback already exists
+          const { data: existingFeedback } = await supabase
+            .from('session_feedback')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('client_id', clientId)
+            .maybeSingle();
+
+          if (existingFeedback) {
+            const { error: fbUpdateError } = await supabase
+              .from('session_feedback')
+              .update({
+                rating,
+                comments,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingFeedback.id);
+
+            if (fbUpdateError) {
+              console.error('Fallback session_feedback update error:', fbUpdateError);
+              throw fbUpdateError;
+            }
+          } else {
+            const { error: fbError } = await supabase.from('session_feedback').insert({
+              session_id: sessionId,
+              client_id: clientId,
+              therapist_id: therapistId,
+              rating,
+              comments,
+              is_public: false,
+              created_at: new Date().toISOString(),
+            });
+            if (fbError) {
+              console.error('Fallback session_feedback error:', fbError);
+              throw fbError;
+            }
+          }
         } else {
+          console.error('practitioner_ratings error:', error);
           throw error;
         }
       }
 
-      toast({ title: 'Feedback submitted', description: 'Thanks for your private feedback.' });
+      toast({ 
+        title: isUpdate ? 'Rating updated' : 'Rating submitted', 
+        description: isUpdate 
+          ? 'Your rating has been updated successfully.' 
+          : 'Thank you for your rating! It will be visible on the marketplace.' 
+      });
       onSubmitted?.();
       onOpenChange(false);
+      // Reset form
+      setRating(0);
+      setComments('');
     } catch (e: any) {
       console.error('Private rating error:', e);
       toast({ title: 'Error', description: 'Could not submit feedback. Please try again.', variant: 'destructive' });
@@ -101,8 +152,8 @@ export const PrivateRatingModal: React.FC<PrivateRatingModalProps> = ({
       <Card className="w-full max-w-lg mx-4">
         <CardHeader className="flex items-start justify-between pb-2">
           <div>
-            <CardTitle className="text-xl">Private Feedback</CardTitle>
-            <p className="text-sm text-muted-foreground">Only visible to platform moderation and not shown publicly.</p>
+            <CardTitle className="text-xl">Rate Your Session</CardTitle>
+            <p className="text-sm text-muted-foreground">Your rating will be visible on the marketplace to help others choose.</p>
             {therapistName && (
               <p className="text-sm mt-1">For: {therapistName}</p>
             )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
-  User, 
+  User as UserIcon, 
   Mail, 
   Phone, 
   MapPin, 
@@ -64,24 +64,26 @@ export const ClientProfile = () => {
   });
 
   useEffect(() => {
-    console.log('User changed:', user);
-    console.log('UserProfile changed:', userProfile);
-    if (user) {
+    if (user?.id) {
       fetchProfileData();
     }
-  }, [user, userProfile]);
+  }, [user?.id]); // ✅ Use primitive ID instead of object
+
+  // Memoize avatar preferences string to prevent infinite loops
+  const avatarPrefsString = useMemo(
+    () => JSON.stringify(profileData.avatar_preferences),
+    [profileData.avatar_preferences]
+  );
 
   // Debug avatar preferences changes and force re-render
   useEffect(() => {
-    console.log('Avatar preferences changed:', profileData.avatar_preferences);
     const avatarUrl = generateAvatarUrl(
       `${profileData.first_name}${profileData.last_name}`,
       profileData.avatar_preferences
     );
-    console.log('Generated avatar URL:', avatarUrl);
     // Force re-render by updating avatar key
     setAvatarKey(prev => prev + 1);
-  }, [profileData.avatar_preferences, profileData.first_name, profileData.last_name]);
+  }, [avatarPrefsString, profileData.first_name, profileData.last_name]); // ✅ Stable dependencies
 
   const fetchProfileData = async () => {
     try {
@@ -101,7 +103,7 @@ export const ClientProfile = () => {
 
       // Get client profile data
       const { data: clientProfile, error: clientError } = await supabase
-        .from('user_profiles')
+        .from('client_profiles')
         .select('*')
         .eq('user_id', user?.id)
         .single();
@@ -191,9 +193,9 @@ export const ClientProfile = () => {
         throw userError;
       }
 
-      // Update user_profiles table with preferences
+      // Update client_profiles table with preferences
       const { error: clientError } = await supabase
-        .from('user_profiles')
+        .from('client_profiles')
         .upsert({
           user_id: user.id,
           preferences: {
@@ -249,7 +251,7 @@ export const ClientProfile = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <User className="h-5 w-5" />
+            <UserIcon className="h-5 w-5" />
             <span>Profile Information</span>
           </CardTitle>
           <CardDescription>
@@ -260,7 +262,7 @@ export const ClientProfile = () => {
           {/* Basic Information */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-primary mb-4">
-              <User className="h-4 w-4" />
+              <UserIcon className="h-4 w-4" />
               <span className="font-medium">Basic Information</span>
             </div>
             

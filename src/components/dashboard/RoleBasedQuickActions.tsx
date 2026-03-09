@@ -117,7 +117,7 @@ export const RoleBasedQuickActions: React.FC<RoleBasedQuickActionsProps> = ({
           {
             label: 'Profile',
             href: '/profile',
-            icon: User,
+            icon: User as UserIcon,
             description: 'Update your professional profile',
             color: 'bg-green-100 text-green-600 hover:bg-green-200'
           },
@@ -149,7 +149,7 @@ export const RoleBasedQuickActions: React.FC<RoleBasedQuickActionsProps> = ({
           {
             label: 'Profile',
             href: '/profile',
-            icon: User,
+            icon: User as UserIcon,
             description: 'Update your professional profile',
             color: 'bg-green-100 text-green-600 hover:bg-green-200'
           },
@@ -181,7 +181,7 @@ export const RoleBasedQuickActions: React.FC<RoleBasedQuickActionsProps> = ({
           {
             label: 'Profile',
             href: '/profile',
-            icon: User,
+            icon: User as UserIcon,
             description: 'Update your professional profile',
             color: 'bg-green-100 text-green-600 hover:bg-green-200'
           },
@@ -343,7 +343,7 @@ export const RoleBasedQuickActions: React.FC<RoleBasedQuickActionsProps> = ({
             <Button
               key={action.href}
               variant="outline"
-              className={`h-auto p-4 flex-col hover:shadow-md transition-shadow ${action.color}`}
+              className={`h-auto p-4 flex-col transition-[border-color,background-color] duration-200 ease-out ${action.color}`}
               asChild
             >
               <Link to={action.href}>

@@ -135,6 +135,7 @@ const AvailabilitySetup: React.FC<AvailabilitySetupProps> = ({
                         type="time"
                         value={localAvailability[day.key]?.start || '09:00'}
                         onChange={(e) => updateAvailability(day.key, 'start', e.target.value)}
+                        step="60"
                         className="w-32"
                       />
                     </div>
@@ -144,6 +145,7 @@ const AvailabilitySetup: React.FC<AvailabilitySetupProps> = ({
                         type="time"
                         value={localAvailability[day.key]?.end || '17:00'}
                         onChange={(e) => updateAvailability(day.key, 'end', e.target.value)}
+                        step="60"
                         className="w-32"
                       />
                     </div>

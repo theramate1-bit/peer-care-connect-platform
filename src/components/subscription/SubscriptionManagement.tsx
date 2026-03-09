@@ -37,9 +37,12 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ 
   const getTierDisplayName = (tier: string | null) => {
     switch (tier) {
       case 'practitioner':
-        return 'Professional Practitioner Plan';
+      case 'professional':
+        return 'Starter Plan';
       case 'clinic':
-        return 'Premium Practitioner Plan';
+      case 'professional-pro':
+      case 'pro':
+        return 'Pro Plan';
       case 'starter':
         return 'Starter Plan';
       default:
@@ -302,14 +305,14 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ 
         </div>
 
         {/* Upgrade Options */}
-        {subscriptionTier === 'practitioner' && (
+        {(subscriptionTier === 'practitioner' || subscriptionTier === 'professional') && (
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Upgrade to Premium Practitioner Plan</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Upgrade to Pro Plan</h4>
             <p className="text-sm text-blue-800 mb-3">
               Get advanced features including full analytics, white label options, API access, and dedicated support. Only 1% marketplace fee vs 3%.
             </p>
             <Button size="sm" variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-100">
-              Upgrade Now (£199.99/month)
+              Upgrade Now (£50/month)
             </Button>
           </div>
         )}

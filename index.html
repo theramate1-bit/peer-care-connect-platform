@@ -1,13 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-5PM52GVN');</script>
-    <!-- End Google Tag Manager -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google-site-verification" content="IVqBcIa-AinQSCpHAIfouM_0Dw8CFNW88wKu7gghAhs" />
@@ -23,17 +16,12 @@
     <link rel="canonical" href="https://theramate.co.uk/" />
     
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/theramatemascot.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/theramatemascot.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/theramatemascot.png" />
-    <link rel="apple-touch-icon" href="/theramatemascot.png" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    
-    <!-- Google Fonts - Inter for clean, professional typography -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/theramatemascot-CfaqPola.png?v=2" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/theramatemascot-CfaqPola.png?v=2" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/theramatemascot-CfaqPola.png?v=2" />
+    <link rel="apple-touch-icon" href="/theramatemascot-CfaqPola.png?v=2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" />
 
     <!-- Open Graph Meta Tags -->
     <meta property="og:title" content="Theramate | Book Osteopaths, Sports Massage & Physical Therapists in the UK" />
@@ -149,40 +137,15 @@
           };
         }
         
-        console.log('Inline polyfills loaded successfully');
+        // Polyfills loaded
       })();
     </script>
     
     <!-- External Node.js Polyfills - Backup -->
     <script src="/polyfill.js"></script>
-    
-    <!-- Defer chat widget to idle to improve mobile LCP/TTI -->
-    <script>
-      window.addEventListener('load', () => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => {
-            var s=document.createElement('script');
-            s.src='https://embed.tawk.to/68c3439767c586192c674abd/1j4tc020j?disableAnalytics=true&disablePerformanceLogging=true';
-            s.async=true; s.crossOrigin='*';
-            document.body.appendChild(s);
-          }, { timeout: 1500 });
-        } else {
-          setTimeout(() => {
-            var s=document.createElement('script');
-            s.src='https://embed.tawk.to/68c3439767c586192c674abd/1j4tc020j?disableAnalytics=true&disablePerformanceLogging=true';
-            s.async=true; s.crossOrigin='*';
-            document.body.appendChild(s);
-          }, 1500);
-        }
-      });
-    </script>
   </head>
 
   <body>
-    <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5PM52GVN"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx?v=10"></script>
   </body>

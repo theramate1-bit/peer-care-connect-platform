@@ -36,8 +36,7 @@ export const LocationSettings = () => {
     city: '',
     state: '',
     country: 'United States',
-    postal_code: '',
-    service_radius_km: 25
+    postal_code: ''
   });
 
   const [preferencesData, setPreferencesData] = useState({
@@ -88,8 +87,20 @@ export const LocationSettings = () => {
   };
 
   const getCurrentLocation = async () => {
+    if (!user?.id) {
+      toast.error('Please sign in to use location features');
+      return;
+    }
+
     try {
-      const location = await LocationManager.getCurrentLocation();
+      // Check consent (UK GDPR/PECR compliance)
+      const hasConsent = await LocationManager.hasLocationConsent(user.id);
+      if (!hasConsent) {
+        toast.error('Location consent required. Please grant location consent in your privacy settings.');
+        return;
+      }
+
+      const location = await LocationManager.getCurrentLocation(user.id);
       if (location) {
         // Reverse geocode to get address
         const geocodeResult = await LocationManager.geocodeAddress(
@@ -142,7 +153,7 @@ export const LocationSettings = () => {
         formData.postal_code || null,
         geocodeResult.latitude,
         geocodeResult.longitude,
-        formData.service_radius_km,
+        null, // Service radius removed - no longer required
         locations.length === 0 // First location is primary
       );
 
@@ -153,8 +164,7 @@ export const LocationSettings = () => {
         city: '',
         state: '',
         country: 'United States',
-        postal_code: '',
-        service_radius_km: 25
+        postal_code: ''
       });
       await loadUserData();
     } catch (error) {
@@ -272,9 +282,6 @@ export const LocationSettings = () => {
                       <p className="text-sm text-muted-foreground">
                         {location.city}, {location.state} {location.postal_code}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Service radius: {location.service_radius_km}km
-                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -327,7 +334,7 @@ export const LocationSettings = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="state">State</Label>
                     <Input
@@ -344,17 +351,6 @@ export const LocationSettings = () => {
                       value={formData.postal_code}
                       onChange={(e) => setFormData(prev => ({ ...prev, postal_code: e.target.value }))}
                       placeholder="ZIP code"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="service_radius">Service Radius (km)</Label>
-                    <Input
-                      id="service_radius"
-                      type="number"
-                      value={formData.service_radius_km}
-                      onChange={(e) => setFormData(prev => ({ ...prev, service_radius_km: parseInt(e.target.value) || 25 }))}
-                      min="1"
-                      max="100"
                     />
                   </div>
                 </div>

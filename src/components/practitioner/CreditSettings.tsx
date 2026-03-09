@@ -89,8 +89,11 @@ const CreditSettings: React.FC = () => {
     }
   };
 
+  // Calculate credit cost (1 credit per minute)
   const calculateCreditCost = (duration: number) => {
-    const baseCost = (duration / 60) * settings.credit_cost_per_hour;
+    // New system: 1 credit per minute (60 credits per hour)
+    // Note: credit_cost_per_hour setting is now fixed at 60 for 1 credit/min system
+    const baseCost = duration; // 1 credit per minute
     const discountedCost = baseCost * (1 - settings.credit_discount_percentage / 100);
     return Math.max(1, Math.round(discountedCost));
   };

@@ -67,7 +67,6 @@ export const PractitionerPricingSetup: React.FC<PractitionerPricingSetupProps> =
       setPricing(prev => ({
         ...prev,
         session_pricing: recs,
-        hourly_rate: recs['60min'] // Use 60min rate as hourly rate
       }));
     } catch (error) {
       console.error('Error loading recommendations:', error);
@@ -155,25 +154,6 @@ export const PractitionerPricingSetup: React.FC<PractitionerPricingSetupProps> =
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Hourly Rate */}
-          <div className="space-y-2">
-            <Label htmlFor="hourly_rate">Hourly Rate (£)</Label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="hourly_rate"
-                type="number"
-                value={pricing.hourly_rate}
-                onChange={(e) => handlePricingChange('hourly_rate', parseInt(e.target.value) || 0)}
-                className="pl-10"
-                placeholder="75"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Your standard hourly rate for reference
-            </p>
-          </div>
-
           {/* Session Pricing */}
           <div className="space-y-4">
             <Label>Session Pricing (£)</Label>

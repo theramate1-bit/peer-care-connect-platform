@@ -3,16 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { generateAvatarUrl } from "@/lib/avatar-generator";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SOAPNotesViewer } from '@/components/session/SOAPNotesViewer';
 import { 
   Calendar, 
   Clock, 
   Heart, 
-  User, 
+  User as UserIcon, 
   Star, 
   MessageCircle, 
   FileText, 
@@ -21,15 +16,14 @@ import {
   TrendingUp,
   Settings,
   Stethoscope,
-  LogOut,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ClientProfile } from "@/components/client/ClientProfile";
-import { ClientSessionDashboard } from "@/components/client/ClientSessionDashboard";
-import { ClientCommunicationHub } from "@/components/communication/ClientCommunicationHub";
-import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { getFriendlyDateLabel } from "@/lib/date";
+import { useRealtimeSubscription } from "@/hooks/use-realtime";
+import { TheramateTimeline } from "@/components/client/TheramateTimeline";
+import { getDisplaySessionStatus, getDisplaySessionStatusLabel, isClientSessionVisible } from "@/lib/session-display-status";
 
 interface UpcomingSession {
   id: string;
@@ -40,6 +34,7 @@ interface UpcomingSession {
   duration_minutes: number;
   price: number;
   status: string;
+  payment_status?: string;
 }
 
 interface FavoritePractitioner {
@@ -47,7 +42,7 @@ interface FavoritePractitioner {
   therapist_id: string;
   first_name: string;
   last_name: string;
-  specializations: string[];
+  bio: string;
   location: string;
   hourly_rate: number;
   average_rating?: number;
@@ -65,8 +60,20 @@ const ClientDashboard = () => {
     favoriteCount: 0
   });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const { user, userProfile, signOut } = useAuth();
+  const { user, userProfile } = useAuth();
+
+  // Real-time subscription for client sessions
+  const { data: realtimeSessions } = useRealtimeSubscription(
+    'client_sessions',
+    `client_id=eq.${user?.id}`,
+    (payload) => {
+      console.log('Real-time session update:', payload);
+      // Refresh dashboard data when sessions are updated
+      if (user) {
+        fetchDashboardData();
+      }
+    }
+  );
 
   useEffect(() => {
     if (user) {
@@ -78,123 +85,173 @@ const ClientDashboard = () => {
     try {
       setLoading(true);
 
-
-      // Fetch upcoming sessions
+      // Fetch upcoming sessions - include confirmed and pending_payment statuses
       const today = new Date().toISOString().split('T')[0];
-      const { data: upcoming, error: upcomingError } = await supabase
+      const { data: upcomingData, error: upcomingError } = await supabase
         .from('client_sessions')
-        .select('*')
-        .eq('client_id', user?.id)
+        .select(`
+          id,
+          session_date,
+          start_time,
+          duration_minutes,
+          price,
+          status,
+          payment_status,
+          session_type,
+          therapist:users!client_sessions_therapist_id_fkey(
+            first_name,
+            last_name
+          )
+        `)
+        .eq('client_id' as any, user?.id as any)
         .gte('session_date', today)
-        .eq('status', 'scheduled')
-        .order('session_date');
+        .in('status' as any, ['scheduled', 'confirmed', 'pending_payment'])
+        .order('session_date', { ascending: true });
 
-      if (upcomingError) throw upcomingError;
+      if (upcomingError) {
+        console.error('Error fetching upcoming sessions:', upcomingError);
+      } else {
+        const formattedUpcoming = ((upcomingData as any[]) || [])
+          .filter((session) => isClientSessionVisible(session))
+          .map(session => ({
+          id: session.id,
+          therapist_name: `${session.therapist.first_name} ${session.therapist.last_name}`,
+          session_type: session.session_type,
+          session_date: session.session_date,
+          start_time: session.start_time,
+          duration_minutes: session.duration_minutes,
+          price: session.price,
+          status: getDisplaySessionStatus(session),
+          payment_status: session.payment_status
+        }));
+        setUpcomingSessions(formattedUpcoming);
+      }
 
-      // Fetch recent completed sessions
-      const { data: recent, error: recentError } = await supabase
+      // Fetch recent sessions
+      const { data: recentData, error: recentError } = await supabase
         .from('client_sessions')
-        .select('*')
-        .eq('client_id', user?.id)
-        .eq('status', 'completed')
+        .select(`
+          id,
+          session_date,
+          start_time,
+          duration_minutes,
+          price,
+          status,
+          payment_status,
+          session_type,
+          therapist:users!client_sessions_therapist_id_fkey(
+            first_name,
+            last_name
+          )
+        `)
+        .eq('client_id' as any, user?.id as any)
+        .lt('session_date', today)
         .order('session_date', { ascending: false })
         .limit(5);
 
-      if (recentError) throw recentError;
+      if (recentError) {
+        console.error('Error fetching recent sessions:', recentError);
+      } else {
+        const formattedRecent = ((recentData as any[]) || [])
+          .filter((session) => isClientSessionVisible(session))
+          .map(session => ({
+          id: session.id,
+          therapist_name: `${session.therapist.first_name} ${session.therapist.last_name}`,
+          session_type: session.session_type,
+          session_date: session.session_date,
+          start_time: session.start_time,
+          duration_minutes: session.duration_minutes,
+          price: session.price,
+          status: getDisplaySessionStatus(session),
+          payment_status: session.payment_status
+        }));
+        setRecentSessions(formattedRecent);
+      }
 
-      // Fetch all sessions for stats
-      const { data: allSessions, error: allError } = await supabase
-        .from('client_sessions')
-        .select('*')
-        .eq('client_id', user?.id);
-
-      if (allError) throw allError;
-
-      // Fetch favorites - simplified without join for now
-      const { data: favData, error: favError } = await supabase
+      // Fetch favorites - using separate queries to avoid FK issues
+      const { data: favoritesData, error: favoritesError } = await supabase
         .from('client_favorites')
-        .select('*')
-        .eq('client_id', user?.id);
+        .select('id, therapist_id')
+        .eq('client_id' as any, user?.id as any);
 
-      if (favError && favError.code !== 'PGRST116') throw favError;
+      if (favoritesError) {
+        console.error('Error fetching favorites:', favoritesError);
+        setFavorites([]);
+      } else if (favoritesData && favoritesData.length > 0) {
+        // Get therapist details separately
+        const therapistIds = (favoritesData as any[]).map((fav: any) => fav.therapist_id);
+        const { data: therapistsData, error: therapistsError } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, bio, location, hourly_rate')
+          .in('id', therapistIds);
 
-      // Process upcoming sessions data
-      const formattedUpcoming = (upcoming || []).map(session => ({
-        id: session.id,
-        therapist_name: session.client_name || 'Practitioner',
-        session_type: session.session_type || 'Session',
-        session_date: session.session_date,
-        start_time: session.start_time || '09:00',
-        duration_minutes: session.duration_minutes || 60,
-        price: session.price || 0,
-        status: session.status
-      }));
+        if (therapistsError) {
+          console.error('Error fetching therapists:', therapistsError);
+          setFavorites([]);
+        } else {
+          const formattedFavorites = (favoritesData as any[]).map((fav: any) => {
+            const therapist = (therapistsData as any[])?.find((t: any) => t.id === fav.therapist_id);
+            return {
+              id: fav.id,
+              therapist_id: fav.therapist_id,
+              first_name: therapist?.first_name || 'Unknown',
+              last_name: therapist?.last_name || 'Practitioner',
+              bio: therapist?.bio || '',
+              location: therapist?.location || '',
+              hourly_rate: therapist?.hourly_rate || 0
+            };
+          });
+          setFavorites(formattedFavorites);
+        }
+      } else {
+        setFavorites([]);
+      }
 
-      // For now, create empty favorites array since we need to fix the relations
-      const formattedFavorites: FavoritePractitioner[] = [];
+      // Fetch ALL sessions for accurate stats calculation
+      const { data: allSessionsData, error: allSessionsError } = await supabase
+        .from('client_sessions')
+        .select('id, session_date, price, status, payment_status')
+        .eq('client_id' as any, user?.id as any);
 
-      const totalSpent = (allSessions || [])
-        .filter(s => s.status === 'completed')
+      if (allSessionsError) {
+        console.error('Error fetching all sessions for stats:', allSessionsError);
+      }
+
+      // Calculate stats from all sessions
+      const allSessions = (allSessionsData as any[]) || [];
+      const visibleSessions = allSessions.filter((session) => isClientSessionVisible(session));
+      const totalSessions = visibleSessions.length;
+      
+      // Count successfully paid sessions as confirmed for display/stats purposes.
+      const totalSpent = visibleSessions
+        .filter(session => 
+          (getDisplaySessionStatus(session) === 'completed' || getDisplaySessionStatus(session) === 'confirmed') &&
+          (session.payment_status === 'paid' || session.payment_status === 'completed')
+        )
         .reduce((sum, session) => sum + (session.price || 0), 0);
-
-      setUpcomingSessions(formattedUpcoming);
-      setRecentSessions(recent || []);
-      setFavorites(formattedFavorites);
+      
+      // Calculate upcoming count from sessions with date >= today and status in ['scheduled', 'confirmed', 'pending_payment']
+      const upcomingCount = visibleSessions.filter(session => {
+        const sessionDate = new Date(session.session_date);
+        const todayDate = new Date(today);
+        todayDate.setHours(0, 0, 0, 0);
+        const displayStatus = getDisplaySessionStatus(session);
+        return sessionDate >= todayDate && 
+               ['scheduled', 'confirmed', 'pending_payment'].includes(displayStatus);
+      }).length;
+      
       setStats({
-        totalSessions: (allSessions || []).length,
-        upcomingCount: formattedUpcoming.length,
+        totalSessions,
+        upcomingCount,
         totalSpent,
-        favoriteCount: formattedFavorites.length
+        favoriteCount: (favoritesData as any[])?.length || 0
       });
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (timeString: string) => {
-    if (!timeString) return 'TBD';
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`h-3 w-3 ${
-          i < Math.floor(rating) 
-            ? 'fill-yellow-400 text-yellow-400' 
-            : 'text-gray-300'
-        }`}
-      />
-    ));
   };
 
   if (loading) {
@@ -213,347 +270,185 @@ const ClientDashboard = () => {
       <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarImage 
-                  src={generateAvatarUrl(
-                    `${userProfile?.first_name}${userProfile?.last_name}`,
-                    userProfile?.avatar_preferences || {
-                      hairColor: 'brown',
-                      clothingColor: 'blue',
-                      accessories: [],
-                      backgroundColor: 'f0f0f0',
-                      skinColor: 'light',
-                      clothing: 'shirt',
-                      hairStyle: 'short',
-                      eyes: 'default',
-                      eyebrows: 'default',
-                      mouth: 'default',
-                      flip: false,
-                      rotate: 0,
-                      scale: 1
-                    }
-                  )} 
-                />
-                <AvatarFallback className="bg-primary/10 text-primary text-lg">
-                  {userProfile?.first_name?.charAt(0)}{userProfile?.last_name?.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h1 className="text-3xl font-bold">
-                  Welcome back, {userProfile?.first_name}!
-                </h1>
-                <p className="text-gray-600">
-                  Manage your wellness journey and appointments
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={signOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold">
+              Welcome back, {userProfile?.first_name}!
+            </h1>
+            <p className="text-gray-600">
+              Manage your wellness journey and appointments
+            </p>
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="sessions">My Sessions</TabsTrigger>
-            <TabsTrigger value="communication">Messages</TabsTrigger>
-            <TabsTrigger value="soap-notes">Notes with your practitioner</TabsTrigger>
-            <TabsTrigger value="favorites">Favorites</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-          </TabsList>
-
-          {/* Dashboard Tab */}
-          <TabsContent value="dashboard" className="space-y-6">
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <Calendar className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold">{stats.upcomingCount}</div>
-                  <p className="text-sm text-gray-600">Upcoming Sessions</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <FileText className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold">{stats.totalSessions}</div>
-                  <p className="text-sm text-gray-600">Total Sessions</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <CreditCard className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold">£{stats.totalSpent.toFixed(0)}</div>
-                  <p className="text-sm text-gray-600">Total Invested</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <Heart className="h-8 w-8 text-red-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold">{stats.favoriteCount}</div>
-                  <p className="text-sm text-gray-600">Favorite Practitioners</p>
-                </CardContent>
-              </Card>
-
-            </div>
-
-            {/* Find Practitioners */}
-            <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Stethoscope className="h-5 w-5 text-primary" />
-                  Find Your Perfect Practitioner
-                </CardTitle>
-                <CardDescription>
-                  Browse our marketplace to discover qualified therapists and book your sessions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button asChild size="lg" className="flex-1">
-                    <Link to="/marketplace">
-                      <Stethoscope className="h-5 w-5 mr-2" />
-                      Browse Marketplace
-                    </Link>
-                  </Button>
-                  <Button variant="outline" asChild size="lg">
-                    <Link to="/client/booking">
-                      <Calendar className="h-5 w-5 mr-2" />
-                      Book Session
-                    </Link>
-                  </Button>
-                </div>
+        {/* Dashboard Content */}
+        <div className="space-y-6">
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <Calendar className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold">{stats.upcomingCount}</div>
+                <p className="text-sm text-gray-600">Upcoming Sessions</p>
               </CardContent>
             </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
+                <FileText className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold">{stats.totalSessions}</div>
+                <p className="text-sm text-gray-600">Total Sessions</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
+                <CreditCard className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                <div className="text-2xl font-bold">£{stats.totalSpent.toFixed(0)}</div>
+                <p className="text-sm text-gray-600">Total Invested</p>
+              </CardContent>
+            </Card>
+            
+          </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Upcoming Sessions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Upcoming Sessions
-                  </CardTitle>
-                  <CardDescription>Your scheduled appointments</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {upcomingSessions.length === 0 ? (
-                    <p className="text-center text-gray-600 py-8">
-                      No upcoming sessions. Ready to book your next appointment?
-                    </p>
-                  ) : (
-                    upcomingSessions.slice(0, 3).map((session) => (
-                      <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium">{session.therapist_name}</p>
-                          <p className="text-sm text-gray-600">{session.session_type}</p>
-                          <p className="text-sm text-gray-600">
-                            {formatDate(session.session_date)} at {formatTime(session.start_time)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <Badge className={getStatusColor(session.status)}>
-                            {session.status}
-                          </Badge>
-                          <p className="text-sm font-medium mt-1">£{session.price}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {upcomingSessions.length > 3 && (
-                    <Button variant="outline" className="w-full" onClick={() => setActiveTab("sessions")}>
-                      View All Sessions
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Find Practitioners */}
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Stethoscope className="h-5 w-5 text-primary" />
+                Find Your Perfect Practitioner
+              </CardTitle>
+              <CardDescription>
+                Browse our marketplace to discover qualified therapists and book your sessions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild size="lg" className="w-full sm:w-auto">
+                <Link to="/marketplace">
+                  <Stethoscope className="h-5 w-5 mr-2" />
+                  Browse Marketplace
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
 
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Recent Activity
-                  </CardTitle>
-                  <CardDescription>Your wellness journey progress</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {recentSessions.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      No recent sessions to show
-                    </p>
-                  ) : (
-                    recentSessions.map((session, index) => (
-                      <div key={session.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            Completed session with {session.client_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(session.session_date)}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Sessions Tab */}
-          <TabsContent value="sessions" className="space-y-6">
-            <ClientSessionDashboard />
-          </TabsContent>
-
-          {/* Communication Tab */}
-          <TabsContent value="communication" className="space-y-6">
-            <ClientCommunicationHub />
-          </TabsContent>
-
-          {/* SOAP Notes Tab */}
-          <TabsContent value="soap-notes" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Upcoming Sessions */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Stethoscope className="w-5 h-5" />
-                  Notes with your practitioner
+                  <Calendar className="h-5 w-5" />
+                  Upcoming Sessions
                 </CardTitle>
-                <CardDescription>
-                  View detailed session notes and treatment summaries from your practitioner
-                </CardDescription>
+                <CardDescription>Your scheduled appointments</CardDescription>
               </CardHeader>
-              <CardContent>
-                <SOAPNotesViewer clientView={true} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Favorites Tab */}
-          <TabsContent value="favorites" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Heart className="h-5 w-5" />
-                  Favorite Practitioners
-                </CardTitle>
-                <CardDescription>Your saved practitioners for quick booking</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {favorites.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Heart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No favorite practitioners yet</p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Add practitioners to favorites while browsing to see them here
-                    </p>
-                  </div>
+              <CardContent className="space-y-4">
+                {upcomingSessions.length === 0 ? (
+                  <p className="text-center text-gray-600 py-8">
+                    No upcoming sessions. Ready to book your next appointment?
+                  </p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {favorites.map((favorite) => (
-                      <div key={favorite.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3 mb-3">
-                          <Avatar>
-                            <AvatarImage 
-                              src={generateAvatarUrl(
-                                `${favorite.first_name}${favorite.last_name}`,
-                                favorite.avatar_preferences || {
-                                  hairColor: 'brown',
-                                  clothingColor: 'blue',
-                                  accessories: [],
-                                  backgroundColor: 'f0f0f0',
-                                  skinColor: 'light',
-                                  clothing: 'shirt',
-                                  hairStyle: 'short',
-                                  eyes: 'default',
-                                  eyebrows: 'default',
-                                  mouth: 'default',
-                                  flip: false,
-                                  rotate: 0,
-                                  scale: 1
-                                }
-                              )} 
-                            />
-                            <AvatarFallback>
-                              {favorite.first_name.charAt(0)}{favorite.last_name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="font-medium">{favorite.first_name} {favorite.last_name}</p>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              {favorite.location}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {favorite.average_rating && favorite.average_rating > 0 && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="flex items-center">
-                              {renderStars(favorite.average_rating)}
-                            </div>
-                            <span className="text-sm">{favorite.average_rating.toFixed(1)}</span>
-                          </div>
-                        )}
-                        
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {favorite.specializations.slice(0, 2).map((spec) => (
-                            <Badge key={spec} variant="secondary" className="text-xs">
-                              {spec}
-                            </Badge>
-                          ))}
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">£{favorite.hourly_rate}/hour</span>
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                // Navigate to practitioner profile
-                                navigate(`/therapist/${favorite.therapist_id}`);
-                              }}
-                            >
-                              View Profile
-                            </Button>
-                            <Button 
-                              size="sm"
-                              onClick={() => {
-                                // Navigate to booking with this practitioner
-                                navigate(`/client/booking?practitioner=${favorite.therapist_id}`);
-                              }}
-                            >
-                              Book Now
-                            </Button>
-                          </div>
-                        </div>
+                  upcomingSessions.slice(0, 3).map((session) => (
+                    <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-medium">{session.therapist_name}</p>
+                        <p className="text-sm text-gray-600">{session.session_type}</p>
+                        <p className="text-sm text-gray-600">
+                          {getFriendlyDateLabel(session.session_date)} at {session.start_time}
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                      <div className="text-right">
+                        <p className="font-medium">£{session.price}</p>
+                        <Badge variant={session.status === 'scheduled' ? 'default' : 'secondary'}>
+                          {getDisplaySessionStatusLabel(session)}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {upcomingSessions.length > 0 && (
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to="/client/sessions">View All Sessions</Link>
+                  </Button>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Profile Tab */}
-          <TabsContent value="profile">
-            <ClientProfile />
-          </TabsContent>
-        </Tabs>
+            {/* Recent Sessions */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Recent Sessions
+                </CardTitle>
+                <CardDescription>Your latest appointments</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {recentSessions.length === 0 ? (
+                  <p className="text-center text-gray-600 py-8">
+                    No recent sessions yet. Book your first appointment to get started!
+                  </p>
+                ) : (
+                  recentSessions.slice(0, 3).map((session) => (
+                    <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-medium">{session.therapist_name}</p>
+                        <p className="text-sm text-gray-600">{session.session_type}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(session.session_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">£{session.price}</p>
+                        <Badge variant="outline">{getDisplaySessionStatusLabel(session)}</Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {recentSessions.length > 0 && (
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to="/client/sessions">View All Sessions</Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Your Journey Timeline */}
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                Your Wellness Journey
+              </CardTitle>
+              <CardDescription>
+                Track your progress, sessions, and milestones over time
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-h-[600px] overflow-y-auto px-6 pb-6">
+                {(user?.id || userProfile?.id) ? (
+                  <TheramateTimeline 
+                    clientId={user?.id || userProfile?.id || ''}
+                    clientName={userProfile?.first_name && userProfile?.last_name 
+                      ? `${userProfile.first_name} ${userProfile.last_name}` 
+                      : 'Client'}
+                    readOnly={true}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                    <p>Loading your journey timeline...</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
 };
 
 export default ClientDashboard;
+
+

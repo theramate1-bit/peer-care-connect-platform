@@ -51,7 +51,7 @@ export async function checkOnboardingHealth(): Promise<OnboardingHealthCheck> {
 
     // Check for missing client profiles
     const { data: clientProfiles, error: clientProfilesError } = await supabase
-      .from('user_profiles')
+      .from('client_profiles')
       .select('user_id');
 
     if (clientProfilesError) {
@@ -159,7 +159,7 @@ export async function autoRepairIncompleteProfiles(): Promise<{ repaired: number
 
         // Check if client profile exists
         const { data: existingProfile } = await supabase
-          .from('user_profiles')
+          .from('client_profiles')
           .select('user_id')
           .eq('user_id', client.id)
           .single();
@@ -167,25 +167,24 @@ export async function autoRepairIncompleteProfiles(): Promise<{ repaired: number
         if (!existingProfile) {
           // Create missing client profile
           const { error: profileError } = await supabase
-            .from('user_profiles')
+            .from('client_profiles')
             .insert({
               user_id: client.id,
-              preferences: JSON.stringify({
+              preferences: {
                 primary_goal: 'General Health & Wellness',
                 preferred_therapy_types: ['Sports Therapy', 'Massage Therapy'],
                 budget: '£50-100 per session',
                 preferred_gender: 'No preference',
                 preferred_location: 'Any location',
                 preferred_time: 'Flexible',
-                max_travel_distance: 10
-              }),
-              medical_history: JSON.stringify({
+                max_travel_distance: 10,
                 medical_conditions: '',
                 medications: '',
                 allergies: '',
                 previous_therapy: '',
                 secondary_goals: []
-              }),
+              },
+              medical_history: '',
               emergency_contact_name: '',
               emergency_contact_phone: ''
             });

@@ -69,13 +69,11 @@ interface LocationSetupProps {
     address: string;
     latitude: number;
     longitude: number;
-    serviceRadius: number;
   }) => void;
   initialData?: {
     address?: string;
     latitude?: number;
     longitude?: number;
-    serviceRadius?: number;
   };
 }
 
@@ -92,7 +90,6 @@ export const LocationSetup: React.FC<LocationSetupProps> = ({
     latitude: initialData.latitude,
     longitude: initialData.longitude
   } : null);
-  const [serviceRadius, setServiceRadius] = useState(initialData?.serviceRadius || 25);
   const [loading, setLoading] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [map, setMap] = useState<any>(null);
@@ -248,7 +245,6 @@ export const LocationSetup: React.FC<LocationSetupProps> = ({
           location: address,
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
-          service_radius_km: serviceRadius,
           updated_at: new Date().toISOString()
         })
         .eq('id', user?.id);
@@ -260,8 +256,7 @@ export const LocationSetup: React.FC<LocationSetupProps> = ({
       onComplete({
         address,
         latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-        serviceRadius
+        longitude: coordinates.longitude
       });
 
       toast.success('Location saved successfully!');
@@ -334,21 +329,6 @@ export const LocationSetup: React.FC<LocationSetupProps> = ({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="serviceRadius">Service Radius: {serviceRadius} km</Label>
-            <Slider
-              id="serviceRadius"
-              value={[serviceRadius]}
-              onValueChange={(value) => setServiceRadius(value[0])}
-              max={100}
-              min={5}
-              step={5}
-              className="w-full"
-            />
-            <p className="text-sm text-muted-foreground">
-              This is how far you're willing to travel for appointments
-            </p>
-          </div>
         </CardContent>
       </Card>
 

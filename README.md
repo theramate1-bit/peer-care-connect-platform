@@ -126,19 +126,53 @@ theramate/
    ```
 
 4. **Set up the database**
+   
+   Connect to your Supabase project and run migrations:
    ```bash
-   # Run migrations in order:
-   # 1. 20250116_credit_system.sql
-   # 2. 20250116_messaging_system.sql
-   # 3. 20250116_professional_verification.sql
-   # 4. 20250116_advanced_scheduling.sql
-   # 5. 20250116_location_matching.sql
+   # Using Supabase CLI (recommended)
+   supabase db push
+   
+   # Or manually via Supabase Dashboard:
+   # 1. Navigate to SQL Editor
+   # 2. Run migrations in order from supabase/migrations/
+   #    - Start with base schema migrations
+   #    - Then run feature-specific migrations
+   #    - Finally run RLS policy migrations
    ```
+   
+   **Important**: Ensure RLS (Row Level Security) is enabled on all tables.
+   Check security advisors in Supabase Dashboard after migrations.
 
 5. **Start the development server**
    ```bash
    npm run dev
    ```
+   
+   The application will be available at `http://localhost:5173` (or the port shown in terminal).
+
+### Environment Variables
+
+Required environment variables in `.env.local`:
+
+```env
+# Supabase Configuration
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key
+
+# Stripe Configuration (for payments)
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+# Optional: Feature Flags
+VITE_ENABLE_ANALYTICS=false
+VITE_ENABLE_ERROR_TRACKING=false
+```
+
+### Verifying Setup
+
+1. **Check database connection**: Visit the app and verify you can sign in/up
+2. **Check RLS policies**: Run security advisors in Supabase Dashboard
+3. **Check Stripe integration**: Test payment flow (use test cards)
+4. **Check real-time**: Verify notifications and messaging work
 
 ## 🗄️ Database Schema
 
@@ -230,23 +264,42 @@ await LocationManager.setUserLocation(userId, address, city, state, country, pos
 
 ## 🧪 Testing
 
+The application includes comprehensive testing infrastructure with unit tests, integration tests, and end-to-end tests. See [TESTING_GUIDE.md](./TESTING_GUIDE.md) and [TEST_STRUCTURE.md](./TEST_STRUCTURE.md) for detailed documentation.
+
 ### Running Tests
+
 ```bash
+# Run all unit tests
+npm run test:unit
+
+# Run unit tests in watch mode
+npm run test:unit:watch
+
+# Run unit tests with coverage
+npm run test:unit:coverage
+
+# Run integration tests
+npm run test:integration
+
+# Run E2E tests
+npm run test:e2e
+
 # Run all tests
-npm test
+npm run test:all
 
-# Run tests in watch mode
-npm test:watch
-
-# Run tests with coverage
-npm test:coverage
+# Run tests optimized for CI/CD
+npm run test:ci
 ```
 
 ### Test Structure
-- Unit tests for utility functions
-- Integration tests for API endpoints
-- Component tests for UI components
-- E2E tests for critical user flows
+
+- **Unit Tests**: Located in `src/**/__tests__/` - Test components, services, utilities, and email functionality
+- **Integration Tests**: Located in `tests/integration/` - Test database operations, API endpoints, and Edge Functions
+- **E2E Tests**: Located in `tests/e2e/` - Test complete user journeys with Playwright
+
+**Email Testing**: Comprehensive email tests covering templates, validation, sending, and Edge Function integration.
+
+For more details, see [TEST_STRUCTURE.md](./TEST_STRUCTURE.md).
 
 ## 🚀 Deployment
 

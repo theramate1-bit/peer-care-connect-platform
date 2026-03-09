@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Theramate platform implements a flexible marketplace pricing model where practitioners can set custom prices for their services, and the platform automatically collects a 4% fee on each booking.
+The Theramate platform implements a flexible marketplace pricing model where practitioners can set custom prices for their services, and the platform automatically collects a 0.5% fee on each booking.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ CREATE TABLE practitioner_services (
   service_type VARCHAR(100) NOT NULL, -- sports_therapy, massage_therapy, osteopathy
   duration_minutes INTEGER NOT NULL,
   base_price_pence INTEGER NOT NULL, -- Price in pence
-  platform_fee_percentage INTEGER DEFAULT 4,
+  platform_fee_percentage INTEGER DEFAULT 0.5,
   platform_fee_pence INTEGER GENERATED ALWAYS AS (ROUND(base_price_pence * platform_fee_percentage / 100.0)) STORED,
   practitioner_earnings_pence INTEGER GENERATED ALWAYS AS (base_price_pence - ROUND(base_price_pence * platform_fee_percentage / 100.0)) STORED,
   stripe_price_id VARCHAR(255),
@@ -58,7 +58,7 @@ CREATE TABLE session_bookings (
 
 ### 1. Dynamic Pricing
 - Practitioners set their own prices for each service
-- Automatic calculation of 4% platform fee
+- Automatic calculation of 0.5% platform fee
 - Real-time pricing breakdown display
 - Support for different service types and durations
 
@@ -86,8 +86,8 @@ CREATE TABLE session_bookings (
 ### 1. Pricing Utilities (`src/utils/pricing.ts`)
 ```typescript
 // Calculate pricing breakdown
-const pricing = calculateServicePricing(8000, 4); // £80 with 4% fee
-// Result: { basePricePence: 8000, platformFeePence: 320, practitionerEarningsPence: 7680 }
+const pricing = calculateServicePricing(8000, 0.5); // £80 with 0.5% fee
+// Result: { basePricePence: 8000, platformFeePence: 40, practitionerEarningsPence: 7960 }
 
 // Format prices for display
 const displayPrice = formatPrice(8000); // "£80.00"
@@ -174,32 +174,40 @@ const paymentIntent = await createPaymentIntent({
 
 ### Example 1: Sports Massage
 - **Practitioner Price**: £80.00
-- **Platform Fee (4%)**: £3.20
-- **Practitioner Earnings**: £76.80
+- **Platform Fee (0.5%)**: £0.40
+- **Stripe Connect Fee (1.5%)**: £1.20
+- **Total Fees**: £1.60 (2.0%)
+- **Practitioner Earnings**: £78.40
 - **Client Pays**: £80.00
 
 ### Example 2: Deep Tissue Massage
 - **Practitioner Price**: £120.00
-- **Platform Fee (4%)**: £4.80
-- **Practitioner Earnings**: £115.20
+- **Platform Fee (0.5%)**: £0.60
+- **Stripe Connect Fee (1.5%)**: £1.80
+- **Total Fees**: £2.40 (2.0%)
+- **Practitioner Earnings**: £117.60
 - **Client Pays**: £120.00
 
 ### Example 3: Osteopathy Session
 - **Practitioner Price**: £150.00
-- **Platform Fee (4%)**: £6.00
-- **Practitioner Earnings**: £144.00
+- **Platform Fee (0.5%)**: £0.75
+- **Stripe Connect Fee (1.5%)**: £2.25
+- **Total Fees**: £3.00 (2.0%)
+- **Practitioner Earnings**: £147.00
 - **Client Pays**: £150.00
 
 ## Revenue Model
 
 ### For Practitioners
 - **Monthly Subscription**: £30 (Basic) or £50 (Pro)
-- **Per-Session Earnings**: 96% of their set price
-- **Platform Fee**: 4% of each booking
+- **Per-Session Earnings**: 98% of their set price
+- **Platform Fee**: 0.5% of each booking
+- **Stripe Connect Processing Fee**: 1.5% (automatically deducted by Stripe)
+- **Total Fees**: 2.0% per booking
 
 ### For Platform
 - **Subscription Revenue**: £30-£50 per practitioner per month
-- **Transaction Fees**: 4% of every booking
+- **Transaction Fees**: 0.5% of every booking
 - **Scalable Growth**: Revenue grows with platform usage
 
 ## Security & Compliance

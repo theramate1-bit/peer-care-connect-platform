@@ -306,19 +306,23 @@ export class MessagesService {
   }
 
   static async sendMessage(message: Omit<Message, 'id' | 'created_at' | 'updated_at'>): Promise<Message> {
+    // Use MessagingManager to send message (creates notification automatically)
+    const { MessagingManager } = await import('@/lib/messaging');
+    const messageId = await MessagingManager.sendMessage(
+      message.conversation_id,
+      message.sender_id,
+      message.content || message.encrypted_content || '',
+      message.message_type || 'text'
+    );
+
+    // Get the created message
     const { data, error } = await supabase
       .from('messages')
-      .insert(message)
-      .select()
+      .select('*')
+      .eq('id', messageId)
       .single();
 
     if (error) throw error;
-
-    // Update conversation last_message_at
-    await supabase
-      .from('conversations')
-      .update({ last_message_at: new Date().toISOString() })
-      .eq('id', message.conversation_id);
 
     return data;
   }

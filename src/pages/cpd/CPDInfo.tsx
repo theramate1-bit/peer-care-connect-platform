@@ -100,7 +100,7 @@ const CPDInfo = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {externalProviders.map((provider, index) => (
-                <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+                <div key={index} className="p-4 border rounded-lg transition-[border-color,background-color] duration-200 ease-out">
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="font-semibold">{provider.name}</h3>
                     <Badge variant="outline">{provider.category}</Badge>

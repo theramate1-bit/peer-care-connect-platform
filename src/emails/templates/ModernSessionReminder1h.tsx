@@ -1,0 +1,172 @@
+import * as React from 'react';
+import { Section, Text, Link } from '@react-email/components';
+import { ModernEmailBase } from './ModernEmailBase';
+import { ModernCard } from './ModernCard';
+import { ModernButton } from './ModernButton';
+import { generateMapsUrl } from '../utils/maps';
+import { formatTimeForEmail } from '../utils/formatting';
+import { EmailData } from '../utils/types';
+
+interface ModernSessionReminder1hProps {
+  recipientName?: string;
+  data: EmailData;
+  baseUrl?: string;
+}
+
+export const ModernSessionReminder1h = ({
+  recipientName,
+  data,
+  baseUrl = 'https://theramate.co.uk',
+}: ModernSessionReminder1hProps) => {
+  const bookingUrl = data.bookingUrl || `${baseUrl}/client/sessions`;
+  const messageUrl = data.messageUrl || `${baseUrl}/messages`;
+
+  const formattedDate = data.sessionDate
+    ? new Date(data.sessionDate).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : 'N/A';
+  const formattedTime = formatTimeForEmail(data.sessionTime);
+
+  const isMobileService =
+    data.therapistType === 'mobile' ||
+    (data.therapistType === 'hybrid' && data.serviceType === 'mobile');
+
+  const shouldShowLocation = !isMobileService && data.sessionLocation;
+  const locationDisplayText = isMobileService
+    ? 'Mobile Service - Location to be confirmed with practitioner'
+    : data.sessionLocation || 'Location to be confirmed';
+
+  const mapsUrl = data.directionsUrl && data.directionsUrl !== '#'
+    ? data.directionsUrl
+    : data.sessionLocation
+    ? generateMapsUrl(data.sessionLocation)
+    : '#';
+
+  const heroTitle = `Your session starts in 1 hour!`;
+  const heroSubtitle = `Please make sure you're ready! Your ${data.sessionType || 'session'} starts in 1 hour.`;
+
+  return (
+    <ModernEmailBase
+      preview="Reminder: Your session starts in 1 hour"
+      title="Session Starting Soon - TheraMate."
+      heroTitle={heroTitle}
+      heroSubtitle={heroSubtitle}
+      heroBadge="1 Hour Reminder"
+      primaryColor="#dc2626"
+      baseUrl={baseUrl}
+    >
+      <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
+        <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', maxWidth: '500px' }}>
+          <tr>
+            <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
+              <ModernButton href={bookingUrl} variant="primary" color="#dc2626">
+                View Details
+              </ModernButton>
+            </td>
+            <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
+              <ModernButton href={messageUrl} variant="secondary" color="#dc2626">
+                Message Practitioner
+              </ModernButton>
+            </td>
+          </tr>
+          {mapsUrl && mapsUrl !== '#' && shouldShowLocation && (
+            <tr>
+              <td colSpan={2} style={{ padding: '8px 8px 0 8px' }}>
+                <ModernButton href={mapsUrl} variant="secondary" color="#dc2626" fullWidth>
+                  Get Directions
+                </ModernButton>
+              </td>
+            </tr>
+          )}
+        </table>
+      </Section>
+
+      <ModernCard title="Session Details" accentColor="#dc2626">
+        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+          <table cellPadding="0" cellSpacing="0" width="100%">
+            <tr>
+              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '20px' }}>📅</span>
+                  </div>
+                  <div>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Date</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedDate}</Text>
+                  </div>
+                </div>
+              </td>
+              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '20px' }}>🕐</span>
+                  </div>
+                  <div>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Time</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedTime}</Text>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '20px' }}>⏱️</span>
+                  </div>
+                  <div>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Duration</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.sessionDuration || 60} minutes</Text>
+                  </div>
+                </div>
+              </td>
+              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '20px' }}>👤</span>
+                  </div>
+                  <div>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Practitioner</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.practitionerName || 'N/A'}</Text>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </Section>
+      </ModernCard>
+
+      {(shouldShowLocation || isMobileService) && (
+        <ModernCard title={isMobileService ? "Service Type" : "Location Details"} accentColor="#dc2626">
+          <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>{locationDisplayText}</Text>
+          {isMobileService ? (
+            <Text style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#64748b', lineHeight: '1.6' }}>
+              Your practitioner will travel to your location. Please ensure your address is up to date and accessible.
+            </Text>
+          ) : (
+            mapsUrl && mapsUrl !== '#' && (
+              <Link href={mapsUrl} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', color: '#475569', fontSize: '14px', fontWeight: 700, textDecoration: 'none', backgroundColor: '#ffffff' }}>
+                <span style={{ marginRight: '8px' }}>🗺️</span>View on Maps
+              </Link>
+            )
+          )}
+        </ModernCard>
+      )}
+
+      <Section style={{ marginTop: '24px', padding: '24px', backgroundColor: 'rgba(220, 38, 38, 0.05)', borderRadius: '16px', border: '1px solid rgba(220, 38, 38, 0.1)' }}>
+        <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Last-minute reminders</Text>
+        <Text style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+          • Leave now to arrive on time<br />
+          • Bring your ID if required<br />
+          • Have your phone charged<br />
+          • Check traffic conditions
+        </Text>
+      </Section>
+    </ModernEmailBase>
+  );
+};
+
+export default ModernSessionReminder1h;

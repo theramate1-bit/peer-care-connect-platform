@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Clock, User, CreditCard, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Calendar, Loader2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { BookingValidator } from '@/lib/booking-validation';
 import { PaymentIntegration } from '@/lib/payment-integration';
 import { NotificationSystem } from '@/lib/notification-system';
+import { SessionNotifications } from '@/lib/session-notifications';
 import BookingConfirmation from './BookingConfirmation';
+import { CalendarTimeSelector } from '@/components/booking/CalendarTimeSelector';
 
 interface CompleteBookingFlowProps {
   practitioner: {
@@ -41,86 +42,9 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
     date: '',
     time: '',
     duration: 60,
-    sessionType: 'consultation',
+    sessionType: 'initial_consultation',
     notes: ''
   });
-
-  // Available time slots
-  const [availableSlots, setAvailableSlots] = useState<{ time: string; available: boolean }[]>([]);
-
-  useEffect(() => {
-    if (formData.date) {
-      fetchAvailableSlots();
-    }
-  }, [formData.date, practitioner.user_id]);
-
-  const fetchAvailableSlots = async () => {
-    try {
-      const dayOfWeek = new Date(formData.date).getDay();
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      const dayName = dayNames[dayOfWeek];
-      
-      // Get practitioner availability
-      const { data: availability } = await supabase
-        .from('practitioner_availability')
-        .select('working_hours')
-        .eq('user_id', practitioner.user_id)
-        .single();
-
-      if (!availability?.working_hours?.[dayName]?.enabled) {
-        setAvailableSlots([]);
-        return;
-      }
-
-      const dayConfig = availability.working_hours[dayName];
-      const [startHour, startMinute] = dayConfig.start.split(':').map(Number);
-      const [endHour, endMinute] = dayConfig.end.split(':').map(Number);
-
-      // Generate time slots
-      const slots = [];
-      const slotDuration = 30;
-      
-      let currentHour = startHour;
-      let currentMinute = startMinute;
-      
-      while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
-        const timeString = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
-        
-        // Check for conflicts
-        const { data: existingBookings } = await supabase
-          .from('client_sessions')
-          .select('start_time, duration_minutes')
-          .eq('therapist_id', practitioner.user_id)
-          .eq('session_date', formData.date)
-          .in('status', ['scheduled', 'confirmed']);
-
-        const hasConflict = existingBookings?.some(booking => {
-          const bookingStart = new Date(`${formData.date}T${booking.start_time}`);
-          const bookingEnd = new Date(bookingStart.getTime() + booking.duration_minutes * 60000);
-          const slotStart = new Date(`${formData.date}T${timeString}`);
-          const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
-          
-          return slotStart < bookingEnd && slotEnd > bookingStart;
-        }) || false;
-
-        slots.push({
-          time: timeString,
-          available: !hasConflict
-        });
-
-        currentMinute += slotDuration;
-        if (currentMinute >= 60) {
-          currentMinute = 0;
-          currentHour++;
-        }
-      }
-
-      setAvailableSlots(slots);
-    } catch (error) {
-      console.error('Error fetching available slots:', error);
-      toast.error('Failed to load available times');
-    }
-  };
 
   const handleNext = async () => {
     if (step === 1) {
@@ -162,34 +86,66 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
 
     setLoading(true);
     try {
-      // Create session
-      const { data: session, error: sessionError } = await supabase
+      // Calculate price based on duration and hourly rate
+      // Note: In a real scenario, this might come from a specific service price
+      const price = (practitioner.hourly_rate / 60) * formData.duration;
+      const priceMinor = Math.round(price * 100);
+
+      // Generate idempotency key
+      const idempotencyKey = `${user.id}-${practitioner.user_id}-${formData.date}-${formData.time}-${Date.now()}`;
+
+      // Create session using RPC function with validation
+      const { data: bookingResult, error: rpcError } = await supabase
+        .rpc('create_booking_with_validation', {
+          p_therapist_id: practitioner.user_id,
+          p_client_id: user.id,
+          p_client_name: `${user.user_metadata?.first_name || 'Client'} ${user.user_metadata?.last_name || ''}`,
+          p_client_email: user.email,
+          p_session_date: formData.date,
+          p_start_time: formData.time,
+          p_duration_minutes: formData.duration,
+          p_session_type: formData.sessionType,
+          p_price: price,
+          p_client_phone: null,
+          p_notes: formData.notes || null,
+          p_payment_status: 'pending',
+          p_status: 'scheduled',
+          p_idempotency_key: idempotencyKey
+        });
+
+      if (rpcError) throw rpcError;
+
+      // Check RPC response (RPC returns JSONB, need to type assert)
+      const result = bookingResult as any;
+      if (!result || !result.success) {
+        const errorCode = result?.error_code || 'UNKNOWN_ERROR';
+        const errorMessage = result?.error_message || 'Failed to create booking';
+        
+        if (errorCode === 'CONFLICT_BOOKING' || errorCode === 'CONFLICT_BLOCKED') {
+          toast.error(errorMessage);
+          setLoading(false);
+          return;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Get the created session ID and fetch full data
+      const sessionId = result.session_id;
+      const { data: session, error: fetchError } = await supabase
         .from('client_sessions')
-        .insert({
-          therapist_id: practitioner.user_id,
-          client_id: user.id,
-          client_name: `${user.user_metadata?.first_name || 'Client'} ${user.user_metadata?.last_name || ''}`,
-          client_email: user.email,
-          session_date: formData.date,
-          start_time: formData.time,
-          duration_minutes: formData.duration,
-          session_type: formData.sessionType,
-          price: (practitioner.hourly_rate * formData.duration) / 60,
-          notes: formData.notes,
-          status: 'scheduled',
-          payment_status: 'pending'
-        })
-        .select()
+        .select('*')
+        .eq('id', sessionId)
         .single();
 
-      if (sessionError) throw sessionError;
+      if (fetchError) throw fetchError;
 
       // Create payment intent
       const paymentResult = await PaymentIntegration.createSessionPayment({
         sessionId: session.id,
         practitionerId: practitioner.user_id,
         clientId: user.id,
-        amount: Math.round(((practitioner.hourly_rate * formData.duration) / 60) * 100), // Convert to pence
+        amount: priceMinor, // Use calculated price in pence
         currency: 'GBP',
         description: `${formData.sessionType} session with ${practitioner.first_name} ${practitioner.last_name}`
       });
@@ -200,6 +156,18 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
 
       // Send booking confirmation notifications
       await NotificationSystem.sendBookingConfirmation(session.id);
+      
+      // Send booking notification to practitioner
+      await SessionNotifications.sendNotification({
+        trigger: 'booking_created',
+        sessionId: session.id,
+        clientId: user.id,
+        practitionerId: practitioner.user_id,
+        sessionDate: formData.date,
+        sessionTime: formData.time,
+        sessionType: formData.sessionType,
+        practitionerName: `${practitioner.first_name} ${practitioner.last_name}`
+      });
 
       toast.success('Booking created successfully!');
       onBookingComplete?.(session.id);
@@ -213,25 +181,8 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (timeString: string) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
   const calculateTotal = () => {
-    return (practitioner.hourly_rate * formData.duration) / 60;
+    return (practitioner.hourly_rate / 60) * formData.duration;
   };
 
   return (
@@ -249,77 +200,58 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Date Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="date">Session Date *</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({...formData, date: e.target.value})}
-                min={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-
-            {/* Time Selection */}
-            {formData.date && (
+            
+            {/* Session Type & Duration Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="time">Session Time *</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {availableSlots.map((slot) => (
-                    <Button
-                      key={slot.time}
-                      variant={formData.time === slot.time ? "default" : "outline"}
-                      size="sm"
-                      disabled={!slot.available}
-                      onClick={() => setFormData({...formData, time: slot.time})}
-                      className="text-xs"
-                    >
-                      {formatTime(slot.time)}
-                    </Button>
-                  ))}
-                </div>
-                {availableSlots.length === 0 && (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      No available time slots for this date. Please select a different date.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <Label htmlFor="sessionType">Session Type *</Label>
+                <Select value={formData.sessionType} onValueChange={(value) => setFormData({...formData, sessionType: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="initial_consultation">Initial Consultation</SelectItem>
+                    <SelectItem value="treatment">Treatment Session</SelectItem>
+                    <SelectItem value="follow_up">Follow-up Session</SelectItem>
+                    <SelectItem value="rehabilitation">Rehabilitation</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
 
-            {/* Duration Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="duration">Session Duration *</Label>
-              <Select value={formData.duration.toString()} onValueChange={(value) => setFormData({...formData, duration: parseInt(value)})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                  <SelectItem value="90">1.5 hours</SelectItem>
-                  <SelectItem value="120">2 hours</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration *</Label>
+                <Select value={formData.duration.toString()} onValueChange={(value) => setFormData({...formData, duration: parseInt(value), time: ''})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="90">1.5 hours</SelectItem>
+                    <SelectItem value="120">2 hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {/* Session Type */}
+            {/* Calendar & Time Selection */}
             <div className="space-y-2">
-              <Label htmlFor="sessionType">Session Type *</Label>
-              <Select value={formData.sessionType} onValueChange={(value) => setFormData({...formData, sessionType: value})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="consultation">Consultation</SelectItem>
-                  <SelectItem value="treatment">Treatment</SelectItem>
-                  <SelectItem value="assessment">Assessment</SelectItem>
-                  <SelectItem value="follow_up">Follow-up</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Date & Time</Label>
+              <CalendarTimeSelector
+                therapistId={practitioner.user_id}
+                duration={formData.duration}
+                selectedDate={formData.date}
+                selectedTime={formData.time}
+                onDateTimeSelect={(date, time) => {
+                  setFormData(prev => ({ ...prev, date, time }));
+                }}
+              />
+              {formData.date && formData.time && (
+                <div className="mt-2 bg-primary/10 border border-primary/20 p-2 rounded text-sm flex items-center justify-center gap-2 text-primary">
+                  <Clock className="h-4 w-4" />
+                  Selected: <strong>{new Date(formData.date).toLocaleDateString()} at {formData.time}</strong>
+                </div>
+              )}
             </div>
 
             {/* Notes */}
@@ -342,12 +274,12 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
                   <span>£{calculateTotal().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Platform fee (3%)</span>
-                  <span>£{(calculateTotal() * 0.03).toFixed(2)}</span>
+                  <span>Platform fee (0.5%)</span>
+                  <span>£{((calculateTotal() * 100 * 0.005) / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-medium border-t pt-1">
                   <span>Total</span>
-                  <span>£{(calculateTotal() * 1.03).toFixed(2)}</span>
+                  <span>£{(calculateTotal() * 1.005).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -379,7 +311,8 @@ const CompleteBookingFlow: React.FC<CompleteBookingFlowProps> = ({
             date: formData.date,
             time: formData.time,
             duration: formData.duration,
-            type: formData.sessionType
+            type: formData.sessionType,
+            price: calculateTotal()
           }}
           validation={validation}
           onConfirm={handleBookingConfirm}

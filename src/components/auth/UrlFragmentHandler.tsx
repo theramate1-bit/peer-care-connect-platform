@@ -112,6 +112,32 @@ const UrlFragmentHandler = () => {
                 navigate('/auth/callback');
               }
             }
+          } else if (type === 'recovery' && accessToken) {
+            console.log('🔄 Processing password reset tokens...');
+            
+            // Set the session using the tokens for password reset
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            });
+            
+            if (error) {
+              console.error('❌ Password reset session error:', error);
+              navigate('/reset-password', { 
+                state: { 
+                  error: 'Invalid or expired reset link. Please request a new one.'
+                } 
+              });
+              return;
+            }
+            
+            if (data.session?.user) {
+              console.log('✅ Password reset tokens validated successfully');
+              // Redirect to password reset confirmation page
+              navigate('/auth/reset-password-confirm', { 
+                replace: true 
+              });
+            }
           } else {
             console.log('⚠️ Unexpected token type or missing tokens');
             navigate('/auth/verify-email', { 

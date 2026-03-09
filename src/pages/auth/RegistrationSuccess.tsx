@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Mail, ArrowRight, Clock, User, Shield, CreditCard } from "lucide-react";
+import { CheckCircle, Mail, ArrowRight, Clock, User as UserIcon, Shield, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 const RegistrationSuccess = () => {
@@ -55,7 +55,7 @@ const RegistrationSuccess = () => {
             Registration Successful! 🎉
           </CardTitle>
           <CardDescription className="text-lg">
-            Welcome to TheraMate! Your account has been created successfully.
+            Welcome to TheraMate.! Your account has been created successfully.
           </CardDescription>
         </CardHeader>
         
@@ -185,3 +185,4 @@ const RegistrationSuccess = () => {
 };
 
 export default RegistrationSuccess;
+

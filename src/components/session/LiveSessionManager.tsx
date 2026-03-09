@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Clock, 
-  User, 
+  User as UserIcon, 
   Calendar, 
   Play, 
   Pause, 
@@ -192,6 +192,15 @@ export const LiveSessionManager: React.FC<LiveSessionManagerProps> = ({
       
       toast.success('Session completed');
       
+      // Send review request email to client
+      try {
+        const { NotificationSystem } = await import('@/lib/notification-system');
+        await NotificationSystem.sendReviewRequest(currentSession.id);
+      } catch (reviewError) {
+        console.error('Error sending review request:', reviewError);
+        // Don't fail the session completion if email fails
+      }
+      
       // Update local session state
       const updatedSession = {
         ...currentSession,
@@ -273,7 +282,7 @@ export const LiveSessionManager: React.FC<LiveSessionManagerProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
                 {currentSession.client_name}
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
@@ -448,3 +457,4 @@ export const LiveSessionManager: React.FC<LiveSessionManagerProps> = ({
     </div>
   );
 };
+

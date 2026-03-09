@@ -17,7 +17,7 @@ import {
   Star, 
   Calendar,
   PoundSterling,
-  User
+  User as UserIcon
 } from 'lucide-react';
 import { 
   PractitionerService, 
@@ -49,7 +49,7 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({
     query: '',
-    serviceType: '',
+    serviceType: 'all',
     minPrice: 0,
     maxPrice: 10000, // £100
     duration: 0,
@@ -82,7 +82,7 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
       setLoading(true);
       const result = await searchServices({
         query: filters.query || undefined,
-        serviceType: filters.serviceType || undefined,
+        serviceType: filters.serviceType === 'all' ? undefined : filters.serviceType || undefined,
         minPrice: filters.minPrice || undefined,
         maxPrice: filters.maxPrice || undefined,
         duration: filters.duration || undefined,
@@ -113,7 +113,7 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
   const clearFilters = () => {
     setFilters({
       query: '',
-      serviceType: '',
+      serviceType: 'all',
       minPrice: 0,
       maxPrice: 10000,
       duration: 0,
@@ -174,7 +174,7 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Types</SelectItem>
+                      <SelectItem value="all">All Types</SelectItem>
                       {categories.map(category => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}
@@ -256,7 +256,7 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map(service => (
-            <Card key={service.id} className="hover:shadow-lg transition-shadow">
+            <Card key={service.id} className="transition-[border-color,background-color] duration-200 ease-out">
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
@@ -286,7 +286,7 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
                   {/* Practitioner Info */}
                   <div className="flex items-center gap-3 pt-2 border-t">
                     <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4 text-primary" />
+                      <UserIcon className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
@@ -305,9 +305,6 @@ const ServiceBrowser: React.FC<ServiceBrowserProps> = ({ onBookService }) => {
                     >
                       <Calendar className="w-4 h-4 mr-2" />
                       Book Session
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Star className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>

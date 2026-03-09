@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { sanitizeFileName, sanitizePathSegment } from '@/lib/file-path-sanitizer';
 
 interface ClinicalFile {
   id: string;
@@ -119,9 +120,15 @@ export const ClinicalFileUpload: React.FC<ClinicalFileUploadProps> = ({
         const file = files[i];
         const fileType = getFileType(file);
         
+        // Sanitize file name and path segments to prevent path traversal
+        const sanitizedPractitionerId = sanitizePathSegment(practitionerId);
+        const sanitizedClientId = sanitizePathSegment(clientId);
+        const sanitizedSessionId = sanitizePathSegment(sessionId);
+        const sanitizedFileName = sanitizeFileName(file.name);
+        
         // Create unique filename with organized structure
         const timestamp = Date.now();
-        const fileName = `${practitionerId}/${clientId}/${sessionId}/${timestamp}-${file.name}`;
+        const fileName = `${sanitizedPractitionerId}/${sanitizedClientId}/${sanitizedSessionId}/${timestamp}-${sanitizedFileName}`;
         
         // Upload to Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage

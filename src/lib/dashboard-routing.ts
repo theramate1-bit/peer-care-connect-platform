@@ -16,6 +16,7 @@ export interface UserProfile {
   onboarding_status: 'pending' | 'in_progress' | 'completed';
   phone?: string;
   profile_completed: boolean;
+  stripe_connect_account_id?: string | null;
 }
 
 export interface DashboardRouteOptions {
@@ -36,16 +37,17 @@ export function getDashboardRoute(options: DashboardRouteOptions): string {
     return '/login';
   }
 
-  // Check localStorage for role fallback
-  const localStorageRole = localStorage.getItem('selectedRole');
-  const roleSelectionTime = localStorage.getItem('roleSelectionTimestamp');
-  const isRecentRoleSelection = roleSelectionTime && (Date.now() - parseInt(roleSelectionTime)) < 300000; // 5 minutes
-  
-  // Use localStorage role if database role is missing and selection was recent
-  const effectiveRole = userProfile.user_role || (isRecentRoleSelection ? localStorageRole : null);
+  // SECURITY: Do not use localStorage as role fallback - it's a security risk
+  // Roles must come from the database (userProfile.user_role) only
+  const effectiveRole = userProfile.user_role;
 
   // If onboarding is not completed, redirect to onboarding
   if (userProfile.onboarding_status !== 'completed') {
+    return '/onboarding';
+  }
+
+  // If user has no role, redirect to onboarding
+  if (!effectiveRole) {
     return '/onboarding';
   }
 
@@ -81,12 +83,22 @@ export function getDashboardRoute(options: DashboardRouteOptions): string {
 export function shouldRedirectToOnboarding(userProfile: UserProfile | null): boolean {
   if (!userProfile) return false;
   
-  // Check if user has completed onboarding
-  if (userProfile.onboarding_status === 'completed') {
+  // Practitioners must complete onboarding and profile before accessing app
+  const isPractitioner = ['sports_therapist', 'massage_therapist', 'osteopath'].includes(userProfile.user_role);
+  if (isPractitioner) {
+    // Require completed onboarding and completed profile
+    // Note: Stripe Connect is NOT required for dashboard access - it's only required for receiving payments
+    if (userProfile.onboarding_status !== 'completed' || !userProfile.profile_completed) {
+      return true;
+    }
+    // Practitioners fully completed onboarding
     return false;
   }
   
-  // Check if user has completed their profile
+  // For non-practitioners, retain existing relaxed checks
+  if (userProfile.onboarding_status === 'completed') {
+    return false;
+  }
   if (userProfile.profile_completed) {
     return false;
   }
@@ -122,13 +134,9 @@ export function shouldRedirectToOnboarding(userProfile: UserProfile | null): boo
 export function getOnboardingRoute(userProfile: UserProfile | null): string {
   if (!userProfile) return '/onboarding';
   
-  // Check localStorage for role fallback
-  const localStorageRole = localStorage.getItem('selectedRole');
-  const roleSelectionTime = localStorage.getItem('roleSelectionTimestamp');
-  const isRecentRoleSelection = roleSelectionTime && (Date.now() - parseInt(roleSelectionTime)) < 300000; // 5 minutes
-  
-  // Use localStorage role if database role is missing and selection was recent
-  const effectiveRole = userProfile.user_role || (isRecentRoleSelection ? localStorageRole : null);
+  // SECURITY: Do not use localStorage as role fallback - it's a security risk
+  // Roles must come from the database (userProfile.user_role) only
+  const effectiveRole = userProfile.user_role;
   
   switch (effectiveRole) {
     case 'client':
@@ -148,16 +156,25 @@ export function getOnboardingRoute(userProfile: UserProfile | null): string {
 export function canAccessRoute(userProfile: UserProfile | null, route: string): boolean {
   if (!userProfile) return false;
   
-  // Check localStorage for role fallback
-  const localStorageRole = localStorage.getItem('selectedRole');
-  const roleSelectionTime = localStorage.getItem('roleSelectionTimestamp');
-  const isRecentRoleSelection = roleSelectionTime && (Date.now() - parseInt(roleSelectionTime)) < 300000; // 5 minutes
+  // SECURITY: Do not use localStorage as role fallback - it's a security risk
+  // Roles must come from the database (userProfile.user_role) only
+  const effectiveRole = userProfile.user_role;
   
-  // Use localStorage role if database role is missing and selection was recent
-  const effectiveRole = userProfile.user_role || (isRecentRoleSelection ? localStorageRole : null);
+  // If user has no role, they can only access public and auth routes
+  if (!effectiveRole) {
+    const publicRoutes = ['/', '/marketplace', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy', '/cookies'];
+    if (publicRoutes.includes(route)) return true;
+    if (route.startsWith('/auth/') || route === '/login' || route === '/register' || route === '/reset-password') {
+      return true;
+    }
+    if (route === '/onboarding') {
+      return true;
+    }
+    return false;
+  }
   
   // Public routes that don't require authentication
-  const publicRoutes = ['/', '/marketplace', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy'];
+  const publicRoutes = ['/', '/marketplace', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy', '/cookies'];
   if (publicRoutes.includes(route)) return true;
   
   // Auth routes

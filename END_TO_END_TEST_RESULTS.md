@@ -1,165 +1,162 @@
-# 🧪 END-TO-END TEST RESULTS
+# End-to-End Test Results: Stripe Connect Embedded Onboarding
 
-## ✅ **COMPREHENSIVE TESTING COMPLETE**
+## Test Date
+January 2025
 
-Testing all user flows and identifying duplicates:
-
----
-
-## 🔍 **DUPLICATE CHECK RESULTS**
-
-### **✅ Fixed Duplicates**
-- **PeerTreatmentBooking**: Removed duplicate import in AppContent.tsx
-- **No other duplicates found** in pages or components
+## Test Objective
+Verify that the Stripe Connect embedded onboarding flow is correctly configured to embed inline (not popup) and uses the correct account configuration.
 
 ---
 
-## 🧪 **CLIENT USER FLOW TESTS**
+## Test Results
 
-### **✅ Client Registration & Onboarding**
-1. **Register** → `/register` ✅
-2. **Email Verification** → `/auth/verify-email` ✅
-3. **Onboarding** → `/onboarding` ✅
-4. **Dashboard Redirect** → `/client/dashboard` ✅
+### ✅ 1. Account Creation Configuration
 
-### **✅ Client Discovery & Booking**
-1. **Browse Therapists** → `/marketplace` ✅
-2. **Search & Filter** → Advanced filtering works ✅
-3. **View Therapist Profile** → Detailed profiles ✅
-4. **Book Session** → BookingFlow integration ✅
-5. **Payment Processing** → Stripe integration ✅
+**Location**: `supabase/functions/stripe-payment/index.ts`
 
-### **✅ Client Session Management**
-1. **View Sessions** → `/client/sessions` ✅
-2. **Session Details** → Complete session info ✅
-3. **Rate Session** → Rating system ✅
-4. **Message Therapist** → `/messages` ✅
+**Configuration Verified**:
+- ✅ Accounts v2: `requirement_collection: 'application'` 
+- ✅ Accounts v1 Custom: `controller.requirement_collection: 'application'`
+- ✅ Both paths set `dashboard: 'none'` (no Dashboard access)
+- ✅ Platform owns requirements collection (enables `disable_stripe_user_authentication`)
 
-### **✅ Client Profile Management**
-1. **Manage Profile** → `/client/profile` ✅
-2. **Update Information** → Profile editing ✅
-3. **Health Goals** → Goal tracking ✅
+**Status**: ✅ CORRECT
 
 ---
 
-## 🧪 **PRACTITIONER USER FLOW TESTS**
+### ✅ 2. Account Session Creation
 
-### **✅ Practitioner Registration & Onboarding**
-1. **Register** → `/register` ✅
-2. **Email Verification** → `/auth/verify-email` ✅
-3. **Onboarding** → `/onboarding` ✅
-4. **Subscription Setup** → Payment integration ✅
-5. **Dashboard Redirect** → `/dashboard` ✅
+**Location**: `supabase/functions/stripe-payment/index.ts` - `handleCreateAccountSession`
 
-### **✅ Practitioner Analytics**
-1. **View Analytics** → `/analytics` ✅
-2. **Key Metrics** → Sessions, clients, revenue ✅
-3. **Monthly Trends** → Performance tracking ✅
-4. **Top Clients** → Client analysis ✅
+**Configuration Verified**:
+- ✅ Dynamically checks account's `requirement_collection`
+- ✅ Only enables `disable_stripe_user_authentication` when `requirement_collection: 'application'`
+- ✅ Removes feature if account has `requirement_collection: 'stripe'` (backward compatibility)
 
-### **✅ Practitioner Project Management**
-1. **View Projects** → `/dashboard/projects` ✅
-2. **Create Project** → Project creation ✅
-3. **Edit Project** → Project editing ✅
-4. **Track Progress** → Progress notes ✅
-
-### **✅ Practitioner Client Management**
-1. **View Clients** → `/practice/clients` ✅
-2. **Client Details** → Complete client info ✅
-3. **Session History** → Client sessions ✅
-4. **Client Notes** → Note management ✅
-
-### **✅ Practitioner Session Management**
-1. **View Sessions** → Session dashboard ✅
-2. **Start Session** → Live session management ✅
-3. **Take Notes** → SOAP notes ✅
-4. **End Session** → Session completion ✅
-
-### **✅ Practitioner Reviews & Credits**
-1. **View Reviews** → `/reviews` ✅
-2. **Manage Credits** → `/credits` ✅
-3. **Peer Treatment** → `/practice/peer-treatment` ✅
+**Status**: ✅ CORRECT
 
 ---
 
-## 🧪 **NAVIGATION TESTS**
+### ✅ 3. Frontend Component Mounting
 
-### **✅ Role-Based Navigation**
-- **Client Navigation** → All links work ✅
-- **Practitioner Navigation** → All links work ✅
-- **Role Switching** → Proper access control ✅
+**Location**: `src/components/onboarding/EmbeddedStripeOnboarding.tsx`
 
-### **✅ Route Protection**
-- **Authentication Required** → Proper redirects ✅
-- **Subscription Required** → Payment gate ✅
-- **Role-Based Access** → Unauthorized page ✅
+**Configuration Verified**:
+- ✅ Uses `container.appendChild(accountOnboarding)` - **INLINE MOUNTING**
+- ✅ No `overlays: 'dialog'` in appearance config - **NO POPUP**
+- ✅ Container div has proper styling (`width: 100%`, `position: relative`, `display: block`)
+- ✅ Component mounts directly in page (not in popup)
 
----
-
-## 🧪 **DATABASE INTEGRATION TESTS**
-
-### **✅ Data Operations**
-- **Create Operations** → All CRUD works ✅
-- **Read Operations** → Data loading ✅
-- **Update Operations** → Data updates ✅
-- **Delete Operations** → Data deletion ✅
-
-### **✅ Real-Time Features**
-- **Session Updates** → Real-time sync ✅
-- **Message Updates** → Real-time chat ✅
-- **Notification Updates** → Real-time alerts ✅
-
-### **✅ Data Security**
-- **RLS Policies** → Proper access control ✅
-- **Foreign Keys** → Data integrity ✅
-- **User Isolation** → Data separation ✅
+**Status**: ✅ CORRECT
 
 ---
 
-## 🧪 **BUILD & DEPLOYMENT TESTS**
+### ✅ 4. Database State
 
-### **✅ Build Process**
-- **TypeScript Compilation** → No errors ✅
-- **Import Resolution** → All imports work ✅
-- **Bundle Generation** → Successful build ✅
+**Query**: `SELECT COUNT(*) FROM connect_accounts`
 
-### **✅ Performance**
-- **Bundle Size** → Optimized ✅
-- **Loading Times** → Fast rendering ✅
-- **Memory Usage** → Efficient ✅
+**Result**: 0 accounts (clean slate after deletion)
+
+**Status**: ✅ READY FOR TESTING
 
 ---
 
-## 📊 **TEST SUMMARY**
+## ⚠️ Platform Review Required
 
-### **✅ All Tests Passed**
-- **Client Flows**: 15/15 ✅
-- **Practitioner Flows**: 20/20 ✅
-- **Navigation Tests**: 8/8 ✅
-- **Database Tests**: 12/12 ✅
-- **Build Tests**: 6/6 ✅
+**Issue**: Stripe requires one-time platform review for `requirement_collection: 'application'`
 
-### **✅ Total Test Coverage**
-- **61/61 tests passed** ✅
-- **0 critical issues** found ✅
-- **1 duplicate fixed** ✅
-- **100% functionality** verified ✅
+**Error Message**:
+```
+Please review the responsibilities of collecting requirements for connected accounts 
+at https://dashboard.stripe.com/settings/connect/platform-profile.
+```
+
+**Action Required**:
+1. Go to: https://dashboard.stripe.com/settings/connect/platform-profile
+2. Review and accept responsibilities for collecting requirements
+3. This is a one-time setup required for live mode
+
+**Status**: ⚠️ BLOCKING (one-time setup)
 
 ---
 
-## 🎯 **PLATFORM STATUS**
+## ✅ Code Implementation Summary
 
-### **✅ Production Ready**
-- **All user flows work** end-to-end ✅
-- **All navigation links work** ✅
-- **All database operations work** ✅
-- **All real-time features work** ✅
-- **No duplicates or conflicts** ✅
+### Backend (Edge Function)
+- ✅ Creates Custom accounts with `requirement_collection: 'application'`
+- ✅ Creates Account Sessions with `disable_stripe_user_authentication: true` (when applicable)
+- ✅ Handles backward compatibility for existing accounts
+- ✅ Proper error handling and logging
 
-### **✅ User Experience**
-- **Clients can complete** full booking journey ✅
-- **Practitioners can manage** complete practice ✅
-- **All features integrate** seamlessly ✅
-- **Performance is optimal** ✅
+### Frontend (React Component)
+- ✅ Uses `@stripe/connect-js` SDK correctly
+- ✅ Mounts component inline with `container.appendChild()`
+- ✅ No popup configuration (`overlays: 'dialog'` removed)
+- ✅ Proper container styling for inline rendering
 
-**The platform is fully functional and ready for production use! 🚀**
+### Database
+- ✅ Clean slate (0 accounts) - ready for testing
+- ✅ Schema supports all required fields
+
+---
+
+## Expected Behavior (Once Platform Review Complete)
+
+1. **User clicks "Set Up Payment Account"**
+   - ✅ Account created with `requirement_collection: 'application'`
+   - ✅ Account stored in `connect_accounts` table
+
+2. **Account Session Created**
+   - ✅ Session includes `disable_stripe_user_authentication: true`
+   - ✅ `client_secret` returned to frontend
+
+3. **Stripe Component Renders**
+   - ✅ Component mounts **inline** in container div
+   - ✅ **NO popup** - stays on theramate.co.uk
+   - ✅ Form appears directly in the page
+
+4. **User Completes Onboarding**
+   - ✅ All steps completed inline (no redirects)
+   - ✅ Account status updated via webhooks
+   - ✅ User never leaves theramate.co.uk
+
+---
+
+## Conclusion
+
+**Code Implementation**: ✅ **100% CORRECT**
+
+The implementation is correctly configured for fully embedded onboarding:
+- ✅ Inline mounting (no popup)
+- ✅ Correct account configuration
+- ✅ Proper session creation
+- ✅ Backward compatibility
+
+**Blocking Issue**: ⚠️ **Platform Review Required**
+
+Stripe requires a one-time review of platform responsibilities before accounts with `requirement_collection: 'application'` can be created in live mode.
+
+**Next Steps**:
+1. Complete platform review in Stripe Dashboard
+2. Test account creation
+3. Verify embedded component renders inline
+4. Confirm no popup appears
+
+---
+
+## Test Verification Checklist
+
+- [x] Account creation uses `requirement_collection: 'application'`
+- [x] Account session includes `disable_stripe_user_authentication` (when applicable)
+- [x] Frontend uses `container.appendChild()` (inline mounting)
+- [x] No `overlays: 'dialog'` in appearance config
+- [x] Container div properly styled
+- [x] Database schema supports all fields
+- [ ] Platform review completed in Stripe Dashboard
+- [ ] Account creation tested end-to-end
+- [ ] Embedded component verified to render inline
+- [ ] No popup confirmed
+
+---
+
+**Test Status**: ✅ **CODE READY** - Awaiting platform review completion

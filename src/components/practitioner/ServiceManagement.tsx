@@ -86,6 +86,22 @@ const ServiceManagement: React.FC<ServiceManagementProps> = ({ practitionerId })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!formData.serviceName.trim()) {
+      toast.error('Service name is required');
+      return;
+    }
+    
+    if (!formData.serviceType) {
+      toast.error('Service type is required');
+      return;
+    }
+    
+    if (formData.basePricePence < 1000) {
+      toast.error('Price must be at least £10.00');
+      return;
+    }
+    
     try {
       if (editingService) {
         await updatePractitionerService(editingService.id, practitionerId, formData);
@@ -98,7 +114,12 @@ const ServiceManagement: React.FC<ServiceManagementProps> = ({ practitionerId })
       await loadData();
       resetForm();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save service');
+      console.error('Error saving service:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save service';
+      toast.error(errorMessage, {
+        description: 'Please check all fields and try again',
+        duration: 5000
+      });
     }
   };
 
@@ -198,33 +219,49 @@ const ServiceManagement: React.FC<ServiceManagementProps> = ({ practitionerId })
                   <Label htmlFor="serviceType">Service Type</Label>
                   <Select
                     value={formData.serviceType}
-                    onValueChange={(value: any) => setFormData(prev => ({ ...prev, serviceType: value }))}
+                    onValueChange={(value: 'sports_therapy' | 'massage_therapy' | 'osteopathy') => {
+                      setFormData(prev => ({ ...prev, serviceType: value }));
+                    }}
+                    required
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger id="serviceType">
+                      <SelectValue placeholder="Select service type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map(category => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
+                      {categories.length > 0 ? (
+                        categories.map(category => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="sports_therapy" disabled>Loading categories...</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
+                  {categories.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-1">Loading service categories...</p>
+                  )}
                 </div>
                 
                 <div>
                   <Label htmlFor="duration">Duration (minutes)</Label>
-                  <Input
-                    id="duration"
-                    type="number"
-                    value={formData.durationMinutes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, durationMinutes: parseInt(e.target.value) || 0 }))}
-                    min="15"
-                    max="180"
-                    step="15"
+                  <Select
+                    value={formData.durationMinutes.toString()}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, durationMinutes: parseInt(value) }))}
                     required
-                  />
+                  >
+                    <SelectTrigger id="duration">
+                      <SelectValue placeholder="Select duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 minutes</SelectItem>
+                      <SelectItem value="45">45 minutes</SelectItem>
+                      <SelectItem value="60">60 minutes</SelectItem>
+                      <SelectItem value="75">75 minutes</SelectItem>
+                      <SelectItem value="90">90 minutes</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div>

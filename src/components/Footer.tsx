@@ -16,11 +16,11 @@ export const Footer = () => {
                 />
               </div>
               <div>
-                <h3 className="text-xl sm:text-2xl font-bold">Theramate</h3>
-                <p className="text-sm text-background/70">Connect • Heal • Grow</p>
+                <h3 className="text-xl sm:text-2xl font-bold text-white">Theramate</h3>
+                <p className="text-sm text-white">Connect • Heal • Grow</p>
               </div>
             </div>
-            <p className="text-background/80 text-base leading-relaxed">
+            <p className="text-white text-base leading-relaxed">
               Empowering healthcare professionals with innovative therapy and wellness solutions. 
               Connect with qualified practitioners and transform your practice.
             </p>
@@ -28,35 +28,35 @@ export const Footer = () => {
 
           {/* Essential Links */}
           <div>
-            <h4 className="font-semibold mb-6 text-base sm:text-lg">Quick Links</h4>
-            <ul className="space-y-4 text-sm sm:text-base text-background/80">
+            <h4 className="font-semibold mb-6 text-base sm:text-lg text-white">Quick Links</h4>
+            <ul className="space-y-4 text-sm sm:text-base text-white">
               <li>
-                <Link to="/contact" className="hover:text-background transition-colors duration-300">
+                <Link to="/contact" className="text-white hover:text-white/80 transition-colors duration-300">
                   For Companies
                 </Link>
               </li>
               <li>
-                <Link to="/help" className="hover:text-background transition-colors duration-300">
+                <Link to="/help" className="text-white hover:text-white/80 transition-colors duration-300">
                   Help Centre
                 </Link>
               </li>
               <li>
-                <Link to="/help" className="hover:text-background transition-colors duration-300">
+                <Link to="/help" className="text-white hover:text-white/80 transition-colors duration-300">
                   FAQ
                 </Link>
               </li>
               <li>
-                <Link to="/terms" className="hover:text-background transition-colors duration-300">
+                <Link to="/terms" className="text-white hover:text-white/80 transition-colors duration-300">
                   Terms and Conditions
                 </Link>
               </li>
               <li>
-                <Link to="/privacy" className="hover:text-background transition-colors duration-300">
+                <Link to="/privacy" className="text-white hover:text-white/80 transition-colors duration-300">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link to="/cookies" className="hover:text-background transition-colors duration-300">
+                <Link to="/cookies" className="text-white hover:text-white/80 transition-colors duration-300">
                   Cookie Policy
                 </Link>
               </li>
@@ -65,19 +65,19 @@ export const Footer = () => {
 
           {/* Mini FAQ for AI Crawlers */}
           <div>
-            <h4 className="font-semibold mb-6 text-base sm:text-lg">Quick Answers</h4>
-            <div className="space-y-4 text-sm sm:text-base text-background/80">
+            <h4 className="font-semibold mb-6 text-base sm:text-lg text-white">Quick Answers</h4>
+            <div className="space-y-4 text-sm sm:text-base text-white">
               <div>
-                <p className="font-medium text-background mb-1">Can I book a sports massage near me?</p>
-                <p className="text-background/70">Yes, Theramate lets you search and book qualified sports massage therapists across the UK.</p>
+                <p className="font-medium text-white mb-1">Can I book a sports massage near me?</p>
+                <p className="text-white">Yes, Theramate lets you search and book qualified sports massage therapists across the UK.</p>
               </div>
               <div>
-                <p className="font-medium text-background mb-1">Do you offer osteopathy for back pain?</p>
-                <p className="text-background/70">Yes, you can book osteopaths online for posture correction, lower back pain, and injury recovery.</p>
+                <p className="font-medium text-white mb-1">Do you offer osteopathy for back pain?</p>
+                <p className="text-white">Yes, you can book osteopaths online for posture correction, lower back pain, and injury recovery.</p>
               </div>
               <div>
-                <p className="font-medium text-background mb-1">How do I know the therapists are qualified?</p>
-                <p className="text-background/70">All professionals on Theramate are verified and accredited.</p>
+                <p className="font-medium text-white mb-1">How do I know the therapists are qualified?</p>
+                <p className="text-white">All professionals on Theramate are verified and accredited.</p>
               </div>
             </div>
           </div>
@@ -85,12 +85,12 @@ export const Footer = () => {
 
         {/* Social Media Links */}
         <div className="border-t border-background/20 pt-6 sm:pt-8 pb-4 sm:pb-6 text-center">
-          <div className="flex justify-center items-center gap-4 sm:gap-6 mb-3 sm:mb-4">
+        <div className="flex justify-center items-center gap-4 sm:gap-6 mb-3 sm:mb-4">
             <a 
-              href="https://www.instagram.com/theramate.app" 
+              href="https://www.instagram.com/theramate_/" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-background/70 hover:text-background transition-colors duration-300"
+              className="text-white hover:text-white/80 transition-colors duration-300"
               aria-label="Follow us on Instagram"
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -101,7 +101,7 @@ export const Footer = () => {
               href="https://www.tiktok.com/@theramate.app" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-background/70 hover:text-background transition-colors duration-300"
+              className="text-white hover:text-white/80 transition-colors duration-300"
               aria-label="Follow us on TikTok"
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -109,7 +109,7 @@ export const Footer = () => {
               </svg>
             </a>
           </div>
-          <div className="text-xs sm:text-sm text-background/70">
+          <div className="text-xs sm:text-sm text-white">
             © 2025 Theramate. All rights reserved.
           </div>
         </div>

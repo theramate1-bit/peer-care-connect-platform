@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -19,6 +21,13 @@ const Billing = () => {
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
+  const [newInvoice, setNewInvoice] = useState({
+    client: '',
+    amount: '',
+    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    description: ''
+  });
   const [billingStats, setBillingStats] = useState({
     totalRevenue: 0,
     monthlyRevenue: 0,
@@ -179,10 +188,7 @@ const Billing = () => {
             Export
           </Button>
           <Button
-            onClick={() => {
-              // TODO: Implement new invoice creation
-              toast.info('New invoice creation coming soon!');
-            }}
+            onClick={() => setIsNewInvoiceModalOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" />
             New Invoice
@@ -391,6 +397,90 @@ const Billing = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* New Invoice Modal */}
+      <Dialog open={isNewInvoiceModalOpen} onOpenChange={setIsNewInvoiceModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Invoice</DialogTitle>
+            <DialogDescription>
+              Create a new invoice for a client
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="invoice-client">Client Name *</Label>
+              <Input
+                id="invoice-client"
+                value={newInvoice.client}
+                onChange={(e) => setNewInvoice({ ...newInvoice, client: e.target.value })}
+                placeholder="Enter client name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="invoice-amount">Amount (£) *</Label>
+                <Input
+                  id="invoice-amount"
+                  type="number"
+                  value={newInvoice.amount}
+                  onChange={(e) => setNewInvoice({ ...newInvoice, amount: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label htmlFor="invoice-due">Due Date *</Label>
+                <Input
+                  id="invoice-due"
+                  type="date"
+                  value={newInvoice.dueDate}
+                  onChange={(e) => setNewInvoice({ ...newInvoice, dueDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="invoice-description">Description</Label>
+              <Textarea
+                id="invoice-description"
+                value={newInvoice.description}
+                onChange={(e) => setNewInvoice({ ...newInvoice, description: e.target.value })}
+                placeholder="Add invoice description or line items..."
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsNewInvoiceModalOpen(false);
+              setNewInvoice({ client: '', amount: '', dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: '' });
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              if (!newInvoice.client || !newInvoice.amount) {
+                toast.error('Please fill in all required fields');
+                return;
+              }
+              
+              const invoice = {
+                id: `INV-${Date.now()}`,
+                client: newInvoice.client,
+                date: new Date().toISOString().split('T')[0],
+                dueDate: newInvoice.dueDate,
+                amount: parseFloat(newInvoice.amount),
+                status: 'pending'
+              };
+              
+              setInvoices([invoice, ...invoices]);
+              setIsNewInvoiceModalOpen(false);
+              setNewInvoice({ client: '', amount: '', dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: '' });
+              toast.success('Invoice created successfully');
+            }}>
+              Create Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

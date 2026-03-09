@@ -66,5 +66,5 @@
     window.React = null;
   }
   
-  console.log('Browser polyfills loaded successfully');
+  // Browser polyfills loaded
 })();

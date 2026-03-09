@@ -34,7 +34,7 @@ const VerifyEmail = () => {
 
   const checkVerificationStatus = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { User as UserIcon } } = await supabase.auth.getUser();
       if (user?.email_confirmed_at) {
         setVerificationStatus('success');
         toast.success('Email verified successfully!');
@@ -87,7 +87,7 @@ const VerifyEmail = () => {
     setIsVerifying(true);
     try {
       // Check if user exists and is verified
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { User as UserIcon } } = await supabase.auth.getUser();
       
       if (user?.email_confirmed_at) {
         toast.success('Email verified successfully!');

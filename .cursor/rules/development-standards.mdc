@@ -58,6 +58,9 @@ alwaysApply: true
 - Provide meaningful error messages to users
 - Handle network failures gracefully
 
+## Agent Behavior
+- Follow `.cursor/rules/agent-logical-no-assumptions.mdc`: verify before acting, do not assume (stack, schema, APIs), plan/checklist before large changes, stay in scope, cite sources or ask when uncertain.
+
 ## Testing & Quality
 - Run `read_lints` after making changes
 - Test Edge Functions locally before deployment

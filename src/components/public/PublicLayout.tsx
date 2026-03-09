@@ -134,12 +134,12 @@ export function PublicLayout({ children }: PublicLayoutProps) {
                 </Link>
                 
                 {/* Mobile Auth Buttons */}
-                <div className="flex flex-col space-y-4 px-4 pt-6 border-t">
+                <div className="flex flex-col space-y-6 px-4 pt-6 border-t">
                   <Link to="/login" onClick={closeMobileMenu}>
-                    <Button variant="outline" className="w-full h-12">Sign In</Button>
+                    <Button variant="outline" className="w-full h-12 rounded-full">Sign In</Button>
                   </Link>
                   <Link to="/register" onClick={closeMobileMenu}>
-                    <Button className="w-full h-12">Get Started</Button>
+                    <Button className="w-full h-12 rounded-full">Get Started</Button>
                   </Link>
                 </div>
               </nav>
@@ -226,6 +226,11 @@ export function PublicLayout({ children }: PublicLayoutProps) {
                 <li>
                   <Link to="/privacy" className="text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/cookies" className="text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                    Cookie Policy
                   </Link>
                 </li>
                 <li>

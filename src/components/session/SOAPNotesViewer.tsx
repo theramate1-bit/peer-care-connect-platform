@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { FileText, Clock, User, Download, Stethoscope, Eye, Target, Clipboard } from 'lucide-react';
+import { FileText, Clock, User as UserIcon, Download, Stethoscope, Eye, Target, Clipboard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -261,7 +261,7 @@ ${recording.transcript || 'No transcript available'}
                   {/* Subjective */}
                   <div className="space-y-2">
                     <h4 className="font-semibold text-sm uppercase tracking-wide text-blue-600 flex items-center gap-2">
-                      <User className="w-4 h-4" />
+                      <UserIcon className="w-4 h-4" />
                       Subjective
                     </h4>
                     <div className="border rounded-lg p-4 bg-blue-50/50 min-h-32">
@@ -357,3 +357,5 @@ ${recording.transcript || 'No transcript available'}
     </div>
   );
 };
+
+

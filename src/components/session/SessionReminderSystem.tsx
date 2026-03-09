@@ -7,7 +7,7 @@ import {
   Calendar, 
   Bell, 
   BellOff, 
-  User, 
+  User as UserIcon, 
   MapPin,
   Phone,
   CheckCircle,
@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
+import { parseDateSafe } from '@/lib/date';
 
 interface Session {
   id: string;
@@ -197,21 +198,29 @@ export const SessionReminderSystem: React.FC<SessionReminderSystemProps> = ({
   };
 
   const formatTime = (timeString: string) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString([], { 
+    // Strip seconds if present (HH:MM:SS -> HH:MM)
+    const timeWithoutSeconds = timeString.includes(':') && timeString.split(':').length === 3
+      ? timeString.substring(0, 5)
+      : timeString;
+    return new Date(`2000-01-01T${timeWithoutSeconds}`).toLocaleTimeString([], { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseDateSafe(dateString);
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const dateOnly = new Date(date);
+    dateOnly.setHours(0, 0, 0, 0);
 
-    if (date.toDateString() === today.toDateString()) {
+    if (dateOnly.getTime() === today.getTime()) {
       return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
+    } else if (dateOnly.getTime() === tomorrow.getTime()) {
       return 'Tomorrow';
     } else {
       return date.toLocaleDateString('en-US', {
@@ -317,7 +326,7 @@ export const SessionReminderSystem: React.FC<SessionReminderSystemProps> = ({
                       
                       <div className="space-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
+                          <UserIcon className="h-4 w-4" />
                           <span>{session.therapist_name}</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -369,3 +378,6 @@ export const SessionReminderSystem: React.FC<SessionReminderSystemProps> = ({
     </div>
   );
 };
+
+
+

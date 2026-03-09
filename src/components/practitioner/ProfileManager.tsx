@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { 
-  User, 
+  User as UserIcon, 
   Shield, 
   Star, 
   Eye, 
@@ -23,16 +23,20 @@ import {
   Award,
   MessageSquare,
   Calendar,
-  DollarSign,
   Target,
-  Lightbulb
+  Lightbulb,
+  Coins
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ProductManager } from './ProductManager';
+import { calculateProfileCompletion } from '@/lib/profile-completion';
 
 interface ProfileStats {
   profileViews: number;
@@ -65,8 +69,6 @@ const ProfileManager: React.FC = () => {
   const [optimizationTips, setOptimizationTips] = useState<OptimizationTip[]>([]);
   const [loading, setLoading] = useState(true);
   const [exchangeEnabled, setExchangeEnabled] = useState<boolean>(!!userProfile?.treatment_exchange_enabled);
-  const [services, setServices] = useState<Array<{ id?: string; name: string; description?: string; duration_minutes: number; price_minor: number; active: boolean }>>([]);
-  const [newService, setNewService] = useState<{ name: string; description: string; duration_minutes: number; price_minor: number }>({ name: '', description: '', duration_minutes: 60, price_minor: 0 });
 
   useEffect(() => {
     if (user) {
@@ -78,27 +80,57 @@ const ProfileManager: React.FC = () => {
     try {
       setLoading(true);
       
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+        toast.error('Profile loading timeout. Please refresh the page.');
+      }, 10000); // 10 second timeout
+      
       // Fetch therapist profile
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('*')
         .eq('id', user?.id)
         .single();
 
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        toast.error('Failed to load profile data');
+        clearTimeout(timeoutId);
+        return;
+      }
+
+      // Fetch specializations count from junction table
+      const { count: specializationsCount } = await supabase
+        .from('practitioner_specializations')
+        .select('*', { count: 'exact', head: true })
+        .eq('practitioner_id', user?.id);
+
+      // Fetch qualifications count
+      const { count: qualificationsCount } = await supabase
+        .from('qualifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('practitioner_id', user?.id);
+
       // Fetch reviews
       const { data: reviews } = await supabase
         .from('reviews')
-        .select('rating')
-        .eq('reviewee_id', user?.id);
+        .select('overall_rating')
+        .eq('therapist_id', user?.id)
+        .eq('review_status', 'published');
 
       // Fetch profile views (simulated)
       const profileViews = profile?.profile_views || 0;
       const averageRating = reviews && reviews.length > 0 
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+        ? reviews.reduce((sum, review) => sum + review.overall_rating, 0) / reviews.length 
         : 0;
 
-      // Calculate completion percentage
-      const completionPercentage = calculateCompletionPercentage(profile);
+      // Calculate completion percentage using standardized function
+      const completionResult = calculateProfileCompletion(
+        profile,
+        specializationsCount || 0,
+        qualificationsCount || 0
+      );
 
       // Determine verification status
       const verificationStatus = determineVerificationStatus(profile);
@@ -107,23 +139,16 @@ const ProfileManager: React.FC = () => {
         profileViews,
         averageRating: Math.round(averageRating * 10) / 10,
         responseTime: profile?.response_time_hours || 0,
-        completionPercentage,
+        completionPercentage: completionResult.percentage,
         verificationStatus,
         lastUpdated: profile?.updated_at || ''
       });
       setExchangeEnabled(!!profile?.treatment_exchange_enabled);
 
-      // Load services
-      const { data: svc } = await supabase
-        .from('practitioner_services')
-        .select('*')
-        .eq('practitioner_id', user?.id)
-        .order('created_at', { ascending: false });
-      setServices(svc || []);
-
       // Generate optimization tips
-      generateOptimizationTips(profile, completionPercentage);
+      generateOptimizationTips(profile, completionResult.percentage);
 
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error('Error fetching profile data:', error);
       toast.error('Failed to load profile data');
@@ -147,67 +172,7 @@ const ProfileManager: React.FC = () => {
     }
   };
 
-  const saveNewService = async () => {
-    try {
-      if (!newService.name || newService.price_minor < 0 || newService.duration_minutes <= 0) {
-        toast.error('Please provide valid service details');
-        return;
-      }
-      const { data, error } = await supabase
-        .from('practitioner_services')
-        .insert({
-          practitioner_id: user?.id,
-          name: newService.name,
-          description: newService.description,
-          duration_minutes: newService.duration_minutes,
-          price_minor: newService.price_minor,
-          active: true
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      setServices(prev => [data, ...prev]);
-      setNewService({ name: '', description: '', duration_minutes: 60, price_minor: 0 });
-      toast.success('Service added');
-    } catch (e:any) {
-      toast.error(e.message || 'Failed to add service');
-    }
-  };
 
-  const updateService = async (id: string, patch: Partial<{ name: string; description: string; duration_minutes: number; price_minor: number; active: boolean }>) => {
-    try {
-      const { data, error } = await supabase
-        .from('practitioner_services')
-        .update({ ...patch, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      setServices(prev => prev.map(s => s.id === id ? data : s));
-      toast.success('Service updated');
-    } catch (e:any) {
-      toast.error(e.message || 'Failed to update service');
-    }
-  };
-
-  const calculateCompletionPercentage = (profile: any) => {
-    if (!profile) return 0;
-    
-    const fields = [
-      'bio',
-      'specializations',
-      'qualifications',
-      'hourly_rate',
-      'location',
-      'professional_statement',
-      'treatment_philosophy',
-      'response_time_hours',
-      'profile_image_url'
-    ];
-    
-    const completedFields = fields.filter(field => profile[field] && profile[field] !== '');
-    return Math.round((completedFields.length / fields.length) * 100);
-  };
 
   const determineVerificationStatus = (profile: any) => {
     if (!profile) return 'not_submitted';
@@ -326,7 +291,7 @@ const ProfileManager: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center space-x-2">
-            <User className="h-6 w-6" />
+            <UserIcon className="h-6 w-6" />
             <span>Profile Management</span>
           </h2>
           <p className="text-muted-foreground">Manage your professional profile and track performance</p>
@@ -423,60 +388,6 @@ const ProfileManager: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Services Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5" />
-              <span>My Services & Pricing</span>
-            </CardTitle>
-            <CardDescription>Define services clients can book with fixed pricing</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <Label>Service Name</Label>
-                <Input value={newService.name} onChange={e => setNewService(prev => ({ ...prev, name: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Duration (minutes)</Label>
-                <Input type="number" value={newService.duration_minutes} onChange={e => setNewService(prev => ({ ...prev, duration_minutes: parseInt(e.target.value || '0') }))} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Description</Label>
-                <Input value={newService.description} onChange={e => setNewService(prev => ({ ...prev, description: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Price (£)</Label>
-                <Input type="number" step="0.01" value={(newService.price_minor/100).toString()} onChange={e => setNewService(prev => ({ ...prev, price_minor: Math.round(parseFloat(e.target.value || '0') * 100) }))} />
-              </div>
-              <div className="flex items-end">
-                <Button onClick={saveNewService}>Add Service</Button>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {services.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No services yet.</p>
-              ) : (
-                services.map(svc => (
-                  <div key={svc.id} className="p-3 border rounded-lg flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{svc.name} • {svc.duration_minutes}m</div>
-                      <div className="text-sm text-muted-foreground">£{(svc.price_minor/100).toFixed(2)}{svc.description ? ` — ${svc.description}` : ''}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={svc.active ? 'default' : 'outline'}>{svc.active ? 'Active' : 'Inactive'}</Badge>
-                      <Button size="sm" variant="outline" onClick={() => updateService(svc.id as string, { active: !svc.active })}>
-                        {svc.active ? 'Disable' : 'Enable'}
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
         {/* Verification Status */}
         <Card>
           <CardHeader>
@@ -595,14 +506,14 @@ const ProfileManager: React.FC = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-              <Link to="/profiles/edit">
+              <Link to="/profile">
                 <Edit3 className="h-6 w-6" />
                 <span>Edit Profile</span>
               </Link>
             </Button>
             
             <Button variant="outline" className="h-20 flex flex-col space-y-2" asChild>
-              <Link to="/practice/appointment-scheduler">
+              <Link to="/practice/scheduler">
                 <Calendar className="h-6 w-6" />
                 <span>Manage Schedule</span>
               </Link>
@@ -622,6 +533,19 @@ const ProfileManager: React.FC = () => {
               </Link>
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Service Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Service Management</CardTitle>
+          <CardDescription>
+            Manage your services and pricing
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProductManager />
         </CardContent>
       </Card>
     </div>

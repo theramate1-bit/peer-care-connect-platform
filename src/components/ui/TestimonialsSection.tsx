@@ -94,7 +94,7 @@ export const TestimonialsSection = () => {
         <div className="absolute right-0 top-0 w-32 h-full bg-gradient-to-l from-background to-transparent z-10" />
         
         <motion.div
-          className="flex gap-8 items-start py-4"
+          className="flex gap-8 items-start py-4 will-change-transform"
           animate={{
             x: [0, -420 * testimonials.length]
           }}
@@ -117,7 +117,7 @@ export const TestimonialsSection = () => {
               whileHover={{ scale: 1.02 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="relative p-8 rounded-2xl bg-gradient-to-br from-card/80 to-card/40 border border-border/50 backdrop-blur-sm shadow-xl group-hover:shadow-2xl transition-all duration-300">
+              <div className="relative p-8 rounded-2xl bg-gradient-to-br from-card/80 to-card/40 border border-border/50 backdrop-blur-sm shadow-depth-1 transition-[border-color] duration-200 ease-out will-change-transform">
                 {/* Quote icon */}
                 <motion.div 
                   className="absolute -top-4 -left-4 w-8 h-8 bg-gradient-to-br from-wellness-500 to-primary rounded-full flex items-center justify-center shadow-lg"

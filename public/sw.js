@@ -3,10 +3,10 @@
  * Handles push events and notification display
  */
 
-const CACHE_NAME = 'theramate-v9';
+const CACHE_NAME = 'theramate-v10';
 const urlsToCache = [
-  '/',
-  '/favicon.ico'
+  '/'
+  // Don't cache favicon - let browser fetch fresh version
 ];
 
 // Install event
@@ -46,6 +46,13 @@ self.addEventListener('fetch', (event) => {
   
   // Skip caching for HTML files to ensure fresh content
   if (event.request.url.endsWith('.html') || event.request.url === self.location.origin + '/') {
+    return fetch(event.request);
+  }
+  
+  // Skip caching for favicon files - always fetch fresh
+  if (event.request.url.includes('favicon') || 
+      event.request.url.includes('theramatemascot') ||
+      event.request.url.includes('logo.png')) {
     return fetch(event.request);
   }
   

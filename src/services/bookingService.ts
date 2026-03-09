@@ -41,7 +41,33 @@ export interface BookingResponse {
 }
 
 /**
- * Create a new booking
+ * Create a new booking with payment processing
+ * 
+ * This function handles the complete booking creation flow:
+ * 1. Validates the service exists and is active
+ * 2. Calculates pricing (including platform fees)
+ * 3. Creates booking record in database
+ * 4. Creates Stripe payment intent for payment
+ * 5. Links payment intent to booking
+ * 
+ * The booking starts as 'pending' status until payment is confirmed.
+ * 
+ * @param bookingRequest - Booking details (service, client, date, notes)
+ * @returns Booking record and payment intent details
+ * 
+ * @throws Error if service not found, booking creation fails, or payment intent creation fails
+ * 
+ * @example
+ * ```typescript
+ * const booking = await createBooking({
+ *   serviceId: 'service-123',
+ *   clientId: 'client-456',
+ *   sessionDate: new Date('2025-02-15T14:00:00'),
+ *   clientNotes: 'Lower back pain'
+ * });
+ * 
+ * // Use booking.paymentIntent.client_secret for Stripe payment
+ * ```
  */
 export async function createBooking(bookingRequest: BookingRequest): Promise<BookingResponse> {
   // First, get the service details
@@ -124,7 +150,19 @@ export async function createBooking(bookingRequest: BookingRequest): Promise<Boo
 }
 
 /**
- * Create Stripe payment intent
+ * Create Stripe payment intent for booking payment
+ * 
+ * This calls the backend API to create a Stripe PaymentIntent.
+ * The PaymentIntent is used by the frontend to process payment securely.
+ * 
+ * @param amount - Amount in pence (e.g., 5000 = £50.00)
+ * @param currency - Currency code (e.g., 'gbp')
+ * @param metadata - Additional data to store with payment (booking_id, etc.)
+ * @returns Stripe PaymentIntent object with client_secret
+ * 
+ * @throws Error if payment intent creation fails
+ * 
+ * @internal This is a helper function used by createBooking()
  */
 async function createStripePaymentIntent({
   amount,

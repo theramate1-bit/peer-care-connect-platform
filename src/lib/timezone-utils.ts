@@ -1,5 +1,5 @@
 /**
- * Timezone Utilities for Peer Care Connect
+ * Timezone Utilities for TheraMate
  * Handles timezone detection, conversion, and display
  */
 

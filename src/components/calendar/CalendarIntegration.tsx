@@ -180,7 +180,7 @@ export const CalendarSyncStatus: React.FC<{
       <CardHeader>
         <CardTitle className="text-lg">Calendar Sync</CardTitle>
         <CardDescription>
-          Keep your external calendar synchronized with Peer Care Connect
+          Keep your external calendar synchronized with TheraMate
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

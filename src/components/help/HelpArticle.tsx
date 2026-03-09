@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ArrowLeft, BookOpen, Clock, User, ArrowRight, FileText, Users, CreditCard, Shield, Settings, TrendingUp } from "lucide-react";
+import { ArrowLeft, BookOpen, Clock, User as UserIcon, ArrowRight, FileText, Users, CreditCard, Shield, Settings, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { HeaderClean } from "@/components/landing/HeaderClean";
+import { FooterClean } from "@/components/FooterClean";
+import DOMPurify from "dompurify";
 
 interface HelpArticleProps {
   articleId: string;
@@ -633,16 +634,16 @@ const HelpArticle = ({ articleId, onBack }: HelpArticleProps) => {
 
   if (!article) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="py-20">
+      <div className="min-h-screen bg-white dark:bg-slate-950">
+        <HeaderClean />
+        <div className="py-20 mt-16">
           <div className="container mx-auto px-6 text-center">
             <h1 className="text-2xl font-bold mb-4">Article Not Found</h1>
             <p className="text-muted-foreground mb-6">The requested article could not be found.</p>
             <Button onClick={onBack}>Back to Help Centre</Button>
           </div>
         </div>
-        <Footer />
+        <FooterClean />
       </div>
     );
   }
@@ -669,10 +670,10 @@ const HelpArticle = ({ articleId, onBack }: HelpArticleProps) => {
   const CategoryIcon = getCategoryIcon(article.category);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <div className="min-h-screen bg-white dark:bg-slate-950">
+      <HeaderClean />
       
-      <div className="py-20">
+      <div className="py-20 mt-16">
         <div className="container mx-auto px-6">
           {/* Back Button */}
           <Button 
@@ -693,7 +694,7 @@ const HelpArticle = ({ articleId, onBack }: HelpArticleProps) => {
             <h1 className="text-3xl md:text-4xl font-bold mb-4">{article.title}</h1>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
                 <span>{article.author}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -714,7 +715,14 @@ const HelpArticle = ({ articleId, onBack }: HelpArticleProps) => {
                 <CardContent className="p-8">
                   <div 
                     className="max-w-none [&>h2]:text-2xl [&>h2]:font-semibold [&>h2]:mt-8 [&>h2]:mb-4 [&>h2]:text-gray-800 [&>h3]:text-xl [&>h3]:font-semibold [&>h3]:mt-6 [&>h3]:mb-3 [&>h3]:text-gray-700 [&>p]:mb-4 [&>p]:text-gray-600 [&>ul]:mb-4 [&>ul]:pl-6 [&>li]:mb-2 [&>li]:text-gray-600 [&>strong]:font-semibold [&>strong]:text-gray-800"
-                    dangerouslySetInnerHTML={{ __html: article.content }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: DOMPurify.sanitize(article.content, {
+                        ALLOWED_TAGS: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'b', 'i', 'u', 'ul', 'ol', 'li', 'a', 'br', 'blockquote', 'code', 'pre'],
+                        ALLOWED_ATTR: ['href', 'class', 'target', 'rel'],
+                        ALLOW_DATA_ATTR: false,
+                        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+                      })
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -809,9 +817,12 @@ const HelpArticle = ({ articleId, onBack }: HelpArticleProps) => {
         </div>
       </div>
       
-      <Footer />
+      <FooterClean />
     </div>
   );
 };
 
 export default HelpArticle;
+
+
+

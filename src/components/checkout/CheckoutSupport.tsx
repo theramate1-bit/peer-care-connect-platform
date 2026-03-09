@@ -15,7 +15,7 @@ import {
   HelpCircle,
   Shield,
   CreditCard,
-  User
+  User as UserIcon
 } from 'lucide-react';
 
 interface Message {
@@ -64,7 +64,7 @@ export const CheckoutSupport: React.FC<CheckoutSupportProps> = ({
     {
       id: 'account-help',
       title: 'Account Issues',
-      icon: <User className="h-4 w-4" />,
+      icon: <UserIcon className="h-4 w-4" />,
       description: 'Problems with your account?'
     },
     {

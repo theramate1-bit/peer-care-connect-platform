@@ -94,13 +94,15 @@ export async function safeGetUserProfile(userId: string) {
 
 /**
  * Safely get subscription status with fallback
+ * Updated to use subscriptions table instead of deprecated subscribers table
  */
 export async function safeGetSubscription(userId: string) {
   return safeQuery(
     () => supabase
-      .from('subscribers')
+      .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
+      .eq('status', 'active')
       .maybeSingle(),
     {
       fallbackValue: null,

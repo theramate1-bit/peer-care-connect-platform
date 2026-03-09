@@ -93,7 +93,10 @@ const AvailabilityManager: React.FC<AvailabilityManagerProps> = ({ onAvailabilit
         .upsert({
           user_id: user.id,
           working_hours: availability,
-          timezone: timezone
+          timezone: timezone,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) throw error;

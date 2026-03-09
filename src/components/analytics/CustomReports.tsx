@@ -424,19 +424,33 @@ const CustomReports = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEditReport(report)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleEditReport(report)}
+                      aria-label={`Edit report: ${report.name}`}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      aria-label={`View report: ${report.name}`}
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      aria-label={`Download report: ${report.name}`}
+                    >
                       <Download className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleDeleteReport(report.id)}
+                      aria-label={`Delete report: ${report.name}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

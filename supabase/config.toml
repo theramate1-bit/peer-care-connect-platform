@@ -30,10 +30,14 @@ additional_redirect_urls = [
   "https://localhost:8080/auth/verify-email",
   "http://localhost:5173/auth/verify-email",
   "https://localhost:5173/auth/verify-email",
-  "https://peer-care-connect-doaji6v60-theras-projects-6dfd5a34.vercel.app",
-  "https://peer-care-connect-doaji6v60-theras-projects-6dfd5a34.vercel.app/**",
-  "https://peer-care-connect-doaji6v60-theras-projects-6dfd5a34.vercel.app/auth/callback",
-  "https://peer-care-connect-doaji6v60-theras-projects-6dfd5a34.vercel.app/auth/verify-email"
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app/**",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app/auth/callback",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app/auth/verify-email",
+  "https://theramate.co.uk",
+  "https://theramate.co.uk/**",
+  "https://theramate.co.uk/auth/callback",
+  "https://theramate.co.uk/auth/verify-email"
 ]
 jwt_expiry = 3600
 enable_signup = true
@@ -57,3 +61,19 @@ verify_jwt = false
 
 [functions.customer-portal]
 verify_jwt = true
+
+# Admin/Service Functions (use service role key, no JWT required)
+# These functions are called by cron jobs or admin tools
+[functions.process-reminders]
+verify_jwt = false
+# Note: Uses SUPABASE_SERVICE_ROLE_KEY for authentication
+
+[functions.email-health-check]
+verify_jwt = false
+# Note: Uses SUPABASE_SERVICE_ROLE_KEY for authentication
+# Should be restricted to admin access only
+
+[functions.retry-failed-emails]
+verify_jwt = false
+# Note: Uses SUPABASE_SERVICE_ROLE_KEY for authentication
+# Should be restricted to admin access only

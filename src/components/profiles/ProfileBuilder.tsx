@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  User, 
+  User as UserIcon, 
   Camera, 
   Star, 
   Award, 
@@ -462,11 +462,11 @@ const ProfileBuilder = () => {
 
   const renderCredentials = () => (
     <Tabs defaultValue="education" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="education">Education</TabsTrigger>
-        <TabsTrigger value="awards">Awards</TabsTrigger>
-        <TabsTrigger value="publications">Publications</TabsTrigger>
-        <TabsTrigger value="media">Media</TabsTrigger>
+      <TabsList className="w-full flex overflow-x-auto whitespace-nowrap gap-2 p-1">
+        <TabsTrigger value="education" className="shrink-0">Education</TabsTrigger>
+        <TabsTrigger value="awards" className="shrink-0">Awards</TabsTrigger>
+        <TabsTrigger value="publications" className="shrink-0">Publications</TabsTrigger>
+        <TabsTrigger value="media" className="shrink-0">Media</TabsTrigger>
       </TabsList>
 
       <TabsContent value="education" className="space-y-4">
@@ -828,7 +828,7 @@ const ProfileBuilder = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <User className="h-5 w-5" />
+              <UserIcon className="h-5 w-5" />
               <span>Basic Information</span>
             </CardTitle>
           </CardHeader>

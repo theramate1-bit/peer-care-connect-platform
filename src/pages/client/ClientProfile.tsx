@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { User, Mail, Phone, MapPin, Heart, Target, Bell, Shield } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, MapPin, Bell, Upload, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { FileUploadService } from '@/lib/file-upload';
 
 interface ClientProfile {
   id: string;
@@ -20,26 +22,24 @@ interface ClientProfile {
   phone: string;
   location: string;
   bio: string;
-  health_goals: string[];
-  preferred_therapy_types: string[];
+  profile_photo_url?: string | null;
+  preferences?: Record<string, unknown>;
   notification_preferences: {
     email_notifications: boolean;
     sms_notifications: boolean;
     session_reminders: boolean;
     marketing_emails: boolean;
   };
-  privacy_settings: {
-    profile_visibility: 'public' | 'private';
-    data_sharing: boolean;
-  };
 }
 
 const ClientProfile = () => {
-  const { user, userProfile, updateProfile } = useAuth();
+  const { user, userProfile, updateProfile, refreshProfile } = useAuth();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -47,50 +47,66 @@ const ClientProfile = () => {
     phone: '',
     location: '',
     bio: '',
-    health_goals: [] as string[],
-    preferred_therapy_types: [] as string[],
     email_notifications: true,
     sms_notifications: false,
     session_reminders: true,
     marketing_emails: false,
-    profile_visibility: 'public' as 'public' | 'private',
-    data_sharing: false
+    profile_visible: true,
+    show_contact_info: true
   });
 
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile?.id) {
       loadProfile();
     }
-  }, [userProfile]);
+  }, [userProfile?.id]);
 
-  // Real-time subscription for user profile updates
-  useRealtimeSubscription(
-    'users',
-    `id=eq.${userProfile?.id}`,
-    (payload) => {
-      console.log('🔄 Real-time client profile update:', payload);
-      if (payload.eventType === 'UPDATE') {
-        // Update form data with new preferences
-        if (payload.new.notification_preferences) {
-          setFormData(prev => ({
-            ...prev,
-            email_notifications: payload.new.notification_preferences.email_notifications ?? true,
-            sms_notifications: payload.new.notification_preferences.sms_notifications ?? false,
-            session_reminders: payload.new.notification_preferences.session_reminders ?? true,
-            marketing_emails: payload.new.notification_preferences.marketing_emails ?? false
-          }));
+      // Real-time subscription for user profile updates
+      useRealtimeSubscription(
+        'users',
+        `id=eq.${userProfile?.id}`,
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            if (editingRef.current) {
+              toast('Profile updated elsewhere', {
+                description: 'Refresh to see changes, or save your edits first.',
+                action: (
+                  <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                    Refresh
+                  </Button>
+                )
+              });
+              if (payload.new.profile_photo_url !== undefined) {
+                setProfilePhotoUrl(payload.new.profile_photo_url ?? null);
+              }
+              return;
+            }
+            const notificationPrefs = payload.new.preferences?.notification_preferences;
+            if (notificationPrefs) {
+              setFormData(prev => ({
+                ...prev,
+                email_notifications: notificationPrefs.email_notifications ?? true,
+                sms_notifications: notificationPrefs.sms_notifications ?? false,
+                session_reminders: notificationPrefs.session_reminders ?? true,
+                marketing_emails: notificationPrefs.marketing_emails ?? false
+              }));
+            }
+            if (payload.new.profile_photo_url !== undefined) {
+              setProfilePhotoUrl(payload.new.profile_photo_url ?? null);
+            }
+            const prefs = payload.new.preferences;
+            if (prefs && typeof prefs === 'object') {
+              const pv = (prefs as Record<string, unknown>).profileVisible ?? (prefs as Record<string, unknown>).profile_visible;
+              const sci = (prefs as Record<string, unknown>).showContactInfo ?? (prefs as Record<string, unknown>).show_contact_info;
+              if (pv !== undefined) setFormData(prev => ({ ...prev, profile_visible: !!pv }));
+              if (sci !== undefined) setFormData(prev => ({ ...prev, show_contact_info: !!sci }));
+            }
+          }
         }
-        
-        if (payload.new.privacy_settings) {
-          setFormData(prev => ({
-            ...prev,
-            profile_visibility: payload.new.privacy_settings.profile_visibility || 'public',
-            data_sharing: payload.new.privacy_settings.data_sharing || false
-          }));
-        }
-      }
-    }
-  );
+      );
 
   const loadProfile = async () => {
     try {
@@ -104,37 +120,35 @@ const ClientProfile = () => {
 
       if (error) throw error;
 
+      // Extract notification preferences from preferences JSONB column
+      const notificationPrefs = data.preferences?.notification_preferences || {
+        email_notifications: true,
+        sms_notifications: false,
+        session_reminders: true,
+        marketing_emails: false
+      };
+      const privacyVisible = data.preferences?.profileVisible ?? data.preferences?.profile_visible ?? true;
+      const privacyContact = data.preferences?.showContactInfo ?? data.preferences?.show_contact_info ?? true;
+
       const profileData = {
         ...data,
-        health_goals: data.health_goals || [],
-        preferred_therapy_types: data.preferred_therapy_types || [],
-        notification_preferences: data.notification_preferences || {
-          email_notifications: true,
-          sms_notifications: false,
-          session_reminders: true,
-          marketing_emails: false
-        },
-        privacy_settings: data.privacy_settings || {
-          profile_visibility: 'public',
-          data_sharing: false
-        }
+        notification_preferences: notificationPrefs
       };
 
       setProfile(profileData);
+      setProfilePhotoUrl(profileData.profile_photo_url ?? null);
       setFormData({
         first_name: profileData.first_name || '',
         last_name: profileData.last_name || '',
         phone: profileData.phone || '',
         location: profileData.location || '',
         bio: profileData.bio || '',
-        health_goals: profileData.health_goals || [],
-        preferred_therapy_types: profileData.preferred_therapy_types || [],
         email_notifications: profileData.notification_preferences?.email_notifications ?? true,
         sms_notifications: profileData.notification_preferences?.sms_notifications ?? false,
         session_reminders: profileData.notification_preferences?.session_reminders ?? true,
         marketing_emails: profileData.notification_preferences?.marketing_emails ?? false,
-        profile_visibility: profileData.privacy_settings?.profile_visibility || 'public',
-        data_sharing: profileData.privacy_settings?.data_sharing || false
+        profile_visible: privacyVisible,
+        show_contact_info: privacyContact
       });
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -147,66 +161,97 @@ const ClientProfile = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      
+
+      // Validate user authentication
+      if (!user?.id) {
+        throw new Error('User not authenticated. Please sign in again.');
+      }
+
+      if (!userProfile?.id) {
+        throw new Error('User profile not loaded. Please refresh the page.');
+      }
+
       const updateData = {
         first_name: formData.first_name,
         last_name: formData.last_name,
         phone: formData.phone,
         location: formData.location,
         bio: formData.bio,
-        health_goals: formData.health_goals,
-        preferred_therapy_types: formData.preferred_therapy_types,
-        notification_preferences: {
-          email_notifications: formData.email_notifications,
-          sms_notifications: formData.sms_notifications,
-          session_reminders: formData.session_reminders,
-          marketing_emails: formData.marketing_emails
+        preferences: {
+          ...(profile?.preferences && typeof profile.preferences === 'object' ? profile.preferences : {}),
+          notification_preferences: {
+            email_notifications: formData.email_notifications,
+            sms_notifications: formData.sms_notifications,
+            session_reminders: formData.session_reminders,
+            marketing_emails: formData.marketing_emails
+          },
+          profileVisible: formData.profile_visible,
+          showContactInfo: formData.show_contact_info
         },
-        privacy_settings: {
-          profile_visibility: formData.profile_visibility,
-          data_sharing: formData.data_sharing
-        }
+        updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      const { error, data } = await supabase
         .from('users')
         .update(updateData)
-        .eq('id', userProfile?.id);
+        .eq('id', userProfile.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
 
       toast.success('Profile updated successfully');
+      await refreshProfile();
       setEditing(false);
-      loadProfile();
-    } catch (error) {
+      await loadProfile();
+    } catch (error: any) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+      const errorMessage = error?.message || error?.details || error?.hint || 'Unknown error occurred';
+      toast.error(`Failed to save profile: ${errorMessage}`, {
+        duration: 5000
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  const therapyTypes = [
-    'Sports Massage',
-    'Deep Tissue Massage',
-    'Swedish Massage',
-    'Osteopathy',
-    'Sports Therapy',
-    'Manual Therapy',
-    'Injury Rehabilitation',
-    'Performance Training'
-  ];
+  const getInitials = () => {
+    const first = formData.first_name?.trim()?.[0] || userProfile?.first_name?.[0] || '';
+    const last = formData.last_name?.trim()?.[0] || userProfile?.last_name?.[0] || '';
+    if (first || last) return `${first}${last}`.toUpperCase();
+    return user?.email?.[0]?.toUpperCase() ?? '?';
+  };
 
-  const healthGoals = [
-    'Pain Relief',
-    'Injury Recovery',
-    'Performance Enhancement',
-    'Stress Relief',
-    'Improved Flexibility',
-    'Better Posture',
-    'Sports Performance',
-    'General Wellness'
-  ];
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      setUploadingPhoto(true);
+      const uploadedFile = await FileUploadService.uploadFile(file, 'profile-photos', {
+        maxSize: 5 * 1024 * 1024,
+        compressImages: true,
+        quality: 0.9
+      });
+      const { error } = await updateProfile({ profile_photo_url: uploadedFile.url });
+      if (error) throw error;
+      setProfilePhotoUrl(uploadedFile.url);
+      await refreshProfile();
+      toast.success('Profile photo updated');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to upload photo';
+      toast.error(message);
+    } finally {
+      setUploadingPhoto(false);
+      event.target.value = '';
+    }
+  };
 
   if (loading) {
     return (
@@ -234,12 +279,44 @@ const ClientProfile = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
                 Personal Information
               </CardTitle>
               <CardDescription>Your basic profile information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={profilePhotoUrl ?? profile?.profile_photo_url ?? userProfile?.profile_photo_url ?? undefined} />
+                  <AvatarFallback className="text-lg">{getInitials()}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="sr-only"
+                    id="client-profile-photo"
+                    disabled={uploadingPhoto}
+                  />
+                  <Label
+                    htmlFor="client-profile-photo"
+                    className="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium ring-offset-background border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {uploadingPhoto ? (
+                      <>
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary inline-block" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Change photo
+                      </>
+                    )}
+                  </Label>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="first_name">First Name</Label>
@@ -299,86 +376,8 @@ const ClientProfile = () => {
                   value={formData.bio}
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   disabled={!editing}
-                  placeholder="Tell us about yourself and your health goals..."
+                  placeholder="Tell us about yourself..."
                 />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Health Goals */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Health Goals
-              </CardTitle>
-              <CardDescription>What are you hoping to achieve?</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {healthGoals.map((goal) => (
-                  <label key={goal} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.health_goals.includes(goal)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({
-                            ...formData,
-                            health_goals: [...formData.health_goals, goal]
-                          });
-                        } else {
-                          setFormData({
-                            ...formData,
-                            health_goals: formData.health_goals.filter(g => g !== goal)
-                          });
-                        }
-                      }}
-                      disabled={!editing}
-                      className="rounded"
-                    />
-                    <span className="text-sm">{goal}</span>
-                  </label>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Preferred Therapy Types */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Heart className="h-5 w-5" />
-                Preferred Therapy Types
-              </CardTitle>
-              <CardDescription>What types of therapy interest you?</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {therapyTypes.map((type) => (
-                  <label key={type} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.preferred_therapy_types.includes(type)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({
-                            ...formData,
-                            preferred_therapy_types: [...formData.preferred_therapy_types, type]
-                          });
-                        } else {
-                          setFormData({
-                            ...formData,
-                            preferred_therapy_types: formData.preferred_therapy_types.filter(t => t !== type)
-                          });
-                        }
-                      }}
-                      disabled={!editing}
-                      className="rounded"
-                    />
-                    <span className="text-sm">{type}</span>
-                  </label>
-                ))}
               </div>
             </CardContent>
           </Card>
@@ -401,8 +400,8 @@ const ClientProfile = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                  <Label>Booking confirmations and updates</Label>
+                  <p className="text-sm text-muted-foreground">Email for bookings and changes</p>
                 </div>
                 <Switch
                   checked={formData.email_notifications}
@@ -425,8 +424,8 @@ const ClientProfile = () => {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Session Reminders</Label>
-                  <p className="text-sm text-muted-foreground">Reminders before sessions</p>
+                  <Label>Reminders and alerts</Label>
+                  <p className="text-sm text-muted-foreground">Session reminders before appointments</p>
                 </div>
                 <Switch
                   checked={formData.session_reminders}
@@ -437,8 +436,8 @@ const ClientProfile = () => {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Marketing Emails</Label>
-                  <p className="text-sm text-muted-foreground">Promotional content</p>
+                  <Label>Platform updates and marketing</Label>
+                  <p className="text-sm text-muted-foreground">Product news and promotional content</p>
                 </div>
                 <Switch
                   checked={formData.marketing_emails}
@@ -449,44 +448,35 @@ const ClientProfile = () => {
             </CardContent>
           </Card>
 
-          {/* Privacy Settings */}
+          {/* Privacy */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
                 Privacy
-                <div className="flex items-center gap-1 text-xs text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  Live
-                </div>
               </CardTitle>
+              <CardDescription>Control who can see your profile and contact details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label>Profile Visibility</Label>
-                <Select
-                  value={formData.profile_visibility}
-                  onValueChange={(value) => setFormData({ ...formData, profile_visibility: value as 'public' | 'private' })}
-                  disabled={!editing}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="public">Public</SelectItem>
-                    <SelectItem value="private">Private</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Data Sharing</Label>
-                  <p className="text-sm text-muted-foreground">Share data for research</p>
+                  <Label>Profile visible to practitioners</Label>
+                  <p className="text-sm text-muted-foreground">Allow practitioners you work with to see your profile</p>
                 </div>
                 <Switch
-                  checked={formData.data_sharing}
-                  onCheckedChange={(checked) => setFormData({ ...formData, data_sharing: checked })}
+                  checked={formData.profile_visible}
+                  onCheckedChange={(checked) => setFormData({ ...formData, profile_visible: checked })}
+                  disabled={!editing}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Show contact info</Label>
+                  <p className="text-sm text-muted-foreground">Let practitioners see your phone and email</p>
+                </div>
+                <Switch
+                  checked={formData.show_contact_info}
+                  onCheckedChange={(checked) => setFormData({ ...formData, show_contact_info: checked })}
                   disabled={!editing}
                 />
               </div>
@@ -528,3 +518,5 @@ const ClientProfile = () => {
 };
 
 export default ClientProfile;
+
+

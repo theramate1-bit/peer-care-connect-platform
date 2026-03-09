@@ -192,7 +192,22 @@ export const LocationSearch = ({
   const getCurrentLocation = async () => {
     try {
       setLoading(true);
-      const location = await LocationManager.getCurrentLocation();
+      
+      // Check consent if user is logged in (UK GDPR/PECR compliance)
+      if (user?.id) {
+        const hasConsent = await LocationManager.hasLocationConsent(user.id);
+        if (!hasConsent) {
+          toast.error('Location consent required. Please grant location consent to use this feature.');
+          // Set a default location (London, UK) as fallback
+          const defaultLocation = { latitude: 51.5074, longitude: -0.1278 };
+          setSearchLocation(defaultLocation);
+          setSearchAddress('London, UK');
+          searchTherapists(defaultLocation.latitude, defaultLocation.longitude);
+          return;
+        }
+      }
+      
+      const location = await LocationManager.getCurrentLocation(user?.id);
       if (location) {
         setSearchLocation(location);
         searchTherapists(location.latitude, location.longitude);
@@ -637,7 +652,7 @@ export const LocationSearch = ({
           {therapists.map((therapist) => (
             <Card 
               key={therapist.therapist_id} 
-              className="cursor-pointer hover:shadow-md transition-shadow"
+              className="cursor-pointer transition-[border-color,background-color] duration-200 ease-out"
               onClick={() => onTherapistSelect?.(therapist)}
             >
               <CardContent className="p-4">

@@ -1,7 +1,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Heart, Users, CalendarDays, Shield, Sparkles, Zap, Target, Activity, Clock, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { StarsBackground } from "@/components/ui/StarsBackground";
 import { useMousePosition } from "@/hooks/useMousePosition";
@@ -16,20 +16,69 @@ export const HeroSection = () => {
   const { isMobile } = useMobile();
   const { scrollY } = useScroll();
   const mousePosition = useMousePosition();
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
   
   // Parallax transforms
   const yBg = useTransform(scrollY, [0, 1000], [0, -300]);
   const yContent = useTransform(scrollY, [0, 1000], [0, -100]);
   const rotate = useTransform(scrollY, [0, 1000], [0, 360]);
 
+  // Intersection Observer to load video only when in viewport
+  useEffect(() => {
+    if (isMobile) {
+      // For mobile, don't load video at all
+      return;
+    }
+    
+    // Check if section is already visible (for landing page)
+    if (sectionRef.current) {
+      const rect = sectionRef.current.getBoundingClientRect();
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+      if (isVisible) {
+        setShouldLoadVideo(true);
+        return;
+      }
+    }
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setShouldLoadVideo(true);
+            // Unobserve after loading starts to avoid re-triggering
+            if (sectionRef.current) {
+              observer.unobserve(sectionRef.current);
+            }
+          }
+        });
+      },
+      { threshold: 0.1 } // Start loading when 10% visible
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => {
+      if (sectionRef.current) {
+        observer.unobserve(sectionRef.current);
+      }
+    };
+  }, [isMobile]);
+
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !shouldLoadVideo) return;
+
+    // Load video source when it should be loaded
+    video.load();
 
     // Mobile-specific video handling with smooth looping
     const handleVideoPlay = async () => {
       try {
         await video.play();
+        setVideoLoaded(true);
         
         // Set up smooth loop with fade transition
         video.addEventListener('ended', () => {
@@ -47,6 +96,7 @@ export const HeroSection = () => {
         // Ensure smooth playback
         video.addEventListener('canplaythrough', () => {
           video.style.transition = 'opacity 0.3s ease-in-out';
+          setVideoLoaded(true);
         });
 
       } catch (error) {
@@ -64,7 +114,7 @@ export const HeroSection = () => {
     const timer = setTimeout(handleVideoPlay, 100);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [shouldLoadVideo]);
 
   return (
     <motion.section 
@@ -79,31 +129,57 @@ export const HeroSection = () => {
       >
         {/* Video Background */}
         {!isMobile ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            loop
-            preload="metadata"
-            className="absolute inset-0 w-full h-full"
-            style={{ 
-              minHeight: '120vh',
-              height: '120vh',
-              objectFit: 'cover',
-              objectPosition: 'center'
-            }}
-            onError={(e) => {
-              const videoElement = e.target as HTMLVideoElement;
-              videoElement.style.display = 'none';
-              const fallback = document.getElementById('hero-fallback');
-              if (fallback) {
-                (fallback as HTMLDivElement).style.opacity = '1';
-              }
-            }}
-          >
-            <source src={heroVideo} type="video/mp4" />
-          </video>
+          <>
+            {/* Show poster image initially and while video loads */}
+            <img 
+              src={heroImage} 
+              alt="TheraMate" 
+              width={1200} 
+              height={800} 
+              className="absolute inset-0 w-full h-full will-change-transform transition-opacity duration-500"
+              style={{ 
+                minHeight: '120vh',
+                height: '120vh',
+                objectFit: 'cover',
+                objectPosition: 'center',
+                opacity: videoLoaded ? 0 : 1,
+                zIndex: videoLoaded ? 0 : 1
+              }}
+            />
+            {/* Load video only when in viewport */}
+            {shouldLoadVideo && (
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                loop
+                preload="none"
+                poster={heroImage}
+                className="absolute inset-0 w-full h-full will-change-transform transition-opacity duration-500"
+                style={{ 
+                  minHeight: '120vh',
+                  height: '120vh',
+                  objectFit: 'cover',
+                  objectPosition: 'center',
+                  opacity: videoLoaded ? 1 : 0,
+                  zIndex: videoLoaded ? 1 : 0
+                }}
+                onLoadedData={() => setVideoLoaded(true)}
+                onCanPlay={() => setVideoLoaded(true)}
+                onError={(e) => {
+                  const videoElement = e.target as HTMLVideoElement;
+                  videoElement.style.display = 'none';
+                  const fallback = document.getElementById('hero-fallback');
+                  if (fallback) {
+                    (fallback as HTMLDivElement).style.opacity = '1';
+                  }
+                }}
+              >
+                <source src={heroVideo} type="video/mp4" />
+              </video>
+            )}
+          </>
         ) : (
           <img 
             src={heroImage} 
@@ -198,7 +274,7 @@ export const HeroSection = () => {
 
       {/* Main Content */}
       <motion.div 
-        className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-8"
+        className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-8 will-change-transform"
         style={{ y: yContent }}
       >
         {/* Animated Badge */}
@@ -272,7 +348,7 @@ export const HeroSection = () => {
 
         {/* Action Buttons */}
         <motion.div 
-          className="flex gap-6 justify-center items-center mb-16 flex-col sm:flex-row"
+          className="flex gap-6 place-content-center mb-16 flex-col sm:flex-row will-change-transform"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 1.4 }}
