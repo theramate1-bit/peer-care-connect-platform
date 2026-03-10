@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ReviewSystem } from '@/lib/review-system';
 import { toast as sonnerToast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Session {
   id: string;
@@ -28,6 +29,7 @@ const GuestReview: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const sessionId = searchParams.get('session_id');
   const emailParam = searchParams.get('email');
@@ -45,17 +47,25 @@ const GuestReview: React.FC = () => {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Redirect logged-in users to the authenticated review flow
   useEffect(() => {
-    if (sessionId && emailParam) {
-      // Email provided in URL, verify and fetch session
+    if (user && sessionId) {
+      navigate(`/reviews/submit/${sessionId}`, { replace: true });
+      return;
+    }
+  }, [user, sessionId, navigate]);
+
+  useEffect(() => {
+    if (sessionId && emailParam && !user) {
+      // Email provided in URL, verify and fetch session (guests only)
       verifyEmailAndFetchSession();
-    } else if (sessionId) {
+    } else if (sessionId && !user) {
       // Only session ID provided, need email input
       setLoading(false);
-    } else {
+    } else if (!user) {
       setLoading(false);
     }
-  }, [sessionId, emailParam]);
+  }, [sessionId, emailParam, user]);
 
   const verifyEmailAndFetchSession = async () => {
     if (!sessionId || !emailParam) return;
@@ -73,7 +83,7 @@ const GuestReview: React.FC = () => {
       if (rpcError || !sessionData || (Array.isArray(sessionData) && sessionData.length === 0)) {
         toast({
           title: "Session Not Found",
-          description: "Unable to verify session. Please check your email link.",
+          description: "No session found for this email. Please check you're using the same email you used when booking.",
           variant: "destructive"
         });
         setLoading(false);

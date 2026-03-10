@@ -6,7 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { RebookingService } from './rebooking-service';
 import { hasConflictWithBuffer, type ExistingBooking } from './slot-generation-utils';
-import { getOverlappingBlocks } from './block-time-utils';
+import { getOverlappingBlocks, getBlocksForDate, isTimeSlotBlocked } from './block-time-utils';
 
 export interface RescheduleOptions {
   sessionId: string;
@@ -248,18 +248,39 @@ export class RescheduleService {
         throw updateError;
       }
 
-      // Send rescheduling email with location/directions (central helper)
+      // Send rescheduling email to client
       if (session.client_email) {
         try {
-          await supabase.functions.invoke('send-booking-notification', {
+          const { data: practitionerData } = await supabase
+            .from('users')
+            .select('first_name, last_name')
+            .eq('id', session.therapist_id)
+            .maybeSingle();
+          const practitionerName = practitionerData
+            ? `${practitionerData.first_name || ''} ${practitionerData.last_name || ''}`.trim() || 'Your practitioner'
+            : 'Your practitioner';
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://theramate.co.uk';
+          const isGuest = (session as any).is_guest_booking === true;
+          const bookingUrl = isGuest && session.client_email
+            ? `${baseUrl}/booking/view/${sessionId}?email=${encodeURIComponent(session.client_email)}`
+            : `${baseUrl}/client/sessions`;
+
+          await supabase.functions.invoke('send-email', {
             body: {
-              sessionId,
               emailType: 'rescheduling',
-              originalDate: session.session_date,
-              originalTime: session.start_time,
-              newDate,
-              newTime
-            }
+              recipientEmail: session.client_email,
+              recipientName: session.client_name || 'Client',
+              data: {
+                sessionType: session.session_type || 'Session',
+                originalDate: session.session_date,
+                originalTime: session.start_time,
+                newDate,
+                newTime,
+                practitionerName,
+                sessionDuration: session.duration_minutes || 60,
+                bookingUrl,
+              },
+            },
           });
         } catch (notifError) {
           console.warn('Reschedule email failed (non-critical):', notifError);
@@ -276,6 +297,86 @@ export class RescheduleService {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to reschedule session'
       };
+    }
+  }
+
+  /**
+   * Get available time slots for a given date (for reschedule modal).
+   * Respects practitioner working hours, existing bookings (excluding sessionId), and blocked time.
+   */
+  static async getAvailableTimesForDate(
+    therapistId: string,
+    dateStr: string,
+    durationMinutes: number,
+    excludeSessionId?: string
+  ): Promise<string[]> {
+    try {
+      const { data: availability, error: avErr } = await supabase
+        .from('practitioner_availability')
+        .select('working_hours')
+        .eq('user_id', therapistId)
+        .maybeSingle();
+
+      if (avErr || !availability?.working_hours) return [];
+
+      const dayOfWeek = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const daySchedule = availability.working_hours[dayOfWeek];
+      if (!daySchedule || daySchedule.enabled !== true) return [];
+
+      const hasHoursArray = daySchedule.hours && Array.isArray(daySchedule.hours) && daySchedule.hours.length > 0;
+      const hasLegacyFormat = daySchedule.start && daySchedule.end;
+      if (!hasHoursArray && !hasLegacyFormat) return [];
+
+      const timeBlocks: { start: string; end: string }[] = hasHoursArray
+        ? daySchedule.hours
+        : [{ start: daySchedule.start, end: daySchedule.end }];
+
+      const { data: bookings, error: bkErr } = await supabase
+        .from('client_sessions')
+        .select('id, start_time, duration_minutes, status, expires_at')
+        .eq('therapist_id', therapistId)
+        .eq('session_date', dateStr)
+        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
+
+      if (bkErr) return [];
+
+      const existingBookings = (bookings || [])
+        .filter((b) => !(excludeSessionId && b.id === excludeSessionId))
+        .map((b) => ({
+          start_time: b.start_time,
+          duration_minutes: b.duration_minutes || 60,
+          status: b.status,
+          expires_at: b.expires_at
+        })) as ExistingBooking[];
+
+      const blocks = await getBlocksForDate(therapistId, dateStr);
+      const nowIso = new Date().toISOString();
+      const slots: string[] = [];
+
+      for (const block of timeBlocks) {
+        const startH = parseInt(block.start.split(':')[0], 10);
+        const endH = parseInt(block.end.split(':')[0], 10);
+        const durationH = durationMinutes / 60;
+
+        for (let h = startH; h < endH; h++) {
+          const slotEndH = h + durationH;
+          if (slotEndH > endH) continue;
+          const timeStr = `${h.toString().padStart(2, '0')}:00`;
+          const isBooked = existingBookings.some((b) => {
+            if (b.status === 'pending_payment' && b.expires_at && b.expires_at < nowIso) return false;
+            const bStart = parseInt(String(b.start_time).split(':')[0], 10);
+            const bEnd = bStart + Math.ceil((b.duration_minutes || 60) / 60);
+            return bStart < slotEndH && bEnd > h;
+          });
+          const isBlocked = isTimeSlotBlocked(timeStr, durationMinutes, blocks, dateStr);
+          if (!isBooked && !isBlocked) slots.push(timeStr);
+        }
+      }
+
+      return slots;
+    } catch (error) {
+      console.error('Error getting available times for reschedule:', error);
+      return [];
     }
   }
 

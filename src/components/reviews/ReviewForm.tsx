@@ -134,13 +134,17 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 
       onReviewSubmitted?.();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting review:', error);
+      const isDuplicate = error?.code === '23505' || /unique|duplicate/i.test(error?.message || '');
       toast({
-        title: "Error",
-        description: "Failed to submit review. Please try again.",
+        title: isDuplicate ? "Review Already Submitted" : "Error",
+        description: isDuplicate
+          ? "You have already submitted a review for this session."
+          : "Failed to submit review. Please try again.",
         variant: "destructive"
       });
+      if (isDuplicate) onReviewSubmitted?.();
     } finally {
       setIsSubmitting(false);
     }

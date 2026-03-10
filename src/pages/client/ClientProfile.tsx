@@ -231,22 +231,54 @@ const ClientProfile = () => {
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    try {
-      setUploadingPhoto(true);
-      const uploadedFile = await FileUploadService.uploadFile(file, 'profile-photos', {
-        maxSize: 5 * 1024 * 1024,
-        compressImages: true,
-        quality: 0.9
+    if (!file) return;
+
+    // Validate file type (parity with practitioner Profile)
+    if (!file.type.startsWith('image/')) {
+      toast.error('Invalid file type', {
+        description: 'Please select an image file (JPG, PNG, etc.)',
       });
-      const { error } = await updateProfile({ profile_photo_url: uploadedFile.url });
-      if (error) throw error;
-      setProfilePhotoUrl(uploadedFile.url);
-      await refreshProfile();
-      toast.success('Profile photo updated');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to upload photo';
-      toast.error(message);
+      return;
+    }
+
+    // Validate file size (max 5MB, parity with practitioner Profile)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large', {
+        description: 'Please select an image smaller than 5MB',
+      });
+      return;
+    }
+
+    const uploadWithRetry = async (retries = 3) => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          setUploadingPhoto(true);
+          const uploadedFile = await FileUploadService.uploadFile(file, 'profile-photos', {
+            maxSize: 5 * 1024 * 1024,
+            compressImages: true,
+            quality: 0.9
+          });
+          const { error } = await updateProfile({ profile_photo_url: uploadedFile.url });
+          if (error) throw error;
+          setProfilePhotoUrl(uploadedFile.url);
+          await refreshProfile();
+          toast.success('Profile photo updated');
+          return;
+        } catch (err: unknown) {
+          if (attempt === retries) {
+            const message = err instanceof Error ? err.message : 'Failed to upload photo';
+            toast.error('Upload failed', {
+              description: `Failed after ${retries} attempts. ${message}`,
+            });
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          }
+        }
+      }
+    };
+
+    try {
+      await uploadWithRetry();
     } finally {
       setUploadingPhoto(false);
       event.target.value = '';

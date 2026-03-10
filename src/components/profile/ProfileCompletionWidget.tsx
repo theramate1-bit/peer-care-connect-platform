@@ -353,7 +353,34 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
     );
   }
 
-  if (completionStatus.percentage === 100 || dismissed) return null;
+  if (completionStatus.percentage === 100) return null;
+
+  if (dismissed) {
+    return (
+      <Card className={`border-amber-200 dark:border-amber-800/50 ${className}`}>
+        <CardContent className="pt-4">
+          <p className="text-sm text-muted-foreground">
+            Your profile is {completionStatus.percentage}% complete. Add services and availability to appear in the marketplace.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              try {
+                sessionStorage.removeItem(storageKey);
+              } catch {
+                // ignore
+              }
+              setDismissed(false);
+            }}
+          >
+            Show checklist
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className={`border-primary/20 shadow-sm ${className}`}>
@@ -370,6 +397,11 @@ export const ProfileCompletionWidget: React.FC<ProfileCompletionWidgetProps> = (
       <CardContent className="pt-4">
         <p className="text-sm text-muted-foreground mb-4">
           Complete these steps to activate your profile and start accepting bookings.
+          {(!hasAvailability || productsCount === 0) && (
+            <span className="block mt-1 font-medium text-amber-600 dark:text-amber-500">
+              Services and availability are required to appear in the marketplace.
+            </span>
+          )}
         </p>
         <div className="space-y-3">
           {completionStatus.checks.map((check) => (

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +26,8 @@ import {
   CreditCard,
   CheckCircle,
   Star,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -58,11 +61,13 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   
   // Service state
   const [services, setServices] = useState<any[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   
   // Load practitioner products
   useEffect(() => {
     if (open) {
+      setServicesLoading(true);
       const loadServices = async () => {
         const { data } = await supabase
           .from('practitioner_products')
@@ -72,13 +77,15 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           .order('created_at', { ascending: false });
         setServices(data || []);
         if (data && data.length > 0) {
-          // Set first service as selected - duration will be auto-set by another useEffect
           setSelectedServiceId(data[0].id);
         } else {
           setSelectedServiceId('');
         }
+        setServicesLoading(false);
       };
       loadServices();
+    } else {
+      setServicesLoading(false);
     }
   }, [open, therapist.id]);
   
@@ -94,6 +101,7 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [emailIsRegistered, setEmailIsRegistered] = useState<boolean | null>(null);
   
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -376,7 +384,12 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   };
 
   const handleBack = () => {
-    setStep(step - 1);
+    const nextStep = step - 1;
+    setStep(nextStep);
+    // Refresh slots when returning to step 1 in case selected slot expired
+    if (nextStep === 1 && selectedDate && therapist.id) {
+      fetchAvailableSlots();
+    }
   };
 
   const handleBooking = async () => {
@@ -409,10 +422,45 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       // Use service duration if service is selected, otherwise use selected duration
       const finalDuration = svc.duration_minutes || duration;
       const totalAmount = svc.price_amount / 100;
-      
-      // Generate idempotency key
-      const clientId = user?.id || 'anonymous';
-      const idempotencyKey = `${clientId}-${therapist.id}-${selectedDate.toISOString().split('T')[0]}-${selectedTime}-${Date.now()}`;
+
+      // For guests: upsert guest user first — create_booking_with_validation requires a valid UUID client_id
+      let clientId: string;
+      if (user) {
+        clientId = user.id;
+      } else {
+        if (!clientEmail?.trim()) {
+          toast({
+            title: "Email Required",
+            description: "Please provide your email to book",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+        const nameParts = (clientName || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || 'Guest';
+        const lastName = nameParts.slice(1).join(' ') || 'User';
+        const { data: guestRows, error: guestError } = await supabase
+          .rpc('upsert_guest_user', {
+            p_email: clientEmail.trim(),
+            p_first_name: firstName,
+            p_last_name: lastName,
+            p_phone: clientPhone?.trim() || null
+          });
+        if (guestError || !guestRows?.length) {
+          toast({
+            title: "Error",
+            description: guestError?.message || "Could not create guest session. Please try again.",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+        clientId = guestRows[0].id;
+      }
+
+      // Generate idempotency key (no Date.now() to allow duplicate-click protection)
+      const idempotencyKey = `${clientId}-${therapist.id}-${selectedDate.toISOString().split('T')[0]}-${selectedTime}`;
 
       // Create booking using RPC function with validation
       const { data: bookingResult, error: rpcError } = await supabase
@@ -430,7 +478,8 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           p_notes: notes || null,
           p_payment_status: 'pending',
           p_status: 'scheduled',
-          p_idempotency_key: idempotencyKey
+          p_idempotency_key: idempotencyKey,
+          p_is_guest_booking: !user
         });
 
       if (rpcError) throw rpcError;
@@ -586,7 +635,19 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             )}
 
             {/* Service Selection */}
-            {services.length > 0 && (
+            {servicesLoading ? (
+              <div className="py-3 text-sm text-muted-foreground flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+                Loading services...
+              </div>
+            ) : services.length === 0 ? (
+              <div className="py-4 px-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="font-medium">No services available</p>
+                <p className="text-xs mt-1 text-amber-700">
+                  This practitioner doesn&apos;t have any bookable services at the moment. Please try another practitioner or check back later.
+                </p>
+              </div>
+            ) : (
               <div>
                 <Label className="text-base font-medium">Service Package</Label>
                 <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
@@ -704,9 +765,41 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                       id="clientEmail"
                       type="email"
                       value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
+                      onChange={(e) => {
+                        setClientEmail(e.target.value);
+                        if (emailIsRegistered) setEmailIsRegistered(null);
+                      }}
+                      onBlur={async (e) => {
+                        const email = e.currentTarget.value.trim();
+                        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                          setEmailIsRegistered(null);
+                          return;
+                        }
+                        try {
+                          const { data } = await supabase.rpc('check_email_registered', { p_email: email });
+                          setEmailIsRegistered(data === true);
+                        } catch {
+                          setEmailIsRegistered(null);
+                        }
+                      }}
                       placeholder="Enter your email"
                     />
+                    {emailIsRegistered && (
+                      <Alert variant="default" className="mt-2 border-amber-200 bg-amber-50">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>This email is already registered</AlertTitle>
+                        <AlertDescription>
+                          <Link
+                            to={`/login?email=${encodeURIComponent(clientEmail)}&redirect=${encodeURIComponent('/marketplace')}`}
+                            className="text-primary font-medium underline hover:no-underline"
+                            onClick={() => onOpenChange(false)}
+                          >
+                            Sign in
+                          </Link>
+                          {' to book with your account.'}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <Label htmlFor="clientPhone">Phone (Optional)</Label>
@@ -875,7 +968,10 @@ export const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             </Button>
             
             {step < 3 ? (
-              <Button onClick={handleNext} disabled={loading}>
+              <Button
+                onClick={handleNext}
+                disabled={loading || servicesLoading || services.length === 0}
+              >
                 Next
               </Button>
             ) : (

@@ -17,12 +17,18 @@ export const sessionSchema = z.object({
   session_type: z.string().min(1, 'Session type required')
 });
 
+// Allowed durations per practitioner_product_durations / practitioner_products CHECK (30, 45, 60, 75, 90)
+export const ALLOWED_DURATION_MINUTES = [30, 45, 60, 75, 90] as const;
+
 // Product validation
 export const productSchema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters').max(100),
   description: z.string().max(500).optional(),
   price_amount: z.number().min(0, 'Price must be positive'),
-  duration_minutes: z.number().min(15).max(240).optional(),
+  duration_minutes: z.number().refine(
+    (val) => ALLOWED_DURATION_MINUTES.includes(val as 30 | 45 | 60 | 75 | 90),
+    `Duration must be one of: ${ALLOWED_DURATION_MINUTES.join(', ')} minutes`
+  ).optional(),
   currency: z.literal('gbp')
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -110,6 +110,50 @@ const Marketplace = () => {
   const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
   const [reviewsModalPractitioner, setReviewsModalPractitioner] = useState<ReviewsModalPractitioner | null>(null);
 
+  // Refetch practitioner when opening booking modal (stale data edge case)
+  const refetchPractitioner = useCallback(async (practitionerId: string): Promise<Practitioner | null> => {
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        first_name,
+        last_name,
+        location,
+        clinic_address,
+        address_city,
+        clinic_latitude,
+        clinic_longitude,
+        therapist_type,
+        base_address,
+        base_latitude,
+        base_longitude,
+        mobile_service_radius_km,
+        clinic_image_url,
+        specializations,
+        services_offered,
+        bio,
+        experience_years,
+        user_role,
+        profile_photo_url,
+        has_liability_insurance,
+        products:practitioner_products(*)
+      `)
+      .eq('id', practitionerId)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !data) return null;
+    const p = { ...data, user_id: data.id } as Practitioner;
+    // Preserve ratings from current list if present
+    const existing = practitioners.find((x) => x.id === practitionerId || x.user_id === practitionerId);
+    if (existing) {
+      p.average_rating = existing.average_rating;
+      p.total_reviews = existing.total_reviews;
+      p.total_sessions = existing.total_sessions;
+    }
+    return p;
+  }, [practitioners]);
+
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
@@ -134,6 +178,15 @@ const Marketplace = () => {
     durationMin: 15,
     durationMax: 180,
   });
+
+  // Refetch practitioner when booking modal opens (eligibility may have changed)
+  useEffect(() => {
+    if (!selectedPractitioner || (!showBookingFlow && !showMobileRequestFlow)) return;
+    const id = selectedPractitioner.id || selectedPractitioner.user_id;
+    refetchPractitioner(id).then((fresh) => {
+      if (fresh) setSelectedPractitioner(fresh);
+    });
+  }, [showBookingFlow, showMobileRequestFlow, selectedPractitioner?.id, refetchPractitioner]);
 
   // Read URL parameters on mount
   useEffect(() => {
@@ -190,6 +243,14 @@ const Marketplace = () => {
   useEffect(() => {
     loadPractitioners();
 
+    // Refetch when user returns to tab (practitioner may have updated profile)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadPractitioners();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Subscribe to new products being added
     const productsSubscription = supabase
       .channel('marketplace-products')
@@ -226,6 +287,7 @@ const Marketplace = () => {
       .subscribe();
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       productsSubscription.unsubscribe();
       reviewsSubscription.unsubscribe();
     };
@@ -426,6 +488,8 @@ const Marketplace = () => {
    */
   const isPractitionerEligibleForMarketplace = (p: Practitioner): boolean => {
     if (!isValidTherapistType(p.therapist_type)) return false;
+    // Must have at least one bookable product (clinic or mobile)
+    if (!canBookClinic(p) && !canRequestMobile(p)) return false;
     if (p.therapist_type === 'clinic_based') return !!p.clinic_address?.trim();
     if (p.therapist_type === 'mobile') {
       return (
@@ -626,10 +690,8 @@ const Marketplace = () => {
     // Distance filter - if geo-search is active, sorting is handled by geo-search
     // Otherwise, apply text-based location filter
 
-    // Availability filter: basic example using experience as proxy if no availability slots in this view
-    if (availability === 'today') {
-      // Defer to booking flow for exact slots; here we leave as is
-    }
+    // Note: Availability (e.g. "today") would require per-practitioner slot data; not implemented at list level.
+    // Slot availability is checked in the booking flow.
 
     // Sort - prioritize distance if geo-search is active
     filtered.sort((a, b) => {
@@ -653,12 +715,12 @@ const Marketplace = () => {
             : Infinity;
           return aMinPrice - bMinPrice;
         case 'price_high':
-          // Sort by minimum product price (descending)
+          // Sort by maximum product price (descending) - most expensive practitioners first
           const aMaxPrice = a.products && a.products.length > 0
-            ? Math.min(...a.products.filter(p => p.is_active).map(p => p.price_amount))
+            ? Math.max(...a.products.filter(p => p.is_active).map(p => p.price_amount))
             : 0;
           const bMaxPrice = b.products && b.products.length > 0
-            ? Math.min(...b.products.filter(p => p.is_active).map(p => p.price_amount))
+            ? Math.max(...b.products.filter(p => p.is_active).map(p => p.price_amount))
             : 0;
           return bMaxPrice - aMaxPrice;
         case 'experience':
@@ -702,12 +764,13 @@ const Marketplace = () => {
     return 'bg-gray-100 text-gray-700 border border-gray-200';
   };
 
-  /** Practitioner type badge: Mobile / Clinic / Hybrid so cards are visually distinct (plan: marketplace mobile vs clinic). */
+  /** Practitioner type badge: Mobile / Clinic / Hybrid so cards are visually distinct. */
   const getPractitionerTypeBadge = (therapistType?: 'clinic_based' | 'mobile' | 'hybrid' | null) => {
     if (therapistType === 'mobile') return { label: 'Travels to you', icon: Car, className: 'bg-amber-50 text-amber-800 border border-amber-200' };
     if (therapistType === 'hybrid') return { label: 'Clinic + Mobile', icon: MapPin, className: 'bg-slate-100 text-slate-700 border border-slate-200' };
     if (therapistType === 'clinic_based') return { label: 'Clinic-based', icon: Building, className: 'bg-gray-100 text-gray-700 border border-gray-200' };
-    return { label: 'Unknown type', icon: AlertCircle, className: 'bg-red-50 text-red-700 border border-red-200' };
+    // Default for null/undefined (legacy or incomplete profile) - use neutral styling
+    return { label: 'Clinic-based', icon: Building, className: 'bg-gray-100 text-gray-700 border border-gray-200' };
   };
 
   /** KAN-37: Prominent star display - 5 stars visible, filled by rating (0-5). */
@@ -724,7 +787,11 @@ const Marketplace = () => {
     ));
   };
 
-  const uniqueLocations = [...new Set(practitioners.map(p => p.location))];
+  const uniqueLocations = [...new Set(
+    practitioners
+      .map(p => (p.location || '').trim())
+      .filter(Boolean)
+  )].sort();
 
   if (loading) {
     return (

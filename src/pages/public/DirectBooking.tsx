@@ -193,6 +193,10 @@ const DirectBooking = () => {
         // Hybrid therapist - show choice UI, don't auto-open booking
         setFlowType(null);
         setBookingOpen(false);
+      } else {
+        // No bookable clinic or mobile services
+        setError('This practitioner is not currently accepting bookings. No active services are configured.');
+        setPractitioner(null);
       }
     } catch (err) {
       console.error('Error fetching practitioner:', err);

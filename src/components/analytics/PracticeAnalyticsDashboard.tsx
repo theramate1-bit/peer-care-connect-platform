@@ -57,6 +57,7 @@ interface ClientData {
 
 interface FeedbackData {
   id: string;
+  session_id?: string;
   rating: number;
   feedback: string;
   created_at: string;
@@ -208,9 +209,13 @@ export const PracticeAnalyticsDashboard: React.FC = () => {
     const totalDuration = sessionsData.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
     const averageSessionDuration = totalSessions > 0 ? totalDuration / totalSessions : 0;
     
-    // Average rating
-    const totalRating = feedbackData.reduce((sum, f) => sum + f.rating, 0);
-    const averageRating = feedbackData.length > 0 ? totalRating / feedbackData.length : 0;
+    // Average rating: only include feedback for completed sessions (PRACTITIONER_DASHBOARD #17)
+    const completedSessionIds = new Set(
+      sessionsData.filter(s => s.status === 'completed').map(s => s.id)
+    );
+    const completedFeedback = feedbackData.filter(f => completedSessionIds.has(f.session_id || ''));
+    const totalRating = completedFeedback.reduce((sum, f) => sum + f.rating, 0);
+    const averageRating = completedFeedback.length > 0 ? totalRating / completedFeedback.length : 0;
     
     // No-show rate
     const noShowSessions = sessionsData.filter(s => s.status === 'cancelled').length;

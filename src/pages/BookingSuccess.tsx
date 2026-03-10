@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { CheckCircle, Calendar, Mail, ArrowLeft, MessageSquare, UserPlus, ChevronDown, CalendarPlus, ClipboardList } from 'lucide-react';
+import { CheckCircle, Calendar, Mail, ArrowLeft, MessageSquare, UserPlus, ChevronDown, CalendarPlus, ClipboardList, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { NotificationSystem } from '@/lib/notification-system';
 import { toast } from 'sonner';
@@ -36,6 +36,7 @@ export default function BookingSuccess() {
   const [clientEmail, setClientEmail] = useState<string>('');
   const [calendarFeedback, setCalendarFeedback] = useState<string | null>(null);
   const [cancellationPolicy, setCancellationPolicy] = useState<CancellationPolicy | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const viewBookingsPath = useMemo(() => {
     if (isGuest && !user && session?.id) {
       const emailQuery = clientEmail ? `?email=${encodeURIComponent(clientEmail)}` : '';
@@ -171,7 +172,7 @@ export default function BookingSuccess() {
 
       if (sessionError || !sessionData) {
         console.error('Session fetch error:', sessionError);
-        toast.error('Unable to load session details. Please contact support with your booking reference.');
+        setLoadError('Unable to load session details. Your payment may still have gone through.');
         setLoading(false);
         return;
       }
@@ -337,18 +338,8 @@ export default function BookingSuccess() {
       // If we still don't have session data, try to find by payment status in client_sessions
       // This is a fallback for when payment table is not accessible
       if (!sessionData) {
-        // Try to find session by checking sessions that have been confirmed/paid
-        // Note: This is less reliable but works when RLS blocks payments table
-        console.log('Attempting to find session by status verification');
-        // We'll show a generic success message since we can't verify specific details
-        toast.success('Payment received! Your booking is being processed.');
-        setLoading(false);
-        return;
-      }
-
-      if (!sessionData) {
-        console.error('Unable to find session for payment verification');
-        toast.error('Unable to load session details. Please contact support with your booking reference.');
+        console.log('Unable to find session for payment verification');
+        setLoadError('Payment may have succeeded. Use "Find my booking" (email + date) to view your session, or contact support.');
         setLoading(false);
         return;
       }
@@ -500,6 +491,28 @@ export default function BookingSuccess() {
           <CardContent className="text-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-muted-foreground">Verifying your booking...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="container mx-auto py-16 px-4">
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="text-center py-12 space-y-6">
+            <AlertCircle className="h-12 w-12 text-amber-600 mx-auto" />
+            <h2 className="text-xl font-semibold">Verification issue</h2>
+            <p className="text-muted-foreground">{loadError}</p>
+            <div className="flex flex-wrap gap-3 justify-center">
+              <Button onClick={() => navigate('/booking/find')}>
+                Find my booking
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/contact')}>
+                Contact support
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

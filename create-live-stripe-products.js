@@ -7,9 +7,18 @@
 
 import Stripe from 'stripe';
 
-// Configuration - Update these with your live Stripe keys
-const STRIPE_LIVE_SECRET_KEY = process.env.STRIPE_LIVE_SECRET_KEY || 'sk_live_YOUR_LIVE_SECRET_KEY';
-const STRIPE_LIVE_PUBLISHABLE_KEY = process.env.STRIPE_LIVE_PUBLISHABLE_KEY || 'pk_live_51RyBwQFk77knaVvaNewWaDRjeeAr3bvYjiV2VdBzMRvGV12k5vRHNDVmp3gqgAzQVfgjfhhQgnro2SmumBafO67X009Jmvs3RC';
+// Configuration - Set these in your environment (e.g. .env.local)
+const STRIPE_LIVE_SECRET_KEY = process.env.STRIPE_LIVE_SECRET_KEY;
+const STRIPE_LIVE_PUBLISHABLE_KEY = process.env.STRIPE_LIVE_PUBLISHABLE_KEY;
+
+if (!STRIPE_LIVE_SECRET_KEY || !STRIPE_LIVE_SECRET_KEY.startsWith('sk_live_')) {
+  console.error('❌ Set STRIPE_LIVE_SECRET_KEY in your environment');
+  process.exit(1);
+}
+if (!STRIPE_LIVE_PUBLISHABLE_KEY || !STRIPE_LIVE_PUBLISHABLE_KEY.startsWith('pk_live_')) {
+  console.error('❌ Set STRIPE_LIVE_PUBLISHABLE_KEY in your environment');
+  process.exit(1);
+}
 
 // Initialize Stripe with live key
 const stripe = new Stripe(STRIPE_LIVE_SECRET_KEY, {

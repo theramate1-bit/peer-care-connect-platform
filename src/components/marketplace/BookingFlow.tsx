@@ -520,7 +520,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
         return;
       }
 
-      const idempotencyKey = `${user.id}-${practitioner.user_id}-${bookingData.session_date}-${bookingData.start_time}-${Date.now()}`;
+      const idempotencyKey = `${user.id}-${practitioner.user_id}-${bookingData.session_date}-${bookingData.start_time}`;
 
       const { data: bookingResult, error: rpcError } = await supabase
         .rpc('create_booking_with_validation', {
@@ -994,6 +994,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                   transition={{ duration: 0.4, ease: "easeOut" }}
                 >
                   <CalendarTimeSelector
+                    key={`calendar-client-${practitioner.user_id}-${slotUnavailableReturned ? 'expired' : bookingData.session_date || 'none'}`}
                     therapistId={practitioner.user_id}
                     duration={bookingData.duration_minutes}
                     requestedAppointmentType="clinic"

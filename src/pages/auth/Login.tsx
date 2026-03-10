@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useNavigate, Link, useSearchParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,10 @@ import { MessagingManager } from "@/lib/messaging";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, userProfile, loading: authLoading } = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get('email') ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -54,11 +55,20 @@ const Login = () => {
         return;
       }
       
+      // Respect redirect param or state.from when user arrived from protected route
+      const redirectParam = searchParams.get('redirect');
+      const fromState = (location.state as { from?: { pathname?: string; search?: string } })?.from;
+      const redirectTo = redirectParam ?? (fromState ? `${fromState.pathname || ''}${fromState.search || ''}` : null);
+      if (redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
+        navigate(redirectTo, { replace: true });
+        return;
+      }
+      
       // User is fully set up, redirect to appropriate dashboard
       const dashboardRoute = getDashboardRoute({ userProfile });
       navigate(dashboardRoute, { replace: true });
     }
-  }, [user, userProfile, authLoading, navigate]);
+  }, [user, userProfile, authLoading, navigate, searchParams, location.state]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,6 +145,18 @@ const Login = () => {
               return;
             }
             
+            // Respect redirect param (e.g. from email links) or state.from (from AuthRouter)
+            const redirectTo = searchParams.get('redirect') ?? (location.state as { from?: { pathname?: string; search?: string } })?.from;
+            if (redirectTo) {
+              const targetPath = typeof redirectTo === 'string'
+                ? redirectTo
+                : `${redirectTo.pathname || ''}${redirectTo.search || ''}`.replace(/^\/+/, '/') || '/client/dashboard';
+              if (targetPath.startsWith('/') && !targetPath.startsWith('//')) {
+                navigate(targetPath, { replace: true });
+                return;
+              }
+            }
+
             // User is fully set up, redirect to appropriate dashboard
             const dashboardRoute = getDashboardRoute({ userProfile: profile });
             navigate(dashboardRoute, { replace: true });
@@ -154,10 +176,18 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
+      const redirectParam = searchParams.get('redirect');
+      const fromPath = (location.state as { from?: { pathname?: string; search?: string } })?.from;
+      const redirectTo = redirectParam ?? (fromPath ? `${fromPath.pathname || ''}${fromPath.search || ''}` : null);
+      const callbackBase = `${window.location.origin}/auth/callback`;
+      const callbackUrl = redirectTo
+        ? `${callbackBase}?redirect=${encodeURIComponent(typeof redirectTo === 'string' ? redirectTo : `${redirectTo.pathname || ''}${redirectTo.search || ''}`)}`
+        : callbackBase;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl,
           queryParams: {
             prompt: 'select_account', // Force account selection instead of using cached account
           },
@@ -288,7 +318,15 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between">
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm text-muted-foreground"
+                asChild
+              >
+                <Link to="/booking/find">Find my booking</Link>
+              </Button>
               <Button
                 type="button"
                 variant="link"
@@ -311,7 +349,13 @@ const Login = () => {
             <Button
               variant="link"
               className="p-0 h-auto font-normal"
-              onClick={() => navigate("/register")}
+              onClick={() => {
+                const redirectParam = searchParams.get('redirect');
+                const emailParam = email ? `email=${encodeURIComponent(email)}` : '';
+                const redirectQuery = redirectParam ? `redirect=${encodeURIComponent(redirectParam)}` : '';
+                const query = [emailParam, redirectQuery].filter(Boolean).join('&');
+                navigate(query ? `/register?${query}` : '/register');
+              }}
             >
               Sign up
             </Button>

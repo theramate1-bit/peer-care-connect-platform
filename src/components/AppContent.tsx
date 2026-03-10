@@ -95,6 +95,7 @@ import GuestMobileRequests from "../pages/public/GuestMobileRequests";
 import BookingSuccess from "../pages/BookingSuccess";
 import MobileBookingSuccess from "../pages/MobileBookingSuccess";
 import GuestBookingView from "../pages/booking/GuestBookingView";
+import FindMyBooking from "../pages/booking/FindMyBooking";
 import SubscriptionSuccess from "../pages/SubscriptionSuccess";
 import StripeReturn from "../pages/onboarding/StripeReturn";
 import ProfileRedirect from "./ProfileRedirect";
@@ -153,6 +154,7 @@ const AppContent = () => {
         <Route path="/booking-success" element={<BookingSuccess />} />
         <Route path="/mobile-booking/success" element={<MobileBookingSuccess />} />
         <Route path="/booking/view/:sessionId" element={<GuestBookingView />} />
+        <Route path="/booking/find" element={<FindMyBooking />} />
         <Route path="/review" element={<GuestReview />} />
         
         {/* Authentication */}

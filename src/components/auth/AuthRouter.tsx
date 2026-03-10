@@ -79,7 +79,7 @@ const AuthRouter = ({ children }: AuthRouterProps) => {
     const publicRoutes = [
       '/', '/marketplace', '/explore', '/how-it-works', '/pricing', '/about',
       '/contact', '/help', '/terms', '/privacy', '/cookies', '/booking-success',
-      '/mobile-booking/success', '/guest/mobile-requests'
+      '/mobile-booking/success', '/guest/mobile-requests', '/booking/find'
     ];
 
     const authRoutes = [

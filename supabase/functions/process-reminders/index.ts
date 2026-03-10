@@ -77,14 +77,17 @@ async function processPendingReminders(supabaseClient: any) {
       .select(`
         *,
         session:client_sessions(
+          id,
           session_date,
           start_time,
           client_id,
+          client_email,
+          client_name,
           therapist_id,
           session_type,
           duration_minutes,
           location,
-          client:users!client_sessions_client_id_fkey(first_name, last_name, email),
+          client:users!client_sessions_client_id_fkey(first_name, last_name, email, user_role),
           practitioner:users!client_sessions_therapist_id_fkey(first_name, last_name, email)
         )
       `)
@@ -120,12 +123,25 @@ async function processPendingReminders(supabaseClient: any) {
           reminderType = 'session_reminder_1h';
         }
         
-        // Send email to client
-        if (session.client?.email) {
+        // Send email to client (both logged-in and guest)
+        const clientEmail = session.client?.email || session.client_email;
+        const clientName = session.client
+          ? `${session.client.first_name} ${session.client.last_name}`
+          : session.client_name || 'Client';
+        const isGuest = !session.client || session.client.user_role === 'guest';
+        const baseUrl = Deno.env.get('SITE_URL') || 'https://theramate.co.uk';
+        const clientBookingUrl = isGuest && clientEmail
+          ? `${baseUrl}/booking/view/${reminder.session_id}?email=${encodeURIComponent(clientEmail)}`
+          : `${baseUrl}/client/sessions`;
+        const clientMessageUrl = isGuest && clientEmail
+          ? `${baseUrl}/register?email=${encodeURIComponent(clientEmail)}&redirect=${encodeURIComponent('/messages')}`
+          : `${baseUrl}/messages`;
+
+        if (clientEmail) {
           await sendReminderEmail(supabaseClient, {
             emailType: reminderType,
-            recipientEmail: session.client.email,
-            recipientName: `${session.client.first_name} ${session.client.last_name}`,
+            recipientEmail: clientEmail,
+            recipientName: clientName,
             data: {
               sessionId: reminder.session_id,
               sessionType: session.session_type,
@@ -134,8 +150,8 @@ async function processPendingReminders(supabaseClient: any) {
               sessionDuration: session.duration_minutes || 60,
               practitionerName: `${session.practitioner?.first_name} ${session.practitioner?.last_name}`,
               sessionLocation: session.location || '',
-              bookingUrl: `${Deno.env.get('SITE_URL') || 'https://peercareconnect.com'}/my-bookings`,
-              messageUrl: `${Deno.env.get('SITE_URL') || 'https://peercareconnect.com'}/messages`
+              bookingUrl: clientBookingUrl,
+              messageUrl: clientMessageUrl
             }
           });
         }
@@ -152,17 +168,17 @@ async function processPendingReminders(supabaseClient: any) {
               sessionDate: session.session_date,
               sessionTime: session.start_time,
               sessionDuration: session.duration_minutes || 60,
-              clientName: `${session.client?.first_name} ${session.client?.last_name}`,
+              clientName: clientName,
               sessionLocation: session.location || '',
-              bookingUrl: `${Deno.env.get('SITE_URL') || 'https://peercareconnect.com'}/practice/sessions`,
-              messageUrl: `${Deno.env.get('SITE_URL') || 'https://peercareconnect.com'}/messages`
+              bookingUrl: `${baseUrl}/practice/sessions/${reminder.session_id}`,
+              messageUrl: `${baseUrl}/messages`
             }
           });
         }
 
-        // Create in-app notifications
+        // Create in-app notifications (skip client if no user_id)
         const notifications = [
-          {
+          ...(session.client_id ? [{
             user_id: session.client_id,
             type: 'session_reminder',
             title: 'Session Reminder',
@@ -174,12 +190,12 @@ async function processPendingReminders(supabaseClient: any) {
               start_time: session.start_time,
               session_type: session.session_type
             }
-          },
+          }] : []),
           {
             user_id: session.therapist_id,
             type: 'session_reminder',
             title: 'Session Reminder',
-            message: `Your ${session.session_type} session with ${session.client?.first_name} ${session.client?.last_name} is ${reminder.message.toLowerCase()}.`,
+            message: `Your ${session.session_type} session with ${clientName} is ${reminder.message.toLowerCase()}.`,
             data: {
               session_id: reminder.session_id,
               client_name: `${session.client?.first_name} ${session.client?.last_name}`,

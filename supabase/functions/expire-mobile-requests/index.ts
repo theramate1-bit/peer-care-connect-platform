@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
 
     let expiredCount = 0;
     const productNames: Record<string, string> = {};
+    const userCache: Record<string, { email?: string; first_name?: string; last_name?: string; user_role?: string }> = {};
 
     for (const row of rows) {
       const id = row.id as string;
@@ -122,6 +123,51 @@ Deno.serve(async (req) => {
         p_source_type: 'mobile_booking_request',
         p_source_id: id,
       });
+
+      // Send mobile_request_expired_client email (clients and guests)
+      const clientId = row.client_id as string;
+      if (clientId) {
+        let clientUser = userCache[clientId];
+        if (!clientUser) {
+          const { data: u } = await supabase.from('users').select('email, first_name, last_name, user_role').eq('id', clientId).maybeSingle();
+          clientUser = (u || {}) as typeof clientUser;
+          userCache[clientId] = clientUser;
+        }
+        if (clientUser?.email) {
+          const pid = row.practitioner_id as string;
+          let pract = userCache[pid];
+          if (!pract) {
+            const { data: p } = await supabase.from('users').select('first_name, last_name').eq('id', pid).maybeSingle();
+            pract = (p || {}) as { first_name?: string; last_name?: string };
+            userCache[pid] = pract;
+          }
+          const practitionerName = `${pract?.first_name || ''} ${pract?.last_name || ''}`.trim() || 'Your practitioner';
+          const siteUrl = Deno.env.get('SITE_URL') || Deno.env.get('APP_URL') || 'https://theramate.co.uk';
+          const requestUrl = clientUser.user_role === 'client'
+            ? `${siteUrl}/client/mobile-requests`
+            : `${siteUrl}/guest/mobile-requests?email=${encodeURIComponent(clientUser.email!)}`;
+          try {
+            await supabase.functions.invoke('send-email', {
+              headers: { Authorization: `Bearer ${supabaseServiceRoleKey}` },
+              body: {
+                emailType: 'mobile_request_expired_client',
+                recipientEmail: clientUser.email,
+                recipientName: `${clientUser.first_name || ''} ${clientUser.last_name || ''}`.trim() || 'Guest',
+                data: {
+                  requestId: id,
+                  practitionerName,
+                  serviceType: productName,
+                  requestedDate: row.requested_date,
+                  requestedTime: row.requested_start_time,
+                  requestUrl,
+                },
+              },
+            });
+          } catch (emailErr) {
+            console.error('[EXPIRE-MOBILE-REQUESTS] Failed to send expiry email for', id, emailErr);
+          }
+        }
+      }
     }
 
     return new Response(

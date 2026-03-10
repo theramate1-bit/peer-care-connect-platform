@@ -236,7 +236,11 @@ const ClientBooking = () => {
     }
   };
 
-  const uniqueLocations = [...new Set(practitioners.map(p => p.location))];
+  const uniqueLocations = [...new Set(
+    practitioners
+      .map(p => (p.location || '').trim())
+      .filter(Boolean)
+  )].sort();
   const uniqueSpecializations = [...new Set(practitioners.flatMap(p => p.specializations))];
 
   // Apply sort to filtered list (KAN-31: Price low→high, Rating high→low, Distance low→high)

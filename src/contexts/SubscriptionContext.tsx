@@ -516,6 +516,25 @@ export const SubscriptionProvider = ({ children }: { children: React.ReactNode }
     }
   }, [user, session]);
 
+  // Realtime: when webhook updates subscription status (e.g. lapse to past_due, cancelled), refetch immediately
+  // Fixes PRACTITIONER_DASHBOARD #1: subscription lapses mid-session while user stays on dashboard
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`subscriptions-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` },
+        () => {
+          checkSubscription(true);
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const practitionerAccess = useMemo(() => {
     const role = userProfile?.user_role;
     const isPractitionerRole = role && ['sports_therapist', 'massage_therapist', 'osteopath'].includes(role);

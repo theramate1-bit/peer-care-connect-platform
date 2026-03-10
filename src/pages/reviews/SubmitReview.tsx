@@ -34,14 +34,14 @@ const SubmitReview: React.FC = () => {
   const [hasExistingReview, setHasExistingReview] = useState(false);
 
   useEffect(() => {
-    if (sessionId) {
+    if (sessionId && user) {
       fetchSessionDetails();
       checkExistingReview();
     }
-  }, [sessionId]);
+  }, [sessionId, user]);
 
   const fetchSessionDetails = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !user) return;
 
     try {
       const { data, error } = await supabase
@@ -54,6 +54,7 @@ const SubmitReview: React.FC = () => {
           )
         `)
         .eq('id', sessionId)
+        .eq('client_id', user.id)
         .single();
 
       if (error) throw error;
@@ -81,15 +82,13 @@ const SubmitReview: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('practitioner_ratings')
+        .from('reviews')
         .select('id')
         .eq('session_id', sessionId)
         .eq('client_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+      if (error) throw error;
 
       setHasExistingReview(!!data);
     } catch (error) {

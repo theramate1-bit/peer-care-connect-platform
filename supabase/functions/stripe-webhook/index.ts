@@ -1453,6 +1453,66 @@ serve(async (req) => {
         break;
       }
 
+      case "payment_intent.payment_failed": {
+        console.log("❌ Processing payment_intent.payment_failed");
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const requestId = paymentIntent.metadata?.request_id;
+
+        if (requestId && paymentIntent.metadata?.payment_type === "mobile_booking_request") {
+          console.log(`📱 Mobile booking request ${requestId} - payment failed`);
+
+          const { error: updateError } = await supabase
+            .from("mobile_booking_requests")
+            .update({
+              payment_status: "payment_failed",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", requestId)
+            .eq("status", "pending");
+
+          if (updateError) {
+            console.error("❌ Error updating mobile_booking_requests:", updateError);
+          } else {
+            const clientId = paymentIntent.metadata?.client_user_id;
+            const practitionerId = paymentIntent.metadata?.practitioner_id;
+            const failureMessage = paymentIntent.last_payment_error?.message || "Payment was declined or failed.";
+
+            if (clientId) {
+              try {
+                await supabase.rpc("create_notification", {
+                  p_recipient_id: clientId,
+                  p_type: "booking_request",
+                  p_title: "Payment Failed",
+                  p_body: `Your mobile session request could not be completed. ${failureMessage} Please try again with a different payment method.`,
+                  p_payload: { request_id: requestId, error: failureMessage },
+                  p_source_type: "mobile_booking_request",
+                  p_source_id: requestId,
+                });
+              } catch (e) {
+                console.warn("Could not notify client of payment failure:", e);
+              }
+            }
+            if (practitionerId) {
+              try {
+                await supabase.rpc("create_notification", {
+                  p_recipient_id: practitionerId,
+                  p_type: "booking_request",
+                  p_title: "Payment Failed for Mobile Request",
+                  p_body: `A client's payment for a mobile session request failed. ${failureMessage}`,
+                  p_payload: { request_id: requestId, error: failureMessage },
+                  p_source_type: "mobile_booking_request",
+                  p_source_id: requestId,
+                });
+              } catch (e) {
+                console.warn("Could not notify practitioner:", e);
+              }
+            }
+            console.log(`✅ Mobile request ${requestId} marked payment_failed, notifications sent`);
+          }
+        }
+        break;
+      }
+
       case "account.updated": {
         console.log("🏢 Processing account.updated (Connect v1)");
         const account = event.data.object as Stripe.Account;

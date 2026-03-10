@@ -5,12 +5,6 @@
  * Verifies what products and prices exist in your live Stripe account
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-// Configuration - Update these with your live Stripe keys
-const STRIPE_LIVE_PUBLISHABLE_KEY = 'pk_live_51RyBwQFk77knaVvaNewWaDRjeeAr3bvYjiV2VdBzMRvGV12k5vRHNDVmp3gqgAzQVfgjfhhQgnro2SmumBafO67X009Jmvs3RC';
-const STRIPE_LIVE_SECRET_KEY = 'sk_live_YOUR_LIVE_SECRET_KEY'; // Replace with your actual live secret key
-
 console.log('🔍 STRIPE LIVE ACCOUNT CHECKER');
 console.log('=' .repeat(50));
 

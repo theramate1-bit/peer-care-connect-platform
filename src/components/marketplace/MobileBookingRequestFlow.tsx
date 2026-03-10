@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -101,6 +103,7 @@ export const MobileBookingRequestFlow: React.FC<MobileBookingRequestFlowProps> =
     phone: ''
   });
   const [guestEmailError, setGuestEmailError] = useState<string>('');
+  const [emailIsRegistered, setEmailIsRegistered] = useState<boolean | null>(null);
   const [marketingConsent, setMarketingConsent] = useState(false);
 
   const getCandidateEmail = () => {
@@ -372,11 +375,22 @@ export const MobileBookingRequestFlow: React.FC<MobileBookingRequestFlowProps> =
       });
 
       if (requestError) {
+        // Handle duplicate pending request (uq_mobile_pending_request_slot unique constraint)
+        const err = requestError as { code?: string; message?: string };
+        if (err.code === '23505' || err.message?.includes('uq_mobile_pending_request_slot') || err.message?.toLowerCase().includes('duplicate')) {
+          toast.error('You already have a pending request for this practitioner at this date and time. Please wait for a response or choose a different slot.');
+          return;
+        }
         throw requestError;
       }
 
       if (!requestData?.success) {
-        throw new Error(requestData?.error || 'Failed to create request');
+        const errMsg = requestData?.error || 'Failed to create request';
+        if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('already have') || errMsg.toLowerCase().includes('pending request')) {
+          toast.error('You already have a pending request for this practitioner at this date and time. Please wait for a response or choose a different slot.');
+          return;
+        }
+        throw new Error(errMsg);
       }
 
       // Persist context for post-checkout finalization and notifications.
@@ -670,21 +684,47 @@ export const MobileBookingRequestFlow: React.FC<MobileBookingRequestFlowProps> =
                           const email = e.target.value;
                           setGuestData(prev => ({ ...prev, email }));
                           if (guestEmailError) setGuestEmailError('');
+                          if (emailIsRegistered) setEmailIsRegistered(null);
                         }}
-                        onBlur={(e) => {
+                        onBlur={async (e) => {
                           const email = e.target.value.trim();
                           if (email && !formValidation.isValidEmail(email)) {
                             setGuestEmailError('Please enter a valid email address');
+                            setEmailIsRegistered(null);
                             return;
                           }
                           setGuestEmailError('');
                           if (email) {
                             void checkPreAssessmentRequirementByEmail(email);
+                            try {
+                              const { data } = await supabase.rpc('check_email_registered', { p_email: email });
+                              setEmailIsRegistered(data === true);
+                            } catch {
+                              setEmailIsRegistered(null);
+                            }
+                          } else {
+                            setEmailIsRegistered(null);
                           }
                         }}
                         placeholder="you@example.com"
                       />
                       {guestEmailError && <p className="text-xs text-destructive mt-1">{guestEmailError}</p>}
+                      {emailIsRegistered && (
+                        <Alert variant="default" className="mt-2 border-amber-200 bg-amber-50">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>This email is already registered</AlertTitle>
+                          <AlertDescription>
+                            <Link
+                              to={`/login?email=${encodeURIComponent(guestData.email)}&redirect=${encodeURIComponent('/marketplace')}`}
+                              className="text-primary font-medium underline hover:no-underline"
+                              onClick={() => onOpenChange(false)}
+                            >
+                              Sign in
+                            </Link>
+                            {' to book with your account.'}
+                          </AlertDescription>
+                        </Alert>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="guest-phone">Phone *</Label>

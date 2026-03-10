@@ -1,5 +1,6 @@
 /**
  * Tests for PreAssessmentService (KAN-191: guest/client repeat pre-assessment rules)
+ * Updated to match current implementation using email_has_completed_pre_assessment RPC.
  */
 
 import { PreAssessmentService } from '../pre-assessment-service';
@@ -9,7 +10,6 @@ const mockRpc = jest.fn();
 const mockSelect = jest.fn().mockReturnThis();
 const mockEq = jest.fn().mockReturnThis();
 const mockSingle = jest.fn();
-const mockIn = jest.fn().mockReturnThis();
 
 jest.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -36,42 +36,25 @@ describe('PreAssessmentService.checkFormRequirement', () => {
           select: mockSelect,
           eq: mockEq,
           single: mockSingle,
-          in: mockIn,
         };
       }
       return {};
     });
   });
 
-  it('returns required for first-time guest (no client identity)', async () => {
+  it('returns required for first-time guest (no client email)', async () => {
     mockSingle.mockResolvedValueOnce({
-      data: { client_id: null, therapist_id: therapistId, client_email: 'guest@test.com' },
+      data: { client_id: null, therapist_id: therapistId, client_email: '' },
       error: null,
     });
 
     const result = await PreAssessmentService.checkFormRequirement(sessionId);
 
-    expect(result).toEqual({ required: true, canSkip: false, reason: 'guest' });
+    expect(result).toEqual({ required: true, canSkip: false, reason: 'first_time_user' });
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it('returns required for first-time guest when clientId provided and is_first_session true', async () => {
-    mockSingle.mockResolvedValueOnce({
-      data: { client_id: guestClientId, therapist_id: therapistId, client_email: 'guest@test.com' },
-      error: null,
-    });
-    mockRpc.mockResolvedValueOnce({ data: true, error: null });
-
-    const result = await PreAssessmentService.checkFormRequirement(sessionId, guestClientId);
-
-    expect(result).toEqual({ required: true, canSkip: false, reason: 'initial_session' });
-    expect(mockRpc).toHaveBeenCalledWith('is_first_session_with_practitioner', {
-      p_client_id: guestClientId,
-      p_therapist_id: therapistId,
-    });
-  });
-
-  it('returns optional for repeat guest (same practitioner)', async () => {
+  it('returns required for first-time guest when email not recognised', async () => {
     mockSingle.mockResolvedValueOnce({
       data: { client_id: guestClientId, therapist_id: therapistId, client_email: 'guest@test.com' },
       error: null,
@@ -80,10 +63,24 @@ describe('PreAssessmentService.checkFormRequirement', () => {
 
     const result = await PreAssessmentService.checkFormRequirement(sessionId, guestClientId);
 
-    expect(result).toEqual({ required: false, canSkip: true, reason: 'subsequent_session' });
-    expect(mockRpc).toHaveBeenCalledWith('is_first_session_with_practitioner', {
-      p_client_id: guestClientId,
-      p_therapist_id: therapistId,
+    expect(result).toEqual({ required: true, canSkip: false, reason: 'first_time_user' });
+    expect(mockRpc).toHaveBeenCalledWith('email_has_completed_pre_assessment', {
+      p_email: 'guest@test.com',
+    });
+  });
+
+  it('returns optional for repeat guest (email has completed form)', async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { client_id: guestClientId, therapist_id: therapistId, client_email: 'guest@test.com' },
+      error: null,
+    });
+    mockRpc.mockResolvedValueOnce({ data: true, error: null });
+
+    const result = await PreAssessmentService.checkFormRequirement(sessionId, guestClientId);
+
+    expect(result).toEqual({ required: false, canSkip: true, reason: 'returning_user' });
+    expect(mockRpc).toHaveBeenCalledWith('email_has_completed_pre_assessment', {
+      p_email: 'guest@test.com',
     });
   });
 
@@ -92,11 +89,14 @@ describe('PreAssessmentService.checkFormRequirement', () => {
       data: { client_id: clientId, therapist_id: therapistId, client_email: 'client@test.com' },
       error: null,
     });
-    mockRpc.mockResolvedValueOnce({ data: true, error: null });
+    mockRpc.mockResolvedValueOnce({ data: false, error: null });
 
     const result = await PreAssessmentService.checkFormRequirement(sessionId, clientId);
 
-    expect(result).toEqual({ required: true, canSkip: false, reason: 'initial_session' });
+    expect(result).toEqual({ required: true, canSkip: false, reason: 'first_time_user' });
+    expect(mockRpc).toHaveBeenCalledWith('email_has_completed_pre_assessment', {
+      p_email: 'client@test.com',
+    });
   });
 
   it('returns optional for repeat client with same practitioner', async () => {
@@ -104,26 +104,28 @@ describe('PreAssessmentService.checkFormRequirement', () => {
       data: { client_id: clientId, therapist_id: therapistId, client_email: 'client@test.com' },
       error: null,
     });
-    mockRpc.mockResolvedValueOnce({ data: false, error: null });
+    mockRpc.mockResolvedValueOnce({ data: true, error: null });
 
     const result = await PreAssessmentService.checkFormRequirement(sessionId, clientId);
 
-    expect(result).toEqual({ required: false, canSkip: true, reason: 'subsequent_session' });
+    expect(result).toEqual({ required: false, canSkip: true, reason: 'returning_user' });
+    expect(mockRpc).toHaveBeenCalledWith('email_has_completed_pre_assessment', {
+      p_email: 'client@test.com',
+    });
   });
 
-  it('uses session.client_id when clientId not provided (guest path)', async () => {
+  it('uses session.client_email when clientId not provided (guest path)', async () => {
     mockSingle.mockResolvedValueOnce({
       data: { client_id: guestClientId, therapist_id: therapistId, client_email: 'guest@test.com' },
       error: null,
     });
-    mockRpc.mockResolvedValueOnce({ data: false, error: null });
+    mockRpc.mockResolvedValueOnce({ data: true, error: null });
 
     const result = await PreAssessmentService.checkFormRequirement(sessionId);
 
-    expect(result).toEqual({ required: false, canSkip: true, reason: 'subsequent_session' });
-    expect(mockRpc).toHaveBeenCalledWith('is_first_session_with_practitioner', {
-      p_client_id: guestClientId,
-      p_therapist_id: therapistId,
+    expect(result).toEqual({ required: false, canSkip: true, reason: 'returning_user' });
+    expect(mockRpc).toHaveBeenCalledWith('email_has_completed_pre_assessment', {
+      p_email: 'guest@test.com',
     });
   });
 

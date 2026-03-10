@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { MapPin, Clock, Calendar, User, CheckCircle, XCircle, AlertCircle, RefreshCw, X } from 'lucide-react';
+import { MapPin, Clock, Calendar, User, CheckCircle, XCircle, AlertCircle, RefreshCw, X, Mail } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +16,7 @@ import { NotificationSystem } from '@/lib/notification-system';
 
 interface MobileRequest {
   id: string;
+  client_id?: string;
   practitioner_id: string;
   practitioner_name: string;
   product_id: string;
@@ -41,9 +43,10 @@ interface MobileRequest {
 export const MobileRequestStatus: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const guestEmail = searchParams.get('email');
   const focusedRequestId = searchParams.get('requestId');
+  const [emailInput, setEmailInput] = useState('');
   const [requests, setRequests] = useState<MobileRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<MobileRequest | null>(null);
@@ -114,7 +117,27 @@ export const MobileRequestStatus: React.FC = () => {
           p_status: null
         });
         if (error) throw error;
-        setRequests(data || []);
+        const guestRequests = data || [];
+        setRequests(guestRequests);
+
+        for (const request of guestRequests) {
+          if (request.status !== 'expired' || !request.client_id) continue;
+          const dedupeKey = `mobile_expiry_email_sent_${request.id}`;
+          if (localStorage.getItem(dedupeKey)) continue;
+
+          try {
+            await NotificationSystem.sendMobileBookingExpiredNotification(request.client_id, {
+              requestId: request.id,
+              practitionerName: request.practitioner_name,
+              serviceType: request.product_name,
+              requestedDate: request.requested_date,
+              requestedTime: request.requested_start_time,
+            });
+            localStorage.setItem(dedupeKey, new Date().toISOString());
+          } catch (notifyError) {
+            console.error('Failed to send expiry email notification:', notifyError);
+          }
+        }
       } else {
         setRequests([]);
       }
@@ -240,8 +263,37 @@ export const MobileRequestStatus: React.FC = () => {
 
       {!user && !guestEmail && (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            Use the request link from your email to view guest mobile request status.
+          <CardContent className="py-8 space-y-4">
+            <p className="text-center text-muted-foreground">
+              View your mobile booking request status. Enter the email address you used when making the request.
+            </p>
+            <form
+              className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = emailInput.trim();
+                if (trimmed) {
+                  setSearchParams({ email: trimmed });
+                } else {
+                  toast.error('Please enter your email address');
+                }
+              }}
+            >
+              <div className="flex-1 relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button type="submit">View my requests</Button>
+            </form>
+            <p className="text-xs text-center text-muted-foreground">
+              Or use the link from your confirmation email for quick access.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -263,7 +315,9 @@ export const MobileRequestStatus: React.FC = () => {
                       <User className="h-5 w-5" />
                       {request.practitioner_name}
                     </CardTitle>
-                    <CardDescription>{request.product_name}</CardDescription>
+                    <CardDescription>
+                      {request.product_name} · {new Date(request.requested_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at {request.requested_start_time.includes(':') && request.requested_start_time.split(':').length === 3 ? request.requested_start_time.slice(0, 5) : request.requested_start_time}
+                    </CardDescription>
                   </div>
                   {getStatusBadge(request.status, request.payment_status)}
                 </div>
@@ -273,7 +327,7 @@ export const MobileRequestStatus: React.FC = () => {
                   <div>
                     <Label className="text-xs text-muted-foreground">Date & Time</Label>
                     <p className="font-medium">
-                      {new Date(request.requested_date).toLocaleDateString()} at {request.requested_start_time}
+                      {new Date(request.requested_date).toLocaleDateString()} at {request.requested_start_time.includes(':') && request.requested_start_time.split(':').length === 3 ? request.requested_start_time.slice(0, 5) : request.requested_start_time}
                     </p>
                   </div>
                   <div>

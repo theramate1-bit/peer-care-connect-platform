@@ -51,13 +51,15 @@ describe('booking-flow-type', () => {
       ).toBe(false);
     });
 
-    it('returns false when no active clinic product', () => {
+    it('normalizes clinic_based + mobile-only product to clinic (legacy/misaligned)', () => {
+      // getEffectiveProductServiceType treats mobile→clinic for clinic_based, so clinic booking is offered
       expect(
         canBookClinic({
           ...basePractitioner,
+          therapist_type: 'clinic_based',
           products: [{ is_active: true, service_type: 'mobile' }],
         })
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it('returns false when therapist_type is null/undefined', () => {
@@ -123,13 +125,14 @@ describe('booking-flow-type', () => {
       ).toBe(false);
     });
 
-    it('returns false when no active mobile product', () => {
+    it('normalizes mobile + clinic-only product to mobile (legacy/misaligned)', () => {
+      // getEffectiveProductServiceType treats clinic→mobile for mobile practitioner, so mobile is offered
       expect(
         canRequestMobile({
           ...mobilePractitioner,
           products: [{ is_active: true, service_type: 'clinic' }],
         })
-      ).toBe(false);
+      ).toBe(true);
     });
   });
 

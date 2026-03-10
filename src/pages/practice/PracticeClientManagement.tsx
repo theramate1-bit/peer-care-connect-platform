@@ -57,12 +57,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
 import { format } from 'date-fns';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { ClientProgressTracker } from '@/components/session/ClientProgressTracker';
 import { resolveClientIdFromSession } from '@/lib/client-id-resolver';
 import { usePlan } from '@/contexts/PlanContext';
 import { transcribeFile, generateSoapNotes, uploadAudioReturnPath, Utterance } from '@/lib/transcription';
-import { Mic, StopCircle, Sparkles, Loader2, CheckCircle2, Circle, CheckCircle, ThumbsUp, ThumbsDown, AlertTriangle } from 'lucide-react';
+import { Mic, StopCircle, Sparkles, Loader2, CheckCircle2, Circle, CheckCircle, ThumbsUp, ThumbsDown, AlertTriangle, AlertCircle } from 'lucide-react';
 import { autoInsertGoalsFromSOAP, showAutoInsertResults as showGoalInsertResults } from '@/lib/auto-insert-goals';
 import { extractGoalsFromSoap, ExtractedGoal } from '@/lib/goal-extraction';
 import { autoInsertMetricsFromSOAP, showAutoInsertResults as showMetricInsertResults } from '@/lib/auto-insert-metrics';
@@ -82,6 +82,7 @@ import { Printer } from 'lucide-react';
 import { PreAssessmentStatus } from '@/components/forms/PreAssessmentStatus';
 import { getSessionLocation } from '@/utils/sessionLocation';
 import { getDisplaySessionStatus, getDisplaySessionStatusLabel, isPractitionerSessionVisible } from '@/lib/session-display-status';
+import { CalendarTimeSelector } from '@/components/booking/CalendarTimeSelector';
 
 interface Client {
   client_email: string;
@@ -132,6 +133,7 @@ const PracticeClientManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState(() => {
     const tabFromUrl = searchParams.get('tab');
     return tabFromUrl && ['sessions', 'progress', 'goals'].includes(tabFromUrl) ? tabFromUrl : 'sessions';
@@ -169,12 +171,22 @@ const PracticeClientManagement = () => {
   } | null>(null);
   
   // Booking form state - initialized with database defaults
-  const [bookingData, setBookingData] = useState({
+  const [bookingData, setBookingData] = useState<{
+    session_type: string;
+    session_date: string;
+    start_time: string;
+    duration_minutes: number;
+    price: number;
+    appointment_type?: 'clinic' | 'mobile';
+    visit_address?: string;
+  }>({
     session_type: 'Treatment Session',
     session_date: new Date().toISOString().split('T')[0],
     start_time: '10:00',
     duration_minutes: 60,
-    price: 0
+    price: 0,
+    appointment_type: 'clinic',
+    visit_address: ''
   });
   
   const [messageText, setMessageText] = useState('');
@@ -273,7 +285,12 @@ const PracticeClientManagement = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [isNoteCompleted, setIsNoteCompleted] = useState(false);
-  
+  const [recordingProcessingOrError, setRecordingProcessingOrError] = useState(false);
+  const [showAddCorrectionModal, setShowAddCorrectionModal] = useState(false);
+  const [correctionText, setCorrectionText] = useState('');
+  const [addendumNotes, setAddendumNotes] = useState<{ id: string; content: string; created_at: string }[]>([]);
+  const [savingCorrection, setSavingCorrection] = useState(false);
+
   // Suggested Prompts State (for Objective section)
   const [painScore, setPainScore] = useState<string>('');
   const [painArea, setPainArea] = useState<string>('');
@@ -423,7 +440,7 @@ const PracticeClientManagement = () => {
       loadStructuredNotes();
       loadPractitionerPreferences();
     }
-  }, [userProfile]);
+  }, [userProfile, location.pathname]);
 
   // Load structured notes when session is selected
   useEffect(() => {
@@ -563,6 +580,16 @@ const PracticeClientManagement = () => {
     }
   };
 
+  // Role-appropriate default template per practitioner-roles.mdc (osteopath→SOAP, sports_therapist→DAP, massage_therapist→DAP)
+  const getDefaultTemplateForRole = (): 'SOAP' | 'DAP' => {
+    switch (userProfile?.user_role) {
+      case 'osteopath': return 'SOAP';
+      case 'sports_therapist': return 'DAP';
+      case 'massage_therapist': return 'DAP';
+      default: return 'SOAP';
+    }
+  };
+
   // Load structured treatment notes - defined early so handleSaveSOAPNote can use it
   const loadStructuredNotes = async (sessionId?: string | null, clientId?: string | null) => {
     if (!userProfile?.id) return;
@@ -628,8 +655,8 @@ const PracticeClientManagement = () => {
       if (sessionId) {
         const sessionNotes = (data || []).filter(n => n.session_id === sessionId); // Double-check filtering
         
-        // Detect template type from existing notes
-        const templateType = sessionNotes.find(n => n.template_type === 'SOAP' || n.template_type === 'DAP')?.template_type || 'SOAP';
+        // Detect template type from existing notes; if none, use role-appropriate default
+        const templateType = sessionNotes.find(n => n.template_type === 'SOAP' || n.template_type === 'DAP')?.template_type || getDefaultTemplateForRole();
         setSelectedTemplate(templateType as 'SOAP' | 'DAP');
         
         if (templateType === 'SOAP') {
@@ -717,7 +744,8 @@ const PracticeClientManagement = () => {
             // Use utility function for consistent completion check
             const completionStatus = await checkTreatmentNotesCompletion(editingSession.id, userProfile.id);
             setIsNoteCompleted(completionStatus.isCompleted);
-            
+            setRecordingProcessingOrError(completionStatus.recordingProcessingOrError ?? false);
+
             // Update completedSessions state
             if (completionStatus.isCompleted) {
               setCompletedSessions(prev => {
@@ -1568,7 +1596,8 @@ const PracticeClientManagement = () => {
               // Use utility function for consistent completion check
               const completionStatus = await checkTreatmentNotesCompletion(sessionId, userProfile.id);
               setIsNoteCompleted(completionStatus.isCompleted);
-              
+              setRecordingProcessingOrError(completionStatus.recordingProcessingOrError ?? false);
+
               // Update completedSessions state
               if (completionStatus.isCompleted) {
                 setCompletedSessions(prev => {
@@ -2287,6 +2316,11 @@ const PracticeClientManagement = () => {
       return;
     }
 
+    const appointmentType = bookingData.appointment_type ?? 'clinic';
+    if (appointmentType === 'mobile' && !bookingData.visit_address?.trim()) {
+      toast.error('Visit address is required for mobile sessions.');
+      return;
+    }
     if (!bookingData.session_date || !bookingData.start_time) {
       toast.error('Please fill in all required fields');
       return;
@@ -2307,7 +2341,7 @@ const PracticeClientManagement = () => {
       }
 
       // Generate idempotency key
-      const idempotencyKey = `${clientId || 'guest'}-${userProfile.id}-${bookingData.session_date}-${bookingData.start_time}-${Date.now()}`;
+      const idempotencyKey = `${clientId || 'guest'}-${userProfile.id}-${bookingData.session_date}-${bookingData.start_time}`;
 
       // Create session using RPC function with validation
       const { data: bookingResult, error: rpcError } = await supabase
@@ -2326,8 +2360,8 @@ const PracticeClientManagement = () => {
           p_payment_status: 'pending',
           p_status: 'scheduled',
           p_idempotency_key: idempotencyKey,
-          p_appointment_type: 'clinic',
-          p_visit_address: null
+          p_appointment_type: appointmentType,
+          p_visit_address: appointmentType === 'mobile' ? bookingData.visit_address?.trim() || null : null
         });
 
       if (rpcError) throw rpcError;
@@ -2365,7 +2399,9 @@ const PracticeClientManagement = () => {
         session_date: new Date().toISOString().split('T')[0],
         start_time: practitionerPreferences?.default_session_time || '10:00',
         duration_minutes: practitionerPreferences?.default_duration_minutes || 60,
-        price: 0
+        price: 0,
+        appointment_type: 'clinic',
+        visit_address: ''
       });
 
       // Refresh data to show new session
@@ -2413,7 +2449,8 @@ const PracticeClientManagement = () => {
     try {
       const completionStatus = await checkTreatmentNotesCompletion(session.id, userProfile.id);
       setIsNoteCompleted(completionStatus.isCompleted);
-      
+      setRecordingProcessingOrError(completionStatus.recordingProcessingOrError ?? false);
+
       // Update completedSessions state
       if (completionStatus.isCompleted) {
         setCompletedSessions(prev => {
@@ -2475,9 +2512,21 @@ const PracticeClientManagement = () => {
         
         setViewingCompletedNote(true);
         setCompletedNoteData(noteData);
+        // Fetch addendum notes (corrections) for completed view
+        const { data: addenda } = await supabase
+          .from('treatment_notes')
+          .select('id, content, created_at')
+          .eq('session_id', session.id)
+          .eq('practitioner_id', userProfile.id)
+          .eq('note_type', 'general')
+          .eq('template_type', 'FREE_TEXT')
+          .eq('status', 'completed')
+          .order('created_at', { ascending: true });
+        setAddendumNotes((addenda || []).map((a) => ({ id: a.id, content: a.content || '', created_at: a.created_at || '' })));
       } else {
         setViewingCompletedNote(false);
         setCompletedNoteData(null);
+        setAddendumNotes([]);
       }
     } catch (error) {
       console.error('Error checking completion status:', error);
@@ -3796,7 +3845,7 @@ const PracticeClientManagement = () => {
 
       {/* Booking Modal */}
       <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Book Session</DialogTitle>
             <DialogDescription>
@@ -3824,26 +3873,6 @@ const PracticeClientManagement = () => {
               </Select>
             </div>
             <div>
-              <Label htmlFor="session-date">Session Date *</Label>
-              <Input
-                id="session-date"
-                type="date"
-                value={bookingData.session_date}
-                onChange={(e) => setBookingData(prev => ({ ...prev, session_date: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="session-time">Session Time *</Label>
-              <Input
-                id="session-time"
-                type="time"
-                value={bookingData.start_time}
-                onChange={(e) => setBookingData(prev => ({ ...prev, start_time: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
               <Label htmlFor="session-duration">Duration (minutes) *</Label>
               <Select
                 value={bookingData.duration_minutes.toString()}
@@ -3856,11 +3885,54 @@ const PracticeClientManagement = () => {
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
                   <SelectItem value="60">60 minutes</SelectItem>
+                  <SelectItem value="75">75 minutes</SelectItem>
                   <SelectItem value="90">90 minutes</SelectItem>
-                  <SelectItem value="120">120 minutes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {userProfile?.therapist_type === 'hybrid' && (
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <Select
+                  value={bookingData.appointment_type ?? 'clinic'}
+                  onValueChange={(v: 'clinic' | 'mobile') => setBookingData(prev => ({ ...prev, appointment_type: v, visit_address: v === 'clinic' ? '' : prev.visit_address }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="clinic">At clinic</SelectItem>
+                    <SelectItem value="mobile">At client&apos;s address (mobile visit)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {bookingData.appointment_type === 'mobile' && (
+                  <div>
+                    <Label htmlFor="visit-address">Visit address *</Label>
+                    <Input
+                      id="visit-address"
+                      placeholder="Client's full address"
+                      value={bookingData.visit_address ?? ''}
+                      onChange={(e) => setBookingData(prev => ({ ...prev, visit_address: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {userProfile && (
+              <div>
+                <Label>Date & Time *</Label>
+                <CalendarTimeSelector
+                  therapistId={userProfile.id}
+                  duration={bookingData.duration_minutes}
+                  requestedAppointmentType={(bookingData.appointment_type ?? 'clinic') as 'clinic' | 'mobile'}
+                  therapistType={userProfile.therapist_type as 'clinic_based' | 'mobile' | 'hybrid' | null}
+                  selectedDate={bookingData.session_date}
+                  selectedTime={bookingData.start_time}
+                  onDateTimeSelect={(date, time) => setBookingData(prev => ({ ...prev, session_date: date, start_time: time }))}
+                  className="mt-2"
+                />
+              </div>
+            )}
             <div>
               <Label htmlFor="session-price">Price (£)</Label>
               <Input
@@ -3892,6 +3964,10 @@ const PracticeClientManagement = () => {
         if (!open) {
           setViewingCompletedNote(false);
           setCompletedNoteData(null);
+          setRecordingProcessingOrError(false);
+          setAddendumNotes([]);
+          setShowAddCorrectionModal(false);
+          setCorrectionText('');
         }
       }}>
         <DialogContent className={viewingCompletedNote ? "max-w-5xl max-h-[95vh] overflow-y-auto" : "max-w-4xl max-h-[90vh] overflow-y-auto"}>
@@ -3958,7 +4034,8 @@ const PracticeClientManagement = () => {
                       // Check completion status BEFORE navigating (prevents loophole)
                       const completionStatus = await checkTreatmentNotesCompletion(previous.id, userProfile.id);
                       setIsNoteCompleted(completionStatus.isCompleted);
-                      
+                      setRecordingProcessingOrError(completionStatus.recordingProcessingOrError ?? false);
+
                       // Update completedSessions state
                       if (completionStatus.isCompleted) {
                         setCompletedSessions(prev => {
@@ -4017,9 +4094,20 @@ const PracticeClientManagement = () => {
                         
                         setViewingCompletedNote(true);
                         setCompletedNoteData(noteData);
+                        const { data: addenda } = await supabase
+                          .from('treatment_notes')
+                          .select('id, content, created_at')
+                          .eq('session_id', previous.id)
+                          .eq('practitioner_id', userProfile.id)
+                          .eq('note_type', 'general')
+                          .eq('template_type', 'FREE_TEXT')
+                          .eq('status', 'completed')
+                          .order('created_at', { ascending: true });
+                        setAddendumNotes((addenda || []).map((a) => ({ id: a.id, content: a.content || '', created_at: a.created_at || '' })));
                       } else {
                         setViewingCompletedNote(false);
                         setCompletedNoteData(null);
+                        setAddendumNotes([]);
                       }
                       
                       // Set editing session AFTER completion check
@@ -4044,7 +4132,8 @@ const PracticeClientManagement = () => {
                       // Check completion status BEFORE navigating (prevents loophole)
                       const completionStatus = await checkTreatmentNotesCompletion(next.id, userProfile.id);
                       setIsNoteCompleted(completionStatus.isCompleted);
-                      
+                      setRecordingProcessingOrError(completionStatus.recordingProcessingOrError ?? false);
+
                       // Update completedSessions state
                       if (completionStatus.isCompleted) {
                         setCompletedSessions(prev => {
@@ -4103,9 +4192,20 @@ const PracticeClientManagement = () => {
                         
                         setViewingCompletedNote(true);
                         setCompletedNoteData(noteData);
+                        const { data: addenda } = await supabase
+                          .from('treatment_notes')
+                          .select('id, content, created_at')
+                          .eq('session_id', next.id)
+                          .eq('practitioner_id', userProfile.id)
+                          .eq('note_type', 'general')
+                          .eq('template_type', 'FREE_TEXT')
+                          .eq('status', 'completed')
+                          .order('created_at', { ascending: true });
+                        setAddendumNotes((addenda || []).map((a) => ({ id: a.id, content: a.content || '', created_at: a.created_at || '' })));
                       } else {
                         setViewingCompletedNote(false);
                         setCompletedNoteData(null);
+                        setAddendumNotes([]);
                       }
                       
                       // Set editing session AFTER completion check
@@ -4136,11 +4236,19 @@ const PracticeClientManagement = () => {
                 <SOAPNoteDocumentView 
                   session={completedNoteData}
                   onBack={() => setIsSessionNoteModalOpen(false)}
+                  addenda={addendumNotes}
+                  onAddCorrection={() => setShowAddCorrectionModal(true)}
                 />
               </div>
             ) : (
               // Editable Notes View
               <Tabs value={sessionNoteModalTab} onValueChange={setSessionNoteModalTab} className="w-full">
+                {recordingProcessingOrError && !isNoteCompleted && (
+                  <div className="mb-4 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    AI transcription in progress or unavailable. You can complete notes manually below.
+                  </div>
+                )}
                 <TabsList>
                   <TabsTrigger value="structured">Session Notes</TabsTrigger>
                 </TabsList>
@@ -4627,6 +4735,69 @@ const PracticeClientManagement = () => {
             </Tabs>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Correction Modal (workaround for completed notes – RLS blocks direct edit) */}
+      <Dialog open={showAddCorrectionModal} onOpenChange={(open) => {
+        setShowAddCorrectionModal(open);
+        if (!open) setCorrectionText('');
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add correction</DialogTitle>
+            <DialogDescription>
+              Add a correction or addendum to this completed note. The original note cannot be edited directly.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={correctionText}
+            onChange={(e) => setCorrectionText(e.target.value)}
+            placeholder="Enter correction or addendum..."
+            className="min-h-[120px]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddCorrectionModal(false); setCorrectionText(''); }}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!correctionText.trim() || savingCorrection}
+              onClick={async () => {
+                if (!editingSession?.id || !userProfile?.id || !correctionText.trim()) return;
+                setSavingCorrection(true);
+                try {
+                  const content = `[Correction - ${format(new Date(), 'dd MMM yyyy, HH:mm')}]: ${correctionText.trim()}`;
+                  const { data, error } = await supabase
+                    .from('treatment_notes')
+                    .insert({
+                      session_id: editingSession.id,
+                      practitioner_id: userProfile.id,
+                      client_id: editingSession.client_id ?? null,
+                      note_type: 'general',
+                      template_type: 'FREE_TEXT',
+                      content,
+                      status: 'completed',
+                      timestamp: new Date().toISOString()
+                    })
+                    .select('id, content, created_at')
+                    .single();
+                  if (error) throw error;
+                  setAddendumNotes((prev) => [...prev, { id: data.id, content: data.content || '', created_at: data.created_at || '' }]);
+                  setShowAddCorrectionModal(false);
+                  setCorrectionText('');
+                  toast.success('Correction added');
+                } catch (err: any) {
+                  console.error('Error adding correction:', err);
+                  toast.error('Failed to add correction');
+                } finally {
+                  setSavingCorrection(false);
+                }
+              }}
+            >
+              {savingCorrection ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save correction
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

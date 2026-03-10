@@ -98,6 +98,18 @@ export const MobileRequestManagement: React.FC = () => {
     }
   }, [user]);
 
+  // Tick every 15s when there are pending requests - refetch to pick up server-side expiry (cron) and keep client-side expiry accurate
+  const [expiryTick, setExpiryTick] = useState(0);
+  const hasPending = requests.some((r) => r.status === 'pending');
+  useEffect(() => {
+    if (!hasPending) return;
+    const interval = setInterval(() => setExpiryTick((t) => t + 1), 15000);
+    return () => clearInterval(interval);
+  }, [hasPending]);
+  useEffect(() => {
+    if (hasPending && expiryTick > 0) loadRequests();
+  }, [expiryTick]);
+
   const loadRequests = async () => {
     if (!user) return;
 
@@ -165,7 +177,12 @@ export const MobileRequestManagement: React.FC = () => {
       loadRequests();
     } catch (error: any) {
       console.error('Error accepting request:', error);
-      toast.error(error?.message || 'Failed to accept request');
+      const msg = error?.message || 'Failed to accept request';
+      const isNetwork = /fetch|network|timeout|offline/i.test(msg) || error?.name === 'TypeError';
+      toast.error(isNetwork ? 'Connection issue. Check your network and try again.' : msg, {
+        description: isNetwork ? 'The dialog stays open – you can retry.' : undefined,
+        duration: isNetwork ? 8000 : 5000,
+      });
     } finally {
       setProcessing(false);
     }
@@ -230,7 +247,12 @@ export const MobileRequestManagement: React.FC = () => {
       loadRequests();
     } catch (error: any) {
       console.error('Error declining request:', error);
-      toast.error(error?.message || 'Failed to decline request');
+      const msg = error?.message || 'Failed to decline request';
+      const isNetwork = /fetch|network|timeout|offline/i.test(msg) || error?.name === 'TypeError';
+      toast.error(isNetwork ? 'Connection issue. Check your network and try again.' : msg, {
+        description: isNetwork ? 'The dialog stays open – you can retry.' : undefined,
+        duration: isNetwork ? 8000 : 5000,
+      });
     } finally {
       setProcessing(false);
     }
@@ -270,7 +292,14 @@ export const MobileRequestManagement: React.FC = () => {
     return request.status;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, paymentStatus?: string) => {
+    if (paymentStatus === 'payment_failed') {
+      return (
+        <Badge variant="destructive" className="bg-amber-100 text-amber-800 border-amber-300">
+          Payment failed
+        </Badge>
+      );
+    }
     if (status === 'accepted') {
       return <Badge variant="outline" className="border-primary/20 text-foreground">Accepted</Badge>;
     } else if (status === 'declined') {
@@ -319,7 +348,7 @@ export const MobileRequestManagement: React.FC = () => {
                     </CardTitle>
                     <CardDescription>{request.client_email}</CardDescription>
                   </div>
-                  {getStatusBadge(effectiveStatus)}
+                  {getStatusBadge(effectiveStatus, request.payment_status)}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -337,6 +366,11 @@ export const MobileRequestManagement: React.FC = () => {
                     <p className="font-medium">
                       {new Date(request.requested_date).toLocaleDateString()} at {request.requested_start_time.slice(0, 5)}
                     </p>
+                    {effectiveStatus === 'pending' && request.expires_at && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Expires {new Date(request.expires_at).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Duration</Label>
@@ -374,7 +408,11 @@ export const MobileRequestManagement: React.FC = () => {
 
                 {effectiveStatus === 'pending' && (
                   <div className="flex flex-col gap-2 pt-4 border-t">
-                    {request.payment_status !== 'held' ? (
+                    {request.payment_status === 'payment_failed' ? (
+                      <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                        Payment failed (card declined or 3DS failed). Ask the client to retry with a different card or payment method.
+                      </div>
+                    ) : request.payment_status !== 'held' ? (
                       <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                         Waiting for client payment authorization before you can accept or decline.
                       </div>
@@ -403,12 +441,21 @@ export const MobileRequestManagement: React.FC = () => {
                     </Button>
                       </div>
                     )}
+                    {request.payment_status !== 'payment_failed' && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground"
-                      disabled={resendLoadingId === request.id}
+                      disabled={
+                        resendLoadingId === request.id ||
+                        (request.expires_at && new Date(request.expires_at).getTime() - Date.now() < 60 * 60 * 1000)
+                      }
                       onClick={() => handleResendRequestNotification(request)}
+                      title={
+                        request.expires_at && new Date(request.expires_at).getTime() - Date.now() < 60 * 60 * 1000
+                          ? 'Request expires in less than 1 hour - resending notification is disabled'
+                          : 'Resend request notification email'
+                      }
                     >
                       {resendLoadingId === request.id ? (
                         <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -417,6 +464,7 @@ export const MobileRequestManagement: React.FC = () => {
                       )}
                       Resend request notification
                     </Button>
+                    )}
                   </div>
                 )}
 

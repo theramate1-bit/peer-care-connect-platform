@@ -42,7 +42,7 @@ interface TreatmentNote {
   id: string;
   session_id: string;
   practitioner_id: string;
-  client_id: string;
+  client_id: string | null;
   note_type: 'subjective' | 'objective' | 'assessment' | 'plan' | 'data' | 'general';
   content: string;
   timestamp: string;
@@ -52,7 +52,8 @@ interface TreatmentNote {
 
 interface EnhancedTreatmentNotesProps {
   sessionId: string;
-  clientId: string;
+  /** Client user ID; null for guest sessions (DB allows nullable client_id) */
+  clientId: string | null | undefined;
   clientName: string;
   sessionStatus?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   onNotesUpdate?: (notes: TreatmentNote[]) => void;
@@ -87,30 +88,27 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
     `session_id=eq.${sessionId}`,
     (payload) => {
       console.log('Real-time notes update:', payload);
-      
+
       if (payload.eventType === 'INSERT') {
-        setNotes(prev => [payload.new, ...prev]);
-        if (onNotesUpdate) {
-          onNotesUpdate([payload.new, ...notes]);
-        }
+        setNotes((prev) => {
+          const next = [payload.new, ...prev];
+          onNotesUpdate?.(next);
+          return next;
+        });
       } else if (payload.eventType === 'UPDATE') {
-        setNotes(prev => 
-          prev.map(note => 
+        setNotes((prev) => {
+          const next = prev.map((note) =>
             note.id === payload.new.id ? payload.new : note
-          )
-        );
-        if (onNotesUpdate) {
-          onNotesUpdate(notes.map(note => 
-            note.id === payload.new.id ? payload.new : note
-          ));
-        }
+          );
+          onNotesUpdate?.(next);
+          return next;
+        });
       } else if (payload.eventType === 'DELETE') {
-        setNotes(prev => 
-          prev.filter(note => note.id !== payload.old.id)
-        );
-        if (onNotesUpdate) {
-          onNotesUpdate(notes.filter(note => note.id !== payload.old.id));
-        }
+        setNotes((prev) => {
+          const next = prev.filter((note) => note.id !== payload.old.id);
+          onNotesUpdate?.(next);
+          return next;
+        });
       }
     }
   );
@@ -131,6 +129,17 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
       return () => clearTimeout(timer);
     }
   }, [currentNote, autoSave, noteTiming]);
+
+  // Warn before leaving with unsaved note content (mitigates loss when navigating before auto-save)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (currentNote.trim().length > 0) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentNote]);
 
   const fetchNotes = async () => {
     try {
@@ -164,8 +173,9 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
         .insert({
           session_id: sessionId,
           practitioner_id: user?.id,
-          client_id: clientId,
+          client_id: clientId ?? null,
           note_type: selectedNoteType,
+          template_type: 'FREE_TEXT',
           content: currentNote.trim(),
           timestamp: new Date().toISOString()
         })
@@ -174,12 +184,12 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
 
       if (error) throw error;
 
-      setNotes(prev => [data, ...prev]);
+      setNotes((prev) => {
+        const next = [data, ...prev];
+        onNotesUpdate?.(next);
+        return next;
+      });
       setCurrentNote('');
-      
-      if (onNotesUpdate) {
-        onNotesUpdate([data, ...notes]);
-      }
 
       toast.success('Note saved successfully');
     } catch (error) {
@@ -216,21 +226,15 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
 
       if (error) throw error;
 
-      setNotes(prev => 
-        prev.map(note => 
-          note.id === noteId 
-            ? { ...note, note_type: editNoteType, content: editContent.trim(), updated_at: new Date().toISOString() }
-            : note
-        )
-      );
-
-      if (onNotesUpdate) {
-        onNotesUpdate(notes.map(note => 
+      setNotes((prev) => {
+        const next = prev.map((note) =>
           note.id === noteId
             ? { ...note, note_type: editNoteType, content: editContent.trim(), updated_at: new Date().toISOString() }
             : note
-        ));
-      }
+        );
+        onNotesUpdate?.(next);
+        return next;
+      });
 
       setEditingNote(null);
       setEditContent('');
@@ -253,11 +257,11 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
 
       if (error) throw error;
 
-      setNotes(prev => prev.filter(note => note.id !== noteId));
-      
-      if (onNotesUpdate) {
-        onNotesUpdate(notes.filter(note => note.id !== noteId));
-      }
+      setNotes((prev) => {
+        const next = prev.filter((note) => note.id !== noteId);
+        onNotesUpdate?.(next);
+        return next;
+      });
 
       toast.success('Note deleted');
     } catch (error) {
@@ -268,6 +272,10 @@ export const EnhancedTreatmentNotes: React.FC<EnhancedTreatmentNotesProps> = ({
 
   const handleShareNoteWithClient = async () => {
     if (!user || notes.length === 0) return;
+    if (!clientId) {
+      toast.error('Cannot share notes with guest bookings—no client account to message');
+      return;
+    }
 
     try {
       // Create conversation

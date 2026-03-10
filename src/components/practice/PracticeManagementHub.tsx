@@ -25,6 +25,7 @@ import { useRealtimeSubscription } from '@/hooks/use-realtime';
 import { EmbeddedAccountManagement } from '@/components/settings/EmbeddedAccountManagement';
 import { RealTimeSessionDashboard } from '@/components/session/RealTimeSessionDashboard';
 import { PracticeAnalyticsDashboard } from '@/components/analytics/PracticeAnalyticsDashboard';
+import { ClientProgressTracker } from '@/components/session/ClientProgressTracker';
 
 interface PracticeStats {
   totalClients: number;
@@ -54,22 +55,12 @@ export const PracticeManagementHub: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
-  // Real-time subscription for sessions
+  // Real-time subscription for sessions (stats derived from practitioner's sessions)
   const { data: realtimeSessions } = useRealtimeSubscription(
     'client_sessions',
     `therapist_id=eq.${user?.id}`,
     (payload) => {
       console.log('Real-time session update:', payload);
-      fetchPracticeStats();
-    }
-  );
-
-  // Real-time subscription for clients
-  const { data: realtimeClients } = useRealtimeSubscription(
-    'users',
-    `user_role=eq.client`,
-    (payload) => {
-      console.log('Real-time client update:', payload);
       fetchPracticeStats();
     }
   );
@@ -85,7 +76,7 @@ export const PracticeManagementHub: React.FC = () => {
     try {
       setLoading(true);
       
-      // Fetch sessions
+      // Fetch sessions (exclude peer bookings for client count - those are practitioner-to-practitioner)
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('client_sessions')
         .select('*')
@@ -93,19 +84,28 @@ export const PracticeManagementHub: React.FC = () => {
 
       if (sessionsError) throw sessionsError;
 
-      // Fetch clients
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('users')
-        .select('id, created_at')
-        .eq('user_role', 'client');
+      // Derive practitioner-scoped client counts from sessions (not all platform clients)
+      const clientSessionRows = sessionsData?.filter((s) => s.is_peer_booking !== true) || [];
+      const uniqueClientIds = new Set(
+        clientSessionRows.map((s) => s.client_id).filter((id): id is string => Boolean(id))
+      );
+      const totalClients = uniqueClientIds.size;
+      const completedClientIds = new Set(
+        clientSessionRows
+          .filter((s) => s.status === 'completed')
+          .map((s) => s.client_id)
+          .filter((id): id is string => Boolean(id))
+      );
+      const activeClients = completedClientIds.size;
 
-      if (clientsError) throw clientsError;
-
-      // Fetch feedback
+      // Fetch feedback only for completed sessions (ratings should not count pre-completion)
+      const completedSessionIds = sessionsData
+        ?.filter((s) => s.status === 'completed')
+        .map((s) => s.id) || [];
       const { data: feedbackData, error: feedbackError } = await supabase
         .from('session_feedback')
         .select('rating')
-        .in('session_id', sessionsData?.map(s => s.id) || []);
+        .in('session_id', completedSessionIds);
 
       if (feedbackError) throw feedbackError;
 
@@ -116,8 +116,14 @@ export const PracticeManagementHub: React.FC = () => {
 
       const totalSessions = sessionsData?.length || 0;
       const todaySessions = sessionsData?.filter(s => s.session_date === today).length || 0;
+      // Monthly revenue: completed sessions only, exclude refunded (payment_status = 'refunded')
       const monthlyRevenue = sessionsData
-        ?.filter(s => s.status === 'completed' && new Date(s.session_date) >= thisMonth)
+        ?.filter(
+          (s) =>
+            s.status === 'completed' &&
+            new Date(s.session_date) >= thisMonth &&
+            s.payment_status !== 'refunded'
+        )
         .reduce((sum, s) => sum + (s.price || 0), 0) || 0;
       
       const averageRating = feedbackData?.length > 0 
@@ -129,8 +135,8 @@ export const PracticeManagementHub: React.FC = () => {
       ).length || 0;
 
       setStats({
-        totalClients: clientsData?.length || 0,
-        activeClients: sessionsData?.filter(s => s.status === 'completed').length || 0,
+        totalClients,
+        activeClients,
         totalSessions,
         todaySessions,
         monthlyRevenue,
@@ -304,9 +310,11 @@ export const PracticeManagementHub: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average Rating</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.averageRating.toFixed(1)}</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {Number.isFinite(stats.averageRating) ? stats.averageRating.toFixed(1) : '—'}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Client satisfaction
+                  {stats.averageRating > 0 ? 'Client satisfaction' : 'No reviews yet'}
                 </p>
               </div>
               <Star className="h-8 w-8 text-yellow-600" />

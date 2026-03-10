@@ -6,7 +6,7 @@ import { Calendar, Clock, Handshake, CreditCard, Heart, Coins, Play, CheckCircle
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { CreditManager } from "@/lib/credits";
 import { useRealtimeSubscription } from "@/hooks/use-realtime";
 import { toast } from "sonner";
@@ -53,6 +53,8 @@ interface SessionData {
   is_reciprocal_booking?: boolean; // True if this is a reciprocal booking (user is receiving treatment)
   /** True when the booking was made by a guest (no registered client account). */
   is_guest?: boolean;
+  /** True when this is a pending mobile booking request (not yet a session). */
+  is_mobile_request?: boolean;
 }
 
 type MetricCard = {
@@ -89,6 +91,7 @@ const sessionStatusStyles: Record<string, string> = {
 export const TherapistDashboard = () => {
   const { user, userProfile, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [stats, setStats] = useState<DashboardStats>({
     totalSessions: 0,
     monthlyRevenue: 0,
@@ -144,6 +147,9 @@ export const TherapistDashboard = () => {
 
   // Track which exchange requests have reciprocal bookings
   const [reciprocalBookings, setReciprocalBookings] = useState<Record<string, boolean>>({});
+
+  // Pending same-day bookings (surfaced above the fold for approval)
+  const [pendingSameDayBookings, setPendingSameDayBookings] = useState<any[]>([]);
 
   // Always use schedule view (Overview layout was removed)
   const dashboardView = "schedule" as const;
@@ -673,7 +679,7 @@ export const TherapistDashboard = () => {
       const regularSessionsFallback: SessionData[] = (sessions || []).map((s: any) => ({
         id: s.id,
         session_type: s.session_type || 'Client session',
-        client_name: s.client_name || '',
+        client_name: s.client_name?.trim() || (s.is_guest_booking ? 'Guest' : ''),
         client_email: s.client_email || '',
         session_date: s.session_date,
         start_time: s.start_time,
@@ -734,6 +740,14 @@ export const TherapistDashboard = () => {
 
       setUpcomingSessions(allSessions);
       setOptimisticSessions(allSessions);
+
+      // Fetch pending same-day bookings (surface above the fold for approval)
+      try {
+        const { data: pending } = await supabase.rpc('get_pending_same_day_bookings', { p_practitioner_id: user!.id });
+        setPendingSameDayBookings(pending || []);
+      } catch {
+        setPendingSameDayBookings([]);
+      }
     } catch (error) {
       console.error('Error in fallback fetch:', error);
     }
@@ -995,7 +1009,7 @@ export const TherapistDashboard = () => {
           .map((s: any) => ({
             id: s.id,
             session_type: s.session_type || 'Client session',
-            client_name: s.client_name || '',
+            client_name: s.client_name?.trim() || (s.is_guest_booking ? 'Guest' : ''),
             client_email: s.client_email || '',
             session_date: s.session_date,
             start_time: s.start_time,
@@ -1078,7 +1092,42 @@ export const TherapistDashboard = () => {
           }))
         ];
 
-        const allSessions = [...regularSessions, ...exchangeRequestSessions, ...peerBookingSessions].sort((a, b) => {
+        // Fetch pending mobile requests for mobile/hybrid practitioners (unified view)
+        let mobileRequestSessions: SessionData[] = [];
+        if (userProfile?.therapist_type === 'mobile' || userProfile?.therapist_type === 'hybrid') {
+          const { data: mobileRequests } = await supabase.rpc('get_practitioner_mobile_requests', {
+            p_practitioner_id: user.id,
+            p_status: 'pending'
+          });
+          mobileRequestSessions = (mobileRequests || [])
+            .filter((r: { status: string; expires_at: string | null }) =>
+              r.status === 'pending' && (!r.expires_at || new Date(r.expires_at) > new Date())
+            )
+            .map((r: {
+              id: string;
+              client_name: string;
+              product_name: string;
+              requested_date: string;
+              requested_start_time: string;
+              duration_minutes: number;
+              total_price_pence: number;
+              payment_status: string;
+            }) => ({
+              id: r.id,
+              session_type: r.product_name || 'Mobile request',
+              client_name: r.client_name?.trim() || 'Client',
+              client_email: '',
+              session_date: r.requested_date,
+              start_time: r.requested_start_time,
+              duration_minutes: r.duration_minutes,
+              price: (r.total_price_pence || 0) / 100,
+              status: r.payment_status === 'held' ? 'pending_mobile' : 'pending_payment_mobile',
+              payment_status: r.payment_status,
+              is_mobile_request: true
+            }));
+        }
+
+        const allSessions = [...regularSessions, ...exchangeRequestSessions, ...peerBookingSessions, ...mobileRequestSessions].sort((a, b) => {
           const dateCompare = a.session_date.localeCompare(b.session_date);
           if (dateCompare !== 0) return dateCompare;
           return a.start_time.localeCompare(b.start_time);
@@ -1092,6 +1141,14 @@ export const TherapistDashboard = () => {
             ? data.credit_balance 
             : (data.credit_balance?.balance ?? data.credit_balance?.current_balance ?? 0)
         );
+
+        // Fetch pending same-day bookings (surface above the fold for approval)
+        try {
+          const { data: pending } = await supabase.rpc('get_pending_same_day_bookings', { p_practitioner_id: user.id });
+          setPendingSameDayBookings(pending || []);
+        } catch {
+          setPendingSameDayBookings([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -1099,7 +1156,7 @@ export const TherapistDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, fetchDashboardDataFallback]);
+  }, [user?.id, userProfile?.therapist_type, fetchDashboardDataFallback]);
 
   // Real-time subscription for client sessions
   const { data: realtimeSessions, loading: sessionsLoading } = useRealtimeSubscription(
@@ -1213,8 +1270,10 @@ export const TherapistDashboard = () => {
       );
       
       toast.success('Treatment exchange request declined');
-      
-      // Refresh dashboard data
+
+      // Update exchange status immediately so UI reflects declined (PRACTITIONER_DASHBOARD #22)
+      setExchangeRequestStatuses(prev => ({ ...prev, [session.exchange_request_id]: 'declined' }));
+
       await fetchDashboardData();
     } catch (error) {
       console.error('Error declining exchange request:', error);
@@ -1699,7 +1758,7 @@ export const TherapistDashboard = () => {
       fetchNotifications();
       fetchClientProgress();
     }
-  }, [user, fetchDashboardData, fetchNotifications, fetchClientProgress]);
+  }, [user, location.pathname, fetchDashboardData, fetchNotifications, fetchClientProgress]);
 
   const metricCards: MetricCard[] = [
     {
@@ -1763,6 +1822,29 @@ export const TherapistDashboard = () => {
     const sessionDate = new Date(s.session_date);
     return isToday(sessionDate);
   });
+
+  // Detect overlapping sessions (double booking) in today's schedule
+  const hasOverlappingSessions = useMemo(() => {
+    if (todaySessions.length < 2) return false;
+    const toMinutes = (t: string) => {
+      const parts = (t || '').split(':');
+      return parseInt(parts[0] || '0', 10) * 60 + parseInt(parts[1] || '0', 10);
+    };
+    for (let i = 0; i < todaySessions.length; i++) {
+      const a = todaySessions[i];
+      const durA = a.duration_minutes || 60;
+      const startA = toMinutes(a.start_time);
+      const endA = startA + durA;
+      for (let j = i + 1; j < todaySessions.length; j++) {
+        const b = todaySessions[j];
+        const durB = b.duration_minutes || 60;
+        const startB = toMinutes(b.start_time);
+        const endB = startB + durB;
+        if (startA < endB && startB < endA) return true;
+      }
+    }
+    return false;
+  }, [todaySessions]);
 
   // Get today's date formatted
   const todayDate = format(new Date(), 'EEEE, MMM d');
@@ -1912,6 +1994,43 @@ export const TherapistDashboard = () => {
               </div>
             </div>
 
+            {/* Same-day approvals (surfaced above the fold when pending) */}
+            {pendingSameDayBookings.length > 0 && (
+              <Card className="rounded-2xl border border-amber-200 dark:border-amber-800 overflow-hidden shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="h-5 w-5" />
+                    Same-day bookings need your approval
+                  </CardTitle>
+                  <CardDescription>
+                    {pendingSameDayBookings.length} same-day booking{pendingSameDayBookings.length !== 1 ? 's' : ''} awaiting approval. Payment is held until you approve or decline.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SameDayBookingApproval
+                    practitionerId={user?.id || ''}
+                    onApprovalChange={fetchDashboardData}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Double-booking conflict warning */}
+            {hasOverlappingSessions && (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 p-4 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-900 dark:text-amber-100">Schedule conflict detected</p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                    You have overlapping sessions today. Please review and resolve the conflict.
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/50" onClick={() => navigate("/practice/schedule")}>
+                    View Full Schedule
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Today's Schedule card */}
             <Card className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
               <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -1939,18 +2058,36 @@ export const TherapistDashboard = () => {
                     <Card key={s.id} className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
                       <CardContent className="p-4 flex items-start gap-4">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary text-base">
-                          {s.is_exchange_request ? "🤝" : "🧑‍⚕️"}
+                          {(s as SessionData).is_mobile_request ? "📍" : s.is_exchange_request ? "🤝" : "🧑‍⚕️"}
                         </div>
                         <div className="min-w-0 flex-1">
-                          {(s as SessionData).is_exchange_request && (s as SessionData).status === "pending_exchange" ? (
+                          {(s as SessionData).is_mobile_request ? (
                             <div className="space-y-2">
-                              <p className="font-semibold text-foreground">Treatment Exchange Request</p>
-                              <p className="text-sm text-muted-foreground">From: {(s as SessionData).requester_name || (s as SessionData).client_name}</p>
-                              <div className="flex flex-wrap gap-2">
-                                <Button size="sm" variant="outline" disabled={respondingToRequest === (s as SessionData).exchange_request_id} onClick={() => { if (window.confirm(`Decline request from ${(s as SessionData).requester_name || (s as SessionData).client_name}?`)) handleDeclineExchangeRequest(s as SessionData); }}>Decline</Button>
-                                <Button size="sm" disabled={respondingToRequest === (s as SessionData).exchange_request_id} onClick={() => handleAcceptExchangeRequest(s as SessionData)}>Accept</Button>
-                              </div>
+                              <p className="font-semibold text-foreground">Mobile request</p>
+                              <p className="text-sm text-muted-foreground">{(s as SessionData).client_name} · {(s as SessionData).session_type} · {(s as SessionData).duration_minutes} mins</p>
+                              <Button size="sm" onClick={() => navigate(`/practice/mobile-requests?requestId=${(s as SessionData).id}`)}>Review request</Button>
                             </div>
+                          ) : (s as SessionData).is_exchange_request && (s as SessionData).status === "pending_exchange" ? (
+                            (() => {
+                              const reqId = (s as SessionData).exchange_request_id;
+                              const knownStatus = reqId ? exchangeRequestStatuses[reqId] : null;
+                              const isNoLongerPending = knownStatus === 'accepted' || knownStatus === 'declined';
+                              const isDisabled = respondingToRequest === reqId || isNoLongerPending;
+                              return (
+                                <div className="space-y-2">
+                                  <p className="font-semibold text-foreground">Treatment Exchange Request</p>
+                                  <p className="text-sm text-muted-foreground">From: {(s as SessionData).requester_name || (s as SessionData).client_name}</p>
+                                  {isNoLongerPending ? (
+                                    <p className="text-sm text-muted-foreground">Request {knownStatus === 'accepted' ? 'accepted' : 'declined'}</p>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button size="sm" variant="outline" disabled={isDisabled} onClick={() => { if (window.confirm(`Decline request from ${(s as SessionData).requester_name || (s as SessionData).client_name}?`)) handleDeclineExchangeRequest(s as SessionData); }}>Decline</Button>
+                                      <Button size="sm" disabled={isDisabled} onClick={() => handleAcceptExchangeRequest(s as SessionData)}>Accept</Button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()
                           ) : (
                             <div className="space-y-2">
                               <p className="font-semibold text-foreground">
@@ -2166,6 +2303,11 @@ export const TherapistDashboard = () => {
               </Button>
               <Button onClick={async () => {
                 if (!noteSessionId || !user?.id) return;
+                const trimmed = noteContent?.trim() ?? '';
+                if (!trimmed) {
+                  toast.error('Please enter note content');
+                  return;
+                }
                 try {
                   // Get session details
                   const { data: sessionData } = await supabase
@@ -2183,7 +2325,8 @@ export const TherapistDashboard = () => {
                         practitioner_id: user.id,
                         client_id: sessionData.client_id || null, // Allow null for guest sessions
                         note_type: 'general',
-                        content: noteContent,
+                        content: trimmed,
+                        template_type: 'FREE_TEXT',
                         status: 'draft'
                       } as any);
                     
@@ -2198,7 +2341,9 @@ export const TherapistDashboard = () => {
                   setNoteContent('');
                   setNoteSessionId(null);
                 }
-              }}>
+              }}
+              disabled={!noteContent?.trim()}
+            >
                 Save Notes
               </Button>
             </div>

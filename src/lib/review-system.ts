@@ -108,10 +108,10 @@ export class ReviewSystem {
         .single();
 
       if (reviewError) {
-        console.error('Review submission error:', reviewError);
+        const isDuplicate = (reviewError as any)?.code === '23505' || /unique|duplicate/i.test((reviewError as any)?.message || '');
         return {
           success: false,
-          error: 'Failed to submit review'
+          error: isDuplicate ? 'Review already submitted for this session' : 'Failed to submit review'
         };
       }
 
@@ -123,11 +123,12 @@ export class ReviewSystem {
 
       return { success: true };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Review submission error:', error);
+      const isDuplicate = error?.code === '23505' || /unique|duplicate/i.test(error?.message || '');
       return {
         success: false,
-        error: 'Review submission failed'
+        error: isDuplicate ? 'Review already submitted for this session' : 'Review submission failed'
       };
     }
   }
@@ -211,10 +212,10 @@ export class ReviewSystem {
         .single();
 
       if (reviewError) {
-        console.error('Review submission error:', reviewError);
+        const isDuplicate = reviewError.code === '23505' || /unique|duplicate/i.test(reviewError.message || '');
         return {
           success: false,
-          error: 'Failed to submit review'
+          error: isDuplicate ? 'Review already submitted for this session' : 'Failed to submit review'
         };
       }
 
@@ -228,11 +229,12 @@ export class ReviewSystem {
 
       return { success: true };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Guest review submission error:', error);
+      const isDuplicate = error?.code === '23505' || /unique|duplicate/i.test(error?.message || '');
       return {
         success: false,
-        error: 'Review submission failed'
+        error: isDuplicate ? 'Review already submitted for this session' : 'Review submission failed'
       };
     }
   }

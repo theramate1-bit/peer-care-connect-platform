@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   RefreshCw,
   X,
+  Pencil,
   Heart,
   Activity,
   Bone,
@@ -37,7 +38,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from '@/components/ui/textarea';
 import { CancellationPolicyService } from '@/lib/cancellation-policy';
 import { RefundService } from '@/lib/refund-service';
-import { parseISO, isPast, isBefore, addMinutes } from 'date-fns';
+import { parseISO, isPast, isBefore, addMinutes, subHours } from 'date-fns';
 import { PreAssessmentStatus } from '@/components/forms/PreAssessmentStatus';
 import { getDisplaySessionStatus, getDisplaySessionStatusLabel, isPractitionerSessionVisible } from '@/lib/session-display-status';
 import { createInAppNotification } from '@/lib/notification-utils';
@@ -47,7 +48,7 @@ interface Session {
   session_date: string;
   session_time: string;
   duration: number;
-  status: 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no_show';
   session_type: string;
   focus_area: string;
   preparation_notes?: string;
@@ -141,6 +142,9 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
   const [processingCancellation, setProcessingCancellation] = useState(false);
   const [mutualExchangeSession, setMutualExchangeSession] = useState<MutualExchangeSession | null>(null);
   const [updatingAttendance, setUpdatingAttendance] = useState(false);
+  const [isEditingVisitAddress, setIsEditingVisitAddress] = useState(false);
+  const [editVisitAddressValue, setEditVisitAddressValue] = useState('');
+  const [updatingVisitAddress, setUpdatingVisitAddress] = useState(false);
 
   useEffect(() => {
     if (sessionId && user?.id) {
@@ -159,6 +163,24 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
     }
     }
   }, [sessionId, user?.id, userProfile]);
+
+  // Realtime: when client cancels or status changes elsewhere, refetch (PRACTITIONER_DASHBOARD #8)
+  useEffect(() => {
+    if (!sessionId || !user?.id) return;
+    const channel = supabase
+      .channel(`session-detail-${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'client_sessions', filter: `id=eq.${sessionId}` },
+        () => {
+          fetchSessionDetails();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId, user?.id]);
 
   // Extract location from notes if present (format: "Location: ...")
   const extractLocation = (notes: string | null): string | undefined => {
@@ -689,23 +711,44 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
         updateData.refund_percentage = refundCalculation.refund_percent;
       }
 
-      const { error } = await supabase
+      // Conditional update: only cancel if still confirmed (avoids double refund when both cancel at once)
+      const { data: updatedRows, error } = await supabase
         .from('client_sessions')
         .update(updateData)
-        .eq('id', session.id);
+        .eq('id', session.id)
+        .in('status', ['scheduled', 'confirmed'])
+        .select('id');
 
       if (error) throw error;
 
-      // Send cancellation notification to client (with location/directions from central helper)
+      if (!updatedRows?.length) {
+        toast({
+          title: "Already Cancelled",
+          description: "This booking was already cancelled.",
+          variant: "destructive"
+        });
+        setShowCancellationDialog(false);
+        fetchSessionDetails();
+        return;
+      }
+
+      // Send cancellation email to client
       if (session.client_email) {
         try {
-          await supabase.functions.invoke('send-booking-notification', {
+          await supabase.functions.invoke('send-email', {
             body: {
-              sessionId: session.id,
-              emailType: 'cancellation',
-              cancellationReason: cancellationReason || 'Session cancelled by practitioner',
-              refundAmount: refundCalculation.refund_amount || 0
-            }
+              emailType: 'practitioner_cancellation',
+              recipientEmail: session.client_email,
+              recipientName: session.client_name || 'Client',
+              data: {
+                sessionType: session.session_type || 'Session',
+                sessionDate: session.session_date,
+                sessionTime: session.session_time || session.start_time,
+                practitionerName: session.therapist ? `${session.therapist.first_name} ${session.therapist.last_name}` : 'Your practitioner',
+                cancellationReason: cancellationReason || 'Session cancelled by practitioner',
+                refundAmount: refundCalculation?.refund_amount || 0,
+              },
+            },
           });
         } catch (emailError) {
           console.warn('Failed to send cancellation email:', emailError);
@@ -893,21 +936,44 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
 
     setUpdatingAttendance(true);
     try {
-      const { error } = await supabase
-        .from('client_sessions')
-        .update({ client_attended: attended })
-        .eq('id', session.id);
+      if (!attended && session.payment_status === 'completed' && session.stripe_payment_intent_id) {
+        const { RefundService } = await import('@/lib/refund-service');
+        const refundResult = await RefundService.processStripeRefund(session.id, session.price);
+        if (!refundResult.success) {
+          console.warn('No-show refund failed:', refundResult.error);
+          toast({
+            title: "Attendance Updated",
+            description: "Client marked as did not attend. Refund could not be processed automatically - please contact support.",
+            variant: "destructive"
+          });
+        } else {
+          await supabase
+            .from('client_sessions')
+            .update({ client_attended: false, status: 'no_show', payment_status: 'refunded' })
+            .eq('id', session.id);
+          setSession(prev => prev ? { ...prev, client_attended: false, status: 'no_show', payment_status: 'refunded' } : null);
+          toast({
+            title: "No-Show Recorded",
+            description: `Client marked as did not attend. Full refund of £${session.price?.toFixed(2) || '0.00'} has been processed.`,
+            variant: "default"
+          });
+        }
+      } else {
+        const { error } = await supabase
+          .from('client_sessions')
+          .update({ client_attended: attended })
+          .eq('id', session.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Update local state
-      setSession(prev => prev ? { ...prev, client_attended: attended } : null);
+        setSession(prev => prev ? { ...prev, client_attended: attended } : null);
 
-      toast({
-        title: "Attendance Updated",
-        description: `Client marked as ${attended ? 'attended' : 'did not attend'}`,
-        variant: "default"
-      });
+        toast({
+          title: "Attendance Updated",
+          description: `Client marked as ${attended ? 'attended' : 'did not attend'}`,
+          variant: "default"
+        });
+      }
     } catch (error: any) {
       console.error('Error updating attendance:', error);
       toast({
@@ -975,20 +1041,28 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
   }
 
   if (!session) {
+    const isPractitioner = userProfile?.user_role && ['sports_therapist', 'massage_therapist', 'osteopath', 'practitioner'].includes(userProfile.user_role);
     return (
       <Card className={className}>
         <CardContent className="p-6 text-center">
           <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="font-medium mb-2">Session Not Found</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            The session you're looking for doesn't exist or you don't have access to it.
+            The session you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it. It may have been cancelled or deleted.
           </p>
-          {onBack && (
-            <Button onClick={onBack} variant="outline">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Go Back
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2 justify-center">
+            {onBack && (
+              <Button onClick={onBack} variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Go Back
+              </Button>
+            )}
+            {isPractitioner && (
+              <Button variant="outline" onClick={() => navigate('/practice/schedule')}>
+                View Schedule
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -1137,14 +1211,96 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm mb-3">{session.location}</p>
-                {session.directionsUrl && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={session.directionsUrl} target="_blank" rel="noopener noreferrer">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      Get Directions
-                    </a>
-                  </Button>
+                {isEditingVisitAddress ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      placeholder="Enter visit address"
+                      value={editVisitAddressValue}
+                      onChange={(e) => setEditVisitAddressValue(e.target.value)}
+                      rows={3}
+                      disabled={updatingVisitAddress}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          const trimmed = editVisitAddressValue?.trim();
+                          if (!trimmed) {
+                            toast({ title: 'Address required', variant: 'destructive' });
+                            return;
+                          }
+                          setUpdatingVisitAddress(true);
+                          try {
+                            const { data, error } = await supabase.rpc('update_session_visit_address', {
+                              p_session_id: session.id,
+                              p_new_address: trimmed
+                            });
+                            const result = data as { success?: boolean; error?: string } | null;
+                            if (error || !result?.success) {
+                              toast({
+                                title: 'Could not update address',
+                                description: (result?.error as string) || error?.message || 'Unknown error',
+                                variant: 'destructive'
+                              });
+                              return;
+                            }
+                            toast({ title: 'Address updated' });
+                            setIsEditingVisitAddress(false);
+                            fetchSessionDetails();
+                          } finally {
+                            setUpdatingVisitAddress(false);
+                          }
+                        }}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingVisitAddress(false);
+                          setEditVisitAddressValue(session.location ?? '');
+                        }}
+                        disabled={updatingVisitAddress}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm mb-3">{session.location}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(() => {
+                        const isMobile = session.appointment_type === 'mobile';
+                        const statusOk = ['confirmed', 'scheduled'].includes(session.status ?? '');
+                        const sessionStart = parseISO(`${session.session_date}T${session.session_time}`);
+                        const cutoff = subHours(sessionStart, 24);
+                        const canEdit = isMobile && statusOk && isBefore(new Date(), cutoff) && !isPast(sessionStart);
+                        return canEdit ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditVisitAddressValue(session.location ?? '');
+                              setIsEditingVisitAddress(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit visit address
+                          </Button>
+                        ) : null;
+                      })()}
+                      {session.directionsUrl && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={session.directionsUrl} target="_blank" rel="noopener noreferrer">
+                            <MapPin className="h-4 w-4 mr-2" />
+                            Get Directions
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

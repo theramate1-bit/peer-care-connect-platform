@@ -9,6 +9,8 @@ export interface TreatmentNoteStatus {
   isCompleted: boolean;
   hasAllSOAPSections?: boolean;
   completedVia?: 'session_recordings' | 'treatment_notes' | 'both';
+  /** True when session_recordings has processing/error (AI transcription in progress or failed); practitioner can complete manually */
+  recordingProcessingOrError?: boolean;
 }
 
 /**
@@ -20,29 +22,30 @@ export async function checkTreatmentNotesCompletion(
   practitionerId: string
 ): Promise<TreatmentNoteStatus> {
   try {
-    // Check session_recordings
+    // Check session_recordings (may have multiple rows per session; any completed counts)
     const { data: recordings } = await supabase
       .from('session_recordings')
       .select('status')
       .eq('session_id', sessionId)
-      .eq('practitioner_id', practitionerId)
-      .limit(1);
+      .eq('practitioner_id', practitionerId);
 
-    const hasCompletedRecording = recordings?.some((r) => r.status === 'completed');
+    const hasCompletedRecording = recordings?.some((r) => r.status === 'completed') ?? false;
+    const recordingProcessingOrError =
+      (recordings?.some((r) => r.status === 'processing' || r.status === 'error') ?? false) && !hasCompletedRecording;
 
-    // Check treatment_notes status
+    // Check treatment_notes status (SOAP, DAP, FREE_TEXT all count)
     const { data: treatmentNotes } = await supabase
       .from('treatment_notes')
       .select('status, note_type, template_type')
       .eq('session_id', sessionId)
-      .eq('practitioner_id', practitionerId)
-      .eq('template_type', 'SOAP');
+      .eq('practitioner_id', practitionerId);
 
-    // Check if any note has status = 'completed'
+    // Check if any note has status = 'completed' (any template type)
     const hasCompletedNote = treatmentNotes?.some((n) => n.status === 'completed');
 
-    // Check if all 4 SOAP sections exist
-    const noteTypes = new Set(treatmentNotes?.map((n) => n.note_type) || []);
+    // For SOAP: check if all 4 sections exist
+    const soapNotes = treatmentNotes?.filter((n) => n.template_type === 'SOAP') || [];
+    const noteTypes = new Set(soapNotes.map((n) => n.note_type));
     const hasAllSOAPSections =
       noteTypes.has('subjective') &&
       noteTypes.has('objective') &&
@@ -65,11 +68,13 @@ export async function checkTreatmentNotesCompletion(
       isCompleted,
       hasAllSOAPSections,
       completedVia,
+      recordingProcessingOrError,
     };
   } catch (error) {
     console.error('Error checking treatment notes completion:', error);
     return {
       isCompleted: false,
+      recordingProcessingOrError: false,
     };
   }
 }

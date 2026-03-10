@@ -8,8 +8,9 @@ export class AuthErrorHandler {
 
   /**
    * Performs a silent logout by clearing all auth state and redirecting to login
+   * @param showSessionExpiredMessage If true, redirects with ?error=session_expired so Login page shows "Your session has expired"
    */
-  static async performSilentLogout(): Promise<void> {
+  static async performSilentLogout(showSessionExpiredMessage = false): Promise<void> {
     // Prevent multiple simultaneous logouts
     if (this.isLoggingOut) {
       return;
@@ -39,12 +40,12 @@ export class AuthErrorHandler {
         });
       }
       
-      // Redirect to login page (no query param to avoid "session expired" on every visit)
-      window.location.href = '/login';
+      // Redirect to login page; add error param when session expired elsewhere (PRACTITIONER_DASHBOARD #2)
+      window.location.href = showSessionExpiredMessage ? '/login?error=session_expired' : '/login';
       
     } catch (error) {
       // Force redirect even if signOut fails
-      window.location.href = '/login';
+      window.location.href = showSessionExpiredMessage ? '/login?error=session_expired' : '/login';
     }
     // Don't reset flag - we want to prevent any further logouts until page reload
   }
@@ -57,7 +58,7 @@ export class AuthErrorHandler {
   static async handleAuthError(error: any): Promise<boolean> {
     // For PGRST116 (user not found), skip refresh and logout immediately
     if (error.code === 'PGRST116') {
-      await this.performSilentLogout();
+      await this.performSilentLogout(true);
       return false;
     }
     
@@ -70,11 +71,11 @@ export class AuthErrorHandler {
         return true; // Retry allowed
       }
       
-      // Session refresh failed, perform silent logout
-      await this.performSilentLogout();
+      // Session refresh failed, perform silent logout with user-facing message
+      await this.performSilentLogout(true);
       return false; // No retry
     } catch (refreshError) {
-      await this.performSilentLogout();
+      await this.performSilentLogout(true);
       return false; // No retry
     }
   }

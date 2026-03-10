@@ -1572,9 +1572,9 @@ const Credits = () => {
 
   const uniqueLocations = [...new Set(
     practitioners
-      .map(p => p.location)
-      .filter((loc): loc is string => Boolean(loc && loc.trim()))
-  )];
+      .map(p => (p.location || '').trim())
+      .filter(Boolean)
+  )].sort();
   const uniqueSpecializations = [...new Set(
     practitioners
       .flatMap(p => (Array.isArray(p.specializations) ? p.specializations : []))

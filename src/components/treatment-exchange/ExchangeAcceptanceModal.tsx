@@ -10,6 +10,8 @@ import { Loader2, Clock, CreditCard, AlertCircle, CheckCircle2 } from 'lucide-re
 import { supabase } from '@/integrations/supabase/client';
 import { getPractitionerProducts, PractitionerProduct } from '@/lib/stripe-products';
 import { TreatmentExchangeService } from '@/lib/treatment-exchange';
+import { calculateRequiredCredits } from '@/lib/treatment-exchange/credits';
+import { createInAppNotification } from '@/lib/notification-utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { getBlocksForDate, isTimeSlotBlocked, getOverlappingBlocks } from '@/lib/block-time-utils';
@@ -410,10 +412,9 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
 
     try {
       setCheckingCredits(true);
-      // Credit cost = duration_minutes (1 credit per minute)
-      // Use same fallback logic as backend: minimum 1 credit if duration is 0 or null
-      const duration = selectedService.duration_minutes || 60;
-      const cost = duration > 0 ? duration : 1; // Minimum 1 credit
+      // Use same calculation as backend (treatment-exchange/credits)
+      const duration = selectedService.duration_minutes ?? 60;
+      const cost = calculateRequiredCredits(duration);
       setCreditCost(cost);
     } catch (error) {
       console.error('Error calculating credit cost:', error);
@@ -560,38 +561,50 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
       }
     }
 
-    if (!selectedService) {
+    const acceptOnlyNoService = services.length === 0;
+    if (!acceptOnlyNoService && !selectedService) {
       toast.error('Please select a service');
       return;
     }
 
-    if (creditCost === null) {
+    if (!acceptOnlyNoService && creditCost === null) {
       toast.error('Calculating credit cost...');
       return;
     }
 
-    // Check credit balance
-    if (creditBalance < creditCost) {
-      toast.error(`Insufficient credits. You have ${creditBalance} credits but need ${creditCost}.`);
-      return;
+    // Re-check credit balance before accept (only when booking reciprocal - credits deducted when both book)
+    if (!acceptOnlyNoService) {
+      const { data: creditRow } = await supabase
+        .from('credits')
+        .select('balance')
+        .eq('user_id', recipientId)
+        .single();
+      const currentBalance = creditRow?.balance ?? 0;
+      if (currentBalance < (creditCost ?? 0)) {
+        setCreditBalance(currentBalance);
+        toast.error(`Insufficient credits. You have ${currentBalance} credits but need ${creditCost}.`);
+        return;
+      }
     }
 
-    // Validate date/time selection BEFORE accepting
-    if (!reciprocalBookingDate || !reciprocalBookingTime) {
+    // Validate date/time selection BEFORE accepting (skip when accept-only, no service)
+    if (!acceptOnlyNoService && (!reciprocalBookingDate || !reciprocalBookingTime)) {
       toast.error('Please select a date and time for your treatment');
       return;
     }
 
-    // Validate that selected time slot is in the future
-    const selectedDateTime = new Date(`${reciprocalBookingDate}T${reciprocalBookingTime}`);
-    const now = new Date();
-    if (selectedDateTime <= now) {
-      toast.error('Please select a future date and time for your treatment');
-      return;
+    // Validate that selected time slot is in the future (skip when accept-only)
+    if (!acceptOnlyNoService) {
+      const selectedDateTime = new Date(`${reciprocalBookingDate}T${reciprocalBookingTime}`);
+      const now = new Date();
+      if (selectedDateTime <= now) {
+        toast.error('Please select a future date and time for your treatment');
+        return;
+      }
     }
 
-    // Validate that selected time slot is still available
-    if (!availableTimeSlots.includes(reciprocalBookingTime)) {
+    // Validate that selected time slot is still available (skip when accept-only)
+    if (!acceptOnlyNoService && !availableTimeSlots.includes(reciprocalBookingTime || '')) {
       toast.error('The selected time slot is no longer available. Please select another time.');
       return;
     }
@@ -601,14 +614,44 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
 
       // Only accept if not already accepted
       if (!isAlreadyAccepted) {
-        // First, accept the exchange request
         await TreatmentExchangeService.acceptExchangeRequest(
           requestId,
           recipientId
         );
 
-        // Wait a moment for the database to update
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Accept-only (no service): done – they can book reciprocal later from dashboard
+        if (acceptOnlyNoService) {
+          toast.success('Request accepted. You can book your return session later from your dashboard once they\'ve added a service.');
+          try {
+            await createInAppNotification({
+              recipientId,
+              type: 'exchange_reciprocal_booking_reminder',
+              title: 'Book your return session',
+              body: `You accepted a treatment exchange with ${requesterName}. Book your return session from your dashboard to complete the exchange.`,
+              payload: { requestId, requesterId, requesterName },
+              sourceType: 'treatment_exchange_request',
+              sourceId: requestId,
+            });
+          } catch (e) {
+            console.warn('Failed to create reciprocal booking reminder:', e);
+          }
+          onAccepted();
+          onOpenChange(false);
+          return;
+        }
+
+        // Poll for mutual_exchange_sessions instead of fixed delay (TREATMENT_EXCHANGE_LOGIC_GAPS #4)
+        const maxAttempts = 15;
+        const intervalMs = 200;
+        for (let i = 0; i < maxAttempts; i++) {
+          const { data: mes } = await supabase
+            .from('mutual_exchange_sessions')
+            .select('id')
+            .eq('exchange_request_id', requestId)
+            .maybeSingle();
+          if (mes?.id) break;
+          if (i < maxAttempts - 1) await new Promise(resolve => setTimeout(resolve, intervalMs));
+        }
       }
 
       // Re-validate availability before booking (race condition protection)
@@ -631,8 +674,8 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
         return;
       }
 
-      // Calculate duration BEFORE using it in getOverlappingBlocks
-      const duration = selectedService.duration_minutes || 60;
+      // Calculate duration BEFORE using it in getOverlappingBlocks (required here - we're booking reciprocal)
+      const duration = selectedService!.duration_minutes || 60;
 
       // Check for blocked/unavailable time on requester's calendar (they're providing the service)
       const blocks = await getOverlappingBlocks(
@@ -651,19 +694,14 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
         return;
       }
 
-      // Then, create reciprocal booking with SELECTED date/time (not requested session date/time)
-      // Calculate end time for reciprocal booking - ensure consistent format (HH:mm:ss)
-      // duration is already declared above
+      // Create reciprocal booking with SELECTED date/time
       const startTime = new Date(`${reciprocalBookingDate}T${reciprocalBookingTime}`);
       const endTime = new Date(startTime.getTime() + duration * 60000);
       const endTimeString = format(endTime, 'HH:mm:ss');
-      
-      // Ensure start_time is in HH:mm:ss format for consistency
-      const startTimeString = reciprocalBookingTime.includes(':') && reciprocalBookingTime.split(':').length === 2
-        ? `${reciprocalBookingTime}:00` // Convert HH:mm to HH:mm:ss
-        : reciprocalBookingTime; // Already in HH:mm:ss format
+      const startTimeString = reciprocalBookingTime!.includes(':') && reciprocalBookingTime!.split(':').length === 2
+        ? `${reciprocalBookingTime}:00`
+        : reciprocalBookingTime;
 
-      // Create reciprocal booking with recipient's selected date/time
       await TreatmentExchangeService.bookReciprocalExchange(
         requestId,
         recipientId,
@@ -682,7 +720,30 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error accepting exchange:', error);
-      toast.error(error?.message || 'Failed to accept exchange request');
+      const msg = error?.message || 'Failed to accept exchange request';
+      const isSlotError = /slot|booked|another time|no longer available/i.test(msg);
+      toast.error(
+        isSlotError
+          ? `${msg} Select another time and try again, or book your return session from your dashboard later.`
+          : msg
+      );
+      // Partial success: accept succeeded but reciprocal failed – create reminder to book later
+      if (isSlotError && !isAlreadyAccepted) {
+        try {
+          await createInAppNotification({
+            recipientId,
+            type: 'exchange_reciprocal_booking_reminder',
+            title: 'Book your return session',
+            body: `You accepted a treatment exchange with ${requesterName}. Select another time from your dashboard to complete your return booking.`,
+            payload: { requestId, requesterId, requesterName },
+            sourceType: 'treatment_exchange_request',
+            sourceId: requestId,
+          });
+        } catch (e) {
+          console.warn('Failed to create reciprocal booking reminder:', e);
+        }
+      }
+      onAccepted(); // Refresh parent so dashboard shows correct state (e.g. accepted, action needed)
     } finally {
       setLoading(false);
     }
@@ -925,6 +986,12 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-3">
+                  {((selectedService.duration_minutes ?? 60) !== requestedDuration) && (
+                    <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>Duration differs from request: they asked for {requestedDuration} min, you selected {(selectedService.duration_minutes ?? 60)} min.</span>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold">{selectedService.name}</h3>
@@ -1004,7 +1071,15 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
           </Button>
           <Button 
             onClick={handleAccept} 
-            disabled={loading || checkingRequestStatus || checkingReciprocalBooking || (!isAlreadyAccepted && requestStatus !== 'pending') || (isAlreadyAccepted && hasReciprocalBooking === true) || !selectedService || !hasSufficientCredits || checkingCredits || !reciprocalBookingDate || !reciprocalBookingTime}
+            disabled={
+              loading || checkingRequestStatus || checkingReciprocalBooking ||
+              (!isAlreadyAccepted && requestStatus !== 'pending') ||
+              (isAlreadyAccepted && hasReciprocalBooking === true) ||
+              (services.length > 0 && (
+                !selectedService || !hasSufficientCredits || checkingCredits ||
+                !reciprocalBookingDate || !reciprocalBookingTime
+              ))
+            }
           >
             {loading ? (
               <>
@@ -1012,7 +1087,11 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
                 {isAlreadyAccepted ? 'Booking...' : 'Accepting...'}
               </>
             ) : (
-              isAlreadyAccepted ? 'Confirm Return Session Booking' : 'Accept & Book Service'
+              isAlreadyAccepted
+                ? 'Confirm Return Session Booking'
+                : services.length === 0
+                  ? 'Accept Request'
+                  : 'Accept & Book Service'
             )}
           </Button>
         </DialogFooter>

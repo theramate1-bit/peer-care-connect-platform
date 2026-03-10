@@ -271,10 +271,10 @@ const TreatmentNotes = () => {
       // Fetch HEPs created by practitioner
       const heps = await HEPService.getPractitionerPrograms(user.id);
 
-      // Get all client IDs from both sources
-      const treatmentClientIds = [...new Set(treatmentNotesData?.map(note => note.client_id) || [])];
-      const sessionClientIds = [...new Set(sessions?.map((s: any) => s.client_id) || [])];
-      const hepClientIds = [...new Set(heps.map(hep => hep.client_id))];
+      // Get all client IDs from both sources (exclude null for standalone notes)
+      const treatmentClientIds = [...new Set((treatmentNotesData?.map(note => note.client_id) || []).filter(Boolean))];
+      const sessionClientIds = [...new Set((sessions?.map((s: any) => s.client_id) || []).filter(Boolean))];
+      const hepClientIds = [...new Set(heps.map(hep => hep.client_id).filter(Boolean))];
       const allClientIds = [...new Set([...treatmentClientIds, ...sessionClientIds, ...hepClientIds])];
 
       // Fetch client details
@@ -291,13 +291,13 @@ const TreatmentNotes = () => {
 
       // Format structured treatment notes
       const formattedTreatmentNotes: UnifiedNote[] = (treatmentNotesData || []).map(note => {
-        const client = clientMap.get(note.client_id);
+        const client = note.client_id ? clientMap.get(note.client_id) : null;
         return {
           id: note.id,
           session_id: note.session_id,
-          client_id: note.client_id,
-          client_name: note.session?.client_name || 
-                       (client ? `${client.first_name} ${client.last_name}` : 'Unknown Client'),
+          client_id: note.client_id ?? '',
+          client_name: note.session?.client_name ||
+                       (client ? `${client.first_name} ${client.last_name}` : note.client_id ? 'Unknown Client' : 'Standalone'),
           note_type: note.note_type,
           session_date: note.session?.session_date || note.created_at,
           created_at: note.created_at,
@@ -494,24 +494,21 @@ const TreatmentNotes = () => {
   };
 
   const handleSaveNewNote = async () => {
-    if (!newNoteData.client_id || !newNoteData.session_date || !newNoteData.notes.trim()) {
-      toast.error('Please fill in all required fields');
+    if (!newNoteData.session_date || !newNoteData.notes.trim()) {
+      toast.error('Please fill in session date and notes');
       return;
     }
 
     try {
-      // Get client name from the clients list
-      const selectedClient = clients.find(c => c.id === newNoteData.client_id);
-      const clientName = selectedClient ? selectedClient.name : 'Unknown Client';
-
-      // Create treatment note in proper treatment_notes table (not fake session)
+      // Create treatment note – client_id can be null for standalone/guest notes
       const { error } = await supabase
         .from('treatment_notes')
         .insert({
           practitioner_id: user.id,
-          client_id: newNoteData.client_id,
-          note_type: 'general', // Default to general note type
-          content: newNoteData.notes,
+          client_id: newNoteData.client_id || null,
+          note_type: 'general',
+          template_type: 'FREE_TEXT',
+          content: newNoteData.notes.trim(),
           timestamp: new Date(newNoteData.session_date).toISOString(),
           session_id: null // Standalone note not tied to a session
         });
@@ -1022,18 +1019,19 @@ const TreatmentNotes = () => {
           <DialogHeader>
             <DialogTitle>Create New Treatment Note</DialogTitle>
             <DialogDescription>
-              Add a new treatment note for a client session.
+              Add a new treatment note. Client is optional for standalone or guest notes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="client">Client *</Label>
-                <Select value={newNoteData.client_id} onValueChange={(value) => setNewNoteData(prev => ({ ...prev, client_id: value }))}>
+                <Label htmlFor="client">Client</Label>
+                <Select value={newNoteData.client_id || 'none'} onValueChange={(value) => setNewNoteData(prev => ({ ...prev, client_id: value === 'none' ? '' : value }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select client" />
+                    <SelectValue placeholder="Select client (optional)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">None (standalone note)</SelectItem>
                     {clients.filter(c => c.id !== 'all').map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -1074,9 +1072,10 @@ const TreatmentNotes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="45">45 minutes</SelectItem>
                     <SelectItem value="60">60 minutes</SelectItem>
+                    <SelectItem value="75">75 minutes</SelectItem>
                     <SelectItem value="90">90 minutes</SelectItem>
-                    <SelectItem value="120">120 minutes</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

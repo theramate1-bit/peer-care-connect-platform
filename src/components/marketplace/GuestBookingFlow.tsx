@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -173,6 +174,7 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
     phone: ''
   });
   const [emailError, setEmailError] = useState<string>('');
+  const [emailIsRegistered, setEmailIsRegistered] = useState<boolean | null>(null);
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [bookingExpiresAt, setBookingExpiresAt] = useState<string | null>(null);
@@ -410,7 +412,7 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
       // Store guest user ID for later use in payment creation
       setGuestUserId(guestUser.id);
 
-      const idempotencyKey = `${guestUser.id}-${practitioner.user_id}-${bookingData.session_date}-${bookingData.start_time}-${Date.now()}`;
+      const idempotencyKey = `${guestUser.id}-${practitioner.user_id}-${bookingData.session_date}-${bookingData.start_time}`;
 
       // RPC creates clinic-only sessions (no appointment_type/visit_address). Mobile bookings use create_session_from_mobile_request. See docs/product/ENGINEERING_BACKLOG_EMAIL_LOCATION.md.
       const { data: bookingResult, error: rpcError } = await supabase
@@ -456,12 +458,16 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
           return;
         }
         
-        toast.error(errorMessage);
-        if (errorCode === 'CONFLICT_BOOKING') {
+        if (errorCode === 'CONFLICT_BOOKING' || errorCode === 'CONFLICT_BLOCKED') {
+          toast.error(errorMessage);
           setBookingData(prev => ({ ...prev, session_date: '', start_time: '' }));
           setSlotUnavailableReturned(true);
           setStep(1);
+          setLoading(false);
+          return;
         }
+        
+        toast.error(errorMessage);
         return;
       }
 
@@ -877,6 +883,7 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
                   transition={{ duration: 0.4, ease: "easeOut" }}
                 >
                   <CalendarTimeSelector
+                    key={`calendar-guest-${practitioner.user_id}-${slotUnavailableReturned ? 'expired' : bookingData.session_date || 'none'}`}
                     therapistId={practitioner.user_id}
                     duration={bookingData.duration_minutes}
                     requestedAppointmentType="clinic"
@@ -976,17 +983,26 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
                   onChange={(e) => {
                     const email = e.target.value;
                     setGuestData(prev => ({ ...prev, email }));
-                    // Clear error when user starts typing
-                    if (emailError) {
-                      setEmailError('');
-                    }
+                    if (emailError) setEmailError('');
+                    if (emailIsRegistered) setEmailIsRegistered(null);
                   }}
-                  onBlur={(e) => {
+                  onBlur={async (e) => {
                     const email = e.target.value.trim();
                     if (email && !formValidation.isValidEmail(email)) {
                       setEmailError('Please enter a valid email address');
+                      setEmailIsRegistered(null);
                     } else {
                       setEmailError('');
+                      if (email && formValidation.isValidEmail(email)) {
+                        try {
+                          const { data } = await supabase.rpc('check_email_registered', { p_email: email });
+                          setEmailIsRegistered(data === true);
+                        } catch {
+                          setEmailIsRegistered(null);
+                        }
+                      } else {
+                        setEmailIsRegistered(null);
+                      }
                     }
                   }}
                   placeholder="your.email@example.com"
@@ -999,6 +1015,25 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
                     {emailError}
                   </p>
                 )}
+                {emailIsRegistered && (
+                  <Alert variant="default" className="mt-2 border-amber-200 bg-amber-50">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>This email is already registered</AlertTitle>
+                    <AlertDescription>
+                      <Link
+                        to={`/login?email=${encodeURIComponent(guestData.email)}&redirect=${encodeURIComponent('/marketplace')}`}
+                        className="text-primary font-medium underline hover:no-underline"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        Sign in
+                      </Link>
+                      {' to book with your account.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  Use this same email when paying to receive your confirmation.
+                </p>
               </div>
 
               <div>

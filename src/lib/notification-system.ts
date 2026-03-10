@@ -211,7 +211,7 @@ export class NotificationSystem {
       const clientName = session.client 
         ? `${session.client.first_name} ${session.client.last_name}` 
         : session.client_name || 'Client';
-      const isGuestRecipient = session.client?.user_role === 'guest';
+      const isGuestRecipient = session.client?.user_role === 'guest' || !session.client;
       const bookingUrl = isGuestRecipient
         ? (
             session.guest_view_token
@@ -219,7 +219,10 @@ export class NotificationSystem {
               : `${window.location.origin}/booking/view/${sessionId}${clientEmail ? `?email=${encodeURIComponent(clientEmail)}` : ''}`
           )
         : `${window.location.origin}/client/sessions`;
-      
+      const messageUrl = isGuestRecipient && clientEmail
+        ? `${window.location.origin}/register?email=${encodeURIComponent(clientEmail)}&redirect=${encodeURIComponent('/messages')}`
+        : `${window.location.origin}/messages`;
+
       if (clientEmail) {
         await this.sendEmailNotification(
           'booking_confirmation_client',
@@ -250,7 +253,7 @@ export class NotificationSystem {
               session.duration_minutes || 60,
               session.location || undefined
             ),
-            messageUrl: `${window.location.origin}/messages`,
+            messageUrl,
             directionsUrl: generateDirectionsUrl(session.location || '')
           }
         );

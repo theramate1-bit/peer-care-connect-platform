@@ -64,8 +64,8 @@ export class PaymentIntegration {
         };
       }
 
-      // Generate idempotency key to prevent duplicate payments
-      const idempotencyKey = request.idempotencyKey || `${request.sessionId}-${Date.now()}-${request.clientId}`;
+      // Generate idempotency key to prevent duplicate payments (no Date.now() for double-click protection)
+      const idempotencyKey = request.idempotencyKey || `${request.sessionId}-${request.clientId}`;
       
       // Validate session exists and is bookable FIRST (more efficient check)
       // Accept 'scheduled', 'pending_payment', and 'pending_approval' statuses

@@ -76,6 +76,7 @@ const EXCHANGE_TYPES = new Set([
   "exchange_slot_held",
   "exchange_slot_released",
   "exchange_session_confirmed",
+  "exchange_reciprocal_booking_reminder",
 ]);
 const OPERATIONS_TYPES = new Set(["client_check_in", "client_check_out", "intake_form", "intake_completed"]);
 

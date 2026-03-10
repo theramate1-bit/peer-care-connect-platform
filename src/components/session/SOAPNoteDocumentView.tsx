@@ -2,14 +2,24 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
+export interface Addendum {
+  id: string;
+  content: string;
+  created_at: string;
+}
+
 interface SOAPNoteDocumentViewProps {
   session: any;
   onBack: () => void;
+  addenda?: Addendum[];
+  onAddCorrection?: () => void;
 }
 
 export const SOAPNoteDocumentView: React.FC<SOAPNoteDocumentViewProps> = ({
   session,
-  onBack
+  onBack,
+  addenda = [],
+  onAddCorrection
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -140,6 +150,37 @@ export const SOAPNoteDocumentView: React.FC<SOAPNoteDocumentViewProps> = ({
             </>
           )}
 
+          {/* Corrections & addenda (workaround for completed notes – RLS blocks direct edit) */}
+          {(addenda.length > 0 || onAddCorrection) && (
+            <>
+              <Separator className="my-8" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Corrections & addenda</h3>
+                  {onAddCorrection && (
+                    <button
+                      type="button"
+                      onClick={onAddCorrection}
+                      className="text-sm text-primary hover:underline font-medium"
+                    >
+                      + Add correction
+                    </button>
+                  )}
+                </div>
+                {addenda.length === 0 && onAddCorrection && (
+                  <p className="text-sm text-slate-500 italic">No corrections yet. Add one if you need to amend the note.</p>
+                )}
+                {addenda.map((a) => (
+                  <div key={a.id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 text-slate-700">
+                    <p className="text-xs text-slate-500 mb-1">
+                      {new Date(a.created_at).toLocaleString('en-GB')}
+                    </p>
+                    <p className="whitespace-pre-wrap leading-relaxed">{a.content}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

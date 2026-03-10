@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, unstable_usePrompt } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,11 +186,28 @@ const Profile = () => {
     platformUpdates: userPrefs?.platformUpdates ?? false,
   });
 
+  // Warn before leaving when there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
+
+  // Block in-app navigation when there are unsaved changes (prevents accidental loss via Link/useNavigate)
+  unstable_usePrompt({
+    when: hasChanges,
+    message: "You have unsaved changes. Are you sure you want to leave?",
+  });
+
   // Handle hash changes for tab navigation and set default tab
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1);
-      const validTabs = ['personal', 'professional', 'services', 'credits', 'preferences', 'subscription'];
+      const validTabs = ['personal', 'professional', 'services', 'credits', 'preferences', 'subscription', 'billing'];
       if (validTabs.includes(hash)) {
         setActiveTab(hash);
       } else {
@@ -1006,6 +1023,20 @@ const Profile = () => {
         }
       }
       
+      // Build labels for user-friendly error messages (same order as promises)
+      const promiseLabels: string[] = [];
+      if (JSON.stringify(initialData?.personal) !== JSON.stringify(personalData)) promiseLabels.push('Personal info');
+      if (userProfile?.user_role !== 'client' && JSON.stringify(initialData?.professional) !== JSON.stringify(professionalData)) {
+        promiseLabels.push('Professional info');
+        if (professionalData.professional_statement || professionalData.treatment_philosophy) {
+          promiseLabels.push('Professional statement');
+        }
+      }
+      if (JSON.stringify(initialData?.preferences) !== JSON.stringify(preferences)) {
+        promiseLabels.push('Preferences');
+        if (user?.id) promiseLabels.push('Notification settings');
+      }
+
       // Execute all promises and check for errors
       const results = await Promise.allSettled(
         promises.map(p => 
@@ -1016,18 +1047,19 @@ const Profile = () => {
         )
       );
       
-      // Check if any updates failed
+      // Check if any updates failed; use human-readable labels
       const errors = results
         .map((result, index) => {
+          const label = promiseLabels[index] || `Update ${index + 1}`;
           if (result.status === 'rejected') {
             const errorMsg = result.reason?.message || result.reason || 'Unknown error';
-            console.error(`❌ Update ${index + 1} rejected:`, result.reason);
-            return `Update ${index + 1} failed: ${errorMsg}`;
+            console.error(`❌ ${label} rejected:`, result.reason);
+            return `${label}: ${errorMsg}`;
           }
           if (result.value?.error) {
             const errorMsg = result.value.error?.message || result.value.error || 'Unknown error';
-            console.error(`❌ Update ${index + 1} returned error:`, result.value.error);
-            return `Update ${index + 1} failed: ${errorMsg}`;
+            console.error(`❌ ${label} returned error:`, result.value.error);
+            return `${label}: ${errorMsg}`;
           }
           return null;
         })
@@ -1037,7 +1069,7 @@ const Profile = () => {
         console.error('❌ Profile save errors:', errors);
         const errorMessage = errors.length === 1 
           ? errors[0] 
-          : `Multiple errors occurred: ${errors.join('; ')}`;
+          : `Multiple errors: ${errors.join('; ')}`;
         toast.error('Failed to save profile', {
           description: errorMessage
         });
@@ -1364,7 +1396,11 @@ const Profile = () => {
         .select('id, file_url, file_name, file_type, file_size_bytes, created_at')
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Clean up orphaned storage file when DB insert fails (atomicity)
+        await supabase.storage.from('qualifications').remove([filePath]).catch(() => {});
+        throw insertError;
+      }
       if (inserted) {
         setQualificationDocuments((prev) =>
           replaceId ? prev.map((d) => (d.id === replaceId ? inserted : d)) : [inserted, ...prev]

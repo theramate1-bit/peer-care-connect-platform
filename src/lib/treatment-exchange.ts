@@ -802,21 +802,12 @@ export class TreatmentExchangeService {
         .eq('id', request.recipient_id)
         .single();
 
-      // Deduct credits now that both practitioners have confirmed (request sent + accepted)
-      // The requester pays for the session they're receiving from the recipient
-      // IMPORTANT: This must complete before returning to ensure credits are updated
+      // Credits are NOT deducted on acceptance per TREATMENT_EXCHANGE_SYSTEM_DESIGN.
+      // Credits are deducted only when BOTH practitioners have booked (in bookReciprocalExchange).
       if (!sessionData.mutual_exchange_session_id) {
-        console.error('Cannot process credits: missing mutual_exchange_session_id', { sessionData });
+        console.error('Missing mutual_exchange_session_id', { sessionData });
         throw new Error('Failed to create exchange session: Missing session ID');
       }
-      
-      await this.processExchangeCreditsOnAcceptance(
-        sessionData.mutual_exchange_session_id,
-        request.requester_id,
-        request.recipient_id,
-        requiredCredits,
-        request.duration_minutes
-      );
 
       // Get recipient data (await the promise we created earlier)
       const { data: recipientData } = await recipientDataPromise;
@@ -1265,8 +1256,8 @@ export class TreatmentExchangeService {
         : 'Practitioner';
       const clientEmail = recipientData?.email || '';
 
-      // Generate idempotency key
-      const idempotencyKey = `exchange-${exchangeRequestId}-reciprocal-${Date.now()}`;
+      // Generate idempotency key (no Date.now() for double-submit protection)
+      const idempotencyKey = `exchange-${exchangeRequestId}-reciprocal`;
 
       const { data: bookingResult, error: bookingError } = await supabase
         .rpc('create_treatment_exchange_booking', {
@@ -1313,29 +1304,68 @@ export class TreatmentExchangeService {
         // Don't throw - the booking was created, we can update the flag later if needed
       }
 
-      // Process credits for the reciprocal booking (Recipient paying Requester)
-      // This "burns" credits from the recipient's balance
+      // Process credits for BOTH sessions when both have booked (per TREATMENT_EXCHANGE_SYSTEM_DESIGN)
+      // Session A: requester pays recipient (original session, created on accept)
+      // Session B: recipient pays requester (reciprocal session, just created)
       if (result.session_id) {
-        console.log('💰 Processing reciprocal credits:', {
-          clientId: recipientId,
-          practitionerId: request.requester_id,
-          sessionId: result.session_id,
-          durationMinutes: bookingData.duration_minutes
-        });
-        
-        await supabase.rpc('process_peer_booking_credits', {
-          p_client_id: recipientId, // Recipient pays
-          p_practitioner_id: request.requester_id, // Requester provides service
-          p_session_id: result.session_id,
-          p_duration_minutes: bookingData.duration_minutes,
-          p_product_id: null
-        });
-
-        // Mark credits as deducted for the mutual session record
-        await supabase
+        const { data: mes } = await supabase
           .from('mutual_exchange_sessions')
-          .update({ credits_deducted: true })
-          .eq('id', session.id);
+          .select('credits_deducted')
+          .eq('id', session.id)
+          .single();
+
+        if (!mes?.credits_deducted) {
+          // Find Session A (original: requester receives from recipient)
+          const startTimeForQuery = request.requested_start_time.includes(':') && request.requested_start_time.split(':').length === 3
+            ? request.requested_start_time
+            : `${request.requested_start_time}:00`;
+          const { data: sessionA } = await supabase
+            .from('client_sessions')
+            .select('id')
+            .eq('therapist_id', request.recipient_id)
+            .eq('client_id', request.requester_id)
+            .eq('session_date', request.requested_session_date)
+            .eq('start_time', startTimeForQuery)
+            .eq('is_peer_booking', true)
+            .maybeSingle();
+
+          if (sessionA?.id) {
+            console.log('💰 Processing Session A credits (requester pays recipient):', {
+              clientId: request.requester_id,
+              practitionerId: request.recipient_id,
+              sessionId: sessionA.id,
+              durationMinutes: request.duration_minutes
+            });
+            const { error: creditAError } = await supabase.rpc('process_peer_booking_credits', {
+              p_client_id: request.requester_id,
+              p_practitioner_id: request.recipient_id,
+              p_session_id: sessionA.id,
+              p_duration_minutes: request.duration_minutes,
+              p_product_id: null
+            });
+            if (creditAError) throw creditAError;
+          }
+
+          console.log('💰 Processing Session B credits (recipient pays requester):', {
+            clientId: recipientId,
+            practitionerId: request.requester_id,
+            sessionId: result.session_id,
+            durationMinutes: bookingData.duration_minutes
+          });
+          const { error: creditBError } = await supabase.rpc('process_peer_booking_credits', {
+            p_client_id: recipientId,
+            p_practitioner_id: request.requester_id,
+            p_session_id: result.session_id,
+            p_duration_minutes: bookingData.duration_minutes,
+            p_product_id: null
+          });
+          if (creditBError) throw creditBError;
+
+          await supabase
+            .from('mutual_exchange_sessions')
+            .update({ credits_deducted: true })
+            .eq('id', session.id);
+        }
 
         // Check if both practitioners have now booked (exchange is fully confirmed)
         // Fetch the updated session to check both booking flags
@@ -1399,9 +1429,8 @@ export class TreatmentExchangeService {
   }
 
   /**
-   * Process credit deduction when exchange request is accepted
-   * Deducts credits from requester and awards to recipient using proper peer booking flow
-   * FIXED: Now uses process_peer_booking_credits instead of credits_transfer to create proper transactions
+   * @deprecated No longer called. Credits are deducted only when BOTH practitioners have booked (in bookReciprocalExchange).
+   * Kept for reference. See TREATMENT_EXCHANGE_SYSTEM_DESIGN.md.
    */
   private static async processExchangeCreditsOnAcceptance(
     sessionId: string,

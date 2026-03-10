@@ -72,6 +72,18 @@ const Register = () => {
       });
 
       if (error) {
+        const redirectParam = searchParams.get('redirect');
+        const isEmailAlreadyRegistered =
+          error.message?.toLowerCase().includes('already registered') ||
+          error.message?.toLowerCase().includes('user already exists');
+        if (isEmailAlreadyRegistered && redirectParam && formData.email) {
+          toast.error('This email is already registered. Sign in to continue.');
+          navigate(
+            `/login?email=${encodeURIComponent(formData.email)}&redirect=${encodeURIComponent(redirectParam)}`,
+            { replace: true }
+          );
+          return;
+        }
         toast.error(error.message);
         return;
       }
@@ -108,10 +120,16 @@ const Register = () => {
   const handleGoogleSignup = async () => {
     setLoading(true);
     try {
+      const redirectParam = searchParams.get('redirect');
+      const callbackBase = `${window.location.origin}/auth/callback`;
+      const callbackUrl = redirectParam
+        ? `${callbackBase}?redirect=${encodeURIComponent(redirectParam)}`
+        : callbackBase;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl,
           queryParams: {
             prompt: 'select_account', // Force account selection instead of using cached account
           },
@@ -300,7 +318,13 @@ const Register = () => {
             <Button
               variant="link"
               className="p-0 h-auto font-normal"
-              onClick={() => navigate("/login")}
+              onClick={() => {
+                const redirectParam = searchParams.get('redirect');
+                const emailParam = formData.email ? `email=${encodeURIComponent(formData.email)}` : '';
+                const redirectQuery = redirectParam ? `redirect=${encodeURIComponent(redirectParam)}` : '';
+                const query = [emailParam, redirectQuery].filter(Boolean).join('&');
+                navigate(query ? `/login?${query}` : '/login');
+              }}
             >
               Sign in
             </Button>
