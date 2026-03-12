@@ -282,6 +282,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
 
+      // Skip profile fetch for TOKEN_REFRESHED - profile unchanged, avoids unmounting app on tab return
+      if (event === 'TOKEN_REFRESHED') {
+        return;
+      }
+
       // Fetch profile in background - track loading separately to prevent UI flash
       if (session?.user) {
         // Set profileLoading to track this fetch (separate from initial loading)

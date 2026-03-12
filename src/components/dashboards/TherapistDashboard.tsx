@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { getFriendlyDateLabel, formatTimeWithoutSeconds } from "@/lib/date";
 import { TreatmentExchangeService, ExchangeRequest } from "@/lib/treatment-exchange";
 import { ExchangeAcceptanceModal } from "@/components/treatment-exchange/ExchangeAcceptanceModal";
-import { format, isToday, isTomorrow } from "date-fns";
+import { format, isToday, isTomorrow, formatDistanceToNow } from "date-fns";
 import { TrendingUp, MessageSquare, Edit, AlertTriangle, Check } from "lucide-react";
 import { cleanNotificationMessage, handleNotificationNavigation, parseNotificationRows, type Notification, type NormalizedNotification } from "@/lib/notification-utils";
 import { EarningsWidget } from "@/components/dashboards/EarningsWidget";
@@ -140,7 +140,6 @@ export const TherapistDashboard = () => {
   
   // Notifications and client progress state
   const [notifications, setNotifications] = useState<NormalizedNotification[]>([]);
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [clientProgressUpdates, setClientProgressUpdates] = useState<any[]>([]);
   // Store statuses of exchange requests found in notifications
   const [exchangeRequestStatuses, setExchangeRequestStatuses] = useState<Record<string, string>>({});
@@ -1092,42 +1091,7 @@ export const TherapistDashboard = () => {
           }))
         ];
 
-        // Fetch pending mobile requests for mobile/hybrid practitioners (unified view)
-        let mobileRequestSessions: SessionData[] = [];
-        if (userProfile?.therapist_type === 'mobile' || userProfile?.therapist_type === 'hybrid') {
-          const { data: mobileRequests } = await supabase.rpc('get_practitioner_mobile_requests', {
-            p_practitioner_id: user.id,
-            p_status: 'pending'
-          });
-          mobileRequestSessions = (mobileRequests || [])
-            .filter((r: { status: string; expires_at: string | null }) =>
-              r.status === 'pending' && (!r.expires_at || new Date(r.expires_at) > new Date())
-            )
-            .map((r: {
-              id: string;
-              client_name: string;
-              product_name: string;
-              requested_date: string;
-              requested_start_time: string;
-              duration_minutes: number;
-              total_price_pence: number;
-              payment_status: string;
-            }) => ({
-              id: r.id,
-              session_type: r.product_name || 'Mobile request',
-              client_name: r.client_name?.trim() || 'Client',
-              client_email: '',
-              session_date: r.requested_date,
-              start_time: r.requested_start_time,
-              duration_minutes: r.duration_minutes,
-              price: (r.total_price_pence || 0) / 100,
-              status: r.payment_status === 'held' ? 'pending_mobile' : 'pending_payment_mobile',
-              payment_status: r.payment_status,
-              is_mobile_request: true
-            }));
-        }
-
-        const allSessions = [...regularSessions, ...exchangeRequestSessions, ...peerBookingSessions, ...mobileRequestSessions].sort((a, b) => {
+        const allSessions = [...regularSessions, ...exchangeRequestSessions, ...peerBookingSessions].sort((a, b) => {
           const dateCompare = a.session_date.localeCompare(b.session_date);
           if (dateCompare !== 0) return dateCompare;
           return a.start_time.localeCompare(b.start_time);
@@ -1465,14 +1429,22 @@ export const TherapistDashboard = () => {
         .from('notifications')
         .select('*')
         .eq('recipient_id', user.id)
+        .in('type', [
+          'booking_confirmed',
+          'booking_confirmation',
+          'payment_confirmed',
+          'booking_approved',
+          'booking_approved_practitioner',
+          'booking_request',
+          'exchange_session_confirmed',
+        ])
         .order('created_at', { ascending: false })
-        .limit(20); // Fetch more to allow for consolidation
+        .limit(30);
 
       if (error) throw error;
 
       const normalized = parseNotificationRows((data || []) as Notification[]);
       setNotifications(normalized);
-      setUnreadNotificationCount(normalized.filter(n => !n.read).length);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -1516,9 +1488,6 @@ export const TherapistDashboard = () => {
             : notif
         )
       );
-      
-      // Update unread count
-      setUnreadNotificationCount(prev => Math.max(0, prev - 1));
       
       toast.success('Notification marked as read');
     } catch (error) {
@@ -1865,6 +1834,20 @@ export const TherapistDashboard = () => {
     );
   }, [userProfile, profileActivationData]);
 
+  // New-booking notifications only: confirmed/approved bookings and incoming mobile requests.
+  // Excludes cancellations, reminders, declines, and expirations.
+  const NEW_BOOKING_TYPES = new Set([
+    'booking_confirmed',
+    'booking_confirmation',
+    'payment_confirmed',
+    'booking_approved',
+    'booking_approved_practitioner',
+    'booking_request',
+    'exchange_session_confirmed',
+  ]);
+  const bookingNotifications = notifications.filter((n) => NEW_BOOKING_TYPES.has(n.type));
+  const unreadBookingCount = bookingNotifications.filter((n) => !n.read).length;
+
   if (loading) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>;
   }
@@ -2118,22 +2101,36 @@ export const TherapistDashboard = () => {
             </Card>
           </div>
 
-          {/* Sidebar: Recent Activity (top), Profile, This Week */}
+          {/* Sidebar: New Bookings (top), Profile, This Week */}
           <aside className="lg:col-span-4 space-y-6">
-            {/* Recent Activity - positioned first so practitioners see it quickly */}
+            {/* New Bookings - shows booking & mobile request notifications only */}
             <Card className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Recent Activity</h2>
-                {unreadNotificationCount > 0 && <span className="ml-2 text-xs font-semibold text-primary">{unreadNotificationCount} new</span>}
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-800 dark:text-white">New Bookings</h2>
+                  {unreadBookingCount > 0 && <span className="text-xs font-semibold text-primary">{unreadBookingCount} new</span>}
+                </div>
               </div>
               <div className="divide-y divide-slate-50 dark:divide-slate-800">
-                {notifications.length === 0 ? (
-                  <div className="p-6 flex items-center justify-center text-slate-400 dark:text-slate-500 italic text-sm">No recent notifications</div>
+                {bookingNotifications.length === 0 ? (
+                  <div className="p-6 flex items-center justify-center text-slate-400 dark:text-slate-500 italic text-sm">No new bookings</div>
                 ) : (
-                  notifications.slice(0, 10).map((n) => (
-                    <button key={n.id} type="button" className="w-full text-left p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" onClick={() => handleNotificationNavigation(n, navigate, markNotificationAsRead, userProfile?.user_role)}>
-                      <span className="font-medium text-slate-800 dark:text-slate-200 block">{n.title || "Notification"}</span>
-                      <span className="text-sm text-slate-500 dark:text-slate-400 truncate block">{cleanNotificationMessage(n)}</span>
+                  bookingNotifications.slice(0, 10).map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      onClick={() => handleNotificationNavigation(n, navigate, markNotificationAsRead, userProfile?.user_role)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-medium text-slate-800 dark:text-slate-200 text-sm leading-snug">{n.title || "Booking"}</span>
+                        {n.created_at && (
+                          <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 mt-0.5">
+                            {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1 block mt-0.5">{cleanNotificationMessage(n)}</span>
                     </button>
                   ))
                 )}

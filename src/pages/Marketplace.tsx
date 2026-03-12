@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -104,6 +104,8 @@ const Marketplace = () => {
   const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);
   const [showBookingFlow, setShowBookingFlow] = useState(false);
   const [showMobileRequestFlow, setShowMobileRequestFlow] = useState(false);
+  const modalOpenRef = useRef(false);
+  modalOpenRef.current = showBookingFlow || showMobileRequestFlow;
   const [searchMode, setSearchMode] = useState<'traditional' | 'smart'>('traditional');
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -246,7 +248,9 @@ const Marketplace = () => {
     // Refetch when user returns to tab (practitioner may have updated profile)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        loadPractitioners();
+        // Don't unmount modal by refetching when user is mid-booking
+        if (modalOpenRef.current) return;
+        loadPractitioners(true); // Silent refetch - no loading state, preserves form
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -508,9 +512,9 @@ const Marketplace = () => {
     );
   };
 
-  const loadPractitioners = async () => {
+  const loadPractitioners = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const { data, error } = await supabase
         .from('users')
@@ -593,7 +597,7 @@ const Marketplace = () => {
         duration: 5000
       });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

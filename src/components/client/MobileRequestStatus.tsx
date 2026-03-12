@@ -81,6 +81,15 @@ export const MobileRequestStatus: React.FC = () => {
     loadRequests();
   }, [user, guestEmail]);
 
+  // Scroll to and highlight the focused request when arriving via email deep-link
+  useEffect(() => {
+    if (!focusedRequestId || requests.length === 0) return;
+    const el = document.getElementById(`mobile-request-${focusedRequestId}`);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+    }
+  }, [focusedRequestId, requests]);
+
   const loadRequests = async () => {
     setLoading(true);
     try {
@@ -307,7 +316,7 @@ export const MobileRequestStatus: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {requests.map((request) => (
-            <Card key={request.id} className={focusedRequestId === request.id ? 'ring-2 ring-primary/40' : ''}>
+            <Card id={`mobile-request-${request.id}`} key={request.id} className={focusedRequestId === request.id ? 'ring-2 ring-primary/40' : ''}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>

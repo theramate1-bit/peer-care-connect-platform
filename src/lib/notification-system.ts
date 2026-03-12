@@ -973,8 +973,8 @@ export class NotificationSystem {
 
       const requestUrl =
         client.user_role === 'client'
-          ? `${window.location.origin}/client/mobile-requests`
-          : `${window.location.origin}/guest/mobile-requests?email=${encodeURIComponent(client.email)}`;
+          ? `${window.location.origin}/client/mobile-requests?requestId=${data.requestId}`
+          : `${window.location.origin}/guest/mobile-requests?email=${encodeURIComponent(client.email)}&requestId=${data.requestId}`;
 
       await this.sendEmailNotification(
         'mobile_request_declined_client',

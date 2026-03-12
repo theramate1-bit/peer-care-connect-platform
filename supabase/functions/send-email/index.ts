@@ -3007,37 +3007,52 @@ function generateEmailTemplate(emailType: string, data: any, recipientName?: str
         })
       }
 
-    case 'mobile_request_declined_client':
+    case 'mobile_request_declined_client': {
+      const hasAlternate = !!(data.newDate && data.newTime);
+      const altDateFormatted = hasAlternate ? new Date(data.newDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
+      const altTimeFormatted = hasAlternate ? String(data.newTime).slice(0, 5) : '';
       return {
-        subject: `Your mobile request was declined by ${data.practitionerName || 'your practitioner'}`,
+        subject: hasAlternate
+          ? `${data.practitionerName || 'Your practitioner'} suggested an alternative time for your mobile request`
+          : `Your mobile request was declined by ${data.practitionerName || 'your practitioner'}`,
         html: EmailDesign.buildEmail({
-          title: 'Mobile Request Declined',
-          headerColor: EmailDesign.colors.warning,
+          title: hasAlternate ? 'Alternative Time Suggested' : 'Mobile Request Declined',
+          headerColor: hasAlternate ? EmailDesign.colors.primary : EmailDesign.colors.warning,
           content: `
             <div class="content">
               <p style="font-size: 16px;">Hi ${recipientName || 'there'},</p>
               <p style="font-size: 16px; margin-bottom: 20px;">
-                ${data.practitionerName || 'Your practitioner'} declined your mobile booking request.
+                ${data.practitionerName || 'Your practitioner'} was unable to accept your original mobile booking request${hasAlternate ? ' but has suggested an alternative time below' : ''}.
               </p>
               <div class="detail-card">
-                <h3>Request Details</h3>
+                <h3>Original Request</h3>
                 ${data.serviceType ? `<p><strong>Service:</strong> ${data.serviceType}</p>` : ''}
-                ${data.requestedDate ? `<p><strong>Original Date:</strong> ${new Date(data.requestedDate).toLocaleDateString()}</p>` : ''}
-                ${data.requestedTime ? `<p><strong>Original Time:</strong> ${data.requestedTime}</p>` : ''}
+                ${data.requestedDate ? `<p><strong>Date:</strong> ${new Date(data.requestedDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>` : ''}
+                ${data.requestedTime ? `<p><strong>Time:</strong> ${String(data.requestedTime).slice(0, 5)}</p>` : ''}
                 ${data.cancellationReason ? `<p><strong>Reason:</strong> ${data.cancellationReason}</p>` : ''}
-                ${data.newDate && data.newTime ? `<p><strong>Suggested Alternative:</strong> ${new Date(data.newDate).toLocaleDateString()} at ${data.newTime}</p>` : ''}
               </div>
+              ${hasAlternate ? `
+              <div style="margin-top: 16px; padding: 16px 20px; background: ${EmailDesign.colors.primaryBg}; border: 1px solid ${EmailDesign.colors.primary}; border-left: 4px solid ${EmailDesign.colors.primary}; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px; color: ${EmailDesign.colors.primaryDark}; font-size: 16px;">Alternative Time Suggested</h3>
+                <p style="margin: 4px 0;"><strong>Date:</strong> ${altDateFormatted}</p>
+                <p style="margin: 4px 0;"><strong>Time:</strong> ${altTimeFormatted}</p>
+                <p style="font-size: 14px; color: ${EmailDesign.colors.textSecondary}; margin-top: 10px;">
+                  Click the button below to request a new booking for this suggested date and time on the platform.
+                </p>
+              </div>
+              ` : ''}
               <p style="font-size: 14px; color: ${EmailDesign.colors.textSecondary}; margin-top: 20px;">
-                Any payment hold has been released. You can request another time from your mobile requests page.
+                Any payment hold has been released.
               </p>
               <div style="text-align:center; margin-top:24px;">
-                <a href="${data.requestUrl || `${baseUrl}/guest/mobile-requests`}" class="cta-button">View Mobile Requests</a>
+                <a href="${data.requestUrl || `${baseUrl}/guest/mobile-requests`}" class="cta-button">${hasAlternate ? 'Book Suggested Time' : 'Request a Different Time'}</a>
               </div>
             </div>
           `,
           baseUrl
         })
       }
+    }
 
     case 'mobile_request_expired_client':
       return {

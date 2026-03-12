@@ -3543,13 +3543,6 @@ const PracticeClientManagement = () => {
                                   <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground border-r border-border">Type</TableHead>
                                   <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground border-r border-border">
                                     <span className="inline-flex items-center gap-1.5">
-                                      <MapPin className="h-4 w-4" />
-                                      Location
-                                    </span>
-                                  </TableHead>
-                                  <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground border-r border-border">Status</TableHead>
-                                  <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground border-r border-border">
-                                    <span className="inline-flex items-center gap-1.5">
                                       <CheckCircle className="h-4 w-4" />
                                       Note
                                     </span>
@@ -3564,12 +3557,6 @@ const PracticeClientManagement = () => {
                                   const isCompleted = completedSessions.has(session.id);
                                   const sessionDate = new Date(session.session_date);
                                   const sessionNum = calculateSessionNumber(session, sessions);
-                                  const { sessionLocation, locationLabel } = getSessionLocation(session, userProfile ?? undefined);
-                                  const locationDisplay = sessionLocation
-                                    ? locationLabel === 'Visit address'
-                                      ? (sessionLocation === 'Visit address to be confirmed' ? 'Visit (TBC)' : 'Visit')
-                                      : 'Clinic'
-                                    : '—';
                                   return (
                                     <TableRow key={session.id} className="h-14 border-b border-border bg-card hover:bg-muted/50 group">
                                       <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border">
@@ -3585,10 +3572,6 @@ const PracticeClientManagement = () => {
                                         {session.notes && <p className="text-sm line-clamp-2 max-w-[220px]">{session.notes}</p>}
                                       </TableCell>
                                       <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border">{session.session_type}</TableCell>
-                                      <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border">
-                                        <span className="text-sm">{locationDisplay}</span>
-                                      </TableCell>
-                                      <TableCell className="h-14 px-3.5 py-2.5 align-middle border-r border-border">{getStatusBadge(session)}</TableCell>
                                       <TableCell className="h-14 px-3.5 py-2.5 align-middle border-r border-border">
                                         {!hasNotes ? (
                                           <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30 font-normal">
@@ -3628,7 +3611,7 @@ const PracticeClientManagement = () => {
                                 })}
                                 {!hasRows && (
                                   <TableRow className="border-b border-border bg-card">
-                                    <TableCell colSpan={8} className="h-14 px-3.5 py-2.5 text-center text-muted-foreground text-sm">
+                                    <TableCell colSpan={6} className="h-14 px-3.5 py-2.5 text-center text-muted-foreground text-sm">
                                       No sessions in this view. Try another filter or search.
                                     </TableCell>
                                   </TableRow>

@@ -317,7 +317,11 @@ export const MobileRequestManagement: React.FC = () => {
     return <div>Loading mobile requests...</div>;
   }
 
-  const visibleRequests = requests.filter((request) => getEffectiveStatus(request) !== 'expired');
+  // Only show pending (actionable) and accepted (completed/confirmed bookings); hide declined, cancelled, expired
+  const visibleRequests = requests.filter((request) => {
+    const status = getEffectiveStatus(request);
+    return status === 'pending' || status === 'accepted';
+  });
 
   return (
     <div className="space-y-4">
