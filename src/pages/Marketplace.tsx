@@ -311,7 +311,7 @@ const Marketplace = () => {
 
     try {
       setLoadingGeoSearch(true);
-      const radius = distanceKm === 'all' ? 25 : parseInt(distanceKm);
+      const radius = distanceKm === 'all' ? 15 : parseInt(distanceKm);
 
       const results = await GeoSearchService.findPractitionersNearby(
         geoSearchLocation.lat,
@@ -374,6 +374,18 @@ const Marketplace = () => {
 
       // Strict eligibility first, then apply UI filters
       let filteredResults = enrichedResults.filter(isPractitionerEligibleForMarketplace);
+
+      // Mobile/hybrid: only show if the searched location falls within the practitioner's own
+      // service radius. The RPC/fallback filters by the user's search radius, but a mobile
+      // therapist with a 5km radius should not appear for a location 8km from their base.
+      filteredResults = filteredResults.filter(p => {
+        if (p.therapist_type === 'mobile' || p.therapist_type === 'hybrid') {
+          if (p.distance_km === undefined || p.mobile_service_radius_km == null) return false;
+          return p.distance_km <= p.mobile_service_radius_km;
+        }
+        return true; // clinic-based: already within user's search radius via RPC/fallback
+      });
+
       if (liabilityInsured === 'insured') {
         filteredResults = filteredResults.filter(p => p.has_liability_insurance === true);
       }

@@ -165,9 +165,15 @@ export class GeoSearchService {
         };
       });
 
-      // Filter by radius
+      // Filter by radius:
+      // - Mobile/hybrid: searched location must be within the practitioner's own service radius
+      // - Clinic-based: clinic must be within the user's search radius
       const filtered = practitioners.filter(p => {
         if (p.distance_km === undefined) return false;
+        if (p.therapist_type === 'mobile' || p.therapist_type === 'hybrid') {
+          if (p.mobile_service_radius_km == null) return false;
+          return p.distance_km <= p.mobile_service_radius_km;
+        }
         return p.distance_km <= radiusKm;
       });
 
