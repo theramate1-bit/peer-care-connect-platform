@@ -49,18 +49,11 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 
 - [Agent Context Stack](./integrations/agent-context.md) – Self-hosted agent memory & context assembly
 
-### Customer app (mobile & web — client + guest)
+### Customer mobile (Theramate)
 
-**Product documentation** for **client + guest** journeys (scoped away from practitioner/admin):
-
-- [Customer app docs hub](./customer-app/README.md) — routes, parity matrix, native gaps; **[junior start here](./customer-app/00-JUNIOR_DEV_START_HERE.md)**
-- [BMAD interim UX artifact (customer mobile)](../_bmad-output/planning-artifacts/ux-design-customer-mobile.md) — placeholder until full `create-ux-design` workflow completes
-
-The **native Expo codebase** for customers may live at the repo root in [`customer-app/`](../customer-app/README.md) (see that folder’s `package.json`). Docs are under **`docs/customer-app/`** on purpose so they stay separate from build artifacts.
-
-Related full-product map:
-
-- [Mobile / web full screen inventory](./product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md) — every route including practitioner and admin
+- [Theramate iOS/Android app](../theramate-ios-client/README.md)
+- [BMAD interim UX artifact (customer mobile)](../_bmad-output/planning-artifacts/ux-design-customer-mobile.md)
+- [Mobile / web full screen inventory](./product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md)
 
 ### Product & Email
 

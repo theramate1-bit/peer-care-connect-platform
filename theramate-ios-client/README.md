@@ -1,6 +1,6 @@
 # Theramate iOS Client
 
-**Canonical Theramate customer mobile app** for this monorepo (Expo, iOS + Android). The repo-root `customer-app/` folder is a separate product (Localito Marketplace), not Theramate — use this workspace for all Theramate native work.
+**Canonical Theramate customer mobile app** for this monorepo (Expo, iOS + Android).
 
 A beautiful client app to discover, book, and manage therapy sessions with verified healthcare practitioners.
 

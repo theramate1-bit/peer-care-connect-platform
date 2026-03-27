@@ -9,15 +9,11 @@
 
 ---
 
-## Customer-app docs (client + guest only)
+## Customer mobile scope
 
-For a **scoped** set of markdown files (routes, parity matrix, native gaps, guest/client rules), use:
+Customer mobile implementation lives in **`theramate-ios-client/`**.
 
-**[`docs/customer-app/README.md`](../customer-app/README.md)**
-
-The Expo/native codebase that targets customers may also live under **`customer-app/`** at the repo root (see that folder’s `package.json`). Product documentation for the **customer journey** is intentionally under **`docs/customer-app/`** so it is not confused with app build artifacts.
-
-The inventory below remains the **full product** map (practitioner + admin + client).
+Use this inventory as the **full product** map (practitioner + admin + client) and map customer routes/features into `theramate-ios-client/app` as needed.
 
 ---
 
@@ -26,7 +22,7 @@ The inventory below remains the **full product** map (practitioner + admin + cli
 - **Route** = user-navigable URL (`AppContent.tsx`) or Expo file route.
 - **Screen / page file** = default export that owns most of the layout for that route.
 - **Embedded logic** = heavy UI/business inside components (booking, messaging, SOAP, etc.)—mobile must match **database + RLS + Edge Functions**, not necessarily pixel layout.
-- **Wireframes:** **Customer mobile** — text wireframes + Mermaid in [`docs/customer-app/24-SCREEN_WIREFRAMES_AND_LAYOUTS.md`](../customer-app/24-SCREEN_WIREFRAMES_AND_LAYOUTS.md) and screen IDs in [`25-SCREEN_REGISTRY_FOR_DESIGN.md`](../customer-app/25-SCREEN_REGISTRY_FOR_DESIGN.md). Older: no `*wireframe*` glob; web **`/design-system`**, `UI Assistant/` (see §5).
+- **Wireframes:** Use product docs + native routes in `theramate-ios-client/app` as the source of truth. Older: no `*wireframe*` glob; web **`/design-system`**, `UI Assistant/` (see §5).
 
 ---
 
@@ -227,15 +223,15 @@ All page modules live under `peer-care-connect/src/pages/`. Many are **only** im
 
 ## Phase 5 — Wireframes, captures, and design references
 
-| Asset                                             | Location                                                                                                                                                                                               | What it is                                                                                                                                                                                                                                                     |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Screen capture list (77 “screens”)**            | `capture-all-screens.js`                                                                                                                                                                               | Ordered list of paths for QA/screenshots; **some paths differ** from current `AppContent.tsx` (e.g. `/settings/payouts`, `/payments` are listed in the script but **not** in `AppContent` as scanned). Use **`AppContent.tsx` as source of truth** for routes. |
-| **Design system (web)**                           | Route `/design-system` → `DesignSystem.tsx`                                                                                                                                                            | Live component reference—not wireframes.                                                                                                                                                                                                                       |
-| **UI Assistant**                                  | `UI Assistant/UI Assistant/*.md`                                                                                                                                                                       | Generic Framer/UX patterns (layout, motion, forms)—**not** Theramate-specific wireframes.                                                                                                                                                                      |
-| **Product docs**                                  | `docs/features/`, `docs/product/`                                                                                                                                                                      | Flows, audits, and rules (e.g. guest vs client, hybrid mobile)—use for **logic parity**, not pixel wireframes.                                                                                                                                                 |
-| **Customer mobile wireframes (ASCII + registry)** | [`docs/customer-app/24-SCREEN_WIREFRAMES_AND_LAYOUTS.md`](../customer-app/24-SCREEN_WIREFRAMES_AND_LAYOUTS.md), [`25-SCREEN_REGISTRY_FOR_DESIGN.md`](../customer-app/25-SCREEN_REGISTRY_FOR_DESIGN.md) | Native layouts until Figma frames exist; **SCR-\*** IDs for design handoff.                                                                                                                                                                                    |
+| Asset                                  | Location                                                      | What it is                                                                                                                                                                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Screen capture list (77 “screens”)** | `capture-all-screens.js`                                      | Ordered list of paths for QA/screenshots; **some paths differ** from current `AppContent.tsx` (e.g. `/settings/payouts`, `/payments` are listed in the script but **not** in `AppContent` as scanned). Use **`AppContent.tsx` as source of truth** for routes. |
+| **Design system (web)**                | Route `/design-system` → `DesignSystem.tsx`                   | Live component reference—not wireframes.                                                                                                                                                                                                                       |
+| **UI Assistant**                       | `UI Assistant/UI Assistant/*.md`                              | Generic Framer/UX patterns (layout, motion, forms)—**not** Theramate-specific wireframes.                                                                                                                                                                      |
+| **Product docs**                       | `docs/features/`, `docs/product/`                             | Flows, audits, and rules (e.g. guest vs client, hybrid mobile)—use for **logic parity**, not pixel wireframes.                                                                                                                                                 |
+| **Customer mobile implementation**     | `theramate-ios-client/app` + `theramate-ios-client/README.md` | Source of truth for implemented native screens and route structure.                                                                                                                                                                                            |
 
-**Figma / PNG wireframes:** Paste frame URLs into [`docs/customer-app/25-SCREEN_REGISTRY_FOR_DESIGN.md`](../customer-app/25-SCREEN_REGISTRY_FOR_DESIGN.md) when available; link that file here as the addendum.
+**Figma / PNG wireframes:** Add links directly in product docs under `docs/product/` as they are created.
 
 ---
 

@@ -15,8 +15,8 @@ Welcome! This guide is designed to help junior developers understand and contrib
 
 If your work is the **client or guest** experience on **mobile**, or parity with customer flows on web, read this first:
 
-- **[Start here](../customer-app/00-JUNIOR_DEV_START_HERE.md)** — plain-language overview, diagram, and what to read in order
-- **[Documentation hub](../customer-app/README.md)** — full index under `docs/customer-app/`
+- **[Theramate mobile app README](../../theramate-ios-client/README.md)**
+- **[Mobile / web full inventory](../product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md)**
 
 The component suggestions below focus on the **web** app (`peer-care-connect`).
 
