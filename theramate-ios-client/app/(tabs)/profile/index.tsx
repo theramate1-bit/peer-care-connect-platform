@@ -3,14 +3,14 @@
  * User profile and app settings
  */
 
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import React from "react";
+import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Constants from "expo-constants";
+import { router } from "expo-router";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   User,
-  Heart,
   Target,
   CreditCard,
   Bell,
@@ -20,12 +20,15 @@ import {
   ChevronRight,
   Settings,
   Star,
-} from 'lucide-react-native';
+  MapPin,
+  Dumbbell,
+  ClipboardList,
+} from "lucide-react-native";
 
-import { useAuth } from '@/hooks/useAuth';
-import { Card, PressableCard } from '@/components/ui/Card';
-import { Avatar } from '@/components/ui/Avatar';
-import { Colors } from '@/constants/colors';
+import { useAuth } from "@/hooks/useAuth";
+import { Card, PressableCard } from "@/components/ui/Card";
+import { Avatar } from "@/components/ui/Avatar";
+import { Colors } from "@/constants/colors";
 
 interface MenuItemProps {
   icon: React.ReactNode;
@@ -51,7 +54,7 @@ function MenuItem({
     >
       <View
         className={`w-10 h-10 rounded-full items-center justify-center ${
-          danger ? 'bg-error/10' : 'bg-cream-100'
+          danger ? "bg-error/10" : "bg-cream-100"
         }`}
       >
         {icon}
@@ -59,7 +62,7 @@ function MenuItem({
       <View className="flex-1 ml-3">
         <Text
           className={`font-medium ${
-            danger ? 'text-error' : 'text-charcoal-900'
+            danger ? "text-error" : "text-charcoal-900"
           }`}
         >
           {label}
@@ -68,9 +71,7 @@ function MenuItem({
           <Text className="text-charcoal-500 text-sm">{sublabel}</Text>
         )}
       </View>
-      {showChevron && (
-        <ChevronRight size={20} color={Colors.charcoal[300]} />
-      )}
+      {showChevron && <ChevronRight size={20} color={Colors.charcoal[300]} />}
     </TouchableOpacity>
   );
 }
@@ -100,14 +101,14 @@ export default function ProfileScreen() {
   const { userProfile, signOut } = useAuth();
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
       {
-        text: 'Sign Out',
-        style: 'destructive',
+        text: "Sign Out",
+        style: "destructive",
         onPress: async () => {
           await signOut();
-          router.replace('/(auth)/login');
+          router.replace("/(auth)/login");
         },
       },
     ]);
@@ -115,10 +116,10 @@ export default function ProfileScreen() {
 
   const fullName = userProfile
     ? `${userProfile.first_name} ${userProfile.last_name}`
-    : 'User';
+    : "User";
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -157,24 +158,38 @@ export default function ProfileScreen() {
         >
           <MenuSection title="Your Activity">
             <MenuItem
-              icon={<Heart size={20} color={Colors.terracotta[500]} />}
-              label="Favorites"
-              sublabel="Saved therapists"
-              onPress={() => {}}
-            />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
               icon={<Target size={20} color={Colors.sage[500]} />}
               label="Progress & Goals"
               sublabel="Track your journey"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/progress-goals")}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Star size={20} color={Colors.warning} />}
               label="My Reviews"
               sublabel="Reviews you've left"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/my-reviews")}
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<MapPin size={20} color={Colors.info} />}
+              label="Mobile Requests"
+              sublabel="Track your on-location booking requests"
+              onPress={() => router.push("/(tabs)/profile/mobile-requests")}
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<Dumbbell size={20} color={Colors.terracotta[500]} />}
+              label="My Exercises"
+              sublabel="Home exercise programs and completion"
+              onPress={() => router.push("/(tabs)/profile/exercises")}
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<ClipboardList size={20} color={Colors.charcoal[600]} />}
+              label="Treatment Plans"
+              sublabel="View your active care plans"
+              onPress={() => router.push("/(tabs)/profile/treatment-plans")}
             />
           </MenuSection>
 
@@ -182,19 +197,19 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<User size={20} color={Colors.charcoal[600]} />}
               label="Edit Profile"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/edit-profile")}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<CreditCard size={20} color={Colors.charcoal[600]} />}
               label="Payment Methods"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/payment-methods")}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Bell size={20} color={Colors.charcoal[600]} />}
               label="Notifications"
-              onPress={() => {}}
+              onPress={() => router.push("/notifications")}
             />
           </MenuSection>
 
@@ -202,19 +217,19 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<HelpCircle size={20} color={Colors.charcoal[600]} />}
               label="Help Centre"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/help-centre")}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Shield size={20} color={Colors.charcoal[600]} />}
               label="Privacy & Security"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/privacy-security")}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Settings size={20} color={Colors.charcoal[600]} />}
               label="Settings"
-              onPress={() => {}}
+              onPress={() => router.push("/(tabs)/profile/settings")}
             />
           </MenuSection>
 
@@ -230,11 +245,10 @@ export default function ProfileScreen() {
 
           {/* App Version */}
           <Text className="text-center text-charcoal-400 text-sm mb-4">
-            Theramate v1.0.0
+            Theramate v{Constants.expoConfig?.version ?? "1.0.0"}
           </Text>
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-

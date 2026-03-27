@@ -8,7 +8,9 @@ This repository contains multiple projects:
 
 - **[peer-care-connect](./peer-care-connect/)** - Main therapy platform (React + Vite + Supabase)
 - **[ai-ugc-creator](./ai-ugc-creator/)** - AI video generation tool (Next.js + InstantDB)
-- **[theramate-ios-client](./theramate-ios-client/)** - iOS mobile application
+- **[theramate-ios-client](./theramate-ios-client/)** - **Theramate customer** Expo app (iOS + Android); `npm run typecheck:mobile` targets this package
+- **[customer-app](./customer-app/)** - Separate **Localito Marketplace** Expo app (not Theramate); do not use for Peer Care Connect work
+- **Customer journey docs** (routes, parity, guest flows): [`docs/customer-app/`](./docs/customer-app/README.md)
 
 ## 🚀 Quick Start
 
@@ -29,6 +31,7 @@ See [peer-care-connect/README.md](./peer-care-connect/README.md) for detailed se
 - [Getting Started Guide](./docs/getting-started/development-setup.md)
 - [Environment Setup](./docs/getting-started/environment-setup.md)
 - [Full Documentation Index](./docs/README.md)
+- [Customer app docs (client + guest)](./docs/customer-app/README.md) — hub; **[junior start here](./docs/customer-app/00-JUNIOR_DEV_START_HERE.md)** for onboarding
 
 ## 📚 Documentation
 
@@ -45,6 +48,7 @@ Comprehensive documentation is available in the [`docs/`](./docs/) directory:
 ## 🛠️ Technology Stack
 
 ### Main Platform
+
 - **Frontend:** React 18 + TypeScript + Vite
 - **Backend:** Supabase (PostgreSQL + Edge Functions)
 - **Styling:** Tailwind CSS + Shadcn/ui
@@ -52,6 +56,7 @@ Comprehensive documentation is available in the [`docs/`](./docs/) directory:
 - **Testing:** Jest + Playwright
 
 ### Other Projects
+
 - **AI UGC Creator:** Next.js + InstantDB
 - **iOS Client:** React Native / Expo
 
@@ -93,6 +98,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for version history and planned features.
 ## 🌟 Features
 
 ### Core Platform Features
+
 - Credit-based economy for therapy sessions
 - Real-time messaging between clients and therapists
 - Professional verification system
@@ -106,12 +112,14 @@ See [CHANGELOG.md](./CHANGELOG.md) for version history and planned features.
 ## 🚀 Getting Started
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/your-username/peer-care-connect.git
    cd peer-care-connect
    ```
 
 2. **Set up the main project**
+
    ```bash
    cd peer-care-connect
    npm install
@@ -131,7 +139,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for version history and planned features.
 .
 ├── peer-care-connect/      # Main platform
 ├── ai-ugc-creator/         # AI video tool
-├── theramate-ios-client/   # iOS app
+├── theramate-ios-client/   # Theramate customer (expo, iOS + Android)
 ├── docs/                    # Documentation
 ├── .github/                 # GitHub workflows and templates
 └── README.md               # This file

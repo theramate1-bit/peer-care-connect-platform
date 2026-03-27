@@ -1,0 +1,54 @@
+# Fully offline - no Graphiti, no external APIs
+# Uses Postgres store only. Run: docker compose -f docker-compose.offline.yml up -d
+
+services:
+  neo4j:
+    image: neo4j:5.22
+    container_name: agent-context-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-agentcontext123}
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent-context-postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${PG_USER:-agentcontext}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-agentcontext123}
+      POSTGRES_DB: ${PG_DB:-agentcontext}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentcontext -d agentcontext"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  context-service:
+    build:
+      context: context-service
+      dockerfile: Dockerfile
+    container_name: agent-context-service
+    ports:
+      - "8002:8000"
+    environment:
+      POSTGRES_URL: postgresql://${PG_USER:-agentcontext}:${PG_PASSWORD:-agentcontext123}@postgres:5432/${PG_DB:-agentcontext}
+    volumes:
+      - ./ingest:/app/ingest
+      - ./config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:
+  postgres_data:

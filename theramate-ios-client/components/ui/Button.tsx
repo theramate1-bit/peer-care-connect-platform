@@ -3,28 +3,26 @@
  * Soft cream theme with sage/terracotta accents
  */
 
-import React from 'react';
+import React from "react";
 import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
-  ViewStyle,
-  TextStyle,
   TouchableOpacityProps,
-} from 'react-native';
-import { styled } from 'nativewind';
+} from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
-const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
 
-interface ButtonProps extends Omit<TouchableOpacityProps, 'style'> {
+interface ButtonProps extends Omit<TouchableOpacityProps, "style"> {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive";
+  size?: "sm" | "md" | "lg";
   isLoading?: boolean;
   disabled?: boolean;
   leftIcon?: React.ReactNode;
@@ -35,52 +33,52 @@ interface ButtonProps extends Omit<TouchableOpacityProps, 'style'> {
 
 const variantStyles = {
   primary: {
-    container: 'bg-sage-500 active:bg-sage-600',
-    text: 'text-white font-semibold',
+    container: "bg-sage-500 active:bg-sage-600",
+    text: "text-white font-semibold",
   },
   secondary: {
-    container: 'bg-terracotta-500 active:bg-terracotta-600',
-    text: 'text-white font-semibold',
+    container: "bg-terracotta-500 active:bg-terracotta-600",
+    text: "text-white font-semibold",
   },
   outline: {
-    container: 'bg-transparent border-2 border-sage-500 active:bg-sage-500/10',
-    text: 'text-sage-500 font-semibold',
+    container: "bg-transparent border-2 border-sage-500 active:bg-sage-500/10",
+    text: "text-sage-500 font-semibold",
   },
   ghost: {
-    container: 'bg-transparent active:bg-charcoal-100',
-    text: 'text-charcoal-700 font-medium',
+    container: "bg-transparent active:bg-charcoal-100",
+    text: "text-charcoal-700 font-medium",
   },
   destructive: {
-    container: 'bg-error active:bg-error/90',
-    text: 'text-white font-semibold',
+    container: "bg-error active:bg-error/90",
+    text: "text-white font-semibold",
   },
 };
 
 const sizeStyles = {
   sm: {
-    container: 'px-4 py-2 rounded-md',
-    text: 'text-sm',
+    container: "px-4 py-2 rounded-md",
+    text: "text-sm",
   },
   md: {
-    container: 'px-6 py-3 rounded-lg',
-    text: 'text-base',
+    container: "px-6 py-3 rounded-lg",
+    text: "text-base",
   },
   lg: {
-    container: 'px-8 py-4 rounded-xl',
-    text: 'text-lg',
+    container: "px-8 py-4 rounded-xl",
+    text: "text-lg",
   },
 };
 
 export function Button({
   children,
-  variant = 'primary',
-  size = 'md',
+  variant = "primary",
+  size = "md",
   isLoading = false,
   disabled = false,
   leftIcon,
   rightIcon,
   fullWidth = false,
-  className = '',
+  className = "",
   onPressIn,
   onPressOut,
   ...props
@@ -112,8 +110,8 @@ export function Button({
         flex-row items-center justify-center
         ${variantStyle.container}
         ${sizeStyle.container}
-        ${fullWidth ? 'w-full' : ''}
-        ${isDisabled ? 'opacity-50' : ''}
+        ${fullWidth ? "w-full" : ""}
+        ${isDisabled ? "opacity-50" : ""}
         ${className}
       `}
       disabled={isDisabled}
@@ -125,7 +123,9 @@ export function Button({
       {isLoading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? '#7A9E7E' : '#FFFFFF'}
+          color={
+            variant === "outline" || variant === "ghost" ? "#7A9E7E" : "#FFFFFF"
+          }
         />
       ) : (
         <>
@@ -134,8 +134,8 @@ export function Button({
             className={`
               ${variantStyle.text}
               ${sizeStyle.text}
-              ${leftIcon ? 'ml-2' : ''}
-              ${rightIcon ? 'mr-2' : ''}
+              ${leftIcon ? "ml-2" : ""}
+              ${rightIcon ? "mr-2" : ""}
             `}
           >
             {children}
@@ -148,4 +148,3 @@ export function Button({
 }
 
 export default Button;
-

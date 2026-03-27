@@ -1,0 +1,69 @@
+{
+  "project_info": {
+    "project_number": "935587814271",
+    "firebase_url": "https://greenbay-chat.firebaseio.com",
+    "project_id": "greenbay-chat",
+    "storage_bucket": "greenbay-chat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:935587814271:android:b5dc9ea13e43737c75184a",
+        "android_client_info": {
+          "package_name": "com.company.kevesta"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "935587814271-ahm6423gm8dm1frna7kv7443nfpmurvm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUZI1aRWD5X_zoLQu88uWBmTrARdt5cjk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "935587814271-ahm6423gm8dm1frna7kv7443nfpmurvm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:935587814271:android:32be013d5739088075184a",
+        "android_client_info": {
+          "package_name": "com.localito.marketplace"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "935587814271-ahm6423gm8dm1frna7kv7443nfpmurvm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUZI1aRWD5X_zoLQu88uWBmTrARdt5cjk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "935587814271-ahm6423gm8dm1frna7kv7443nfpmurvm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

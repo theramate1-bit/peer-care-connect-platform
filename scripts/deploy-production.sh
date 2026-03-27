@@ -78,7 +78,7 @@ validate_environment() {
         exit 1
     fi
     
-    if [ -z "$STRIPE_SECRET_KEY" ] || [ "$STRIPE_SECRET_KEY" = "sk_live_your_live_secret_key_here" ]; then
+    if [ -z "$STRIPE_SECRET_KEY" ] || [ "$STRIPE_SECRET_KEY" = "your_live_stripe_secret_key_here" ]; then
         print_error "STRIPE_SECRET_KEY not set or still has placeholder value"
         exit 1
     fi

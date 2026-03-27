@@ -1,10 +1,13 @@
 # Theramate iOS Client
 
-A beautiful iOS app for clients to discover, book, and manage therapy sessions with verified healthcare practitioners.
+**Canonical Theramate customer mobile app** for this monorepo (Expo, iOS + Android). The repo-root `customer-app/` folder is a separate product (Localito Marketplace), not Theramate — use this workspace for all Theramate native work.
+
+A beautiful client app to discover, book, and manage therapy sessions with verified healthcare practitioners.
 
 ## 🎨 Design System
 
 This app uses a **soft cream theme** inspired by:
+
 - [KokonutUI](https://kokonutui.com)
 - [Magic UI](https://magicui.design)
 - [Aceternity UI](https://ui.aceternity.com)
@@ -33,8 +36,17 @@ npm install
 # Copy environment variables
 cp .env.example .env.local
 
-# Fill in your Supabase and Stripe keys
+# Fill in your Supabase and Stripe keys. After `eas init`, set EAS_PROJECT_ID
+# (see `app.config.js`) so production builds use your Expo project id.
 ```
+
+### Unit tests (deep links, URL helpers)
+
+```bash
+npm test
+```
+
+From monorepo root: `npm run test:mobile`.
 
 ### Development
 
@@ -49,6 +61,7 @@ npm run ios
 ## 📱 Features
 
 ### Phase 1 - Core MVP
+
 - ✅ Authentication (Email/Password, Google, Apple)
 - ✅ Client onboarding flow
 - ✅ Dashboard with upcoming sessions
@@ -59,10 +72,12 @@ npm run ios
 - ✅ Push notifications
 
 ### Phase 2 - Communication
+
 - 🔲 Real-time messaging
 - 🔲 In-app notifications
 
 ### Phase 3 - Engagement
+
 - 🔲 Favorites
 - 🔲 Reviews submission
 - 🔲 Progress tracking
@@ -89,6 +104,7 @@ theramate-ios-client/
 ## 🔗 Backend Integration
 
 This app connects to the same Supabase backend as the web app:
+
 - Authentication via Supabase Auth
 - Real-time data via PostgREST
 - File storage via Supabase Storage
@@ -97,6 +113,7 @@ This app connects to the same Supabase backend as the web app:
 ## 📖 Documentation
 
 See [PRD.md](./PRD.md) for complete product requirements including:
+
 - Database schema
 - API endpoints
 - Auth flow
@@ -114,4 +131,3 @@ See [PRD.md](./PRD.md) for complete product requirements including:
 ## 📝 License
 
 MIT License - See LICENSE file
-

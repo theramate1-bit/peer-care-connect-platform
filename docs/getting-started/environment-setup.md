@@ -5,6 +5,7 @@ This guide explains how to configure environment variables for the Peer Care Con
 ## Overview
 
 Environment variables are used to configure:
+
 - API keys and secrets
 - Database connections
 - Third-party service integrations
@@ -34,6 +35,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 ```
 
 **Where to get these:**
+
 1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
 2. Select your project
 3. Navigate to **Settings** → **API**
@@ -47,11 +49,12 @@ VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
 VITE_STRIPE_CONNECT_CLIENT_ID=ca_your_client_id_here
 
 # Server-only (Edge Functions only)
-STRIPE_SECRET_KEY=sk_test_your_secret_key_here
+STRIPE_SECRET_KEY=your_stripe_secret_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 ```
 
 **Where to get these:**
+
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com)
 2. Navigate to **Developers** → **API keys**
 3. Copy publishable and secret keys
@@ -66,6 +69,7 @@ GROQ_API_KEY=gsk_your_groq_api_key_here
 ```
 
 **Where to get:**
+
 1. Sign up at [Groq Console](https://console.groq.com)
 2. Navigate to **API Keys**
 3. Create a new key
@@ -77,6 +81,7 @@ RESEND_API_KEY=re_your_resend_api_key_here
 ```
 
 **Where to get:**
+
 1. Sign up at [Resend](https://resend.com)
 2. Navigate to **API Keys**
 3. Create a new key
@@ -88,7 +93,7 @@ RESEND_API_KEY=re_your_resend_api_key_here
 ```env
 # Use test mode for Stripe
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_SECRET_KEY=sk_test_...
+STRIPE_SECRET_KEY=your_test_stripe_secret_key_...
 
 # Local development
 VITE_APP_DOMAIN=localhost:5173
@@ -101,7 +106,7 @@ VITE_STRIPE_LIVE_MODE=false
 ```env
 # Use live mode for Stripe
 VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_SECRET_KEY=sk_live_...
+STRIPE_SECRET_KEY=your_live_stripe_secret_key_...
 
 # Production domain
 VITE_APP_DOMAIN=peercareconnect.com
@@ -136,14 +141,17 @@ VITE_STRIPE_LIVE_MODE=true
 ## Setting Variables in Different Environments
 
 ### Local Development
+
 Create `.env.local` file in project root.
 
 ### Vercel
+
 1. Go to Project Settings → Environment Variables
 2. Add variables for each environment
 3. Variables are automatically available
 
 ### Supabase Edge Functions
+
 1. Go to Project Settings → Edge Functions → Secrets
 2. Add secrets via CLI or Dashboard
 3. Access via `Deno.env.get('SECRET_NAME')`
@@ -153,6 +161,7 @@ Create `.env.local` file in project root.
 After setting up environment variables:
 
 1. **Restart development server:**
+
    ```bash
    npm run dev
    ```
@@ -197,7 +206,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # Stripe (Test Mode)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_51ABC123...
-STRIPE_SECRET_KEY=sk_test_51ABC123...
+STRIPE_SECRET_KEY=your_test_stripe_secret_key_here
 STRIPE_WEBHOOK_SECRET=whsec_ABC123...
 
 # App Config

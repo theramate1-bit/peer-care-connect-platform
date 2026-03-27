@@ -1,0 +1,202 @@
+# Comprehensive Security Audit Workflow
+# Cyber Essentials Plus 2026 Compliance
+# Runs on schedule and on-demand
+
+name: Security Audit
+
+on:
+  schedule:
+    # Run weekly on Mondays at 2 AM UTC
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      audit_level:
+        description: "Audit level"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - quick
+          - standard
+          - full
+  push:
+    branches: [main]
+    paths:
+      - "peer-care-connect/package.json"
+      - "peer-care-connect/package-lock.json"
+      - ".github/workflows/security-audit.yml"
+
+jobs:
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./peer-care-connect
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: ./peer-care-connect/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (production)
+        run: npm audit --audit-level=moderate --production
+        continue-on-error: true
+        id: audit_prod
+
+      - name: Run npm audit (all)
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+        id: audit_all
+
+      - name: Generate audit report
+        run: |
+          npm audit --json > audit-report.json || true
+          npm audit --production --json > audit-production.json || true
+
+      - name: Upload audit reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-reports
+          path: |
+            audit-report.json
+            audit-production.json
+          retention-days: 90
+
+      - name: Check for critical vulnerabilities
+        run: |
+          if npm audit --audit-level=critical --production 2>&1 | grep -q "found"; then
+            echo "CRITICAL_VULNERABILITIES=true" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "CRITICAL_VULNERABILITIES=false" >> $GITHUB_ENV
+          fi
+        continue-on-error: true
+
+      - name: Fail on critical vulnerabilities
+        if: env.CRITICAL_VULNERABILITIES == 'true'
+        run: |
+          echo "❌ Critical vulnerabilities found! Please review and fix."
+          exit 1
+
+  code-security-scan:
+    name: Code Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./peer-care-connect
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "./peer-care-connect"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          exit-code: "1"
+          ignore-unfixed: false
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+          wait-for-processing: true
+
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: .gitleaks.toml
+          exit-code: 1
+          no-git: false
+          verbose: true
+
+  sbom-generation:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./peer-care-connect
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate SBOM with CycloneDX
+        uses: CycloneDX/gh-action-generate-sbom@v1
+        with:
+          path: ./peer-care-connect
+          output: sbom.json
+          output-format: json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 365
+
+      - name: Upload SBOM to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: sbom.json
+
+  security-summary:
+    name: Security Audit Summary
+    runs-on: ubuntu-latest
+    needs:
+      [dependency-audit, code-security-scan, secret-scanning, sbom-generation]
+    if: always()
+
+    steps:
+      - name: Generate security summary
+        run: |
+          echo "## 🔒 Security Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Audit Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependency Audit: ${{ needs.dependency-audit.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Code Security Scan: ${{ needs.code-security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Secret Scanning: ${{ needs.secret-scanning.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SBOM Generation: ${{ needs.sbom-generation.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

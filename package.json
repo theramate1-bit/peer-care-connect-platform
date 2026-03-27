@@ -4,6 +4,7 @@
   "private": true,
   "description": "Peer Care Connect / Theramate - Credit-based therapy exchange platform",
   "workspaces": [
+    "backend",
     "peer-care-connect",
     "ai-ugc-creator",
     "theramate-ios-client"
@@ -11,13 +12,26 @@
   "scripts": {
     "dev": "npm run dev --workspace=peer-care-connect",
     "build": "npm run build --workspace=peer-care-connect",
-    "test": "npm run test --workspace=peer-care-connect",
+    "email:build": "node scripts/build-emails.js",
+    "email:send-all-previews": "node scripts/send-all-test-emails.mjs",
+    "email:send-full-html-resend": "deno run -A --env-file=.env supabase/functions/send-email/preview-send-all-resend.ts",
+    "test": "npm run test --workspace=peer-care-connect && npm run test --workspace=backend",
+    "test:web": "npm run test --workspace=peer-care-connect",
+    "test:backend": "npm run test --workspace=backend",
+    "test:ci": "npm run test:ci --workspace=peer-care-connect && npm run test:ci --workspace=backend",
     "lint": "npm run lint --workspace=peer-care-connect",
-    "prepare": "husky install"
+    "typecheck:mobile": "npm run type-check --workspace=theramate-ios-client",
+    "test:mobile": "npm test --workspace=theramate-ios-client",
+    "prepare": "husky install",
+    "agent-context:up": "cd agent-context && docker compose up -d",
+    "agent-context:offline": "cd agent-context && docker compose -f docker-compose.offline.yml up -d",
+    "agent-context:down": "cd agent-context && docker compose down"
   },
   "devDependencies": {
     "husky": "^9.0.0",
-    "lint-staged": "^15.0.0"
+    "juice": "^10.0.1",
+    "lint-staged": "^15.0.0",
+    "mjml": "^4.18.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -45,5 +59,9 @@
     "typescript"
   ],
   "author": "Peer Care Connect Team",
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7"
+  }
 }

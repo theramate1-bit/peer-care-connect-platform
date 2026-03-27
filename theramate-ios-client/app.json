@@ -13,14 +13,19 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFDF8"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.theramate.client",
       "buildNumber": "1",
+      "associatedDomains": [
+        "applinks:theramate.com",
+        "applinks:www.theramate.com"
+      ],
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "Theramate",
+        "UIBackgroundModes": ["remote-notification"],
         "NSLocationWhenInUseUsageDescription": "Theramate uses your location to find therapists near you.",
         "NSLocationAlwaysUsageDescription": "Theramate uses your location to find therapists near you.",
         "NSCameraUsageDescription": "Theramate needs camera access to take profile photos.",
@@ -33,7 +38,26 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFDF8"
       },
-      "package": "com.theramate.client"
+      "package": "com.theramate.client",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "theramate.com",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.theramate.com",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -90,4 +114,3 @@
     }
   }
 }
-

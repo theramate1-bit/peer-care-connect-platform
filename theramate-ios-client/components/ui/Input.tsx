@@ -3,23 +3,23 @@
  * Soft cream theme text input
  */
 
-import React, { forwardRef, useState } from 'react';
+import React, { forwardRef, useState } from "react";
 import {
   View,
   TextInput,
   Text,
   TextInputProps,
   TouchableOpacity,
-} from 'react-native';
+} from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-} from 'react-native-reanimated';
-import { Eye, EyeOff } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+} from "react-native-reanimated";
+import { Eye, EyeOff } from "lucide-react-native";
+import { Colors } from "@/constants/colors";
 
-interface InputProps extends Omit<TextInputProps, 'style'> {
+interface InputProps extends Omit<TextInputProps, "style"> {
   label?: string;
   error?: string;
   hint?: string;
@@ -43,17 +43,17 @@ export const Input = forwardRef<TextInput, InputProps>(
       rightIcon,
       isPassword = false,
       disabled = false,
-      className = '',
-      containerClassName = '',
+      className = "",
+      containerClassName = "",
       onFocus,
       onBlur,
       ...props
     },
-    ref
+    ref,
   ) => {
     const [isFocused, setIsFocused] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const borderColor = useSharedValue(Colors.cream[300]);
+    const borderColor = useSharedValue<string>(Colors.cream[300]);
 
     const animatedStyle = useAnimatedStyle(() => ({
       borderColor: borderColor.value,
@@ -67,10 +67,9 @@ export const Input = forwardRef<TextInput, InputProps>(
 
     const handleBlur = (e: any) => {
       setIsFocused(false);
-      borderColor.value = withTiming(
-        error ? Colors.error : Colors.cream[300],
-        { duration: 150 }
-      );
+      borderColor.value = withTiming(error ? Colors.error : Colors.cream[300], {
+        duration: 150,
+      });
       onBlur?.(e);
     };
 
@@ -87,23 +86,19 @@ export const Input = forwardRef<TextInput, InputProps>(
           className={`
             flex-row items-center
             bg-white border-2 rounded-xl
-            ${error ? 'border-error' : ''}
-            ${disabled ? 'opacity-50 bg-cream-100' : ''}
+            ${error ? "border-error" : ""}
+            ${disabled ? "opacity-50 bg-cream-100" : ""}
           `}
         >
-          {leftIcon && (
-            <View className="pl-4 pr-2">
-              {leftIcon}
-            </View>
-          )}
+          {leftIcon && <View className="pl-4 pr-2">{leftIcon}</View>}
 
           <TextInput
             ref={ref}
             className={`
               flex-1 py-3 px-4
               text-base text-charcoal-900
-              ${leftIcon ? 'pl-0' : ''}
-              ${rightIcon || isPassword ? 'pr-0' : ''}
+              ${leftIcon ? "pl-0" : ""}
+              ${rightIcon || isPassword ? "pr-0" : ""}
               ${className}
             `}
             placeholderTextColor={Colors.charcoal[300]}
@@ -129,29 +124,22 @@ export const Input = forwardRef<TextInput, InputProps>(
           )}
 
           {rightIcon && !isPassword && (
-            <View className="pr-4 pl-2">
-              {rightIcon}
-            </View>
+            <View className="pr-4 pl-2">{rightIcon}</View>
           )}
         </Animated.View>
 
         {error && (
-          <Text className="text-sm text-error mt-1.5 ml-1">
-            {error}
-          </Text>
+          <Text className="text-sm text-error mt-1.5 ml-1">{error}</Text>
         )}
 
         {hint && !error && (
-          <Text className="text-sm text-charcoal-400 mt-1.5 ml-1">
-            {hint}
-          </Text>
+          <Text className="text-sm text-charcoal-400 mt-1.5 ml-1">{hint}</Text>
         )}
       </View>
     );
-  }
+  },
 );
 
-Input.displayName = 'Input';
+Input.displayName = "Input";
 
 export default Input;
-

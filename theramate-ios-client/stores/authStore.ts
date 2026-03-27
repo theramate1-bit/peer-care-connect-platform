@@ -3,12 +3,12 @@
  * Manages authentication state
  */
 
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, authHelpers } from '@/lib/supabase';
-import type { User } from '@/types/database';
-import type { Session, User as AuthUser } from '@supabase/supabase-js';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase, authHelpers } from "@/lib/supabase";
+import type { User } from "@/types/database";
+import type { Session, User as AuthUser } from "@supabase/supabase-js";
 
 interface AuthState {
   // State
@@ -21,12 +21,29 @@ interface AuthState {
 
   // Actions
   initialize: () => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ success: boolean; error?: string }>;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signInWithOAuth: (provider: 'google' | 'apple') => Promise<{ success: boolean; error?: string }>;
+  signUp: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  signIn: (
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  signInWithOAuth: (
+    provider: "google" | "apple",
+  ) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (
+    email: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (
+    newPassword: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (
+    updates: Partial<User>,
+  ) => Promise<{ success: boolean; error?: string }>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
 }
@@ -48,10 +65,11 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: true });
 
           // Get current session
-          const { session, error: sessionError } = await authHelpers.getSession();
-          
+          const { session, error: sessionError } =
+            await authHelpers.getSession();
+
           if (sessionError) {
-            console.error('Session error:', sessionError);
+            console.error("Session error:", sessionError);
             set({ isLoading: false, isInitialized: true });
             return;
           }
@@ -59,9 +77,9 @@ export const useAuthStore = create<AuthState>()(
           if (session) {
             // Fetch user profile
             const { data: profile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
+              .from("users")
+              .select("*")
+              .eq("id", session.user.id)
               .single();
 
             set({
@@ -77,13 +95,13 @@ export const useAuthStore = create<AuthState>()(
 
           // Listen for auth changes
           supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('Auth state changed:', event);
-            
+            console.log("Auth state changed:", event);
+
             if (session) {
               const { data: profile } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
+                .from("users")
+                .select("*")
+                .eq("id", session.user.id)
                 .single();
 
               set({
@@ -100,7 +118,7 @@ export const useAuthStore = create<AuthState>()(
             }
           });
         } catch (error) {
-          console.error('Auth initialization error:', error);
+          console.error("Auth initialization error:", error);
           set({ isLoading: false, isInitialized: true });
         }
       },
@@ -123,18 +141,20 @@ export const useAuthStore = create<AuthState>()(
 
           // Create user profile
           if (data.user) {
-            const { error: profileError } = await supabase.from('users').insert({
-              id: data.user.id,
-              email,
-              first_name: firstName,
-              last_name: lastName,
-              full_name: `${firstName} ${lastName}`,
-              user_role: 'client',
-              onboarding_status: 'not_started',
-            });
+            const { error: profileError } = await supabase
+              .from("users")
+              .insert({
+                id: data.user.id,
+                email,
+                first_name: firstName,
+                last_name: lastName,
+                full_name: `${firstName} ${lastName}`,
+                user_role: "client",
+                onboarding_status: "not_started",
+              });
 
             if (profileError) {
-              console.error('Profile creation error:', profileError);
+              console.error("Profile creation error:", profileError);
             }
           }
 
@@ -158,16 +178,22 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: error.message };
           }
 
+          const authUser = data.user;
+          if (!authUser) {
+            set({ isLoading: false, error: "No user returned" });
+            return { success: false, error: "No user returned" };
+          }
+
           // Fetch user profile
           const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.user.id)
+            .from("users")
+            .select("*")
+            .eq("id", authUser.id)
             .single();
 
           set({
             session: data.session,
-            authUser: data.user,
+            authUser,
             userProfile: profile,
             isLoading: false,
           });
@@ -211,7 +237,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         } catch (error) {
-          console.error('Sign out error:', error);
+          console.error("Sign out error:", error);
           set({ isLoading: false });
         }
       },
@@ -236,20 +262,37 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // Update password
+      updatePassword: async (newPassword) => {
+        try {
+          set({ isLoading: true, error: null });
+          const { error } = await authHelpers.updatePassword(newPassword);
+          if (error) {
+            set({ isLoading: false, error: error.message });
+            return { success: false, error: error.message };
+          }
+          set({ isLoading: false });
+          return { success: true };
+        } catch (error: any) {
+          set({ isLoading: false, error: error.message });
+          return { success: false, error: error.message };
+        }
+      },
+
       // Update profile
       updateProfile: async (updates) => {
         try {
           const { userProfile } = get();
           if (!userProfile) {
-            return { success: false, error: 'No user profile' };
+            return { success: false, error: "No user profile" };
           }
 
           set({ isLoading: true, error: null });
 
           const { data, error } = await supabase
-            .from('users')
+            .from("users")
             .update(updates)
-            .eq('id', userProfile.id)
+            .eq("id", userProfile.id)
             .select()
             .single();
 
@@ -273,16 +316,16 @@ export const useAuthStore = create<AuthState>()(
           if (!authUser) return;
 
           const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authUser.id)
+            .from("users")
+            .select("*")
+            .eq("id", authUser.id)
             .single();
 
           if (profile) {
             set({ userProfile: profile });
           }
         } catch (error) {
-          console.error('Profile refresh error:', error);
+          console.error("Profile refresh error:", error);
         }
       },
 
@@ -290,19 +333,19 @@ export const useAuthStore = create<AuthState>()(
       clearError: () => set({ error: null }),
     }),
     {
-      name: 'theramate-auth',
+      name: "theramate-auth",
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         // Only persist non-sensitive data
         userProfile: state.userProfile,
       }),
-    }
-  )
+    },
+  ),
 );
 
 // Selectors
 export const selectIsAuthenticated = (state: AuthState) => !!state.session;
-export const selectIsClient = (state: AuthState) => state.userProfile?.user_role === 'client';
-export const selectNeedsOnboarding = (state: AuthState) => 
-  state.userProfile?.onboarding_status !== 'completed';
-
+export const selectIsClient = (state: AuthState) =>
+  state.userProfile?.user_role === "client";
+export const selectNeedsOnboarding = (state: AuthState) =>
+  state.userProfile?.onboarding_status !== "completed";

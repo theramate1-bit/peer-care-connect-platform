@@ -16,7 +16,7 @@
       "dest": "/api/$1"
     },
     {
-      "src": "/(.*)",
+      "src": "/:path((?!api|sitemap\\.xml|sitemap_index\\.xml|sitemapindex\\.xml|sitemap-1\\.xml|robots\\.txt).*)",
       "dest": "/index.html"
     }
   ],
@@ -26,14 +26,6 @@
     "VITE_SUPABASE_URL": "@supabase-url",
     "VITE_SUPABASE_ANON_KEY": "@supabase-anon-key"
   },
-  "functions": {
-    "api/stripe-webhook": {
-      "maxDuration": 30
-    },
-    "api/stripe-payment": {
-      "maxDuration": 30
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
@@ -41,10 +33,6 @@
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
         },
         {
           "key": "X-XSS-Protection",

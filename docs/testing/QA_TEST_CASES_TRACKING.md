@@ -1,0 +1,128 @@
+# QA Test Cases (Jira / Notion / TestRail Ready)
+
+Copy the table below into Jira, Notion, or TestRail. A CSV export is in `qa_test_cases.csv` for spreadsheet import.
+
+---
+
+## Test cases table
+
+| ID    | Area        | Test case title                             | Steps                                                 | Expected result                             | Type      | Priority |
+| ----- | ----------- | ------------------------------------------- | ----------------------------------------------------- | ------------------------------------------- | --------- | -------- |
+| TC-01 | Profile     | Profile loads without console errors        | Open /profile as practitioner                         | No console errors                           | Manual    | P0       |
+| TC-02 | Profile     | No input glitches while editing             | Edit name/phone; type in fields                       | Fields do not reset or flicker              | Manual    | P0       |
+| TC-03 | Profile     | Save persists all fields                    | Edit fields, click Save                               | Success toast; data saved                   | Manual    | P0       |
+| TC-04 | Profile     | Saved data persists after refresh           | Save profile, reload page                             | All saved values still shown                | Manual    | P0       |
+| TC-05 | Profile     | Liability insured toggle saves              | Toggle Liability Insured, Save                        | Value persists after refresh                | Manual    | P0       |
+| TC-06 | Profile     | Liability insured on public profile         | Set Liability Insured, view public profile            | Badge/status matches                        | Manual    | P1       |
+| TC-07 | Dashboard   | Recent Activity near top                    | Open practitioner dashboard                           | Recent Activity visible without scrolling   | Manual    | P1       |
+| TC-08 | Dashboard   | Redirect loads at top                       | Complete action that redirects to dashboard           | Page loads with scroll at top               | Manual    | P1       |
+| TC-09 | Dashboard   | Notification cards have dismiss (X)         | View dashboard with notification cards                | Each card has X button                      | Manual    | P1       |
+| TC-10 | Dashboard   | Dismiss removes notification                | Click X on a notification card                        | Card closes; does not reappear this session | Manual    | P1       |
+| TC-11 | Diary       | Guest booking shows Guest label             | Create guest booking; open practitioner diary         | Entry shows Guest (not Client)              | Manual    | P0       |
+| TC-12 | Diary       | Client booking shows Client label           | Booking from registered user; open diary              | Entry shows Client                          | Manual    | P0       |
+| TC-13 | Diary       | Guest entry has no Profile link             | View guest booking in diary                           | No Profile button or link to client         | Manual    | P0       |
+| TC-14 | Diary       | Client entry links to profile               | View client booking in diary                          | Profile button links to client records      | Manual    | P1       |
+| TC-15 | Booking     | Expired booking not confirmed               | Start booking; wait >5 min without paying             | Session not shown as confirmed              | Manual    | P0       |
+| TC-16 | Booking     | No false client from incomplete booking     | Abandon booking; open Practitioner → Clients          | No client entry for abandoned booking       | Manual    | P0       |
+| TC-17 | Booking     | Only confirmed in diary                     | View practitioner diary                               | Only scheduled/confirmed/in_progress        | Manual    | P0       |
+| TC-18 | Messaging   | Practitioner→guest message in UI            | Practitioner sends message to guest                   | Message appears in thread                   | Manual    | P0       |
+| TC-19 | Messaging   | Guest receives email on message             | Practitioner sends message to guest                   | Guest gets email notification               | Manual    | P0       |
+| TC-20 | Messaging   | Guest→practitioner message in inbox         | Guest replies (or sends); practitioner opens messages | Message visible in practitioner inbox       | Manual    | P1       |
+| TC-21 | Email       | Booking confirmation sent to guest          | Complete paid booking as guest                        | Guest receives booking confirmation email   | Manual    | P0       |
+| TC-22 | Email       | Confirmation email has location             | Receive booking confirmation                          | Email body includes location text           | Manual    | P0       |
+| TC-23 | Email       | Location has clickable maps link            | Open booking confirmation email                       | Location is link to maps                    | Manual    | P0       |
+| TC-24 | Email       | View booking details works without login    | Click "View booking details" in email as guest        | Page opens; no login required               | Manual    | P0       |
+| TC-25 | Email       | Payment confirmation not sent               | Complete booking payment                              | No separate payment confirmation email      | Manual    | P1       |
+| TC-26 | Email       | Message email to guest on practitioner send | Practitioner sends message to guest                   | Guest receives message notification email   | Manual    | P0       |
+| TC-27 | Body map    | X markers (not numbers) on map              | Select areas on body map                              | Markers show as X or circle, not numbers    | Manual    | P1       |
+| TC-28 | Body map    | Multiple markers visible                    | Select several areas                                  | All markers visible without overlap         | Manual    | P1       |
+| TC-29 | Body map    | Markers on saved form                       | Submit form with body map; view as practitioner       | Markings visible on saved form              | Manual    | P1       |
+| TC-30 | Body map    | Front and back side-by-side (practitioner)  | Practitioner views client form with body map          | Front and back shown side-by-side           | Manual    | P1       |
+| TC-31 | Body map    | Practitioner view read-only                 | Practitioner opens body map from form                 | Cannot edit client's markings               | Manual    | P1       |
+| TC-32 | Notes       | No notes = Not Started                      | Session with no note created                          | Notes table shows Not Started               | Manual    | P0       |
+| TC-33 | Notes       | Save note = In Progress                     | Create note; click Save (do not Complete)             | Status shows In Progress                    | Manual    | P0       |
+| TC-34 | Notes       | Complete button = Completed                 | Click Complete on note                                | Status shows Completed                      | Manual    | P0       |
+| TC-35 | Notes       | Save does not set Completed                 | Fill SOAP; Save only                                  | Status remains In Progress                  | Manual    | P0       |
+| TC-36 | Notes       | Status persists after refresh               | Save or complete note; refresh                        | Same status after reload                    | Manual    | P1       |
+| TC-37 | Goals       | Goals popup has no Target Value             | Open Goals popup                                      | No Target Value field                       | Manual    | P1       |
+| TC-38 | Goals       | Goal creation works without target          | Create goal with title/description/timeframe only     | Goal saves successfully                     | Manual    | P1       |
+| TC-39 | Goals       | Goals layout not broken                     | Open Goals; create/edit goal                          | Layout clean, no empty gap                  | Manual    | P2       |
+| TC-40 | Client      | Client profile tab visible                  | Log in as client; check nav                           | Profile tab present                         | Manual    | P0       |
+| TC-41 | Client      | Personal details editable                   | Open client Profile; switch to edit                   | Name, phone, etc. editable                  | Manual    | P0       |
+| TC-42 | Client      | Preferences saved in Supabase               | Change notification prefs; Save; refresh              | Preferences persist                         | Manual    | P0       |
+| TC-43 | Client      | Notification system respects preferences    | Disable a notification type; trigger that type        | Notification not sent per preference        | Manual    | P1       |
+| TC-44 | Guest       | Guest→client conversion no DB error         | Book as guest; later register with same email         | Account created; no Supabase error          | Manual    | P0       |
+| TC-45 | Guest       | Booking linked after conversion             | After guest→client conversion                         | Existing booking linked to new account      | Manual    | P0       |
+| TC-46 | Guest       | No duplicate user records                   | Convert guest to client with same email               | Single user record                          | Manual    | P0       |
+| TC-47 | CSP         | Dropdowns work with CSP                     | Open dropdowns across site (Vercel deploy)            | Dropdowns open and function                 | Manual    | P0       |
+| TC-48 | CSP         | Modals and popovers work                    | Open modals, popovers, tooltips                       | All open without CSP block                  | Manual    | P0       |
+| TC-49 | CSP         | No CSP errors in console                    | Open DevTools Console on live site                    | No "Refused to execute" CSP messages        | Manual    | P0       |
+| TC-50 | Marketplace | Qualification upload JPG/PNG/PDF/DOCX       | Upload JPG, PNG, PDF, DOCX as qualification           | Upload success for each                     | Manual    | P1       |
+| TC-51 | Marketplace | Upload visible on public profile            | Upload qualification; view public profile             | File visible on profile                     | Manual    | P1       |
+| TC-52 | Marketplace | File preview works                          | View uploaded file on profile                         | Preview or download works                   | Manual    | P2       |
+| TC-53 | Profile     | Profile edits persist (e2e)                 | Playwright: goto profile, fill phone, Save, reload    | Phone value matches                         | Automated | P0       |
+| TC-54 | Dashboard   | Dashboard loads at top (e2e)                | Playwright: goto dashboard; get scrollY               | scrollY === 0                               | Automated | P1       |
+| TC-55 | Notes       | Save sets In Progress (e2e)                 | Create note, save, read status                        | status === "In Progress"                    | Automated | P1       |
+
+---
+
+## CSV-style block (paste into Sheets / Excel)
+
+```csv
+ID,Area,Test case title,Steps,Expected result,Type,Priority
+TC-01,Profile,Profile loads without console errors,Open /profile as practitioner,No console errors,Manual,P0
+TC-02,Profile,No input glitches while editing,Edit name/phone; type in fields,Fields do not reset or flicker,Manual,P0
+TC-03,Profile,Save persists all fields,Edit fields click Save,Success toast; data saved,Manual,P0
+TC-04,Profile,Saved data persists after refresh,Save profile reload page,All saved values still shown,Manual,P0
+TC-05,Profile,Liability insured toggle saves,Toggle Liability Insured Save,Value persists after refresh,Manual,P0
+TC-06,Profile,Liability insured on public profile,Set Liability Insured view public profile,Badge/status matches,Manual,P1
+TC-07,Dashboard,Recent Activity near top,Open practitioner dashboard,Recent Activity visible without scrolling,Manual,P1
+TC-08,Dashboard,Redirect loads at top,Complete action that redirects to dashboard,Page loads with scroll at top,Manual,P1
+TC-09,Dashboard,Notification cards have dismiss (X),View dashboard with notification cards,Each card has X button,Manual,P1
+TC-10,Dashboard,Dismiss removes notification,Click X on a notification card,Card closes; does not reappear this session,Manual,P1
+TC-11,Diary,Guest booking shows Guest label,Create guest booking; open practitioner diary,Entry shows Guest (not Client),Manual,P0
+TC-12,Diary,Client booking shows Client label,Booking from registered user; open diary,Entry shows Client,Manual,P0
+TC-13,Diary,Guest entry has no Profile link,View guest booking in diary,No Profile button or link to client,Manual,P0
+TC-14,Diary,Client entry links to profile,View client booking in diary,Profile button links to client records,Manual,P1
+TC-15,Booking,Expired booking not confirmed,Start booking; wait >5 min without paying,Session not shown as confirmed,Manual,P0
+TC-16,Booking,No false client from incomplete booking,Abandon booking; open Practitioner → Clients,No client entry for abandoned booking,Manual,P0
+TC-17,Booking,Only confirmed in diary,View practitioner diary,Only scheduled/confirmed/in_progress,Manual,P0
+TC-18,Messaging,Practitioner→guest message in UI,Practitioner sends message to guest,Message appears in thread,Manual,P0
+TC-19,Messaging,Guest receives email on message,Practitioner sends message to guest,Guest gets email notification,Manual,P0
+TC-20,Messaging,Guest→practitioner message in inbox,Guest replies; practitioner opens messages,Message visible in practitioner inbox,Manual,P1
+TC-21,Email,Booking confirmation sent to guest,Complete paid booking as guest,Guest receives booking confirmation email,Manual,P0
+TC-22,Email,Confirmation email has location,Receive booking confirmation,Email body includes location text,Manual,P0
+TC-23,Email,Location has clickable maps link,Open booking confirmation email,Location is link to maps,Manual,P0
+TC-24,Email,View booking details works without login,Click View booking details in email as guest,Page opens; no login required,Manual,P0
+TC-25,Email,Payment confirmation not sent,Complete booking payment,No separate payment confirmation email,Manual,P1
+TC-26,Email,Message email to guest on practitioner send,Practitioner sends message to guest,Guest receives message notification email,Manual,P0
+TC-27,Body map,X markers (not numbers) on map,Select areas on body map,Markers show as X or circle not numbers,Manual,P1
+TC-28,Body map,Multiple markers visible,Select several areas,All markers visible without overlap,Manual,P1
+TC-29,Body map,Markers on saved form,Submit form with body map; view as practitioner,Markings visible on saved form,Manual,P1
+TC-30,Body map,Front and back side-by-side (practitioner),Practitioner views client form with body map,Front and back shown side-by-side,Manual,P1
+TC-31,Body map,Practitioner view read-only,Practitioner opens body map from form,Cannot edit client markings,Manual,P1
+TC-32,Notes,No notes = Not Started,Session with no note created,Notes table shows Not Started,Manual,P0
+TC-33,Notes,Save note = In Progress,Create note; click Save (do not Complete),Status shows In Progress,Manual,P0
+TC-34,Notes,Complete button = Completed,Click Complete on note,Status shows Completed,Manual,P0
+TC-35,Notes,Save does not set Completed,Fill SOAP; Save only,Status remains In Progress,Manual,P0
+TC-36,Notes,Status persists after refresh,Save or complete note; refresh,Same status after reload,Manual,P1
+TC-37,Goals,Goals popup has no Target Value,Open Goals popup,No Target Value field,Manual,P1
+TC-38,Goals,Goal creation works without target,Create goal with title/description/timeframe only,Goal saves successfully,Manual,P1
+TC-39,Goals,Goals layout not broken,Open Goals; create/edit goal,Layout clean no empty gap,Manual,P2
+TC-40,Client,Client profile tab visible,Log in as client; check nav,Profile tab present,Manual,P0
+TC-41,Client,Personal details editable,Open client Profile; switch to edit,Name phone etc. editable,Manual,P0
+TC-42,Client,Preferences saved in Supabase,Change notification prefs; Save; refresh,Preferences persist,Manual,P0
+TC-43,Client,Notification system respects preferences,Disable a notification type; trigger that type,Notification not sent per preference,Manual,P1
+TC-44,Guest,Guest→client conversion no DB error,Book as guest; later register with same email,Account created; no Supabase error,Manual,P0
+TC-45,Guest,Booking linked after conversion,After guest→client conversion,Existing booking linked to new account,Manual,P0
+TC-46,Guest,No duplicate user records,Convert guest to client with same email,Single user record,Manual,P0
+TC-47,CSP,Dropdowns work with CSP,Open dropdowns across site (Vercel deploy),Dropdowns open and function,Manual,P0
+TC-48,CSP,Modals and popovers work,Open modals popovers tooltips,All open without CSP block,Manual,P0
+TC-49,CSP,No CSP errors in console,Open DevTools Console on live site,No Refused to execute CSP messages,Manual,P0
+TC-50,Marketplace,Qualification upload JPG/PNG/PDF/DOCX,Upload JPG PNG PDF DOCX as qualification,Upload success for each,Manual,P1
+TC-51,Marketplace,Upload visible on public profile,Upload qualification; view public profile,File visible on profile,Manual,P1
+TC-52,Marketplace,File preview works,View uploaded file on profile,Preview or download works,Manual,P2
+TC-53,Profile,Profile edits persist (e2e),Playwright: goto profile fill phone Save reload,Phone value matches,Automated,P0
+TC-54,Dashboard,Dashboard loads at top (e2e),Playwright: goto dashboard; get scrollY,scrollY === 0,Automated,P1
+TC-55,Notes,Save sets In Progress (e2e),Create note save read status,status === In Progress,Automated,P1
+```

@@ -1,0 +1,16 @@
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ["babel-preset-expo"],
+    plugins: [
+      [
+        "module-resolver",
+        {
+          root: ["."],
+          alias: { "@": "." },
+        },
+      ],
+      "react-native-worklets/plugin", // Must be last (required for Reanimated in release builds)
+    ],
+  };
+};

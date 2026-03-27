@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "types": ["jest", "node"]
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/setup/**/*.d.ts",
+    "../supabase/functions/_shared/**/*.ts"
+  ]
+}

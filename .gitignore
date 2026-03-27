@@ -25,6 +25,9 @@ out/
 .env.production.local
 .env*.local
 
+# Local email HTML dumps / Resend test payloads (regenerate with Deno/scripts)
+.email-dumps/
+
 # Logs
 logs/
 *.log

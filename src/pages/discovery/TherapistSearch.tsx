@@ -1,30 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { 
-  Search, 
-  Filter, 
-  MapPin, 
-  Star, 
-  Clock, 
-  DollarSign, 
-  Users, 
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Search,
+  Filter,
+  MapPin,
+  Star,
+  Clock,
+  DollarSign,
+  Users,
   Award,
   Calendar,
   Phone,
   Mail,
   ExternalLink,
   Heart,
-  MessageCircle
-} from 'lucide-react';
-import { formatCurrency } from '@/config/payments';
+  MessageCircle,
+} from "lucide-react";
+import { formatCurrency } from "@/config/payments";
 
 interface Therapist {
   id: string;
@@ -63,16 +75,16 @@ const TherapistSearch: React.FC = () => {
   const { toast } = useToast();
   const [therapists, setTherapists] = useState<Therapist[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({
-    therapyType: '',
-    location: '',
-    priceRange: '',
-    rating: '',
-    availability: '',
-    gender: '',
-    experience: '',
-    verifiedOnly: false
+    therapyType: "",
+    location: "",
+    priceRange: "",
+    rating: "",
+    availability: "",
+    gender: "",
+    experience: "",
+    verifiedOnly: false,
   });
   const [showFilters, setShowFilters] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -85,24 +97,24 @@ const TherapistSearch: React.FC = () => {
     setLoading(true);
     try {
       let query = supabase
-        .from('users')
-        .select('*')
-        .in('user_role', ['sports_therapist', 'massage_therapist', 'osteopath'])
-        .eq('is_active', true);
+        .from("users")
+        .select("*")
+        .in("user_role", ["sports_therapist", "massage_therapist", "osteopath"])
+        .eq("is_active", true);
 
       // Apply filters
       if (filters.therapyType) {
-        query = query.contains('specializations', [filters.therapyType]);
+        query = query.contains("specializations", [filters.therapyType]);
       }
       if (filters.location) {
-        query = query.ilike('location', `%${filters.location}%`);
+        query = query.ilike("location", `%${filters.location}%`);
       }
       if (filters.verifiedOnly) {
-        query = query.eq('verification_status', 'verified');
+        query = query.eq("verification_status", "verified");
       }
       if (filters.experience) {
         const minExperience = parseInt(filters.experience);
-        query = query.gte('experience_years', minExperience);
+        query = query.gte("experience_years", minExperience);
       }
 
       const { data, error } = await query;
@@ -112,8 +124,8 @@ const TherapistSearch: React.FC = () => {
       // Apply price range filter and calculate ratings
       let filteredData = data || [];
       if (filters.priceRange) {
-        const [min, max] = filters.priceRange.split('-').map(Number);
-        filteredData = filteredData.filter(therapist => {
+        const [min, max] = filters.priceRange.split("-").map(Number);
+        filteredData = filteredData.filter((therapist) => {
           if (max) {
             return therapist.hourly_rate >= min && therapist.hourly_rate <= max;
           }
@@ -125,28 +137,29 @@ const TherapistSearch: React.FC = () => {
       const therapistsWithRatings = await Promise.all(
         filteredData.map(async (therapist) => {
           const { data: reviews } = await supabase
-            .from('reviews')
-            .select('overall_rating')
-            .eq('therapist_id', therapist.id)
-            .eq('review_status', 'published');
+            .from("reviews")
+            .select("overall_rating")
+            .eq("therapist_id", therapist.id)
+            .eq("review_status", "published");
 
-          const averageRating = reviews?.length 
-            ? reviews.reduce((sum, r) => sum + r.overall_rating, 0) / reviews.length
+          const averageRating = reviews?.length
+            ? reviews.reduce((sum, r) => sum + r.overall_rating, 0) /
+              reviews.length
             : 0;
 
           return {
             ...therapist,
             average_rating: averageRating,
-            total_reviews: reviews?.length || 0
+            total_reviews: reviews?.length || 0,
           };
-        })
+        }),
       );
 
       // Apply rating filter
       if (filters.rating) {
         const minRating = parseFloat(filters.rating);
-        filteredData = therapistsWithRatings.filter(therapist => 
-          therapist.average_rating >= minRating
+        filteredData = therapistsWithRatings.filter(
+          (therapist) => therapist.average_rating >= minRating,
         );
       } else {
         filteredData = therapistsWithRatings;
@@ -154,11 +167,11 @@ const TherapistSearch: React.FC = () => {
 
       setTherapists(filteredData);
     } catch (error) {
-      console.error('Error loading therapists:', error);
+      console.error("Error loading therapists:", error);
       toast({
         title: "Error",
         description: "Failed to load therapists. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -166,41 +179,46 @@ const TherapistSearch: React.FC = () => {
   };
 
   const handleFilterChange = (field: keyof SearchFilters, value: any) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const clearFilters = () => {
     setFilters({
-      therapyType: '',
-      location: '',
-      priceRange: '',
-      rating: '',
-      availability: '',
-      gender: '',
-      experience: '',
-      verifiedOnly: false
+      therapyType: "",
+      location: "",
+      priceRange: "",
+      rating: "",
+      availability: "",
+      gender: "",
+      experience: "",
+      verifiedOnly: false,
     });
   };
 
   const toggleFavorite = (therapistId: string) => {
-    setFavorites(prev => 
-      prev.includes(therapistId) 
-        ? prev.filter(id => id !== therapistId)
-        : [...prev, therapistId]
+    setFavorites((prev) =>
+      prev.includes(therapistId)
+        ? prev.filter((id) => id !== therapistId)
+        : [...prev, therapistId],
     );
   };
 
-  const filteredTherapists = therapists.filter(therapist => {
+  const filteredTherapists = therapists.filter((therapist) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      const name = `${therapist.first_name} ${therapist.last_name}`.toLowerCase();
-      const specializations = therapist.specializations.join(' ').toLowerCase();
+      const name =
+        `${therapist.first_name} ${therapist.last_name}`.toLowerCase();
+      const specializations = therapist.specializations.join(" ").toLowerCase();
       const location = therapist.location.toLowerCase();
-      
-      if (!name.includes(query) && !specializations.includes(query) && !location.includes(query)) {
+
+      if (
+        !name.includes(query) &&
+        !specializations.includes(query) &&
+        !location.includes(query)
+      ) {
         return false;
       }
     }
@@ -212,7 +230,9 @@ const TherapistSearch: React.FC = () => {
       <Star
         key={i}
         className={`h-4 w-4 ${
-          i < Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+          i < Math.floor(rating)
+            ? "fill-yellow-400 text-yellow-400"
+            : "text-gray-300"
         }`}
       />
     ));
@@ -220,11 +240,15 @@ const TherapistSearch: React.FC = () => {
 
   const getVerificationBadge = (status: string) => {
     switch (status) {
-      case 'verified':
-        return <Badge className="bg-green-100 text-green-800">✓ Verified</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800">⏳ Pending</Badge>;
-      case 'rejected':
+      case "verified":
+        return (
+          <Badge className="bg-green-100 text-green-800">✓ Verified</Badge>
+        );
+      case "pending":
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800">⏳ Pending</Badge>
+        );
+      case "rejected":
         return <Badge className="bg-red-100 text-red-800">✗ Rejected</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
@@ -240,7 +264,8 @@ const TherapistSearch: React.FC = () => {
             Find Your Perfect Therapist
           </h1>
           <p className="text-gray-600">
-            Discover qualified professionals who match your needs and preferences
+            Discover qualified professionals who match your needs and
+            preferences
           </p>
         </div>
 
@@ -276,14 +301,23 @@ const TherapistSearch: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
               <div className="space-y-2">
                 <Label>Therapy Type</Label>
-                <Select value={filters.therapyType} onValueChange={(value) => handleFilterChange('therapyType', value)}>
+                <Select
+                  value={filters.therapyType}
+                  onValueChange={(value) =>
+                    handleFilterChange("therapyType", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All types" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">All types</SelectItem>
-                    <SelectItem value="sports_therapy">Sports Therapy</SelectItem>
-                    <SelectItem value="massage_therapy">Massage Therapy</SelectItem>
+                    <SelectItem value="sports_therapy">
+                      Sports Therapy
+                    </SelectItem>
+                    <SelectItem value="massage_therapy">
+                      Massage Therapy
+                    </SelectItem>
                     <SelectItem value="osteopathy">Osteopathy</SelectItem>
                     <SelectItem value="physiotherapy">Physiotherapy</SelectItem>
                     <SelectItem value="counselling">Counselling</SelectItem>
@@ -296,13 +330,20 @@ const TherapistSearch: React.FC = () => {
                 <Input
                   placeholder="City or area"
                   value={filters.location}
-                  onChange={(e) => handleFilterChange('location', e.target.value)}
+                  onChange={(e) =>
+                    handleFilterChange("location", e.target.value)
+                  }
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>Price Range</Label>
-                <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
+                <Select
+                  value={filters.priceRange}
+                  onValueChange={(value) =>
+                    handleFilterChange("priceRange", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Any price" />
                   </SelectTrigger>
@@ -319,7 +360,10 @@ const TherapistSearch: React.FC = () => {
 
               <div className="space-y-2">
                 <Label>Minimum Rating</Label>
-                <Select value={filters.rating} onValueChange={(value) => handleFilterChange('rating', value)}>
+                <Select
+                  value={filters.rating}
+                  onValueChange={(value) => handleFilterChange("rating", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Any rating" />
                   </SelectTrigger>
@@ -334,7 +378,12 @@ const TherapistSearch: React.FC = () => {
 
               <div className="space-y-2">
                 <Label>Experience</Label>
-                <Select value={filters.experience} onValueChange={(value) => handleFilterChange('experience', value)}>
+                <Select
+                  value={filters.experience}
+                  onValueChange={(value) =>
+                    handleFilterChange("experience", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Any experience" />
                   </SelectTrigger>
@@ -350,7 +399,12 @@ const TherapistSearch: React.FC = () => {
 
               <div className="space-y-2">
                 <Label>Availability</Label>
-                <Select value={filters.availability} onValueChange={(value) => handleFilterChange('availability', value)}>
+                <Select
+                  value={filters.availability}
+                  onValueChange={(value) =>
+                    handleFilterChange("availability", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Any time" />
                   </SelectTrigger>
@@ -366,7 +420,10 @@ const TherapistSearch: React.FC = () => {
 
               <div className="space-y-2">
                 <Label>Gender</Label>
-                <Select value={filters.gender} onValueChange={(value) => handleFilterChange('gender', value)}>
+                <Select
+                  value={filters.gender}
+                  onValueChange={(value) => handleFilterChange("gender", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Any gender" />
                   </SelectTrigger>
@@ -383,7 +440,9 @@ const TherapistSearch: React.FC = () => {
                 <Checkbox
                   id="verifiedOnly"
                   checked={filters.verifiedOnly}
-                  onCheckedChange={(checked) => handleFilterChange('verifiedOnly', checked)}
+                  onCheckedChange={(checked) =>
+                    handleFilterChange("verifiedOnly", checked)
+                  }
                 />
                 <Label htmlFor="verifiedOnly">Verified therapists only</Label>
               </div>
@@ -394,7 +453,9 @@ const TherapistSearch: React.FC = () => {
         {/* Results Count */}
         <div className="mb-6">
           <p className="text-gray-600">
-            {loading ? 'Loading...' : `Found ${filteredTherapists.length} therapist${filteredTherapists.length !== 1 ? 's' : ''}`}
+            {loading
+              ? "Loading..."
+              : `Found ${filteredTherapists.length} therapist${filteredTherapists.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 
@@ -419,13 +480,20 @@ const TherapistSearch: React.FC = () => {
             <div className="text-gray-400 mb-4">
               <Users className="h-16 w-16 mx-auto" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No therapists found</h3>
-            <p className="text-gray-600">Try adjusting your search criteria or filters</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No therapists found
+            </h3>
+            <p className="text-gray-600">
+              Try adjusting your search criteria or filters
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTherapists.map((therapist) => (
-              <Card key={therapist.id} className="hover:shadow-lg transition-shadow">
+              <Card
+                key={therapist.id}
+                className="hover:shadow-lg transition-shadow"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
@@ -438,7 +506,8 @@ const TherapistSearch: React.FC = () => {
                           />
                         ) : (
                           <span className="text-gray-500 text-lg font-medium">
-                            {therapist.first_name[0]}{therapist.last_name[0]}
+                            {therapist.first_name[0]}
+                            {therapist.last_name[0]}
                           </span>
                         )}
                       </div>
@@ -456,10 +525,14 @@ const TherapistSearch: React.FC = () => {
                       size="sm"
                       onClick={() => toggleFavorite(therapist.id)}
                       className={`p-2 ${
-                        favorites.includes(therapist.id) ? 'text-red-500' : 'text-gray-400'
+                        favorites.includes(therapist.id)
+                          ? "text-red-500"
+                          : "text-gray-400"
                       }`}
                     >
-                      <Heart className={`h-4 w-4 ${favorites.includes(therapist.id) ? 'fill-current' : ''}`} />
+                      <Heart
+                        className={`h-4 w-4 ${favorites.includes(therapist.id) ? "fill-current" : ""}`}
+                      />
                     </Button>
                   </div>
                 </CardHeader>
@@ -471,17 +544,24 @@ const TherapistSearch: React.FC = () => {
                       {getRatingStars(therapist.average_rating)}
                     </div>
                     <span className="text-sm text-gray-600">
-                      {therapist.average_rating.toFixed(1)} ({therapist.total_reviews} reviews)
+                      {therapist.average_rating.toFixed(1)} (
+                      {therapist.total_reviews} reviews)
                     </span>
                   </div>
 
                   {/* Specializations */}
                   <div className="flex flex-wrap gap-1">
-                    {therapist.specializations.slice(0, 3).map((spec, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {spec}
-                      </Badge>
-                    ))}
+                    {therapist.specializations
+                      .slice(0, 3)
+                      .map((spec, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {spec}
+                        </Badge>
+                      ))}
                     {therapist.specializations.length > 3 && (
                       <Badge variant="outline" className="text-xs">
                         +{therapist.specializations.length - 3} more
@@ -508,34 +588,87 @@ const TherapistSearch: React.FC = () => {
                     </div>
                     <div className="flex items-center space-x-2 text-gray-600">
                       <DollarSign className="h-4 w-4" />
-                      <span>{formatCurrency(therapist.hourly_rate * 100)}/hr</span>
+                      <span>
+                        {formatCurrency(therapist.hourly_rate * 100)}/hr
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-600">
                       <Award className="h-4 w-4" />
-                      <span>{therapist.qualifications.length} qualifications</span>
+                      <span>
+                        {therapist.qualifications.length} qualifications
+                      </span>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex space-x-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => window.location.href = `/therapist/${therapist.id}`}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      View Profile
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => window.location.href = `/messages?therapist=${therapist.id}`}
-                    >
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      Message
-                    </Button>
+                    {(() => {
+                      const therapyTypes = (therapist.therapy_types || []).map(
+                        (t) => t.toLowerCase(),
+                      );
+                      // "Hybrid" practitioners are those that support BOTH modes:
+                      // - clinic (in-person)
+                      // - mobile (request)
+                      const isHybrid =
+                        therapyTypes.includes("clinic") &&
+                        therapyTypes.includes("mobile");
+
+                      if (isHybrid) {
+                        return (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() =>
+                                (window.location.href = `/client/ClientBooking?therapistId=${therapist.id}`)
+                              }
+                            >
+                              <Calendar className="h-4 w-4 mr-2" />
+                              Book
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() =>
+                                (window.location.href = `/messages?therapist=${therapist.id}`)
+                              }
+                            >
+                              <MessageCircle className="h-4 w-4 mr-2" />
+                              Request
+                            </Button>
+                          </>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() =>
+                              (window.location.href = `/therapist/${therapist.id}`)
+                            }
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Profile
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() =>
+                              (window.location.href = `/messages?therapist=${therapist.id}`)
+                            }
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            Message
+                          </Button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </CardContent>
               </Card>

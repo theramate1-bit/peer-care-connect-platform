@@ -3,10 +3,10 @@
  * Connects to the same backend as the web app
  */
 
-import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
-import { API_CONFIG } from '@/constants/config';
-import type { Database } from '@/types/database';
+import { createClient } from "@supabase/supabase-js";
+import * as SecureStore from "expo-secure-store";
+import * as Linking from "expo-linking";
+import { API_CONFIG, APP_CONFIG } from "@/constants/config";
 
 // Custom storage adapter using Expo SecureStore
 const ExpoSecureStoreAdapter = {
@@ -14,7 +14,7 @@ const ExpoSecureStoreAdapter = {
     try {
       return await SecureStore.getItemAsync(key);
     } catch (error) {
-      console.warn('SecureStore getItem error:', error);
+      console.warn("SecureStore getItem error:", error);
       return null;
     }
   },
@@ -22,20 +22,20 @@ const ExpoSecureStoreAdapter = {
     try {
       await SecureStore.setItemAsync(key, value);
     } catch (error) {
-      console.warn('SecureStore setItem error:', error);
+      console.warn("SecureStore setItem error:", error);
     }
   },
   removeItem: async (key: string): Promise<void> => {
     try {
       await SecureStore.deleteItemAsync(key);
     } catch (error) {
-      console.warn('SecureStore removeItem error:', error);
+      console.warn("SecureStore removeItem error:", error);
     }
   },
 };
 
-// Create Supabase client with typed database
-export const supabase = createClient<Database>(
+/** Untyped client: `types/database.ts` is partial vs production; use Supabase MCP / dashboard to verify columns. */
+export const supabase = createClient(
   API_CONFIG.SUPABASE_URL,
   API_CONFIG.SUPABASE_ANON_KEY,
   {
@@ -50,7 +50,7 @@ export const supabase = createClient<Database>(
         eventsPerSecond: 10,
       },
     },
-  }
+  },
 );
 
 // Auth helper functions
@@ -58,14 +58,18 @@ export const authHelpers = {
   /**
    * Sign up a new user
    */
-  signUp: async (email: string, password: string, metadata?: Record<string, any>) => {
+  signUp: async (
+    email: string,
+    password: string,
+    metadata?: Record<string, any>,
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           ...metadata,
-          user_role: 'client', // Default role for iOS app
+          user_role: "client", // Default role for iOS app
         },
       },
     });
@@ -86,13 +90,17 @@ export const authHelpers = {
   /**
    * Sign in with OAuth (Google/Apple)
    */
-  signInWithOAuth: async (provider: 'google' | 'apple') => {
+  signInWithOAuth: async (provider: "google" | "apple") => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: 'theramate://auth/callback',
+        redirectTo: `${APP_CONFIG.SCHEME}://${APP_CONFIG.OAUTH_CALLBACK_PATH}`,
+        skipBrowserRedirect: true,
       },
     });
+    if (!error && data?.url) {
+      await Linking.openURL(data.url);
+    }
     return { data, error };
   },
 
@@ -109,9 +117,54 @@ export const authHelpers = {
    */
   resetPassword: async (email: string) => {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'theramate://auth/reset-password-confirm',
+      redirectTo: `${APP_CONFIG.SCHEME}://${APP_CONFIG.RESET_PASSWORD_PATH}`,
     });
     return { data, error };
+  },
+
+  /**
+   * Complete OAuth callback using either PKCE code or implicit tokens.
+   */
+  completeOAuthFromUrl: async (url: string) => {
+    try {
+      // PKCE callbacks: theramate://oauth-callback?code=...
+      const parsed = new URL(url);
+      const code = parsed.searchParams.get("code");
+      const callbackError =
+        parsed.searchParams.get("error_description") ||
+        parsed.searchParams.get("error");
+      if (callbackError) {
+        return { data: null, error: new Error(callbackError) };
+      }
+      if (code) {
+        const { data, error } =
+          await supabase.auth.exchangeCodeForSession(code);
+        return { data, error };
+      }
+
+      // Implicit callbacks may return tokens in the hash.
+      const hash = url.includes("#") ? url.split("#")[1] : "";
+      const hashParams = new URLSearchParams(hash);
+      const access_token = hashParams.get("access_token");
+      const refresh_token = hashParams.get("refresh_token");
+      if (access_token && refresh_token) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        return { data, error };
+      }
+
+      return {
+        data: null,
+        error: new Error("No auth code or tokens found in callback URL"),
+      };
+    } catch (e: any) {
+      return {
+        data: null,
+        error: new Error(e?.message || "OAuth callback handling failed"),
+      };
+    }
   },
 
   /**
@@ -154,22 +207,22 @@ export const realtimeHelpers = {
   /**
    * Subscribe to changes on a table
    */
-  subscribeToTable: <T extends keyof Database['public']['Tables']>(
-    table: T,
+  subscribeToTable: (
+    table: string,
     filter: string,
-    callback: (payload: any) => void
+    callback: (payload: any) => void,
   ) => {
     return supabase
       .channel(`${table}_changes`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
+          event: "*",
+          schema: "public",
           table,
           filter,
         },
-        callback
+        callback,
       )
       .subscribe();
   },
@@ -177,18 +230,21 @@ export const realtimeHelpers = {
   /**
    * Subscribe to messages in a conversation
    */
-  subscribeToMessages: (conversationId: string, callback: (payload: any) => void) => {
+  subscribeToMessages: (
+    conversationId: string,
+    callback: (payload: any) => void,
+  ) => {
     return supabase
       .channel(`messages:${conversationId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        callback
+        callback,
       )
       .subscribe();
   },
@@ -196,18 +252,21 @@ export const realtimeHelpers = {
   /**
    * Subscribe to notifications for a user
    */
-  subscribeToNotifications: (userId: string, callback: (payload: any) => void) => {
+  subscribeToNotifications: (
+    userId: string,
+    callback: (payload: any) => void,
+  ) => {
     return supabase
       .channel(`notifications:${userId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
           filter: `user_id=eq.${userId}`,
         },
-        callback
+        callback,
       )
       .subscribe();
   },
@@ -225,7 +284,12 @@ export const storageHelpers = {
   /**
    * Upload a file to storage
    */
-  uploadFile: async (bucket: string, path: string, file: Blob | ArrayBuffer, options?: { upsert?: boolean }) => {
+  uploadFile: async (
+    bucket: string,
+    path: string,
+    file: Blob | ArrayBuffer,
+    options?: { upsert?: boolean },
+  ) => {
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(path, file, { upsert: options?.upsert ?? false });
@@ -250,4 +314,3 @@ export const storageHelpers = {
 };
 
 export default supabase;
-

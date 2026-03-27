@@ -1,0 +1,14 @@
+# Ollama-first config for fully offline agent context
+# Use with: export CONFIG_FILE=config/ollama.yaml
+
+llm:
+  provider: ollama
+  config:
+    base_url: http://localhost:11434/v1
+    model: llama3.2 # or mistral, phi3, etc.
+
+embedder:
+  provider: ollama
+  config:
+    base_url: http://localhost:11434
+    model: nomic-embed-text # run: ollama pull nomic-embed-text

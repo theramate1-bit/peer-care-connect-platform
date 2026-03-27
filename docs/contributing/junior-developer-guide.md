@@ -11,18 +11,30 @@ Welcome! This guide is designed to help junior developers understand and contrib
 3. **Explore the codebase** - Start with simple components (see below)
 4. **Ask questions** - Don't hesitate to ask for help!
 
+### Customer mobile (Expo + customer docs)
+
+If your work is the **client or guest** experience on **mobile**, or parity with customer flows on web, read this first:
+
+- **[Start here](../customer-app/00-JUNIOR_DEV_START_HERE.md)** — plain-language overview, diagram, and what to read in order
+- **[Documentation hub](../customer-app/README.md)** — full index under `docs/customer-app/`
+
+The component suggestions below focus on the **web** app (`peer-care-connect`).
+
 ### Where to Start Reading Code
 
 **Easy Components (Start Here):**
+
 - `src/components/ui/button.tsx` - Simple UI component
 - `src/lib/validation.ts` - Clear validation logic
 - `src/lib/file-path-sanitizer.ts` - Well-documented utility
 
 **Medium Complexity:**
+
 - `src/services/bookingService.ts` - Service layer with good structure
 - `src/lib/credits.ts` - Business logic (well-documented)
 
 **Advanced (Read Later):**
+
 - `src/lib/treatment-exchange.ts` - Complex business logic
 - `src/components/marketplace/BookingFlow.tsx` - Large component
 
@@ -43,12 +55,15 @@ peer-care-connect/
 ### Key Concepts
 
 #### 1. Components (UI)
+
 Components are in `src/components/`. They handle:
+
 - Displaying data
 - User interactions
 - UI state
 
 **Example:**
+
 ```typescript
 // Simple component
 export const Button = ({ onClick, children }) => {
@@ -57,12 +72,15 @@ export const Button = ({ onClick, children }) => {
 ```
 
 #### 2. Services (Business Logic)
+
 Services are in `src/lib/` or `src/services/`. They handle:
+
 - API calls
 - Data processing
 - Business rules
 
 **Example:**
+
 ```typescript
 // Service function
 export async function getCreditBalance(userId: string): Promise<number> {
@@ -71,6 +89,7 @@ export async function getCreditBalance(userId: string): Promise<number> {
 ```
 
 #### 3. Types (Data Structures)
+
 TypeScript types define data shapes:
 
 ```typescript
@@ -85,13 +104,17 @@ interface User {
 ## 🔍 Reading Code Effectively
 
 ### Step 1: Start with the File Header
+
 Look for:
+
 - File purpose
 - Main exports
 - Key functions
 
 ### Step 2: Read Type Definitions
+
 Understand the data structures:
+
 ```typescript
 interface BookingData {
   session_date: string;
@@ -101,27 +124,30 @@ interface BookingData {
 ```
 
 ### Step 3: Follow the Flow
+
 1. Find the entry point (exported function)
 2. Trace through the logic
 3. Understand what each step does
 
 ### Step 4: Look for Comments
+
 - JSDoc comments explain "what"
 - Inline comments explain "why"
 
 ## 🛠️ Common Patterns
 
 ### Pattern 1: API Call
+
 ```typescript
 // 1. Call Supabase
 const { data, error } = await supabase
-  .from('table_name')
-  .select('*')
-  .eq('id', userId);
+  .from("table_name")
+  .select("*")
+  .eq("id", userId);
 
 // 2. Handle errors
 if (error) {
-  console.error('Error:', error);
+  console.error("Error:", error);
   return null;
 }
 
@@ -130,6 +156,7 @@ return data;
 ```
 
 ### Pattern 2: React Component with State
+
 ```typescript
 export const MyComponent = () => {
   // 1. State
@@ -154,11 +181,12 @@ export const MyComponent = () => {
 ```
 
 ### Pattern 3: Validation
+
 ```typescript
 // Using Zod for validation
 const schema = z.object({
   email: z.string().email(),
-  name: z.string().min(2)
+  name: z.string().min(2),
 });
 
 const result = schema.safeParse(data);
@@ -170,23 +198,29 @@ if (!result.success) {
 ## 📖 Domain Terms Glossary
 
 ### HEP
+
 **Home Exercise Program** - Exercises prescribed to clients
 
 ### SOAP Notes
+
 **Subjective, Objective, Assessment, Plan** - Clinical documentation format
 
 ### RLS
+
 **Row Level Security** - Database security feature (Supabase)
 
 ### RPC
+
 **Remote Procedure Call** - Database function call
 
 ### Edge Function
+
 **Supabase Edge Function** - Serverless function (like API endpoint)
 
 ## 🐛 Common Tasks for Juniors
 
 ### Task 1: Fix a Simple Bug
+
 1. Read the bug report
 2. Find the relevant file
 3. Understand the code
@@ -195,6 +229,7 @@ if (!result.success) {
 6. Submit PR
 
 ### Task 2: Add a New Field
+
 1. Find the relevant component/service
 2. Add field to type definition
 3. Update form/display
@@ -202,6 +237,7 @@ if (!result.success) {
 5. Test
 
 ### Task 3: Improve Documentation
+
 1. Find function without JSDoc
 2. Add JSDoc comment
 3. Add inline comments if needed
@@ -210,12 +246,14 @@ if (!result.success) {
 ## ❓ When to Ask for Help
 
 **Ask for help when:**
+
 - You've been stuck for >30 minutes
 - You don't understand the business logic
 - You're unsure about the approach
 - You need clarification on requirements
 
 **Before asking:**
+
 - Read the code carefully
 - Check documentation
 - Try to understand the context
@@ -224,6 +262,7 @@ if (!result.success) {
 ## 📝 Code Review Tips
 
 ### Before Submitting PR
+
 - [ ] Code follows project style
 - [ ] Added tests if needed
 - [ ] Updated documentation
@@ -231,6 +270,7 @@ if (!result.success) {
 - [ ] No console errors
 
 ### During Review
+
 - Read feedback carefully
 - Ask questions if unclear
 - Make requested changes
@@ -239,11 +279,15 @@ if (!result.success) {
 ## 🎓 Learning Resources
 
 ### Internal
+
+- **[Feature Index](./junior-dev-feature-index.md)** – One-page map of feature docs (Diary, Dashboard, Client Management, Services, Treatment Exchange, Notifications, Messaging, Profile)
 - [Architecture Overview](../architecture/system-overview.md)
+- [Database Schema](../architecture/database-schema.md) – Core tables and relationships
 - [API Documentation](../api/rest-api.md)
 - [Testing Guide](../testing/testing-guide.md)
 
 ### External
+
 - [React Documentation](https://react.dev)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - [Supabase Docs](https://supabase.com/docs)
@@ -251,6 +295,7 @@ if (!result.success) {
 ## 🚀 Your First Contribution
 
 ### Recommended First Tasks
+
 1. **Add JSDoc comments** to undocumented functions
 2. **Fix simple bugs** (typos, small UI issues)
 3. **Improve error messages** (make them clearer)
@@ -258,6 +303,7 @@ if (!result.success) {
 5. **Write tests** for untested functions
 
 ### How to Find Tasks
+
 - Look for `TODO` comments
 - Check GitHub issues labeled "good first issue"
 - Ask your mentor for suggestions

@@ -1,0 +1,65 @@
+{
+  "cli": {
+    "version": ">= 16.19.3",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "staging",
+        "NODE_ENV": "test",
+        "EXPO_ROUTER_APP_ROOT": "app"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_ENV": "production",
+        "NODE_ENV": "production",
+        "EXPO_ROUTER_APP_ROOT": "app",
+        "EXPO_PUBLIC_API_URL": "https://api.localito.com/api",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDigYI5io9Ru7onWCIhlh_ZEf_mxatXtkM",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "447847841313-av9q0n87o5j66p6bihcpjicah7avcev0.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "447847841313-irlhae24agr160b35v3pkiljdqm0s2uh.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "447847841313-ch4qfgc5tiqs284hnv6ih093uq6c205t.apps.googleusercontent.com",
+        "EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN": "SET_IN_EAS_SECRETS",
+        "EAS_USE_LOCAL_ANDROID_KEYSTORE": "1"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "credentialsSource": "local"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "companyName": "LOCALITO MARKETPLACE LTD",
+        "appleTeamId": "2U2KVLFY7U",
+        "ascAppId": "6759418652"
+      },
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed",
+        "serviceAccountKeyPath": "./google-play-service-account.json"
+      }
+    }
+  }
+}

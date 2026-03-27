@@ -1,0 +1,91 @@
+# Agent Context Stack - Fully Self-Hosted Open Source
+# Run: docker compose up -d
+# Docs: agent-context/README.md
+
+services:
+  neo4j:
+    image: neo4j:5.22
+    container_name: agent-context-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-agentcontext123}
+      NEO4J_PLUGINS: '["apoc"]'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  graphiti:
+    image: zepai/graphiti:latest
+    container_name: agent-context-graphiti
+    ports:
+      - "8001:8000"
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-agentcontext123}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent-context-postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${PG_USER:-agentcontext}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-agentcontext123}
+      POSTGRES_DB: ${PG_DB:-agentcontext}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${PG_USER:-agentcontext} -d ${PG_DB:-agentcontext}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  context-service:
+    build:
+      context: context-service
+      dockerfile: Dockerfile
+    container_name: agent-context-service
+    ports:
+      - "8002:8000"
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-agentcontext123}
+      GRAPHITI_API_URL: http://graphiti:8000
+      POSTGRES_URL: postgresql://${PG_USER:-agentcontext}:${PG_PASSWORD:-agentcontext123}@postgres:5432/${PG_DB:-agentcontext}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./ingest:/app/ingest
+      - ./config:/app/config
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      graphiti:
+        condition: service_started
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  neo4j_data:
+  postgres_data:

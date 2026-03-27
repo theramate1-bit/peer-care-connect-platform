@@ -1,19 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, MapPin, Star, Clock, Filter } from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import BookingFlow from '@/components/booking/BookingFlow';
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Search, MapPin, Star, Clock, Filter } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import BookingFlow from "@/components/booking/BookingFlow";
 
 interface Practitioner {
   id: string;
   first_name: string;
   last_name: string;
-  user_role: 'sports_therapist' | 'massage_therapist' | 'osteopath';
+  user_role: "sports_therapist" | "massage_therapist" | "osteopath";
   location: string;
   bio: string;
   hourly_rate: number;
@@ -24,12 +30,15 @@ interface Practitioner {
 
 const ClientBooking: React.FC = () => {
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
-  const [filteredPractitioners, setFilteredPractitioners] = useState<Practitioner[]>([]);
+  const [filteredPractitioners, setFilteredPractitioners] = useState<
+    Practitioner[]
+  >([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('all');
-  const [selectedLocation, setSelectedLocation] = useState<string>('all');
-  const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedLocation, setSelectedLocation] = useState<string>("all");
+  const [selectedPractitioner, setSelectedPractitioner] =
+    useState<Practitioner | null>(null);
 
   useEffect(() => {
     fetchPractitioners();
@@ -39,11 +48,24 @@ const ClientBooking: React.FC = () => {
     filterPractitioners();
   }, [practitioners, searchTerm, selectedType, selectedLocation]);
 
+  // Deep-link support for "Book" CTA from discovery:
+  // /client/ClientBooking?therapistId=<id>
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const therapistId = new URLSearchParams(window.location.search).get(
+      "therapistId",
+    );
+    if (!therapistId) return;
+    const match = practitioners.find((p) => p.id === therapistId);
+    if (match) setSelectedPractitioner(match);
+  }, [practitioners]);
+
   const fetchPractitioners = async () => {
     try {
       const { data, error } = await supabase
-        .from('users')
-        .select(`
+        .from("users")
+        .select(
+          `
           id,
           first_name,
           last_name,
@@ -54,15 +76,16 @@ const ClientBooking: React.FC = () => {
           specializations,
           average_rating,
           total_reviews
-        `)
-        .in('user_role', ['sports_therapist', 'massage_therapist', 'osteopath'])
-        .eq('is_active', true);
+        `,
+        )
+        .in("user_role", ["sports_therapist", "massage_therapist", "osteopath"])
+        .eq("is_active", true);
 
       if (error) throw error;
       setPractitioners(data || []);
     } catch (error) {
-      console.error('Error fetching practitioners:', error);
-      toast.error('Failed to load practitioners');
+      console.error("Error fetching practitioners:", error);
+      toast.error("Failed to load practitioners");
     } finally {
       setLoading(false);
     }
@@ -73,22 +96,27 @@ const ClientBooking: React.FC = () => {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(p => 
-        `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.bio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.specializations.some(spec => spec.toLowerCase().includes(searchTerm.toLowerCase()))
+      filtered = filtered.filter(
+        (p) =>
+          `${p.first_name} ${p.last_name}`
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          p.bio.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.specializations.some((spec) =>
+            spec.toLowerCase().includes(searchTerm.toLowerCase()),
+          ),
       );
     }
 
     // Type filter
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(p => p.user_role === selectedType);
+    if (selectedType !== "all") {
+      filtered = filtered.filter((p) => p.user_role === selectedType);
     }
 
     // Location filter
-    if (selectedLocation !== 'all') {
-      filtered = filtered.filter(p => 
-        p.location?.toLowerCase().includes(selectedLocation.toLowerCase())
+    if (selectedLocation !== "all") {
+      filtered = filtered.filter((p) =>
+        p.location?.toLowerCase().includes(selectedLocation.toLowerCase()),
       );
     }
 
@@ -96,15 +124,19 @@ const ClientBooking: React.FC = () => {
   };
 
   const getRoleDisplayName = (role: string) => {
-    return role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return role.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'sports_therapist': return 'bg-blue-100 text-blue-800';
-      case 'massage_therapist': return 'bg-green-100 text-green-800';
-      case 'osteopath': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "sports_therapist":
+        return "bg-blue-100 text-blue-800";
+      case "massage_therapist":
+        return "bg-green-100 text-green-800";
+      case "osteopath":
+        return "bg-purple-100 text-purple-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -144,15 +176,16 @@ const ClientBooking: React.FC = () => {
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-          {practitioner.bio || 'Professional therapist ready to help you achieve your health goals.'}
+          {practitioner.bio ||
+            "Professional therapist ready to help you achieve your health goals."}
         </p>
-        
+
         {practitioner.specializations.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-4">
-            {practitioner.specializations.slice(0, 3).map(spec => (
+            {practitioner.specializations.slice(0, 3).map((spec) => (
               <Badge key={spec} variant="outline" className="text-xs">
                 {spec}
               </Badge>
@@ -165,7 +198,7 @@ const ClientBooking: React.FC = () => {
           </div>
         )}
 
-        <Button 
+        <Button
           onClick={() => setSelectedPractitioner(practitioner)}
           className="w-full"
         >
@@ -182,7 +215,7 @@ const ClientBooking: React.FC = () => {
         practitionerName={`${selectedPractitioner.first_name} ${selectedPractitioner.last_name}`}
         practitionerType={selectedPractitioner.user_role}
         onBookingComplete={(sessionId) => {
-          toast.success('Booking created successfully!');
+          toast.success("Booking created successfully!");
           setSelectedPractitioner(null);
         }}
         onCancel={() => setSelectedPractitioner(null)}
@@ -214,20 +247,27 @@ const ClientBooking: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <Select value={selectedType} onValueChange={setSelectedType}>
               <SelectTrigger className="w-full md:w-48">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="sports_therapist">Sports Therapist</SelectItem>
-                <SelectItem value="massage_therapist">Massage Therapist</SelectItem>
+                <SelectItem value="sports_therapist">
+                  Sports Therapist
+                </SelectItem>
+                <SelectItem value="massage_therapist">
+                  Massage Therapist
+                </SelectItem>
                 <SelectItem value="osteopath">Osteopath</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+            <Select
+              value={selectedLocation}
+              onValueChange={setSelectedLocation}
+            >
               <SelectTrigger className="w-full md:w-48">
                 <SelectValue placeholder="All Locations" />
               </SelectTrigger>
@@ -268,7 +308,9 @@ const ClientBooking: React.FC = () => {
           <CardContent className="pt-6 text-center">
             <div className="text-muted-foreground">
               <Filter className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No practitioners found</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                No practitioners found
+              </h3>
               <p>Try adjusting your search criteria or filters</p>
             </div>
           </CardContent>
@@ -278,7 +320,8 @@ const ClientBooking: React.FC = () => {
       {/* Results Summary */}
       {!loading && filteredPractitioners.length > 0 && (
         <div className="mt-8 text-center text-muted-foreground">
-          Showing {filteredPractitioners.length} of {practitioners.length} practitioners
+          Showing {filteredPractitioners.length} of {practitioners.length}{" "}
+          practitioners
         </div>
       )}
     </div>

@@ -1,0 +1,29 @@
+---
+description: Theramate mobile (theramate-ios-client) — TypeScript checks and Supabase alignment
+globs: theramate-ios-client/**/*
+alwaysApply: false
+---
+
+# Theramate mobile — TypeScript + Supabase
+
+## After every change (required)
+
+1. Run **`npm run typecheck:mobile`** from the **repo root**, or **`npm run type-check`** inside **`theramate-ios-client/`**.
+2. Fix all reported errors before finishing the task. Do not leave the workspace in a failing `tsc` state.
+
+## NativeWind / JSX
+
+- **`nativewind-env.d.ts`** must stay included in **`theramate-ios-client/tsconfig.json`** so `className` on RN components type-checks (`/// <reference types="react-native-css-interop/types" />`).
+- Root **`package.json`** uses **`overrides`** for **`@types/react`** / **`@types/react-dom`** so React Native and the monorepo share compatible types.
+
+## Supabase (schema alignment)
+
+- **`types/database.ts`** is **partial** vs production. Prefer verifying **tables, columns, RLS, and RPC names** against:
+  - **Supabase MCP** (if enabled): list tables, run read-only checks, or inspect project metadata **before** assuming column names.
+  - Repo docs: **`docs/architecture/database-*.md`**, **`docs/customer-app/06-DATA_SUPABASE_REALTIME.md`**, and web usage in **`peer-care-connect`** for the same query.
+- **`lib/supabase.ts`** uses an **untyped** `createClient(...)` so inserts are not blocked by stale generated types; still **match** the live schema and **never** ship service-role keys in the app.
+
+## New native dependencies
+
+- Prefer **`expo install <package>`** for Expo-compatible versions.
+- If **`npm install`** at the root fails on peer deps, use **`npm install --legacy-peer-deps`** (document in PR if recurring).

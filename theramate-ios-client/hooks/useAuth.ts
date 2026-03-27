@@ -3,8 +3,13 @@
  * Convenience hook for auth operations
  */
 
-import { useEffect } from 'react';
-import { useAuthStore, selectIsAuthenticated, selectIsClient, selectNeedsOnboarding } from '@/stores/authStore';
+import { useEffect } from "react";
+import {
+  useAuthStore,
+  selectIsAuthenticated,
+  selectIsClient,
+  selectNeedsOnboarding,
+} from "@/stores/authStore";
 
 export function useAuth() {
   const {
@@ -20,6 +25,7 @@ export function useAuth() {
     signInWithOAuth,
     signOut,
     resetPassword,
+    updatePassword,
     updateProfile,
     refreshProfile,
     clearError,
@@ -34,8 +40,8 @@ export function useAuth() {
 
   // Computed values
   const isAuthenticated = !!session;
-  const isClient = userProfile?.user_role === 'client';
-  const needsOnboarding = userProfile?.onboarding_status !== 'completed';
+  const isClient = userProfile?.user_role === "client";
+  const needsOnboarding = userProfile?.onboarding_status !== "completed";
   const userId = authUser?.id;
 
   return {
@@ -59,6 +65,7 @@ export function useAuth() {
     signInWithOAuth,
     signOut,
     resetPassword,
+    updatePassword,
     updateProfile,
     refreshProfile,
     clearError,
@@ -67,7 +74,8 @@ export function useAuth() {
 
 // Hook for protected routes
 export function useRequireAuth() {
-  const { isAuthenticated, isInitialized, isLoading, needsOnboarding } = useAuth();
+  const { isAuthenticated, isInitialized, isLoading, needsOnboarding } =
+    useAuth();
 
   return {
     isReady: isInitialized && !isLoading,
@@ -77,4 +85,3 @@ export function useRequireAuth() {
 }
 
 export default useAuth;
-
