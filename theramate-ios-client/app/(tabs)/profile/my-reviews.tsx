@@ -7,15 +7,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Star } from "lucide-react-native";
+import { Star } from "lucide-react-native";
 import { format } from "date-fns";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyReviews } from "@/lib/api/reviews";
 import { PressableCard } from "@/components/ui/Card";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 export default function MyReviewsScreen() {
   const { userId } = useAuth();
@@ -40,14 +41,7 @@ export default function MyReviewsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          My reviews
-        </Text>
-      </View>
+      <AppStackHeader title="My reviews" fallbackHref={defaultSignedInProfileHref()} />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -105,7 +99,12 @@ export default function MyReviewsScreen() {
                 </Text>
               )}
               <Text className="text-charcoal-400 text-xs mt-2">
-                Visibility: {item.is_public ? "Public" : "Private"}
+                Status:{" "}
+                {item.review_status === "approved"
+                  ? "Published"
+                  : item.review_status === "pending"
+                    ? "Pending review"
+                    : item.review_status}
               </Text>
             </PressableCard>
           )}

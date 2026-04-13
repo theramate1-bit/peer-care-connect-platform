@@ -6,8 +6,11 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Star } from "lucide-react-native";
@@ -24,6 +27,9 @@ export default function SessionReviewScreen() {
   const authSession = useAuthStore((s) => s.session);
   const clientId = authSession?.user?.id;
   const queryClient = useQueryClient();
+  const tabBarInset = useBottomTabBarHeight();
+  const tabBarHeight =
+    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
 
   const [rating, setRating] = React.useState(5);
   const [comment, setComment] = React.useState("");
@@ -64,7 +70,7 @@ export default function SessionReviewScreen() {
   });
 
   if (!clientId) {
-    router.replace("/(auth)/login");
+    router.replace("/login");
     return null;
   }
 
@@ -146,7 +152,15 @@ export default function SessionReviewScreen() {
           </Button>
         </View>
       ) : (
-        <View className="flex-1 px-6 pt-4">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: tabBarHeight + 24,
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
           <Card variant="default" padding="md">
             <Text className="text-charcoal-900 font-semibold">
               {sessionData.therapist_name}
@@ -214,7 +228,7 @@ export default function SessionReviewScreen() {
               <Text className="text-white font-semibold">Submit review</Text>
             )}
           </Button>
-        </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   );

@@ -11,17 +11,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Mail, Lock, ArrowRight } from 'lucide-react-native';
 
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/stores/authStore';
+import { getMainAppHref } from '@/lib/postAuthRoute';
+import { AuthBackHeader } from '@/components/AuthBackHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/colors';
@@ -53,7 +54,9 @@ export default function LoginScreen() {
     clearError();
     const result = await signIn(data.email, data.password);
     if (result.success) {
-      router.replace('/(tabs)');
+      await useAuthStore.getState().refreshProfile();
+      const role = useAuthStore.getState().userProfile?.user_role;
+      router.replace(getMainAppHref(role));
     }
   };
 
@@ -63,23 +66,21 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.cream[50] }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={{ flex: 1 }}
       >
         <ScrollView
-          className="flex-1"
+          style={{ flex: 1 }}
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View className="flex-1 px-6 py-8">
+            <AuthBackHeader fallbackHref="/hero" label="Home" />
             {/* Header */}
-            <Animated.View
-              entering={FadeInDown.delay(100).duration(600)}
-              className="items-center mb-10"
-            >
+            <View className="items-center mb-10">
               <View className="w-20 h-20 bg-sage-500 rounded-2xl items-center justify-center mb-4">
                 <Text className="text-3xl text-white font-bold">T</Text>
               </View>
@@ -89,13 +90,10 @@ export default function LoginScreen() {
               <Text className="text-base text-charcoal-500 text-center">
                 Sign in to continue to Theramate
               </Text>
-            </Animated.View>
+            </View>
 
             {/* Form */}
-            <Animated.View
-              entering={FadeInUp.delay(200).duration(600)}
-              className="mb-6"
-            >
+            <View className="mb-6">
               <Controller
                 control={control}
                 name="email"
@@ -132,7 +130,7 @@ export default function LoginScreen() {
                 )}
               />
 
-              <Link href="/(auth)/forgot-password" asChild>
+              <Link href="/forgot-password" asChild>
                 <TouchableOpacity className="self-end mb-6">
                   <Text className="text-sage-500 font-medium">
                     Forgot Password?
@@ -154,23 +152,17 @@ export default function LoginScreen() {
               >
                 Sign In
               </Button>
-            </Animated.View>
+            </View>
 
             {/* Divider */}
-            <Animated.View
-              entering={FadeInUp.delay(300).duration(600)}
-              className="flex-row items-center mb-6"
-            >
+            <View className="flex-row items-center mb-6">
               <View className="flex-1 h-px bg-charcoal-100" />
               <Text className="mx-4 text-charcoal-400 text-sm">or continue with</Text>
               <View className="flex-1 h-px bg-charcoal-100" />
-            </Animated.View>
+            </View>
 
             {/* OAuth Buttons */}
-            <Animated.View
-              entering={FadeInUp.delay(400).duration(600)}
-              className="space-y-3 mb-8"
-            >
+            <View className="space-y-3 mb-8">
               <Button
                 variant="outline"
                 onPress={() => handleOAuth('google')}
@@ -189,20 +181,17 @@ export default function LoginScreen() {
                   Continue with Apple
                 </Button>
               )}
-            </Animated.View>
+            </View>
 
             {/* Sign Up Link */}
-            <Animated.View
-              entering={FadeInUp.delay(500).duration(600)}
-              className="flex-row justify-center"
-            >
+            <View className="flex-row justify-center">
               <Text className="text-charcoal-500">Don't have an account? </Text>
-              <Link href="/(auth)/register" asChild>
+              <Link href="/register" asChild>
                 <TouchableOpacity>
                   <Text className="text-sage-500 font-semibold">Sign Up</Text>
                 </TouchableOpacity>
               </Link>
-            </Animated.View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

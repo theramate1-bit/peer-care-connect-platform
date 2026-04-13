@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Linking,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { addDays, format } from "date-fns";
@@ -24,6 +23,8 @@ import {
   fetchPractitionerProducts,
   type PractitionerProductRow,
 } from "@/lib/api/booking";
+import { stashMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
+import { openHostedWebSession } from "@/lib/openHostedWeb";
 
 export default function MobileRequestBookingScreen() {
   const { practitionerId } = useLocalSearchParams<{
@@ -79,6 +80,7 @@ export default function MobileRequestBookingScreen() {
         practitionerId,
         sessionDate,
         selectedProduct?.id,
+        selectedProduct?.duration_minutes,
       ],
       queryFn: async () => {
         if (!practitionerId || !selectedProduct) return [];
@@ -91,6 +93,9 @@ export default function MobileRequestBookingScreen() {
         return data;
       },
       enabled: !!practitionerId && !!selectedProduct,
+      refetchInterval:
+        practitionerId && selectedProduct ? 25_000 : false,
+      staleTime: 0,
     });
 
   React.useEffect(() => {
@@ -142,20 +147,10 @@ export default function MobileRequestBookingScreen() {
       await queryClient.invalidateQueries({
         queryKey: ["client_mobile_requests", userId],
       });
-      const opened = await Linking.openURL(result.checkoutUrl);
-      if (!opened) {
-        Alert.alert(
-          "Payment link ready",
-          "Open your email/browser to complete payment.",
-        );
-      }
-      router.replace({
-        pathname: "/mobile-booking/pending",
-        params: {
-          requestId: result.requestId,
-          checkoutSessionId: result.checkoutSessionId,
-          checkoutUrl: result.checkoutUrl,
-        },
+      stashMobileCheckoutUrl(result.requestId, result.checkoutUrl);
+      openHostedWebSession({
+        kind: "stripe_checkout",
+        url: result.checkoutUrl,
       });
     } finally {
       setSubmitting(false);

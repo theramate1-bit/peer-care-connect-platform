@@ -11,20 +11,30 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-// User role enum
-export type UserRole = 'client' | 'practitioner' | 'admin';
+// User role enum (live Supabase `public.user_role`)
+export type UserRole =
+  | "sports_therapist"
+  | "massage_therapist"
+  | "osteopath"
+  | "client"
+  | "admin"
+  | "guest";
 
-// Onboarding status enum
-export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed';
+// Onboarding status enum (live Supabase `public.onboarding_status`)
+export type OnboardingStatus = "pending" | "in_progress" | "completed";
 
-// Session status enum
-export type SessionStatus = 
-  | 'scheduled' 
-  | 'confirmed' 
-  | 'in_progress' 
-  | 'completed' 
-  | 'cancelled' 
-  | 'no_show';
+// Session status enum (live Supabase `public.session_status`)
+export type SessionStatus =
+  | "scheduled"
+  | "confirmed"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show"
+  | "pending_payment"
+  | "pending_approval"
+  | "declined"
+  | "expired";
 
 // Verification status enum
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
@@ -124,13 +134,22 @@ export interface Database {
       practitioner_products: {
         Row: {
           id: string;
-          practitioner_id: string;
+          practitioner_id: string | null;
+          stripe_product_id: string | null;
+          stripe_price_id: string | null;
           name: string;
           description: string | null;
-          price_pence: number;
-          duration_minutes: number;
+          price_amount: number;
+          currency: string | null;
+          duration_minutes: number | null;
           is_active: boolean | null;
           category: string | null;
+          service_category: string | null;
+          recommendation_reason: string | null;
+          pricing_rationale: string | null;
+          popularity_score: number | null;
+          recommended_for: string[] | null;
+          service_type: string | null;
           created_at: string | null;
           updated_at: string | null;
         };
@@ -181,10 +200,19 @@ export interface Database {
           therapist_id: string;
           client_id: string | null;
           session_id: string | null;
-          rating: number;
+          overall_rating: number;
+          title: string | null;
           comment: string | null;
-          is_public: boolean | null;
+          is_anonymous: boolean | null;
           created_at: string | null;
+          updated_at: string | null;
+          review_status: string | null;
+          is_verified_session: boolean | null;
+          helpful_votes: number | null;
+          unhelpful_votes: number | null;
+          moderated_at: string | null;
+          moderated_by: string | null;
+          moderation_notes: string | null;
         };
         Insert: Omit<Database['public']['Tables']['reviews']['Row'], 'id' | 'created_at'> & {
           id?: string;
@@ -334,28 +362,37 @@ export interface Database {
           first_name: string | null;
           last_name: string | null;
           bio: string | null;
-          specializations: TherapistSpecialization[] | null;
+          location: string | null;
+          specializations: string[] | null;
+          experience_years: number | null;
           hourly_rate: number | null;
           average_rating: number | null;
           total_reviews: number | null;
-          verification_status: VerificationStatus | null;
-          profile_photo_url: string | null;
-          location: string | null;
-          latitude: number | null;
-          longitude: number | null;
-          experience_years: number | null;
           professional_statement: string | null;
           treatment_philosophy: string | null;
           is_active: boolean | null;
           response_time_hours: number | null;
+          profile_photo_url: string | null;
+          verification_status: VerificationStatus | null;
+          last_active: string | null;
         };
       };
     };
 
     Functions: {
       find_practitioners_by_distance: {
-        Args: { lat: number; lng: number; radius_km: number };
-        Returns: Database['public']['Views']['marketplace_practitioners']['Row'][];
+        Args: {
+          search_lat: number;
+          search_lon: number;
+          radius_km: number;
+          limit_count?: number;
+          service_type?: string;
+          min_price?: number;
+          max_price?: number;
+          min_rating?: number;
+          p_user_role?: string;
+        };
+        Returns: unknown[];
       };
       get_next_available_slot: {
         Args: { practitioner_id: string; duration_minutes: number };

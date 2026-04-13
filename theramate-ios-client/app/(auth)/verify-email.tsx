@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { useAuth } from "@/hooks/useAuth";
+import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { authHelpers } from "@/lib/supabase";
@@ -29,7 +30,7 @@ export default function VerifyEmailScreen() {
         }
         if (user?.email_confirmed_at) {
           await refreshProfile();
-          router.replace("/(auth)/onboarding");
+          router.replace("/onboarding");
           return true;
         }
         if (showAlertOnPending) {
@@ -60,6 +61,9 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50">
+      <View className="px-6 pt-2 pb-2">
+        <AuthBackHeader fallbackHref="/login" label="Sign in" />
+      </View>
       <View className="flex-1 px-6 items-center justify-center">
         <Text className="text-charcoal-900 text-3xl font-bold text-center">
           Verify your email
@@ -99,7 +103,7 @@ export default function VerifyEmailScreen() {
         <Button
           variant="outline"
           className="mt-3 w-full"
-          onPress={() => router.replace("/(auth)/login")}
+          onPress={() => router.replace("/login")}
         >
           <Text className="text-charcoal-700 font-medium">Back to sign in</Text>
         </Button>

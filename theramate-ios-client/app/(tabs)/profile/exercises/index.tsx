@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Dumbbell, CalendarDays } from "lucide-react-native";
+import { Dumbbell, CalendarDays } from "lucide-react-native";
 import { format } from "date-fns";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -17,11 +17,15 @@ import {
   fetchHomeExercisePrograms,
   fetchProgramCompletionCount,
 } from "@/lib/api/exercises";
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PressableCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 export default function ExercisesListScreen() {
+  const tabRoot = useTabRoot();
   const { userId } = useAuth();
   const {
     data = [],
@@ -43,14 +47,7 @@ export default function ExercisesListScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          My exercises
-        </Text>
-      </View>
+      <AppStackHeader title="My exercises" fallbackHref={defaultSignedInProfileHref()} />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -99,7 +96,9 @@ export default function ExercisesListScreen() {
               <Button
                 variant="primary"
                 className="mt-4"
-                onPress={() => router.push("/(tabs)/bookings")}
+                onPress={() =>
+                  router.push(tabPath(tabRoot, "bookings") as never)
+                }
               >
                 <Text className="text-white font-semibold">View sessions</Text>
               </Button>
@@ -130,6 +129,7 @@ function ProgramCard({
   exerciseCount: number;
   userId: string | undefined;
 }) {
+  const tabRoot = useTabRoot();
   const { data: completed = 0 } = useQuery({
     queryKey: ["exercise_program_completed_count", userId, id],
     queryFn: async () => {
@@ -149,7 +149,9 @@ function ProgramCard({
       variant="default"
       padding="md"
       className="mb-3"
-      onPress={() => router.push(`/(tabs)/profile/exercises/${id}`)}
+      onPress={() =>
+        router.push(tabPath(tabRoot, `profile/exercises/${id}`) as never)
+      }
     >
       <Text className="text-charcoal-900 font-semibold">{title}</Text>
       {!!description && (

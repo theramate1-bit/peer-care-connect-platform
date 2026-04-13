@@ -22,6 +22,27 @@ function combineDateTime(sessionDate: string, startTime: string): Date {
   return new Date(`${sessionDate}T${t}`);
 }
 
+function parseDateParts(sessionDate: string): {
+  year: number;
+  month: number;
+  day: number;
+} | null {
+  const [y, m, d] = sessionDate.split("-").map((n) => Number(n));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    return null;
+  }
+  return { year: y, month: m, day: d };
+}
+
+function parseStartMinutes(startTime: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(startTime);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+}
+
 /** Start datetime for sorting and display */
 export function getSessionStartDate(s: SessionWithTherapist): Date {
   return combineDateTime(s.session_date, s.start_time);
@@ -38,6 +59,18 @@ export function isSessionUpcoming(s: SessionWithTherapist): boolean {
   ]);
   const st = (s.status || "").toLowerCase();
   if (terminal.has(st)) return false;
+  // Compare local calendar day + time to avoid timezone parsing quirks for date + time columns.
+  const parts = parseDateParts(s.session_date);
+  const startMinutes = parseStartMinutes(s.start_time);
+  if (parts && startMinutes != null) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = new Date(parts.year, parts.month - 1, parts.day);
+    if (day > today) return true;
+    if (day < today) return false;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return startMinutes >= nowMinutes;
+  }
   return combineDateTime(s.session_date, s.start_time) >= new Date();
 }
 
@@ -46,10 +79,25 @@ export async function fetchClientSessions(clientId: string): Promise<{
   error: Error | null;
 }> {
   try {
+    /** Embed therapist via FK so one round-trip; avoids a separate `users` query that RLS can block for clients. */
     const { data: rows, error } = await supabase
       .from("client_sessions")
       .select(
-        "id, therapist_id, session_date, start_time, duration_minutes, session_type, price, status, payment_status",
+        `
+        id,
+        therapist_id,
+        session_date,
+        start_time,
+        duration_minutes,
+        session_type,
+        price,
+        status,
+        payment_status,
+        therapist:therapist_id (
+          first_name,
+          last_name
+        )
+      `,
       )
       .eq("client_id", clientId)
       .order("session_date", { ascending: false });
@@ -66,40 +114,21 @@ export async function fetchClientSessions(clientId: string): Promise<{
       price: number | null;
       status: string | null;
       payment_status: string | null;
+      /** Supabase may return one object or a single-element array for FK embeds. */
+      therapist:
+        | { first_name: string | null; last_name: string | null }
+        | { first_name: string | null; last_name: string | null }[]
+        | null;
     };
 
     const sessionRows = (rows || []) as SessionRow[];
 
-    const therapistIds = [
-      ...new Set(
-        sessionRows
-          .map((r) => r.therapist_id)
-          .filter((id): id is string => !!id),
-      ),
-    ];
-
-    const nameById = new Map<string, string>();
-    if (therapistIds.length > 0) {
-      const { data: therapists, error: thErr } = await supabase
-        .from("users")
-        .select("id, first_name, last_name")
-        .in("id", therapistIds);
-      if (thErr) throw thErr;
-      type TherapistNameRow = {
-        id: string;
-        first_name: string | null;
-        last_name: string | null;
-      };
-      for (const t of (therapists || []) as TherapistNameRow[]) {
-        const name = `${t.first_name || ""} ${t.last_name || ""}`.trim();
-        nameById.set(t.id, name || "Therapist");
-      }
-    }
-
     const sessions: SessionWithTherapist[] = sessionRows.map((row) => {
       const therapistId = row.therapist_id as string | null;
-      const therapist_name = therapistId
-        ? (nameById.get(therapistId) ?? "Therapist")
+      const raw = row.therapist;
+      const t = Array.isArray(raw) ? raw[0] : raw;
+      const therapist_name = t
+        ? `${t.first_name || ""} ${t.last_name || ""}`.trim() || "Therapist"
         : "Therapist";
       return {
         id: row.id as string,
@@ -130,7 +159,21 @@ export async function fetchClientSessionById(params: {
     const { data: row, error } = await supabase
       .from("client_sessions")
       .select(
-        "id, therapist_id, session_date, start_time, duration_minutes, session_type, price, status, payment_status",
+        `
+        id,
+        therapist_id,
+        session_date,
+        start_time,
+        duration_minutes,
+        session_type,
+        price,
+        status,
+        payment_status,
+        therapist:therapist_id (
+          first_name,
+          last_name
+        )
+      `,
       )
       .eq("id", params.sessionId)
       .eq("client_id", params.clientId)
@@ -149,21 +192,17 @@ export async function fetchClientSessionById(params: {
       price: number | null;
       status: string | null;
       payment_status: string | null;
+      therapist:
+        | { first_name: string | null; last_name: string | null }
+        | { first_name: string | null; last_name: string | null }[]
+        | null;
     };
 
-    let therapistName = "Therapist";
-    if (r.therapist_id) {
-      const { data: t } = await supabase
-        .from("users")
-        .select("first_name, last_name")
-        .eq("id", r.therapist_id)
-        .maybeSingle();
-      if (t) {
-        const tx = t as { first_name: string | null; last_name: string | null };
-        therapistName =
-          `${tx.first_name || ""} ${tx.last_name || ""}`.trim() || "Therapist";
-      }
-    }
+    const rawT = r.therapist;
+    const t = Array.isArray(rawT) ? rawT[0] : rawT;
+    const therapistName = t
+      ? `${t.first_name || ""} ${t.last_name || ""}`.trim() || "Therapist"
+      : "Therapist";
 
     return {
       data: {

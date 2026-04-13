@@ -3,7 +3,7 @@
  * User profile pictures with fallback initials
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ImageSourcePropType } from 'react-native';
 import { Colors } from '@/constants/colors';
 
@@ -59,15 +59,23 @@ export function Avatar({
   const sizeStyle = sizeStyles[size];
   const initials = getInitials(name);
   const bgColor = getInitialsColor(name);
-  const hasImage = !!source;
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [source]);
+
+  const showPhoto =
+    !!source && !loadFailed && (typeof source === 'string' ? source.length > 0 : true);
 
   return (
     <View className={`relative ${className}`}>
-      {hasImage ? (
+      {showPhoto ? (
         <Image
           source={typeof source === 'string' ? { uri: source } : source}
           className={`${sizeStyle.container} rounded-full`}
           resizeMode="cover"
+          onError={() => setLoadFailed(true)}
         />
       ) : (
         <View

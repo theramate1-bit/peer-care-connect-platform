@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
+import { getSignedInTabRoot, signedInTabPath } from "@/lib/signedInRoutes";
 
 export default function BookingSuccessScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();
@@ -78,7 +79,9 @@ export default function BookingSuccessScreen() {
             variant="primary"
             className="mt-8 w-full"
             onPress={() =>
-              router.replace(`/(tabs)/bookings/${resolvedSessionId}`)
+              router.replace(
+                signedInTabPath(`bookings/${resolvedSessionId}`) as never,
+              )
             }
           >
             View booking details
@@ -87,7 +90,9 @@ export default function BookingSuccessScreen() {
           <Button
             variant="primary"
             className="mt-8 w-full"
-            onPress={() => router.replace("/(tabs)/bookings")}
+            onPress={() =>
+              router.replace(signedInTabPath("bookings") as never)
+            }
           >
             Go to sessions
           </Button>
@@ -95,7 +100,7 @@ export default function BookingSuccessScreen() {
         <Button
           variant="outline"
           className="mt-3 w-full"
-          onPress={() => router.replace("/(tabs)")}
+          onPress={() => router.replace(getSignedInTabRoot() as never)}
         >
           Back to home
         </Button>

@@ -1,6 +1,14 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
+
+import { useAuth } from "@/hooks/useAuth";
 
 export default function MessagesStackLayout() {
+  const { isAuthenticated, isInitialized } = useAuth();
+
+  if (isInitialized && !isAuthenticated) {
+    return <Redirect href="/explore" />;
+  }
+
   return (
     <Stack
       screenOptions={{

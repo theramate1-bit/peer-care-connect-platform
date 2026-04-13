@@ -3,7 +3,7 @@
  * Convenience hook for auth operations
  */
 
-import { useEffect } from "react";
+import { isPractitionerPortalRole } from "@/lib/authRoles";
 import {
   useAuthStore,
   selectIsAuthenticated,
@@ -31,17 +31,17 @@ export function useAuth() {
     clearError,
   } = useAuthStore();
 
-  // Initialize on mount
-  useEffect(() => {
-    if (!isInitialized) {
-      initialize();
-    }
-  }, [isInitialized, initialize]);
+  // Auth boot: `authStore` registers `persist.onFinishHydration` → `initialize()` after AsyncStorage rehydrates.
 
   // Computed values
   const isAuthenticated = !!session;
   const isClient = userProfile?.user_role === "client";
-  const needsOnboarding = userProfile?.onboarding_status !== "completed";
+  const isPractitioner = isPractitionerPortalRole(
+    userProfile?.user_role ?? undefined,
+  );
+  // Only clients use the in-app onboarding screen; practitioners may finish setup elsewhere.
+  const needsOnboarding =
+    isClient && userProfile?.onboarding_status !== "completed";
   const userId = authUser?.id;
 
   return {
@@ -56,6 +56,7 @@ export function useAuth() {
     // Computed
     isAuthenticated,
     isClient,
+    isPractitioner,
     needsOnboarding,
     userId,
 

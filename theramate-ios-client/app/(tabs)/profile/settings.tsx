@@ -2,12 +2,12 @@ import React from "react";
 import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
-
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 type AppPrefs = {
   dark_mode: boolean;
@@ -110,14 +110,7 @@ export default function AppSettingsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Settings
-        </Text>
-      </View>
+      <AppStackHeader title="App preferences" fallbackHref={defaultSignedInProfileHref()} />
 
       <View className="px-6 pt-4">
         <Card variant="default" padding="md">

@@ -10,6 +10,8 @@ import {
   Text,
   TextInputProps,
   TouchableOpacity,
+  type TextStyle,
+  type ViewStyle,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -30,8 +32,6 @@ interface InputProps extends Omit<TextInputProps, "style"> {
   className?: string;
   containerClassName?: string;
 }
-
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 export const Input = forwardRef<TextInput, InputProps>(
   (
@@ -73,6 +73,25 @@ export const Input = forwardRef<TextInput, InputProps>(
       onBlur?.(e);
     };
 
+    const boxStatic: ViewStyle = {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 2,
+      borderRadius: 12,
+      backgroundColor: disabled ? Colors.cream[100] : Colors.white,
+      opacity: disabled ? 0.5 : 1,
+    };
+
+    const inputTextStyle: TextStyle = {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: Colors.charcoal[900],
+      ...(leftIcon ? { paddingLeft: 0 } : null),
+      ...(rightIcon || isPassword ? { paddingRight: 0 } : null),
+    };
+
     return (
       <View className={`mb-4 ${containerClassName}`}>
         {label && (
@@ -82,25 +101,18 @@ export const Input = forwardRef<TextInput, InputProps>(
         )}
 
         <Animated.View
-          style={animatedStyle}
-          className={`
-            flex-row items-center
-            bg-white border-2 rounded-xl
-            ${error ? "border-error" : ""}
-            ${disabled ? "opacity-50 bg-cream-100" : ""}
-          `}
+          style={[animatedStyle, boxStatic] as React.ComponentProps<
+            typeof Animated.View
+          >["style"]}
         >
-          {leftIcon && <View className="pl-4 pr-2">{leftIcon}</View>}
+          {leftIcon && (
+            <View style={{ paddingLeft: 16, paddingRight: 8 }}>{leftIcon}</View>
+          )}
 
           <TextInput
             ref={ref}
-            className={`
-              flex-1 py-3 px-4
-              text-base text-charcoal-900
-              ${leftIcon ? "pl-0" : ""}
-              ${rightIcon || isPassword ? "pr-0" : ""}
-              ${className}
-            `}
+            style={inputTextStyle}
+            className={className}
             placeholderTextColor={Colors.charcoal[300]}
             editable={!disabled}
             secureTextEntry={isPassword && !showPassword}
@@ -111,7 +123,7 @@ export const Input = forwardRef<TextInput, InputProps>(
 
           {isPassword && (
             <TouchableOpacity
-              className="pr-4 pl-2"
+              style={{ paddingRight: 16, paddingLeft: 8 }}
               onPress={() => setShowPassword(!showPassword)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
@@ -124,7 +136,7 @@ export const Input = forwardRef<TextInput, InputProps>(
           )}
 
           {rightIcon && !isPassword && (
-            <View className="pr-4 pl-2">{rightIcon}</View>
+            <View style={{ paddingRight: 16, paddingLeft: 8 }}>{rightIcon}</View>
           )}
         </Animated.View>
 

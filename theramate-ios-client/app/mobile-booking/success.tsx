@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { getSignedInTabRoot, signedInTabPath } from "@/lib/signedInRoutes";
 
 export default function MobileBookingSuccessScreen() {
   const { sessionId, mobile_request_id, mobile_checkout_session_id } =
@@ -108,7 +109,9 @@ export default function MobileBookingSuccessScreen() {
           <Button
             variant="primary"
             className="mt-8 w-full"
-            onPress={() => router.replace(`/(tabs)/bookings/${sessionId}`)}
+            onPress={() =>
+              router.replace(signedInTabPath(`bookings/${sessionId}`) as never)
+            }
           >
             View booking details
           </Button>
@@ -116,7 +119,9 @@ export default function MobileBookingSuccessScreen() {
           <Button
             variant="primary"
             className="mt-8 w-full"
-            onPress={() => router.replace("/(tabs)/bookings")}
+            onPress={() =>
+              router.replace(signedInTabPath("bookings") as never)
+            }
           >
             Go to sessions
           </Button>
@@ -128,7 +133,9 @@ export default function MobileBookingSuccessScreen() {
             className="mt-3 w-full"
             onPress={() =>
               router.replace(
-                `/(tabs)/profile/mobile-requests/${mobile_request_id}`,
+                signedInTabPath(
+                  `profile/mobile-requests/${mobile_request_id}`,
+                ) as never,
               )
             }
           >
@@ -139,7 +146,7 @@ export default function MobileBookingSuccessScreen() {
         <Button
           variant="outline"
           className="mt-3 w-full"
-          onPress={() => router.replace("/(tabs)")}
+          onPress={() => router.replace(getSignedInTabRoot() as never)}
         >
           Back to home
         </Button>

@@ -1,12 +1,12 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Alert } from "react-native";
+import { View, Text, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link } from "expo-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/useAuth";
+import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
@@ -47,8 +47,9 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50">
-      <View className="flex-1 px-6 pt-8">
-        <Text className="text-charcoal-900 text-2xl font-bold">
+      <View className="flex-1 px-6 pt-4">
+        <AuthBackHeader fallbackHref="/login" label="Sign in" />
+        <Text className="text-charcoal-900 text-2xl font-bold mt-2">
           Forgot password
         </Text>
         <Text className="text-charcoal-500 mt-2 mb-8">
@@ -79,11 +80,6 @@ export default function ForgotPasswordScreen() {
           Send reset email
         </Button>
 
-        <Link href="/(auth)/login" asChild>
-          <TouchableOpacity className="mt-5 self-center">
-            <Text className="text-sage-500 font-medium">Back to sign in</Text>
-          </TouchableOpacity>
-        </Link>
       </View>
     </SafeAreaView>
   );

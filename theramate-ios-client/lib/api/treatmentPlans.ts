@@ -36,7 +36,7 @@ function normalizeArray(value: unknown): JsonValue[] | null {
 function toPlan(row: PlanRow, nameById: Map<string, string>): TreatmentPlan {
   return {
     id: row.id,
-    title: row.title || "Treatment plan",
+    title: row.title || "Care plan",
     status: row.status,
     practitioner_id: row.practitioner_id,
     practitioner_name: row.practitioner_id

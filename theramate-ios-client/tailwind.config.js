@@ -1,8 +1,12 @@
+const path = require("path");
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Must be absolute: when Metro runs from the monorepo root, relative `./app` resolves to the wrong folder.
   content: [
-    "./app/**/*.{js,jsx,ts,tsx}",
-    "./components/**/*.{js,jsx,ts,tsx}",
+    path.join(__dirname, "app/**/*.{js,jsx,ts,tsx}"),
+    path.join(__dirname, "components/**/*.{js,jsx,ts,tsx}"),
+    path.join(__dirname, "lib/**/*.{js,jsx,ts,tsx}"),
   ],
   presets: [require("nativewind/preset")],
   theme: {

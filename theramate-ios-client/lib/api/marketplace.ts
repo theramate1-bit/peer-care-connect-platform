@@ -3,6 +3,7 @@
  * Typed loosely: `users.user_role` in DB includes therapist variants not in generated types.
  */
 
+import { unknownToError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 
 export const THERAPIST_ROLES = [
@@ -22,6 +23,8 @@ export type MarketplacePractitioner = {
   average_rating: number;
   total_reviews: number;
   verified: boolean;
+  /** Public HTTPS URL from `users.profile_photo_url` (Supabase Storage). */
+  profile_photo_url: string | null;
   /** Lowest active product price in major units (e.g. GBP), for display */
   from_price: number | null;
 };
@@ -35,6 +38,7 @@ type UserRow = {
   specializations: string[] | null;
   therapist_type: string | null;
   is_verified: boolean | null;
+  profile_photo_url: string | null;
 };
 
 export async function fetchMarketplacePractitioners(): Promise<{
@@ -45,12 +49,14 @@ export async function fetchMarketplacePractitioners(): Promise<{
     const { data: usersData, error: usersError } = await supabase
       .from("users")
       .select(
-        "id, first_name, last_name, location, hourly_rate, specializations, therapist_type, is_verified",
+        "id, first_name, last_name, location, hourly_rate, specializations, therapist_type, is_verified, profile_photo_url",
       )
       // DB has therapist role values beyond generated `UserRole` type
       .in("user_role", [...THERAPIST_ROLES] as unknown as string[])
       .eq("is_active", true)
-      .not("hourly_rate", "is", null);
+      // Match live RLS public practitioner profile policy (avoid surprising empty results).
+      .eq("profile_completed", true)
+      .eq("onboarding_status", "completed");
 
     if (usersError) throw usersError;
 
@@ -84,12 +90,13 @@ export async function fetchMarketplacePractitioners(): Promise<{
 
     const { data: reviewsData, error: reviewsError } = await supabase
       .from("reviews")
-      .select("therapist_id, rating")
+      .select("therapist_id, overall_rating")
+      .eq("review_status", "approved")
       .in("therapist_id", practitionerIds);
 
     if (reviewsError) throw reviewsError;
 
-    type ReviewRow = { therapist_id: string; rating: number | null };
+    type ReviewRow = { therapist_id: string; overall_rating: number | null };
     const reviewRows = (reviewsData || []) as ReviewRow[];
 
     const ratingsByTherapist = new Map<
@@ -98,7 +105,7 @@ export async function fetchMarketplacePractitioners(): Promise<{
     >();
     for (const r of reviewRows) {
       const tid = r.therapist_id;
-      const rating = Number(r.rating);
+      const rating = Number(r.overall_rating);
       if (Number.isNaN(rating)) continue;
       const cur = ratingsByTherapist.get(tid) ?? { sum: 0, count: 0 };
       cur.sum += rating;
@@ -126,13 +133,13 @@ export async function fetchMarketplacePractitioners(): Promise<{
         average_rating,
         total_reviews,
         verified: p.is_verified === true,
+        profile_photo_url: p.profile_photo_url?.trim() || null,
         from_price,
       };
     });
 
     return { data: result, error: null };
   } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    return { data: [], error: err };
+    return { data: [], error: unknownToError(e) };
   }
 }

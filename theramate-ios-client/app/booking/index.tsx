@@ -1,5 +1,5 @@
 /**
- * Booking modal — service, date/time, confirm, Stripe Checkout (same Edge Function as web).
+ * Booking flow — service, date/time, confirm, Stripe Checkout (Edge Function).
  */
 
 import React, { useMemo, useState } from "react";
@@ -10,9 +10,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
   TextInput,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { addDays, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,11 @@ import {
   bookSessionAndOpenCheckout,
   type PractitionerProductRow,
 } from "@/lib/api/booking";
+import { tabPath } from "@/contexts/TabRootContext";
+import { getMainAppHref } from "@/lib/postAuthRoute";
+import { signedInTabPath } from "@/lib/signedInRoutes";
+import { useAuthStore } from "@/stores/authStore";
+import { openHostedWebSession } from "@/lib/openHostedWeb";
 
 const STEP_LABELS = [
   "Service",
@@ -119,6 +124,10 @@ export default function BookingModalScreen() {
         return data;
       },
       enabled: !!practitionerId && !!selectedProduct && step >= 1,
+      /** Refresh while choosing date/time so booked slots disappear without manual retry. */
+      refetchInterval:
+        step >= 1 && practitionerId && selectedProduct ? 25_000 : false,
+      staleTime: 0,
     });
 
   React.useEffect(() => {
@@ -194,20 +203,23 @@ Goals: ${goals || "Not provided"}`,
         if (!init.error) {
           const presented = await presentPaymentSheet();
           if (!presented.error) {
-            router.replace(`/(tabs)/bookings/${result.sessionId}`);
+            router.replace(
+              tabPath(
+                getMainAppHref(
+                  useAuthStore.getState().userProfile?.user_role,
+                ),
+                `bookings/${result.sessionId}`,
+              ) as never,
+            );
             return;
           }
         }
       }
 
-      const opened = await Linking.openURL(result.checkoutUrl);
-      if (!opened) {
-        Alert.alert(
-          "Complete payment",
-          "Could not open payment. Please try again.",
-        );
-      }
-      router.back();
+      openHostedWebSession({
+        kind: "stripe_checkout",
+        url: result.checkoutUrl,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -215,16 +227,40 @@ Goals: ${goals || "Not provided"}`,
 
   if (!practitionerId) {
     return (
-      <View className="flex-1 px-6 pt-4 pb-8 bg-cream-50 justify-center">
-        <Text className="text-charcoal-600">No practitioner selected.</Text>
-        <Button
-          variant="primary"
-          className="mt-6"
-          onPress={() => router.back()}
-        >
-          <Text className="text-white font-semibold">Close</Text>
-        </Button>
-      </View>
+      <SafeAreaView className="flex-1 bg-cream-50" edges={["top", "bottom"]}>
+        <View className="flex-1 px-6 pt-4 pb-8 justify-center">
+          <Text className="text-charcoal-900 text-xl font-semibold">
+            Choose a practitioner first
+          </Text>
+          <Text className="text-charcoal-600 mt-3 leading-6">
+            Bookings open from a therapist profile. Browse the marketplace, pick
+            someone, then tap Book again.
+          </Text>
+          <Button
+            variant="primary"
+            className="mt-8"
+            onPress={() =>
+              router.replace(signedInTabPath("explore") as never)
+            }
+          >
+            Browse therapists
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onPress={() => router.push("/find-therapists" as never)}
+          >
+            Find therapists hub
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onPress={() => router.back()}
+          >
+            Go back
+          </Button>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -238,18 +274,33 @@ Goals: ${goals || "Not provided"}`,
 
   if (!therapist) {
     return (
-      <View className="flex-1 px-6 pt-4 pb-8 bg-cream-50 justify-center">
-        <Text className="text-charcoal-600">
-          Could not load this practitioner.
-        </Text>
-        <Button
-          variant="primary"
-          className="mt-6"
-          onPress={() => router.back()}
-        >
-          <Text className="text-white font-semibold">Close</Text>
-        </Button>
-      </View>
+      <SafeAreaView className="flex-1 bg-cream-50" edges={["top", "bottom"]}>
+        <View className="flex-1 px-6 pt-4 pb-8 justify-center">
+          <Text className="text-charcoal-900 text-xl font-semibold">
+            Practitioner not found
+          </Text>
+          <Text className="text-charcoal-600 mt-3 leading-6">
+            This profile may be unavailable or the link may be out of date. Try
+            Explore or go back.
+          </Text>
+          <Button
+            variant="primary"
+            className="mt-8"
+            onPress={() =>
+              router.replace(signedInTabPath("explore") as never)
+            }
+          >
+            Open Explore
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onPress={() => router.back()}
+          >
+            Go back
+          </Button>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -286,8 +337,7 @@ Goals: ${goals || "Not provided"}`,
               <ActivityIndicator color={Colors.sage[500]} />
             ) : products.length === 0 ? (
               <Text className="text-charcoal-500">
-                No bookable services found. Try again later or book on the web
-                app.
+                No bookable services found. Try again later or choose another practitioner.
               </Text>
             ) : (
               products.map((p) => (

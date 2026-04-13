@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { router } from "expo-router";
 import * as Notifications from "expo-notifications";
 
+import { resolveNotificationNavigationFromPushData } from "@/lib/notificationNavigation";
+import { openNotificationAbsoluteUrl } from "@/lib/notificationUrlOpen";
 import { useAuthStore } from "@/stores/authStore";
 import {
   registerForPushNotificationsAsync,
@@ -11,43 +13,21 @@ import {
   type NotificationSubscriptions,
 } from "@/lib/notifications";
 
-function routeFromNotificationData(rawData: unknown): string | null {
-  const data =
-    rawData && typeof rawData === "object"
-      ? (rawData as Record<string, unknown>)
-      : {};
-
-  const explicitRoute = typeof data.route === "string" ? data.route : null;
-  if (explicitRoute) return explicitRoute;
-
-  const screen = typeof data.screen === "string" ? data.screen : null;
-  if (screen === "notifications" || screen === "inbox") {
-    return "/notifications";
+function navigateFromPushData(rawData: unknown) {
+  const nav = resolveNotificationNavigationFromPushData(
+    rawData,
+    useAuthStore.getState().userProfile?.user_role,
+  );
+  if (nav?.kind === "route") {
+    router.push(nav.path as never);
+    return;
   }
-  if (screen === "mobile_requests" || screen === "mobile-booking") {
-    return "/(tabs)/profile/mobile-requests";
+  if (nav?.kind === "url") {
+    openNotificationAbsoluteUrl(
+      nav.url,
+      useAuthStore.getState().userProfile?.user_role,
+    );
   }
-  if (screen === "bookings" && typeof data.session_id === "string") {
-    return `/(tabs)/bookings/${data.session_id}`;
-  }
-  if (screen === "messages" && typeof data.conversation_id === "string") {
-    return `/(tabs)/messages/${data.conversation_id}`;
-  }
-  if (screen === "explore" && typeof data.practitioner_id === "string") {
-    return `/(tabs)/explore/${data.practitioner_id}`;
-  }
-
-  if (typeof data.session_id === "string") {
-    return `/(tabs)/bookings/${data.session_id}`;
-  }
-  if (typeof data.conversation_id === "string") {
-    return `/(tabs)/messages/${data.conversation_id}`;
-  }
-  if (typeof data.practitioner_id === "string") {
-    return `/(tabs)/explore/${data.practitioner_id}`;
-  }
-
-  return null;
 }
 
 export function usePushNotifications() {
@@ -60,23 +40,13 @@ export function usePushNotifications() {
     subsRef.current = subscribeToNotificationEvents({
       onReceive: () => {},
       onResponse: (response) => {
-        const path = routeFromNotificationData(
-          response.notification.request.content.data,
-        );
-        if (path) {
-          router.push(path as never);
-        }
+        navigateFromPushData(response.notification.request.content.data);
       },
     });
 
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
-      const path = routeFromNotificationData(
-        response.notification.request.content.data,
-      );
-      if (path) {
-        router.push(path as never);
-      }
+      navigateFromPushData(response.notification.request.content.data);
     });
 
     return () => {

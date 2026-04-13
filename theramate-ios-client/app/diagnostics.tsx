@@ -1,10 +1,11 @@
 import React from "react";
-import { View, Text, ScrollView, Linking, Alert } from "react-native";
+import { Text, ScrollView, Linking, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { APP_CONFIG } from "@/constants/config";
+import { signedInTabPath } from "@/lib/signedInRoutes";
 
 function randomId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -81,13 +82,6 @@ export default function DiagnosticsScreen() {
           </Button>
         ))}
 
-        <Button
-          variant="primary"
-          className="mt-8"
-          onPress={() => router.back()}
-        >
-          Back
-        </Button>
       </ScrollView>
     </SafeAreaView>
   );

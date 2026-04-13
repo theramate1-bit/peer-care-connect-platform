@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, ActivityIndicator, Linking, Alert } from "react-native";
+import { View, Text, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-
+import { getStashedMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
+import { openHostedWebSession } from "@/lib/openHostedWeb";
 export default function MobileBookingPendingScreen() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
@@ -66,21 +67,25 @@ export default function MobileBookingPendingScreen() {
           queryKey: ["client_mobile_requests", userId],
         });
       }
-      router.replace(`/(tabs)/profile/mobile-requests/${requestIdValue}`);
+      router.replace(`/profile/mobile-requests/${requestIdValue}`);
     } finally {
       setChecking(false);
     }
   };
 
-  const reopenCheckout = async () => {
-    if (!checkoutUrlValue) {
+  const reopenCheckout = () => {
+    const url =
+      checkoutUrlValue ||
+      (requestIdValue ? getStashedMobileCheckoutUrl(requestIdValue) : "") ||
+      "";
+    if (!url) {
       Alert.alert(
         "Missing checkout link",
         "Please return to your mobile requests and retry payment.",
       );
       return;
     }
-    await Linking.openURL(checkoutUrlValue);
+    openHostedWebSession({ kind: "stripe_checkout", url });
   };
 
   return (
@@ -90,8 +95,8 @@ export default function MobileBookingPendingScreen() {
           Complete mobile payment
         </Text>
         <Text className="text-charcoal-500 text-center mt-3">
-          Finish checkout in your browser, then return here to confirm your
-          request status.
+          Finish checkout in the app, then return here to confirm your request
+          status.
         </Text>
 
         {checking ? (
@@ -116,7 +121,7 @@ export default function MobileBookingPendingScreen() {
         <Button
           variant="outline"
           className="mt-3 w-full"
-          onPress={() => void reopenCheckout()}
+          onPress={() => reopenCheckout()}
           disabled={!checkoutUrlValue}
         >
           Reopen checkout
@@ -124,7 +129,7 @@ export default function MobileBookingPendingScreen() {
         <Button
           variant="outline"
           className="mt-3 w-full"
-          onPress={() => router.replace("/(tabs)/profile/mobile-requests")}
+          onPress={() => router.replace("/profile/mobile-requests")}
         >
           View my mobile requests
         </Button>

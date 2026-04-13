@@ -3,19 +3,18 @@
  * App-wide providers and configuration
  */
 
-import React, { useEffect } from "react";
-import { View, Text } from "react-native";
-import { Stack, router } from "expo-router";
+import React, { useEffect, useLayoutEffect } from "react";
+import { InteractionManager } from "react-native";
+import { Stack, router, useRootNavigationState } from "expo-router";
+import * as ExpoSplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StripeProvider } from "@stripe/stripe-react-native";
-import * as SplashScreen from "expo-splash-screen";
-import * as Font from "expo-font";
 import * as Linking from "expo-linking";
+import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { useAuthStore } from "@/stores/authStore";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { authHelpers } from "@/lib/supabase";
 import { API_CONFIG } from "@/constants/config";
 import { Colors } from "@/constants/colors";
@@ -27,8 +26,17 @@ import {
 
 import "../global.css";
 
-// Keep splash screen visible while loading
-SplashScreen.preventAutoHideAsync();
+// Do not call preventAutoHideAsync() here — expo-router uses internalPreventAutoHideAsync.
+// Hide aggressively: early JS hide() can run before native splash is attached (no-op); we also
+// hide after layout, after interactions, when navigation state exists, and on a long fallback.
+
+function hideSplash() {
+  try {
+    void ExpoSplashScreen.hideAsync();
+  } catch {
+    ExpoSplashScreen.hide();
+  }
+}
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -41,33 +49,32 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const [isReady, setIsReady] = React.useState(false);
-  const initialize = useAuthStore((state) => state.initialize);
-  usePushNotifications();
+  const rootNavigation = useRootNavigationState();
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        // Load fonts
-        await Font.loadAsync({
-          "Outfit-Regular": require("../assets/fonts/Outfit-Regular.ttf"),
-          "Outfit-Medium": require("../assets/fonts/Outfit-Medium.ttf"),
-          "Outfit-SemiBold": require("../assets/fonts/Outfit-SemiBold.ttf"),
-          "Outfit-Bold": require("../assets/fonts/Outfit-Bold.ttf"),
-        });
+    void useAuthStore.getState().initialize();
+  }, []);
 
-        // Initialize auth
-        await initialize();
-      } catch (e) {
-        console.warn("App preparation error:", e);
-      } finally {
-        setIsReady(true);
-        await SplashScreen.hideAsync();
-      }
-    }
+  useLayoutEffect(() => {
+    hideSplash();
+  }, []);
 
-    prepare();
-  }, [initialize]);
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      hideSplash();
+    });
+    return () => task.cancel?.();
+  }, []);
+
+  useEffect(() => {
+    if (rootNavigation?.key == null) return;
+    hideSplash();
+  }, [rootNavigation?.key]);
+
+  useEffect(() => {
+    const t = setTimeout(() => hideSplash(), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const handleUrl = async (url: string) => {
@@ -75,12 +82,12 @@ export default function RootLayout() {
       if (isOAuthCallbackUrl(url)) {
         const { error } = await authHelpers.completeOAuthFromUrl(url);
         if (!error) {
-          router.replace("/(auth)/oauth-completion");
+          router.replace("/oauth-completion");
         }
         return;
       }
       if (isPasswordResetUrl(url)) {
-        router.replace("/(auth)/reset-password-confirm");
+        router.replace("/reset-password-confirm");
         return;
       }
 
@@ -135,21 +142,14 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!isReady) {
-    return null;
-  }
-
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <StripeProvider
-            publishableKey={API_CONFIG.STRIPE_PUBLISHABLE_KEY}
-            merchantIdentifier={API_CONFIG.STRIPE_MERCHANT_ID}
-            urlScheme="theramate"
-          >
-            <StatusBar style="dark" />
-            <Stack
+  const stripeKeyRaw = API_CONFIG.STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+  const useStripe =
+    stripeKeyRaw.length > 0 &&
+    (stripeKeyRaw.startsWith("pk_test_") || stripeKeyRaw.startsWith("pk_live_"));
+  const appTree = (
+    <>
+      <StatusBar style="dark" />
+      <Stack
               screenOptions={{
                 headerShown: false,
                 contentStyle: { backgroundColor: Colors.cream[50] },
@@ -167,6 +167,13 @@ export default function RootLayout() {
               {/* Main App Tabs */}
               <Stack.Screen
                 name="(tabs)"
+                options={{
+                  headerShown: false,
+                }}
+              />
+
+              <Stack.Screen
+                name="(practitioner)"
                 options={{
                   headerShown: false,
                 }}
@@ -213,6 +220,7 @@ export default function RootLayout() {
               <Stack.Screen name="contact" options={{ headerShown: false }} />
               <Stack.Screen name="privacy" options={{ headerShown: false }} />
               <Stack.Screen name="terms" options={{ headerShown: false }} />
+              <Stack.Screen name="help" options={{ headerShown: false }} />
               <Stack.Screen name="cookies" options={{ headerShown: false }} />
               <Stack.Screen
                 name="diagnostics"
@@ -232,6 +240,10 @@ export default function RootLayout() {
                 options={{ headerShown: false }}
               />
               <Stack.Screen
+                name="stripe-customer-portal"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
                 name="subscription-success"
                 options={{ headerShown: false }}
               />
@@ -243,10 +255,43 @@ export default function RootLayout() {
                 name="find-therapists"
                 options={{ headerShown: false }}
               />
+
+              {/* OAuth return targets (Universal Links + custom scheme); must exist or deep links show unmatched */}
+              <Stack.Screen
+                name="oauth-callback"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="auth/callback"
+                options={{ headerShown: false }}
+              />
+
+              <Stack.Screen name="+not-found" options={{ headerShown: false }} />
             </Stack>
-          </StripeProvider>
-        </QueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    </>
+  );
+
+  return (
+    <RootErrorBoundary>
+      <GestureHandlerRootView
+        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      >
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            {useStripe ? (
+              <StripeProvider
+                publishableKey={stripeKeyRaw}
+                merchantIdentifier={API_CONFIG.STRIPE_MERCHANT_ID}
+                urlScheme="theramate"
+              >
+                {appTree}
+              </StripeProvider>
+            ) : (
+              appTree
+            )}
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </RootErrorBoundary>
   );
 }

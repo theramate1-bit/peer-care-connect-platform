@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, MapPin, Clock, CircleAlert } from "lucide-react-native";
+import { MapPin, Clock, CircleAlert } from "lucide-react-native";
 import { format } from "date-fns";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -17,9 +17,12 @@ import {
   fetchClientMobileRequests,
   type ClientMobileRequest,
 } from "@/lib/api/mobileRequests";
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PressableCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 function StatusPill({ status }: { status: string | null }) {
   const key = (status || "pending").toLowerCase();
@@ -43,12 +46,17 @@ function StatusPill({ status }: { status: string | null }) {
 }
 
 function RequestCard({ item }: { item: ClientMobileRequest }) {
+  const tabRoot = useTabRoot();
   return (
     <PressableCard
       variant="default"
       padding="md"
       className="mb-3"
-      onPress={() => router.push(`/(tabs)/profile/mobile-requests/${item.id}`)}
+      onPress={() =>
+        router.push(
+          tabPath(tabRoot, `profile/mobile-requests/${item.id}`) as never,
+        )
+      }
     >
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-3">
@@ -85,6 +93,7 @@ function RequestCard({ item }: { item: ClientMobileRequest }) {
 }
 
 export default function ClientMobileRequestsScreen() {
+  const tabRoot = useTabRoot();
   const { userId } = useAuth();
   const {
     data = [],
@@ -106,14 +115,7 @@ export default function ClientMobileRequestsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Mobile requests
-        </Text>
-      </View>
+      <AppStackHeader title="Mobile requests" fallbackHref={defaultSignedInProfileHref()} />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -151,7 +153,9 @@ export default function ClientMobileRequestsScreen() {
               <Button
                 variant="primary"
                 className="mt-4"
-                onPress={() => router.push("/(tabs)/explore")}
+                onPress={() =>
+                  router.push(tabPath(tabRoot, "explore") as never)
+                }
               >
                 <Text className="text-white font-semibold">
                   Explore therapists

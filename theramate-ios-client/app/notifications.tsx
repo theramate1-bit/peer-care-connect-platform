@@ -12,15 +12,30 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, ChevronLeft } from "lucide-react-native";
 import { formatDistanceToNowStrict } from "date-fns";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { tabPath } from "@/contexts/TabRootContext";
+import { getMainAppHref } from "@/lib/postAuthRoute";
+import { resolveNotificationNavigation } from "@/lib/notificationNavigation";
+import { openNotificationAbsoluteUrl } from "@/lib/notificationUrlOpen";
 import { useAuth } from "@/hooks/useAuth";
+import { useAuthStore } from "@/stores/authStore";
 import {
   fetchUserNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   type AppNotification,
 } from "@/lib/api/notifications";
+
+function payloadRecord(item: AppNotification): Record<string, unknown> {
+  const d = item.data;
+  if (d && typeof d === "object" && !Array.isArray(d)) {
+    return d as Record<string, unknown>;
+  }
+  return {};
+}
 
 function NotificationItem({
   item,
@@ -95,41 +110,42 @@ export default function NotificationsInboxScreen() {
       await queryClient.invalidateQueries({
         queryKey: ["notifications_inbox", userId],
       });
+      await queryClient.invalidateQueries({
+        queryKey: ["practitioner_dashboard", userId],
+      });
     }
-    const payload =
-      item.data && typeof item.data === "object"
-        ? (item.data as Record<string, unknown>)
-        : {};
-    const sessionId =
-      typeof payload.sessionId === "string" ? payload.sessionId : null;
-    const conversationId =
-      typeof payload.conversationId === "string"
-        ? payload.conversationId
-        : null;
-    const practitionerId =
-      typeof payload.practitionerId === "string"
-        ? payload.practitionerId
-        : null;
-    if (sessionId) router.push(`/(tabs)/bookings/${sessionId}`);
-    else if (conversationId) router.push(`/(tabs)/messages/${conversationId}`);
-    else if (practitionerId) router.push(`/(tabs)/explore/${practitionerId}`);
+    const p = payloadRecord(item);
+    const nav = resolveNotificationNavigation({
+      payload: p,
+      sourceType: item.source_type,
+      sourceId: item.source_id,
+      relatedEntityType: item.related_entity_type,
+      relatedEntityId: item.related_entity_id,
+      role: useAuthStore.getState().userProfile?.user_role,
+    });
+    if (nav?.kind === "route") {
+      router.push(nav.path as never);
+      return;
+    }
+    if (nav?.kind === "url") {
+      openNotificationAbsoluteUrl(
+        nav.url,
+        useAuthStore.getState().userProfile?.user_role,
+      );
+    }
   };
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center justify-between px-4 pt-2 pb-4 border-b border-cream-200">
-        <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-            <ChevronLeft size={28} color={Colors.charcoal[800]} />
+      <AppStackHeader
+        title="Notifications"
+        fallbackHref={defaultSignedInProfileHref()}
+        right={
+          <TouchableOpacity onPress={() => void readAll()} className="px-2 py-1">
+            <Text className="text-sage-600 font-medium">Mark read</Text>
           </TouchableOpacity>
-          <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-            Notifications
-          </Text>
-        </View>
-        <TouchableOpacity onPress={() => void readAll()} className="px-2 py-1">
-          <Text className="text-sage-600 font-medium">Mark read</Text>
-        </TouchableOpacity>
-      </View>
+        }
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -173,7 +189,14 @@ export default function NotificationsInboxScreen() {
               <Button
                 variant="outline"
                 className="mt-4"
-                onPress={() => router.push("/(tabs)/profile/notifications")}
+                onPress={() => {
+                  const root = getMainAppHref(
+                    useAuthStore.getState().userProfile?.user_role,
+                  );
+                  router.push(
+                    tabPath(root, "profile/notifications") as never,
+                  );
+                }}
               >
                 Notification preferences
               </Button>

@@ -3,6 +3,7 @@ import { View, Text, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
+import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -15,14 +16,14 @@ export default function RoleSelectionScreen() {
     try {
       const res = await updateProfile({
         user_role: "client",
-        onboarding_status: "not_started",
+        onboarding_status: "pending",
       });
       if (!res.success) {
         Alert.alert("Could not set role", res.error || "Please try again.");
         return;
       }
       await refreshProfile();
-      router.replace("/(auth)/onboarding");
+      router.replace("/onboarding");
     } finally {
       setSaving(false);
     }
@@ -30,6 +31,9 @@ export default function RoleSelectionScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50">
+      <View className="px-6 pt-2">
+        <AuthBackHeader fallbackHref="/hero" label="Home" />
+      </View>
       <View className="flex-1 px-6 items-center justify-center">
         <Text className="text-charcoal-900 text-3xl font-bold text-center">
           Choose your role

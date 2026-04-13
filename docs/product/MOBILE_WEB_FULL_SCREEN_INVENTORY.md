@@ -2,7 +2,7 @@
 
 **Purpose:** Single map of routed surfaces, major embedded flows, mobile app shells, and where “wireframes” live—so Android/iOS work can stay aligned with the web app and Supabase.
 
-**Generated:** 2026-03-26  
+**Generated:** 2026-03-26 · **Payments / hosted WebView note:** 2026-04-10  
 **Primary web app:** `peer-care-connect/` (React + Vite + `react-router-dom`)  
 **Primary native shell:** `theramate-ios-client/` (Expo Router; targets **iOS + Android**)  
 **Canonical route file:** `peer-care-connect/src/components/AppContent.tsx`
@@ -14,6 +14,18 @@
 Customer mobile implementation lives in **`theramate-ios-client/`**.
 
 Use this inventory as the **full product** map (practitioner + admin + client) and map customer routes/features into `theramate-ios-client/app` as needed.
+
+### In-app hosted WebView (native-first; no Safari for money/signed URLs)
+
+| Expo route / file | Role |
+| --- | --- |
+| `app/hosted-web.tsx` | Full-screen allowlisted WebView: Stripe Checkout, Customer Portal–class URLs, Supabase signed storage URLs, same-origin `WEB_URL` pages from notifications |
+| `app/stripe-customer-portal.tsx` | Stripe Billing Portal session URL |
+| `lib/openHostedWeb.ts` | `openHostedWebSession` → pending session + `router.push('/hosted-web')` |
+| `lib/hostedWebViewAllowlist.ts` | Host/path rules (`*.stripe.com`, app web host, Supabase storage paths) |
+| `components/web/ControlledHostedWebView.tsx` | Shared WebView + toolbar |
+
+Booking (`app/booking/index.tsx`), mobile request checkout, pending reopen, messages attachments, and notification URL handling consume this stack—see `docs/product/MOBILE_NATIVE_COMPLETION_CHECKLIST.md` (P2).
 
 ---
 
@@ -188,6 +200,8 @@ All page modules live under `peer-care-connect/src/pages/`. Many are **only** im
 
 ## Phase 3 — Native: `theramate-ios-client` (Expo Router)
 
+**Practitioner gap tracker (living doc):** [`PRACTITIONER_MOBILE_REMAINING.md`](./PRACTITIONER_MOBILE_REMAINING.md)
+
 **Stack:** `app/_layout.tsx` → `StripeProvider`, React Query, auth init; `Stack` registers `(auth)`, `(tabs)`, and a **`booking` modal** group in code.
 
 ### 3.1 File-system routes (file-based)
@@ -198,14 +212,27 @@ All page modules live under `peer-care-connect/src/pages/`. Many are **only** im
 | Auth layout | `app/(auth)/_layout.tsx`              | Auth stack                                                                                             |
 | Tabs        | `app/(tabs)/index.tsx`                | Home                                                                                                   |
 | Tabs        | `app/(tabs)/explore/index.tsx`        | Explore / discovery                                                                                    |
-| Tabs        | `app/(tabs)/bookings/index.tsx`       | Sessions                                                                                               |
+| Tabs        | `app/(tabs)/bookings/index.tsx`       | Sessions (client)                                                                                      |
 | Tabs        | `app/(tabs)/messages/index.tsx`       | Messages                                                                                               |
 | Tabs        | `app/(tabs)/profile/index.tsx`        | Profile                                                                                                |
-| Modal       | `booking` (declared in `_layout.tsx`) | **No `app/booking/` files in repo yet**—add Expo route files when implementing the booking modal flow. |
+| **Practitioner** | `app/(practitioner)/_layout.tsx` | Root **Stack**: `(ptabs)` tab group plus stack-only screens (`clients`, `treatment-plans`, `billing`, …). |
+| **Practitioner tabs** | `app/(practitioner)/(ptabs)/_layout.tsx` | Tab shell only: Home, **Diary** (`schedule`), Sessions (`bookings`), Messages, Profile. Avoid nesting heavy stacks under tabs (ghost tab items). |
+| **Practitioner** | `app/(practitioner)/(ptabs)/index.tsx` | Practice dashboard (metrics, today, action queue) |
+| **Practitioner** | `app/(practitioner)/(ptabs)/schedule/index.tsx` | Diary calendar + sessions + `calendar_events`; web shortcuts for practice schedule / scheduler |
+| **Practitioner** | `app/(practitioner)/(ptabs)/bookings/*` | Therapist-scoped sessions list + detail |
+| **Practitioner** | `app/(practitioner)/(ptabs)/profile/index.tsx` | Practitioner menu (practice + business + account) |
+| **Practitioner (stack)** | `app/(practitioner)/clients/*` | Client list + detail |
+| **Practitioner (stack)** | `app/(practitioner)/mobile-requests/*` | Mobile visit requests (accept/decline RPCs) |
+| **Practitioner (stack)** | `app/(practitioner)/clinical-notes/[sessionId].tsx` | SOAP/DAP `treatment_notes` editor (save per section) |
+| **Practitioner (stack)** | `app/(practitioner)/treatment-plans/*` | Care plans: list, create (`new`), edit (`[planId]`) via `treatment_plans` + RPCs |
+| **Practitioner (stack)** | `app/(practitioner)/projects/*` | `projects` list/detail |
+| **Practitioner (stack)** | `app/(practitioner)/marketplace/index.tsx` | Seller hub: therapist profile snapshot, product active toggles, web deep links |
+| **Practitioner (stack)** | `app/(practitioner)/services`, `credits`, `billing`, `stripe-connect`, `analytics`, `exchange`, … | Native entry; **report export signed URLs** and **attachment opens** use `hosted-web` / `openHostedWebSession`; Connect/billing may still use in-app WebView with Stripe allowlists |
+| Modal       | `booking` (declared in `_layout.tsx`) | Booking modal group (`app/booking/`).                                                                 |
 
-**Verified file list (2026-03-26):** only the files above exist under `theramate-ios-client/app/`; no `booking` subtree.
+**Verified (2026-03-29, WebView stack 2026-04):** Practitioner shell includes native clinical notes, care plan CRUD, projects read, and marketplace seller toggles. Plan/clinical **attachments** and **report export** URLs open in **in-app WebView**, not Safari. Remaining **web-first** items: AI/soap edge transcription (voice→transcript in UI), full project phase editor, advanced marketplace CMS—use web or future native iterations where noted in `PRACTITIONER_MOBILE_REMAINING.md`.
 
-**Gap vs web:** Native currently implements a **small client subset** (home, explore, bookings, messages, profile, login). Practitioner dashboards, practice management, credits, treatment exchange, admin, and most guest URLs are **web-only** unless duplicated here.
+**Gap vs web:** Client app remains the `(tabs)` subset. Practitioner app covers core practice workflows on device; **client checkout/portal and signed-document flows** stay in-app; credits/billing/Connect may still rely on web surfaces where parity is incomplete. Admin and some guest URLs remain web-only or shared.
 
 ---
 

@@ -10,12 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ChevronLeft,
-  CircleCheck,
-  Clock4,
-  ListChecks,
-} from "lucide-react-native";
+import { CircleCheck, Clock4, ListChecks } from "lucide-react-native";
 import { format } from "date-fns";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -25,9 +20,11 @@ import {
   markExerciseCompleted,
   type ProgramExercise,
 } from "@/lib/api/exercises";
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 export default function ExerciseProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -84,14 +81,7 @@ export default function ExerciseProgramDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Program details
-        </Text>
-      </View>
+      <AppStackHeader title="Program details" fallbackHref={defaultSignedInProfileHref()} />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">

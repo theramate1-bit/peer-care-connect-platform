@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { router } from "expo-router";
 
+import { useAuthStore } from "@/stores/authStore";
+import { getMainAppHref } from "@/lib/postAuthRoute";
+import { AuthBackHeader } from "@/components/AuthBackHeader";
+
 export default function ClientOnboardingScreen() {
   const { userProfile, updateProfile, refreshProfile } = useAuth();
   const [phone, setPhone] = React.useState(userProfile?.phone || "");
@@ -30,7 +34,8 @@ export default function ClientOnboardingScreen() {
         return;
       }
       await refreshProfile();
-      router.replace("/(tabs)");
+      const role = useAuthStore.getState().userProfile?.user_role;
+      router.replace(getMainAppHref(role));
     } finally {
       setSaving(false);
     }
@@ -38,8 +43,11 @@ export default function ClientOnboardingScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50">
+      <View className="px-6 pt-2">
+        <AuthBackHeader fallbackHref="/role-selection" label="Role" />
+      </View>
       <ScrollView
-        className="flex-1 px-6 pt-8"
+        className="flex-1 px-6 pt-4"
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         <Text className="text-charcoal-900 text-3xl font-bold">

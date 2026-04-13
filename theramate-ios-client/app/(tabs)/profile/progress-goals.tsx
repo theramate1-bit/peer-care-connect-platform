@@ -10,17 +10,11 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ChevronLeft,
-  Target,
-  CheckCircle2,
-  PauseCircle,
-  PlayCircle,
-} from "lucide-react-native";
+import { Target, CheckCircle2, PauseCircle, PlayCircle } from "lucide-react-native";
 import { format } from "date-fns";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/colors";
 import { PressableCard } from "@/components/ui/Card";
@@ -31,6 +25,7 @@ import {
   updateGoalStatus,
   type GoalItem,
 } from "@/lib/api/progress";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 function StatusPill({ status }: { status: string }) {
   const key = status.toLowerCase();
@@ -145,14 +140,7 @@ export default function ProgressGoalsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Progress & goals
-        </Text>
-      </View>
+      <AppStackHeader title="Progress & goals" fallbackHref={defaultSignedInProfileHref()} />
 
       <View className="px-6 pt-4">
         <Button variant="primary" onPress={() => setCreating(true)}>

@@ -8,14 +8,15 @@
 
 ## Apple — before first `eas build` / `eas submit`
 
-1. **Apple Developer Program** — Enroll; create **App ID** `com.theramate.client` (matches `app.json`).
+1. **Apple Developer Program** — Enroll; create **App ID** `com.theramate.client` (matches `app.config.js`).
 2. **Certificates & provisioning** — Run `eas credentials` (or let EAS manage with `eas build`).
 3. **App Store Connect** — New app: name, primary language, bundle ID, SKU. Note **Apple Team ID** for local `eas submit` prompts if needed.
 4. **Merchant ID** — Apple Pay / Stripe: `merchant.com.theramate` is set in `app.json` plugins; create the same identifier in Apple Developer → Identifiers → Merchant IDs and link to your App ID.
 5. **EAS project** — From `theramate-ios-client`: `eas init`, then set **`EAS_PROJECT_ID`** in CI or `.env` (see `app.config.js`) so builds do not use the placeholder id.
-6. **Encryption export compliance** — `ITSAppUsesNonExemptEncryption` is **false** in `app.json` (standard TLS only). In App Store Connect, answer the encryption questionnaire accordingly (typically “uses encryption exempt under EAR”).
+6. **Encryption export compliance** — `ITSAppUsesNonExemptEncryption` is **false** in `app.config.js` (standard TLS only). In App Store Connect, answer the encryption questionnaire accordingly (typically “uses encryption exempt under EAR”).
 7. **Privacy Nutrition Labels** — In App Store Connect, declare data collected (account, health/fitness if applicable, location for therapist search, purchases, etc.) to match actual app behaviour and your privacy policy (`https://theramate.com/privacy` in config).
 8. **Universal Links** — `associatedDomains` are set for `theramate.com` / `www`. Host **apple-app-site-association** on those domains or Universal Links will not open the app from Safari.
+9. **Payments & portal in-app** — Primary **Stripe Checkout**, **Customer Portal**, and **signed document/export** flows use an **allowlisted in-app WebView** (`app/hosted-web.tsx`, `app/stripe-customer-portal.tsx`) so users are not sent to the system browser for those steps. OAuth sign-in may still use `Linking.openURL` as required by the provider.
 
 ## Build & submit commands
 
@@ -36,4 +37,4 @@ eas submit --platform ios --profile production --latest
 
 ## Google Play (optional)
 
-Production profile sets **`buildType`: `app-bundle`**. Complete Play Console listing, Data safety form, and [asset links](https://developer.android.com/training/app-links) matching `app.json` intent filters.
+Production profile sets **`buildType`: `app-bundle`**. Complete Play Console listing, Data safety form, and [asset links](https://developer.android.com/training/app-links) matching `app.config.js` intent filters.

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "f12645b4-b653-443d-9669-c1d83c443685"
+      }
+    },
+    "android": {
+      "package": "com.joynarun.peercareconnectmonorepo"
+    }
+  }
+}

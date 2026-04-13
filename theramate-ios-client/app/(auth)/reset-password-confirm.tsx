@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/useAuth";
+import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
@@ -49,7 +50,7 @@ export default function ResetPasswordConfirmScreen() {
         "Password updated",
         "You can now sign in with your new password.",
       );
-      router.replace("/(auth)/login");
+      router.replace("/login");
     } finally {
       setSubmitting(false);
     }
@@ -57,8 +58,9 @@ export default function ResetPasswordConfirmScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50">
-      <View className="flex-1 px-6 pt-8">
-        <Text className="text-charcoal-900 text-2xl font-bold">
+      <View className="flex-1 px-6 pt-4">
+        <AuthBackHeader fallbackHref="/login" label="Sign in" />
+        <Text className="text-charcoal-900 text-2xl font-bold mt-2">
           Set new password
         </Text>
         <Text className="text-charcoal-500 mt-2 mb-8">

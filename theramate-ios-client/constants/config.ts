@@ -3,23 +3,53 @@
  * Environment variables and app-wide constants
  */
 
+import Constants from "expo-constants";
+
+type PublicEnvKey =
+  | "EXPO_PUBLIC_SUPABASE_URL"
+  | "EXPO_PUBLIC_SUPABASE_ANON_KEY"
+  | "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY"
+  | "EXPO_PUBLIC_WEB_URL"
+  | "EXPO_PUBLIC_POSTHOG_API_KEY"
+  | "EXPO_PUBLIC_SENTRY_DSN";
+
+/** Metro inlines `EXPO_PUBLIC_*` from `.env`; `app.config.js` `extra` fills gaps via `expo-constants` (EAS/CI). */
+function envPublic(key: PublicEnvKey): string | undefined {
+  const fromProcess = process.env[key];
+  if (fromProcess != null && String(fromProcess).trim() !== "") {
+    return String(fromProcess).trim();
+  }
+  const extra = Constants.expoConfig?.extra as
+    | Record<string, string | undefined>
+    | undefined;
+  const v = extra?.[key];
+  if (v != null && String(v).trim() !== "") return String(v).trim();
+  return undefined;
+}
+
+// Theramate Supabase (project ref aikqnvltuwwgifuocvto). Prefer `EXPO_PUBLIC_*` in `.env`.
+const DEFAULT_SUPABASE_URL = "https://aikqnvltuwwgifuocvto.supabase.co";
+/** Public anon key (JWT); safe in client with RLS — rotate in dashboard if needed. */
+const DEFAULT_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpa3Fudmx0dXd3Z2lmdW9jdnRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MTk5NDgsImV4cCI6MjA3MTE5NTk0OH0.PJAKAkbAfp2PP4DXelMpIzhUZZUE5SVoKPzN0JJSRac";
+
 // API Configuration
 export const API_CONFIG = {
   // Supabase - Same backend as web app
-  SUPABASE_URL:
-    process.env.EXPO_PUBLIC_SUPABASE_URL || "https://your-project.supabase.co",
-  SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+  SUPABASE_URL: envPublic("EXPO_PUBLIC_SUPABASE_URL") ?? DEFAULT_SUPABASE_URL,
+  SUPABASE_ANON_KEY:
+    envPublic("EXPO_PUBLIC_SUPABASE_ANON_KEY") ?? DEFAULT_SUPABASE_ANON_KEY,
 
   // Stripe
-  STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
+  STRIPE_PUBLISHABLE_KEY: envPublic("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY") ?? "",
   STRIPE_MERCHANT_ID: "merchant.com.theramate",
 
   // PostHog Analytics (optional)
-  POSTHOG_API_KEY: process.env.EXPO_PUBLIC_POSTHOG_API_KEY || "",
+  POSTHOG_API_KEY: envPublic("EXPO_PUBLIC_POSTHOG_API_KEY") ?? "",
   POSTHOG_HOST: "https://app.posthog.com",
 
   // Sentry Error Tracking (optional)
-  SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || "",
+  SENTRY_DSN: envPublic("EXPO_PUBLIC_SENTRY_DSN") ?? "",
 } as const;
 
 // App Constants
@@ -32,7 +62,7 @@ export const APP_CONFIG = {
   SCHEME: "theramate",
   OAUTH_CALLBACK_PATH: "oauth-callback",
   RESET_PASSWORD_PATH: "reset-password-confirm",
-  WEB_URL: (process.env.EXPO_PUBLIC_WEB_URL || "https://theramate.com").replace(
+  WEB_URL: (envPublic("EXPO_PUBLIC_WEB_URL") ?? "https://theramate.com").replace(
     /\/$/,
     "",
   ),

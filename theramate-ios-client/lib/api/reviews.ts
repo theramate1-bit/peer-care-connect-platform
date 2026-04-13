@@ -1,3 +1,4 @@
+import { unknownToError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 
 export async function hasSessionReview(params: {
@@ -14,8 +15,7 @@ export async function hasSessionReview(params: {
     if (error) throw error;
     return { reviewed: !!data, error: null };
   } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    return { reviewed: false, error: err };
+    return { reviewed: false, error: unknownToError(e) };
   }
 }
 
@@ -25,6 +25,7 @@ export async function submitSessionReview(params: {
   therapistId: string;
   rating: number;
   comment: string;
+  /** Kept for UI; DB uses `review_status` (pending → approved). */
   isPublic: boolean;
 }): Promise<{ ok: boolean; error: Error | null }> {
   try {
@@ -36,15 +37,14 @@ export async function submitSessionReview(params: {
       therapist_id: params.therapistId,
       client_id: params.clientId,
       session_id: params.sessionId,
-      rating: normalizedRating,
+      overall_rating: normalizedRating,
       comment: params.comment.trim() || null,
-      is_public: params.isPublic,
+      review_status: "pending",
     });
     if (error) throw error;
     return { ok: true, error: null };
   } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    return { ok: false, error: err };
+    return { ok: false, error: unknownToError(e) };
   }
 }
 
@@ -55,7 +55,7 @@ export type MyReviewItem = {
   session_id: string | null;
   rating: number;
   comment: string | null;
-  is_public: boolean;
+  review_status: string;
   created_at: string | null;
 };
 
@@ -67,7 +67,7 @@ export async function fetchMyReviews(clientId: string): Promise<{
     const { data, error } = await supabase
       .from("reviews")
       .select(
-        "id, therapist_id, session_id, rating, comment, is_public, created_at",
+        "id, therapist_id, session_id, overall_rating, comment, review_status, created_at",
       )
       .eq("client_id", clientId)
       .order("created_at", { ascending: false });
@@ -77,9 +77,9 @@ export async function fetchMyReviews(clientId: string): Promise<{
       id: string;
       therapist_id: string;
       session_id: string | null;
-      rating: number;
+      overall_rating: number | null;
       comment: string | null;
-      is_public: boolean | null;
+      review_status: string | null;
       created_at: string | null;
     }>;
 
@@ -105,15 +105,19 @@ export async function fetchMyReviews(clientId: string): Promise<{
 
     return {
       data: rows.map((r) => ({
-        ...r,
+        id: r.id,
+        therapist_id: r.therapist_id,
         therapist_name: names.get(r.therapist_id) || "Therapist",
-        is_public: r.is_public === true,
+        session_id: r.session_id,
+        rating: Number(r.overall_rating) || 0,
+        comment: r.comment,
+        review_status: r.review_status || "pending",
+        created_at: r.created_at,
       })),
       error: null,
     };
   } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    return { data: [], error: err };
+    return { data: [], error: unknownToError(e) };
   }
 }
 
@@ -131,16 +135,27 @@ export async function fetchTherapistPublicReviews(params: {
   try {
     const { data, error } = await supabase
       .from("reviews")
-      .select("id, rating, comment, created_at")
+      .select("id, overall_rating, comment, created_at")
       .eq("therapist_id", params.therapistId)
-      .eq("is_public", true)
+      .eq("review_status", "approved")
       .not("comment", "is", null)
       .order("created_at", { ascending: false })
       .limit(params.limit ?? 3);
     if (error) throw error;
-    return { data: (data || []) as TherapistReviewSnippet[], error: null };
+    const rows = (data || []) as Array<{
+      id: string;
+      overall_rating: number | null;
+      comment: string | null;
+      created_at: string | null;
+    }>;
+    const mapped: TherapistReviewSnippet[] = rows.map((r) => ({
+      id: r.id,
+      rating: Number(r.overall_rating) || 0,
+      comment: r.comment,
+      created_at: r.created_at,
+    }));
+    return { data: mapped, error: null };
   } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    return { data: [], error: err };
+    return { data: [], error: unknownToError(e) };
   }
 }

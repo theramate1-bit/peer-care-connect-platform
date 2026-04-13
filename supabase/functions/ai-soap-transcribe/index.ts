@@ -1,34 +1,32 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
 
-// CORS headers - restrict to allowed origins in production
+// CORS headers — align with `soap-notes`
 const getAllowedOrigin = (): string => {
   const origin = Deno.env.get('ALLOWED_ORIGINS') || '';
   const allowedOrigins = origin.split(',').map(o => o.trim()).filter(Boolean);
-  
-  // In production, use specific origins; in development, allow localhost
+
   if (allowedOrigins.length > 0) {
     return allowedOrigins[0];
   }
-  
-  // Default: allow all in development, restrict in production
+
   return Deno.env.get('ENVIRONMENT') === 'production' ? '' : '*';
 };
 
 const corsHeaders = (origin?: string | null): Record<string, string> => {
   const allowedOrigin = getAllowedOrigin();
   const requestOrigin = origin || '*';
-  
-  // In production, validate origin; in development, allow all
+
   const corsOrigin = allowedOrigin === '*' || Deno.env.get('ENVIRONMENT') !== 'production'
     ? '*'
     : (allowedOrigin.includes(requestOrigin) ? requestOrigin : '');
-  
+
   return {
     'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
-}
+};
 
 interface TranscribeRequest {
   audio_url?: string;
@@ -59,11 +57,48 @@ async function getTranscript(apiKey: string, id: string) {
 
 serve(async (req) => {
   const origin = req.headers.get('origin');
-  
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders(origin) });
   }
+
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
+        status: 500,
+        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+    });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('plan,status')
+      .eq('user_id', user.id)
+      .in('plan', ['pro', 'clinic'])
+      .eq('status', 'active')
+      .maybeSingle();
+    if (!sub) {
+      return new Response(JSON.stringify({ error: 'Pro plan required' }), {
+        status: 403,
+        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+      });
+    }
+
     const apiKey = Deno.env.get('ASSEMBLYAI_API_KEY');
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'Missing ASSEMBLYAI_API_KEY' }), { status: 500, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } });

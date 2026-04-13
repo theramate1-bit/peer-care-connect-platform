@@ -12,20 +12,40 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { Search, MapPin, Filter, Star, Heart } from "lucide-react-native";
 
+import { AuthBackHeader } from "@/components/AuthBackHeader";
+import { MainTabHeader } from "@/components/navigation/AppStackHeader";
 import { PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Colors } from "@/constants/colors";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  useFavoriteTherapistIds,
+  useToggleFavoriteTherapist,
+} from "@/hooks/useFavoriteTherapists";
 import { SPECIALIZATIONS } from "@/constants/config";
 import type { MarketplacePractitioner } from "@/lib/api/marketplace";
+import { formatUnknownError } from "@/lib/errors";
 import { useMarketplacePractitioners } from "@/hooks/useMarketplacePractitioners";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 
-function TherapistCard({ therapist }: { therapist: MarketplacePractitioner }) {
+function TherapistCard({
+  therapist,
+  isFavorite,
+  favoriteBusy,
+  onToggleFavorite,
+}: {
+  therapist: MarketplacePractitioner;
+  isFavorite: boolean;
+  favoriteBusy: boolean;
+  onToggleFavorite: () => void;
+}) {
+  const tabRoot = useTabRoot();
   const specializationLabels = (therapist.specializations || [])
     .map((s) => SPECIALIZATIONS.find((spec) => spec.value === s)?.label)
     .filter(Boolean)
@@ -43,10 +63,13 @@ function TherapistCard({ therapist }: { therapist: MarketplacePractitioner }) {
       variant="default"
       padding="md"
       className="mb-3"
-      onPress={() => router.push(`/(tabs)/explore/${therapist.id}`)}
+      onPress={() =>
+        router.push(tabPath(tabRoot, `explore/${therapist.id}`) as never)
+      }
     >
       <View className="flex-row">
         <Avatar
+          source={therapist.profile_photo_url ?? undefined}
           name={`${therapist.first_name} ${therapist.last_name}`}
           size="xl"
           verified={therapist.verified}
@@ -58,8 +81,18 @@ function TherapistCard({ therapist }: { therapist: MarketplacePractitioner }) {
             </Text>
             <TouchableOpacity
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={onToggleFavorite}
+              disabled={favoriteBusy}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isFavorite ? "Remove from saved" : "Save therapist"
+              }
             >
-              <Heart size={20} color={Colors.charcoal[300]} />
+              <Heart
+                size={20}
+                color={isFavorite ? Colors.error : Colors.charcoal[300]}
+                fill={isFavorite ? Colors.error : "transparent"}
+              />
             </TouchableOpacity>
           </View>
 
@@ -104,6 +137,11 @@ function TherapistCard({ therapist }: { therapist: MarketplacePractitioner }) {
 }
 
 export default function ExploreScreen() {
+  const { isAuthenticated, userId } = useAuth();
+  const { data: favoriteIds = [] } = useFavoriteTherapistIds();
+  const favoriteMutation = useToggleFavoriteTherapist();
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<
     string | null
@@ -133,14 +171,49 @@ export default function ExploreScreen() {
   }, [practitioners, searchQuery, selectedSpecialization]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <Animated.View
-        entering={FadeInDown.delay(100).duration(500)}
-        className="px-6 pt-4 pb-4"
-      >
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      edges={["top"]}
+    >
+      <MainTabHeader title="Explore" />
+      <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}>
+        {!isAuthenticated ? (
+          <View className="mb-2 -ml-2">
+            <AuthBackHeader
+              fallbackHref="/hero"
+              label="Home"
+              alwaysReplace
+            />
+          </View>
+        ) : null}
         <Text className="text-charcoal-900 text-2xl font-bold mb-4">
-          Find Therapists
+          Find therapists
         </Text>
+
+        {!isAuthenticated ? (
+          <View className="mb-4 gap-2">
+            <TouchableOpacity
+              onPress={() => router.push("/login" as never)}
+              className="active:opacity-70"
+              accessibilityRole="button"
+              accessibilityLabel="Sign in to book and message therapists"
+            >
+              <Text className="text-sage-600 font-medium text-sm">
+                Sign in to book sessions and message therapists →
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/register" as never)}
+              className="active:opacity-70"
+              accessibilityRole="button"
+              accessibilityLabel="Create a Theramate account"
+            >
+              <Text className="text-charcoal-600 font-medium text-sm">
+                New here? Create an account →
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View className="flex-row items-center bg-white border border-cream-300 rounded-xl px-4 py-3">
           <Search size={20} color={Colors.charcoal[400]} />
@@ -155,9 +228,9 @@ export default function ExploreScreen() {
             <Filter size={18} color={Colors.charcoal[600]} />
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
 
-      <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+      <View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -203,7 +276,7 @@ export default function ExploreScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </Animated.View>
+      </View>
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center py-20">
@@ -213,12 +286,10 @@ export default function ExploreScreen() {
       ) : isError ? (
         <View className="flex-1 px-6 py-12 items-center">
           <Text className="text-charcoal-700 text-center">
-            {error instanceof Error
-              ? error.message
-              : "Could not load therapists."}
+            {formatUnknownError(error)}
           </Text>
           <Text className="text-charcoal-500 text-sm text-center mt-2">
-            Check `EXPO_PUBLIC_SUPABASE_*` in `.env` and try again.
+            If this mentions config or “Invalid API key”, copy `theramate-ios-client/.env.example` to `.env` and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, then restart Expo.
           </Text>
           <TouchableOpacity
             onPress={() => {
@@ -233,13 +304,44 @@ export default function ExploreScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <Animated.View
-              entering={FadeInDown.delay(300 + index * 50).duration(500)}
-              className="px-6"
-            >
-              <TherapistCard therapist={item} />
-            </Animated.View>
+          renderItem={({ item }) => (
+            <View style={{ paddingHorizontal: 24 }}>
+              <TherapistCard
+                therapist={item}
+                isFavorite={favoriteSet.has(item.id)}
+                favoriteBusy={
+                  favoriteMutation.isPending &&
+                  favoriteMutation.variables?.therapistId === item.id
+                }
+                onToggleFavorite={() => {
+                  if (!userId) {
+                    Alert.alert(
+                      "Sign in required",
+                      "Create an account or sign in to save therapists.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Sign in", onPress: () => router.push("/login") },
+                      ],
+                    );
+                    return;
+                  }
+                  const nextSaved = !favoriteSet.has(item.id);
+                  favoriteMutation.mutate(
+                    {
+                      therapistId: item.id,
+                      nextSaved,
+                    },
+                    {
+                      onError: (e) =>
+                        Alert.alert(
+                          "Could not save",
+                          e instanceof Error ? e.message : "Please try again.",
+                        ),
+                    },
+                  );
+                }}
+              />
+            </View>
           )}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}

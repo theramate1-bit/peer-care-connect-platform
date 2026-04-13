@@ -13,14 +13,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { MessageCircle, Search } from "lucide-react-native";
 import { PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import type { ConversationSummary } from "@/lib/api/conversations";
+import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { isPractitionerPortalRole } from "@/lib/authRoles";
 
 function formatTime(dateString: string | null) {
   if (!dateString) return "";
@@ -50,12 +53,15 @@ function ConversationItem({
 }: {
   conversation: ConversationSummary;
 }) {
+  const tabRoot = useTabRoot();
   return (
     <PressableCard
       variant="default"
       padding="md"
       className="mb-2"
-      onPress={() => router.push(`/(tabs)/messages/${conversation.id}`)}
+      onPress={() =>
+        router.push(tabPath(tabRoot, `messages/${conversation.id}`) as never)
+      }
     >
       <View className="flex-row items-center">
         <View className="relative">
@@ -102,10 +108,16 @@ function ConversationItem({
 }
 
 export default function MessagesScreen() {
-  const { userId } = useAuth();
+  const tabRoot = useTabRoot();
+  const { userId, isAuthenticated, isInitialized, userProfile } = useAuth();
+  const isPractitionerUi =
+    tabRoot === "/(practitioner)/(ptabs)" ||
+    isPractitionerPortalRole(userProfile?.user_role);
   const {
     data: conversations,
     isPending,
+    isError,
+    error: conversationsError,
     refetch,
     isRefetching,
   } = useConversations(userId);
@@ -114,23 +126,73 @@ export default function MessagesScreen() {
     await refetch();
   }, [refetch]);
 
-  return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <Animated.View
-        entering={FadeInDown.delay(100).duration(500)}
-        className="px-6 pt-4 pb-4"
+  if (isInitialized && !isAuthenticated) {
+    return (
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+        edges={["top"]}
       >
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-charcoal-900 text-2xl font-bold">Messages</Text>
+        <MainTabHeader title="Messages" />
+        <View className="flex-1 items-center justify-center px-8 pb-24">
+          <MessageCircle size={48} color={Colors.charcoal[300]} />
+          <Text className="text-charcoal-900 font-semibold text-lg mt-6 text-center">
+            Sign in to message
+          </Text>
+          <Text className="text-charcoal-500 mt-2 text-center leading-6">
+            {isPractitionerUi
+              ? "Sign in with your practitioner account to message clients and reply from Sessions or your diary."
+              : "Create an account or sign in to chat with practitioners after you book."}
+          </Text>
+          <Button
+            variant="primary"
+            className="mt-8"
+            onPress={() => router.push("/login" as never)}
+          >
+            Sign in
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onPress={() => router.push("/register" as never)}
+          >
+            {isPractitionerUi ? "Create practitioner account" : "Create account"}
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      edges={["top"]}
+    >
+      <MainTabHeader
+        title="Messages"
+        right={
           <TouchableOpacity className="p-2 bg-cream-100 rounded-lg" disabled>
             <Search size={20} color={Colors.charcoal[600]} />
           </TouchableOpacity>
-        </View>
-      </Animated.View>
+        }
+      />
 
       {isPending ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={Colors.sage[500]} />
+        </View>
+      ) : isError ? (
+        <View className="flex-1 px-6 py-10">
+          <Text className="text-charcoal-700 text-center">
+            {conversationsError instanceof Error
+              ? conversationsError.message
+              : "Could not load conversations."}
+          </Text>
+          <TouchableOpacity
+            onPress={() => void refetch()}
+            className="mt-6 self-center bg-sage-500 px-6 py-3 rounded-xl"
+          >
+            <Text className="text-white font-semibold">Retry</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -143,13 +205,10 @@ export default function MessagesScreen() {
               tintColor={Colors.sage[500]}
             />
           }
-          renderItem={({ item, index }) => (
-            <Animated.View
-              entering={FadeInDown.delay(200 + index * 50).duration(400)}
-              className="px-6"
-            >
+          renderItem={({ item }) => (
+            <View style={{ paddingHorizontal: 24 }}>
               <ConversationItem conversation={item} />
-            </Animated.View>
+            </View>
           )}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
@@ -160,7 +219,9 @@ export default function MessagesScreen() {
                 No messages yet
               </Text>
               <Text className="text-charcoal-400 mt-2 text-center text-sm">
-                Conversations appear here when you message a therapist
+                {isPractitionerUi
+                  ? "Threads appear when clients message you or when you start a chat from a session or client profile."
+                  : "Conversations show up when you message a practitioner from booking or their profile."}
               </Text>
             </View>
           }

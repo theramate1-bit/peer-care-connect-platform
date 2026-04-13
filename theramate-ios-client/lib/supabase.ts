@@ -20,6 +20,11 @@ const ExpoSecureStoreAdapter = {
   },
   setItem: async (key: string, value: string): Promise<void> => {
     try {
+      if (value.length > 2048) {
+        console.warn(
+          "[Supabase auth] SecureStore value exceeds 2048 bytes; session may not persist. Consider AsyncStorage or encrypted storage per Supabase Expo docs.",
+        );
+      }
       await SecureStore.setItemAsync(key, value);
     } catch (error) {
       console.warn("SecureStore setItem error:", error);
@@ -44,6 +49,9 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      // Default in @supabase/auth-js is `implicit`; native OAuth returns `?code=` →
+      // `exchangeCodeForSession` needs PKCE + stored code verifier (matches Supabase RN guides).
+      flowType: "pkce",
     },
     realtime: {
       params: {
@@ -69,7 +77,8 @@ export const authHelpers = {
       options: {
         data: {
           ...metadata,
-          user_role: "client", // Default role for iOS app
+          // Allow signup flows to set practitioner vs client; default client.
+          user_role: (metadata?.user_role as string | undefined) ?? "client",
         },
       },
     });

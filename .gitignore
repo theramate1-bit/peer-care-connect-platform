@@ -92,3 +92,24 @@ secrets/
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Local scratch / lead exports (do not commit)
+.missing-li.tsv
+.mli-aa
+.mli-ab
+.mli-ac
+.mli-ad
+m2-aa
+m2-ab
+m2-ac
+m2-ad
+missing-chunk-*
+missing-linkedin-leads.tsv
+missing2.tsv
+uk-leads-linkedin-urls-batch2.tsv
+
+# Local data / scraping experiments (not product source)
+data/
+
+# Cursor MCP may contain machine-local tokens
+.cursor/mcp.json

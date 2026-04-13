@@ -105,6 +105,15 @@ Clicking a notification navigates based on:
 
 **See:** `notification-utils.ts` – `handleNotificationNavigation`, `formatNotificationPreview`.
 
+### Mobile app (Theramate Expo / `theramate-ios-client`)
+
+On native, use **`resolveNotificationNavigation`** (`lib/notificationNavigation.ts`) and **`openNotificationAbsoluteUrl`** (`lib/notificationUrlOpen.ts`):
+
+- Prefer **`payload.route`** or derived **`{ kind: "route", path }`** for in-app screens.
+- For **`web_path` / `href` / `url`**, the resolver first maps known **`APP_CONFIG.WEB_URL`** URLs to native routes via **`tryMapWebUrlToRoute`**; otherwise **`kind: "url"`** is opened **in-app** (allowlisted WebView for Stripe, Supabase signed URLs, or same-origin web pages)—not Safari.
+
+**See:** `app/notifications.tsx`, `hooks/usePushNotifications.ts`, `MOBILE_NATIVE_COMPLETION_CHECKLIST.md` (P2).
+
 ---
 
 ## Real-time
@@ -122,4 +131,4 @@ The `notifications` table is in the Realtime broadcast set. New rows appear in t
 
 ---
 
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-04-10

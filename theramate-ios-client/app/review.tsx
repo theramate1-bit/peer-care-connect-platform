@@ -1,11 +1,11 @@
 import React from "react";
-import { View, Text, ScrollView, Linking } from "react-native";
+import { View, Text, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
-import { APP_CONFIG } from "@/constants/config";
+import { signedInTabPath } from "@/lib/signedInRoutes";
 
 export default function GuestReviewEntryScreen() {
   const { sessionId, token } = useLocalSearchParams<{
@@ -14,20 +14,15 @@ export default function GuestReviewEntryScreen() {
   }>();
   const { isAuthenticated } = useAuth();
 
-  const openWebReview = async () => {
-    const qs = new URLSearchParams();
-    if (sessionId) qs.set("sessionId", sessionId);
-    if (token) qs.set("token", token);
-    const url = `${APP_CONFIG.WEB_URL}/review${qs.toString() ? `?${qs.toString()}` : ""}`;
-    await Linking.openURL(url);
-  };
-
   const openInAppReview = () => {
     if (!sessionId) {
-      router.push("/(tabs)/bookings");
+      router.push(signedInTabPath("bookings") as never);
       return;
     }
-    router.push({ pathname: "/(tabs)/bookings/review", params: { sessionId } });
+    router.push({
+      pathname: signedInTabPath("bookings/review") as any,
+      params: { sessionId },
+    });
   };
 
   return (
@@ -40,8 +35,7 @@ export default function GuestReviewEntryScreen() {
           Leave a review
         </Text>
         <Text className="text-charcoal-500 mt-2">
-          You can leave feedback for your session. If you opened a guest email
-          link, we will route you to the secure web flow.
+          You can leave feedback for your session directly in app.
         </Text>
 
         {isAuthenticated ? (
@@ -53,16 +47,16 @@ export default function GuestReviewEntryScreen() {
             <Button
               variant="primary"
               className="mt-6"
-              onPress={() => void openWebReview()}
+              onPress={() => router.replace("/login")}
             >
-              Continue securely on web
+              Sign in to continue
             </Button>
             <Button
               variant="outline"
               className="mt-3"
-              onPress={() => router.replace("/(auth)/login")}
+              onPress={() => router.replace("/login")}
             >
-              Sign in to continue in app
+              Back to sign in
             </Button>
           </>
         )}

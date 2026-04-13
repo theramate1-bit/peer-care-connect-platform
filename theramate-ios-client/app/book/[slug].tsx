@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { fetchPublicTherapistById } from "@/lib/api/guestBooking";
-import { APP_CONFIG } from "@/constants/config";
+import { signedInTabPath } from "@/lib/signedInRoutes";
 
 export default function DirectBookingScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -65,7 +65,7 @@ export default function DirectBookingScreen() {
         <Button
           variant="outline"
           className="mt-3"
-          onPress={() => router.push(`/(tabs)/explore`)}
+          onPress={() => router.push(signedInTabPath("explore") as never)}
         >
           Browse practitioners
         </Button>
@@ -79,8 +79,8 @@ export default function DirectBookingScreen() {
         </Button>
 
         <Text className="text-charcoal-400 text-xs mt-6">
-          If this link was opened from email and does not load, open the web
-          fallback: {APP_CONFIG.WEB_URL}/book/{slug}
+          If this link does not load, use Browse practitioners or contact support
+          with your practitioner&apos;s name.
         </Text>
       </View>
     </SafeAreaView>

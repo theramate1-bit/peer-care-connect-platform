@@ -22,16 +22,25 @@
     "lint": "npm run lint --workspace=peer-care-connect",
     "typecheck:mobile": "npm run type-check --workspace=theramate-ios-client",
     "test:mobile": "npm test --workspace=theramate-ios-client",
+    "theramate:ios": "npx expo start ./theramate-ios-client",
+    "theramate:ios:clean": "npx expo start ./theramate-ios-client --clear",
+    "theramate:dev:ios": "npm run dev:ios --workspace=theramate-ios-client",
+    "theramate:dev:android": "npm run dev:android --workspace=theramate-ios-client",
     "prepare": "husky install",
     "agent-context:up": "cd agent-context && docker compose up -d",
     "agent-context:offline": "cd agent-context && docker compose -f docker-compose.offline.yml up -d",
-    "agent-context:down": "cd agent-context && docker compose down"
+    "agent-context:down": "cd agent-context && docker compose down",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
+    "ajv": "^8.18.0",
+    "ajv-keywords": "^5.1.0",
     "husky": "^9.0.0",
     "juice": "^10.0.1",
     "lint-staged": "^15.0.0",
-    "mjml": "^4.18.0"
+    "mjml": "^4.18.0",
+    "patch-package": "^8.0.1"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -63,5 +72,11 @@
   "overrides": {
     "@types/react": "18.3.28",
     "@types/react-dom": "18.3.7"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
+  "dependencies": {
+    "expo": "~52.0.49",
+    "react": "18.3.1",
+    "react-native": "0.76.9"
   }
 }

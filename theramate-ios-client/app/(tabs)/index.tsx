@@ -12,8 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { Link, Redirect } from "expo-router";
 import { format, isToday, isTomorrow } from "date-fns";
 import {
   Calendar,
@@ -22,9 +21,12 @@ import {
   Search,
   Star,
   Heart,
+  MessageCircle,
 } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useClientSessions } from "@/hooks/useClientSessions";
 import { useMarketplacePractitioners } from "@/hooks/useMarketplacePractitioners";
@@ -48,7 +50,8 @@ function formatSessionWhen(s: SessionWithTherapist): string {
 }
 
 export default function HomeScreen() {
-  const { userProfile, userId } = useAuth();
+  const tabRoot = useTabRoot();
+  const { userProfile, userId, isAuthenticated, isInitialized } = useAuth();
   const queryClient = useQueryClient();
   const {
     data: sessions,
@@ -91,13 +94,21 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [refetchSessions, refetchPractitioners, queryClient, userId]);
 
+  if (isInitialized && !isAuthenticated) {
+    return <Redirect href="/explore" />;
+  }
+
   const firstName = userProfile?.first_name || "there";
   const loadingHome = loadingSessions && !sessions;
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      edges={["top"]}
+    >
+      <MainTabHeader title="Home" />
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -108,10 +119,7 @@ export default function HomeScreen() {
           />
         }
       >
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(500)}
-          className="px-6 pt-4 pb-6"
-        >
+        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}>
           <View className="flex-row items-center justify-between">
             <View>
               <Text className="text-charcoal-500 text-base">Good morning,</Text>
@@ -125,12 +133,9 @@ export default function HomeScreen() {
               size="lg"
             />
           </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          className="px-6 mb-6"
-        >
+        <View style={{ paddingHorizontal: 24, marginBottom: 24 }}>
           <Card variant="elevated" className="bg-sage-500 p-5">
             <Text className="text-white/80 text-sm mb-2">Next session</Text>
             {loadingHome ? (
@@ -162,7 +167,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                 </View>
-                <Link href="/(tabs)/bookings" asChild>
+                <Link href={tabPath(tabRoot, "bookings") as never} asChild>
                   <Button
                     variant="outline"
                     size="sm"
@@ -180,7 +185,7 @@ export default function HomeScreen() {
                   You have no upcoming bookings. Explore therapists to get
                   started.
                 </Text>
-                <Link href="/(tabs)/explore" asChild>
+                <Link href={tabPath(tabRoot, "explore") as never} asChild>
                   <Button
                     variant="outline"
                     size="sm"
@@ -194,17 +199,14 @@ export default function HomeScreen() {
               </>
             )}
           </Card>
-        </Animated.View>
+        </View>
 
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500)}
-          className="px-6 mb-6"
-        >
+        <View style={{ paddingHorizontal: 24, marginBottom: 24 }}>
           <Text className="text-charcoal-900 font-semibold text-lg mb-4">
             Quick actions
           </Text>
           <View className="flex-row space-x-3">
-            <Link href="/(tabs)/explore" asChild>
+            <Link href={tabPath(tabRoot, "explore") as never} asChild>
               <PressableCard
                 variant="filled"
                 padding="md"
@@ -219,7 +221,7 @@ export default function HomeScreen() {
               </PressableCard>
             </Link>
 
-            <Link href="/(tabs)/bookings" asChild>
+            <Link href={tabPath(tabRoot, "bookings") as never} asChild>
               <PressableCard
                 variant="filled"
                 padding="md"
@@ -234,7 +236,7 @@ export default function HomeScreen() {
               </PressableCard>
             </Link>
 
-            <Link href="/(tabs)/profile" asChild>
+            <Link href={tabPath(tabRoot, "profile") as never} asChild>
               <PressableCard
                 variant="filled"
                 padding="md"
@@ -249,23 +251,45 @@ export default function HomeScreen() {
               </PressableCard>
             </Link>
           </View>
-        </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(400).duration(500)}
-          className="px-6"
-        >
+          <Link href={tabPath(tabRoot, "messages") as never} asChild>
+            <PressableCard
+              variant="default"
+              padding="md"
+              className="mt-3 flex-row items-center border border-cream-200"
+            >
+              <View className="w-11 h-11 rounded-xl bg-sage-500/10 items-center justify-center">
+                <MessageCircle size={22} color={Colors.sage[600]} />
+              </View>
+              <View className="flex-1 ml-3">
+                <Text className="text-charcoal-900 font-semibold">
+                  Messages
+                </Text>
+                <Text className="text-charcoal-500 text-sm mt-0.5">
+                  Chat with your practitioners
+                </Text>
+              </View>
+              <ChevronRight size={20} color={Colors.charcoal[300]} />
+            </PressableCard>
+          </Link>
+
+        </View>
+
+        <View style={{ paddingHorizontal: 24 }}>
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-charcoal-900 font-semibold text-lg">
               Suggested for you
             </Text>
-            <Link href="/(tabs)/explore" asChild>
+            <Link href={tabPath(tabRoot, "explore") as never} asChild>
               <Text className="text-sage-500 font-medium">See all</Text>
             </Link>
           </View>
 
           {marketplacePending ? (
-            <ActivityIndicator color={Colors.sage[500]} className="mt-4" />
+            <ActivityIndicator
+              color={Colors.sage[500]}
+              style={{ marginTop: 16 }}
+            />
           ) : (
             suggested.map((p) => {
               const specLabels =
@@ -278,7 +302,11 @@ export default function HomeScreen() {
                   .slice(0, 2)
                   .join(", ") ?? "";
               return (
-                <Link key={p.id} href={`/(tabs)/explore/${p.id}`} asChild>
+                <Link
+                  key={p.id}
+                  href={tabPath(tabRoot, `explore/${p.id}`) as never}
+                  asChild
+                >
                   <PressableCard
                     variant="default"
                     padding="md"
@@ -286,6 +314,7 @@ export default function HomeScreen() {
                   >
                     <View className="flex-row items-center">
                       <Avatar
+                        source={p.profile_photo_url ?? undefined}
                         name={`${p.first_name} ${p.last_name}`}
                         size="lg"
                         verified={p.verified}
@@ -320,7 +349,7 @@ export default function HomeScreen() {
               );
             })
           )}
-        </Animated.View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

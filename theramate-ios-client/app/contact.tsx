@@ -1,48 +1,40 @@
 import React from "react";
-import { View, Text, Linking } from "react-native";
+import { Text, ScrollView, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { Mail } from "lucide-react-native";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
+import { Colors } from "@/constants/colors";
 import { APP_CONFIG } from "@/constants/config";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 export default function ContactScreen() {
-  const openContact = async () => {
-    await Linking.openURL(`${APP_CONFIG.WEB_URL}/contact`);
-  };
-  const emailSupport = async () => {
-    await Linking.openURL(`mailto:${APP_CONFIG.SUPPORT_EMAIL}`);
+  const emailSupport = () => {
+    void Linking.openURL(`mailto:${APP_CONFIG.SUPPORT_EMAIL}`);
   };
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-1 px-6 justify-center">
-        <Text className="text-charcoal-900 text-3xl font-bold">Contact</Text>
-        <Text className="text-charcoal-500 mt-3">
-          Need help with a booking or payment? Contact support directly.
+      <AppStackHeader title="Contact" fallbackHref={defaultSignedInProfileHref()} />
+      <ScrollView
+        className="flex-1 px-6"
+        contentContainerStyle={{ paddingTop: 24, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text className="text-charcoal-900 text-xl font-bold">Support</Text>
+        <Text className="text-charcoal-500 mt-3 leading-6">
+          Need help with a booking or payment? Contact support directly from the app.
         </Text>
         <Button
           variant="primary"
           className="mt-8"
-          onPress={() => void openContact()}
-        >
-          Open contact page
-        </Button>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onPress={() => void emailSupport()}
+          leftIcon={<Mail size={16} color="#fff" />}
+          onPress={emailSupport}
         >
           Email support
         </Button>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onPress={() => router.back()}
-        >
-          Back
-        </Button>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

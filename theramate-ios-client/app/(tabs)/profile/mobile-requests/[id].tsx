@@ -9,13 +9,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Clock, MapPin, CreditCard } from "lucide-react-native";
+import { Clock, MapPin, CreditCard } from "lucide-react-native";
 import { format } from "date-fns";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchClientMobileRequestById } from "@/lib/api/mobileRequests";
 import { Colors } from "@/constants/colors";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { Card } from "@/components/ui/Card";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { Button } from "@/components/ui/Button";
 
 function statusLabel(status: string | null): string {
@@ -28,6 +31,7 @@ function statusLabel(status: string | null): string {
 }
 
 export default function MobileRequestDetailScreen() {
+  const tabRoot = useTabRoot();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
 
@@ -47,14 +51,7 @@ export default function MobileRequestDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Request details
-        </Text>
-      </View>
+      <AppStackHeader title="Request details" fallbackHref={defaultSignedInProfileHref()} />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -162,7 +159,11 @@ export default function MobileRequestDetailScreen() {
           {data.session_id ? (
             <Button
               variant="primary"
-              onPress={() => router.push(`/(tabs)/bookings/${data.session_id}`)}
+              onPress={() =>
+                router.push(
+                  tabPath(tabRoot, `bookings/${data.session_id}`) as never,
+                )
+              }
             >
               <Text className="text-white font-semibold">
                 View created session

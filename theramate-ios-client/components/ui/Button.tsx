@@ -1,6 +1,8 @@
 /**
  * Button Component
- * Soft cream theme with sage/terracotta accents
+ * Soft cream theme with sage/terracotta accents.
+ * Core visuals use StyleSheet — Reanimated's animated TouchableOpacity does not reliably
+ * receive NativeWind `className`, which caused invisible controls and a "white screen" landing.
  */
 
 import React from "react";
@@ -9,12 +11,17 @@ import {
   Text,
   ActivityIndicator,
   TouchableOpacityProps,
+  StyleSheet,
+  View,
+  type ViewStyle,
+  type TextStyle,
 } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
+import { Colors } from "@/constants/colors";
 
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
@@ -29,45 +36,80 @@ interface ButtonProps extends Omit<TouchableOpacityProps, "style"> {
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
   className?: string;
+  style?: ViewStyle;
 }
 
-const variantStyles = {
-  primary: {
-    container: "bg-sage-500 active:bg-sage-600",
-    text: "text-white font-semibold",
-  },
-  secondary: {
-    container: "bg-terracotta-500 active:bg-terracotta-600",
-    text: "text-white font-semibold",
-  },
-  outline: {
-    container: "bg-transparent border-2 border-sage-500 active:bg-sage-500/10",
-    text: "text-sage-500 font-semibold",
-  },
-  ghost: {
-    container: "bg-transparent active:bg-charcoal-100",
-    text: "text-charcoal-700 font-medium",
-  },
-  destructive: {
-    container: "bg-error active:bg-error/90",
-    text: "text-white font-semibold",
-  },
+const sizePadding: Record<
+  NonNullable<ButtonProps["size"]>,
+  { py: number; px: number; radius: number; fontSize: number }
+> = {
+  sm: { py: 8, px: 16, radius: 8, fontSize: 14 },
+  md: { py: 12, px: 24, radius: 12, fontSize: 16 },
+  lg: { py: 16, px: 32, radius: 16, fontSize: 18 },
 };
 
-const sizeStyles = {
-  sm: {
-    container: "px-4 py-2 rounded-md",
-    text: "text-sm",
-  },
-  md: {
-    container: "px-6 py-3 rounded-lg",
-    text: "text-base",
-  },
-  lg: {
-    container: "px-8 py-4 rounded-xl",
-    text: "text-lg",
-  },
-};
+function containerStyle(
+  variant: NonNullable<ButtonProps["variant"]>,
+  size: NonNullable<ButtonProps["size"]>,
+  fullWidth: boolean,
+  disabled: boolean,
+): ViewStyle {
+  const s = sizePadding[size];
+  const base: ViewStyle = {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: s.py,
+    paddingHorizontal: s.px,
+    borderRadius: s.radius,
+    alignSelf: fullWidth ? "stretch" : "center",
+    opacity: disabled ? 0.5 : 1,
+  };
+
+  switch (variant) {
+    case "primary":
+      return { ...base, backgroundColor: Colors.sage[500] };
+    case "secondary":
+      return { ...base, backgroundColor: Colors.terracotta[500] };
+    case "outline":
+      return {
+        ...base,
+        backgroundColor: "transparent",
+        borderWidth: 2,
+        borderColor: Colors.sage[500],
+      };
+    case "ghost":
+      return { ...base, backgroundColor: "transparent" };
+    case "destructive":
+      return { ...base, backgroundColor: Colors.error };
+    default:
+      return base;
+  }
+}
+
+function textStyle(
+  variant: NonNullable<ButtonProps["variant"]>,
+  size: NonNullable<ButtonProps["size"]>,
+): TextStyle {
+  const s = sizePadding[size];
+  const base: TextStyle = {
+    fontSize: s.fontSize,
+    fontWeight: "600",
+  };
+
+  switch (variant) {
+    case "primary":
+    case "secondary":
+    case "destructive":
+      return { ...base, color: "#FFFFFF" };
+    case "outline":
+      return { ...base, color: Colors.sage[500] };
+    case "ghost":
+      return { ...base, color: Colors.charcoal[700], fontWeight: "500" };
+    default:
+      return { ...base, color: Colors.charcoal[900] };
+  }
+}
 
 export function Button({
   children,
@@ -79,6 +121,7 @@ export function Button({
   rightIcon,
   fullWidth = false,
   className = "",
+  style: styleProp,
   onPressIn,
   onPressOut,
   ...props
@@ -89,54 +132,48 @@ export function Button({
     transform: [{ scale: scale.value }],
   }));
 
-  const handlePressIn = (e: any) => {
+  const handlePressIn = (e: Parameters<NonNullable<TouchableOpacityProps["onPressIn"]>>[0]) => {
     scale.value = withSpring(0.97, { damping: 15 });
     onPressIn?.(e);
   };
 
-  const handlePressOut = (e: any) => {
+  const handlePressOut = (e: Parameters<NonNullable<TouchableOpacityProps["onPressOut"]>>[0]) => {
     scale.value = withSpring(1, { damping: 15 });
     onPressOut?.(e);
   };
 
-  const variantStyle = variantStyles[variant];
-  const sizeStyle = sizeStyles[size];
   const isDisabled = disabled || isLoading;
+  const cStyle = containerStyle(variant, size, fullWidth, isDisabled);
+  const tStyle = textStyle(variant, size);
 
-  return (
+  const inner = (
     <AnimatedTouchableOpacity
-      style={animatedStyle}
-      className={`
-        flex-row items-center justify-center
-        ${variantStyle.container}
-        ${sizeStyle.container}
-        ${fullWidth ? "w-full" : ""}
-        ${isDisabled ? "opacity-50" : ""}
-        ${className}
-      `}
+      style={[animatedStyle, cStyle, styleProp]}
       disabled={isDisabled}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
+      accessibilityRole="button"
       {...props}
     >
       {isLoading ? (
         <ActivityIndicator
           size="small"
           color={
-            variant === "outline" || variant === "ghost" ? "#7A9E7E" : "#FFFFFF"
+            variant === "outline" || variant === "ghost"
+              ? Colors.sage[500]
+              : "#FFFFFF"
           }
         />
       ) : (
         <>
           {leftIcon && <>{leftIcon}</>}
           <Text
-            className={`
-              ${variantStyle.text}
-              ${sizeStyle.text}
-              ${leftIcon ? "ml-2" : ""}
-              ${rightIcon ? "mr-2" : ""}
-            `}
+            style={[
+              tStyle,
+              leftIcon ? { marginLeft: 8 } : null,
+              rightIcon ? { marginRight: 8 } : null,
+            ]}
           >
             {children}
           </Text>
@@ -145,6 +182,12 @@ export function Button({
       )}
     </AnimatedTouchableOpacity>
   );
+
+  if (className.trim()) {
+    return <View className={className}>{inner}</View>;
+  }
+
+  return inner;
 }
 
 export default Button;

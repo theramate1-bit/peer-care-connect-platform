@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ClipboardList } from "lucide-react-native";
+import { ClipboardList } from "lucide-react-native";
 import { format } from "date-fns";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -17,8 +17,10 @@ import {
   fetchTreatmentPlans,
   type TreatmentPlan,
 } from "@/lib/api/treatmentPlans";
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PressableCard } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 
 function StatusPill({ status }: { status: string | null }) {
   const key = (status || "active").toLowerCase();
@@ -36,12 +38,17 @@ function StatusPill({ status }: { status: string | null }) {
 }
 
 function PlanCard({ plan }: { plan: TreatmentPlan }) {
+  const tabRoot = useTabRoot();
   return (
     <PressableCard
       variant="default"
       padding="md"
       className="mb-3"
-      onPress={() => router.push(`/(tabs)/profile/treatment-plans/${plan.id}`)}
+      onPress={() =>
+        router.push(
+          tabPath(tabRoot, `profile/treatment-plans/${plan.id}`) as never,
+        )
+      }
     >
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-3">
@@ -68,6 +75,7 @@ function PlanCard({ plan }: { plan: TreatmentPlan }) {
 }
 
 export default function TreatmentPlansScreen() {
+  const tabRoot = useTabRoot();
   const { userId } = useAuth();
   const {
     data = [],
@@ -89,14 +97,10 @@ export default function TreatmentPlansScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Treatment plans
-        </Text>
-      </View>
+      <AppStackHeader
+        title="Care plans"
+        fallbackHref={tabPath(tabRoot, "bookings")}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -107,7 +111,7 @@ export default function TreatmentPlansScreen() {
           <Text className="text-charcoal-700 text-center">
             {error instanceof Error
               ? error.message
-              : "Could not load treatment plans."}
+              : "Could not load care plans."}
           </Text>
           <TouchableOpacity
             onPress={() => void refetch()}
@@ -129,10 +133,10 @@ export default function TreatmentPlansScreen() {
             <View className="py-14 items-center">
               <ClipboardList size={42} color={Colors.charcoal[300]} />
               <Text className="text-charcoal-500 text-center mt-3">
-                No treatment plans yet.
+                No care plans yet.
               </Text>
-              <Text className="text-charcoal-400 text-center text-sm mt-2">
-                Your practitioner will add plans as your care progresses.
+              <Text className="text-charcoal-400 text-center text-sm mt-2 px-4">
+                In the app, open a session to see plans linked to that visit.
               </Text>
             </View>
           }

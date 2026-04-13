@@ -220,7 +220,7 @@ export async function getAvailableSlots(
   const { data: holds, error: holdsError } = await supabase
     .from('slot_holds')
     .select('start_time, duration_minutes')
-    .eq('therapist_id', therapistId)
+    .eq('practitioner_id', therapistId)
     .eq('session_date', date)
     .eq('status', 'active')
     .gt('expires_at', new Date().toISOString());

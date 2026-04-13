@@ -8,7 +8,6 @@ import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   User,
   Target,
@@ -18,13 +17,18 @@ import {
   HelpCircle,
   LogOut,
   ChevronRight,
-  Settings,
   Star,
   MapPin,
   Dumbbell,
+  Receipt,
+  LayoutList,
+  Coins,
   ClipboardList,
+  Heart,
 } from "lucide-react-native";
 
+import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
@@ -98,6 +102,7 @@ function MenuSection({
 }
 
 export default function ProfileScreen() {
+  const tabRoot = useTabRoot();
   const { userProfile, signOut } = useAuth();
 
   const handleSignOut = () => {
@@ -108,7 +113,7 @@ export default function ProfileScreen() {
         style: "destructive",
         onPress: async () => {
           await signOut();
-          router.replace("/(auth)/login");
+          router.replace("/login");
         },
       },
     ]);
@@ -119,21 +124,17 @@ export default function ProfileScreen() {
     : "User";
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      edges={["top"]}
+    >
+      <MainTabHeader title="Profile" />
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(500)}
-          className="px-6 pt-4 pb-6"
-        >
-          <Text className="text-charcoal-900 text-2xl font-bold mb-6">
-            Profile
-          </Text>
-
+        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}>
           {/* Profile Card */}
           <PressableCard variant="elevated" padding="lg">
             <View className="flex-row items-center">
@@ -149,47 +150,67 @@ export default function ProfileScreen() {
               <ChevronRight size={20} color={Colors.charcoal[300]} />
             </View>
           </PressableCard>
-        </Animated.View>
+        </View>
 
         {/* Menu Sections */}
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          className="px-6"
-        >
+        <View style={{ paddingHorizontal: 24 }}>
           <MenuSection title="Your Activity">
             <MenuItem
               icon={<Target size={20} color={Colors.sage[500]} />}
               label="Progress & Goals"
               sublabel="Track your journey"
-              onPress={() => router.push("/(tabs)/profile/progress-goals")}
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/progress-goals") as never)
+              }
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Star size={20} color={Colors.warning} />}
               label="My Reviews"
               sublabel="Reviews you've left"
-              onPress={() => router.push("/(tabs)/profile/my-reviews")}
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/my-reviews") as never)
+              }
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<MapPin size={20} color={Colors.info} />}
               label="Mobile Requests"
               sublabel="Track your on-location booking requests"
-              onPress={() => router.push("/(tabs)/profile/mobile-requests")}
+              onPress={() =>
+                router.push(
+                  tabPath(tabRoot, "profile/mobile-requests") as never,
+                )
+              }
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<ClipboardList size={20} color={Colors.sage[600]} />}
+              label="Treatment plans"
+              sublabel="Care plans shared by your practitioners"
+              onPress={() =>
+                router.push(
+                  tabPath(tabRoot, "profile/treatment-plans") as never,
+                )
+              }
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<Heart size={20} color={Colors.error} />}
+              label="Saved therapists"
+              sublabel="Practitioners you saved from Explore"
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/favorites") as never)
+              }
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Dumbbell size={20} color={Colors.terracotta[500]} />}
               label="My Exercises"
               sublabel="Home exercise programs and completion"
-              onPress={() => router.push("/(tabs)/profile/exercises")}
-            />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
-              icon={<ClipboardList size={20} color={Colors.charcoal[600]} />}
-              label="Treatment Plans"
-              sublabel="View your active care plans"
-              onPress={() => router.push("/(tabs)/profile/treatment-plans")}
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/exercises") as never)
+              }
             />
           </MenuSection>
 
@@ -197,13 +218,35 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<User size={20} color={Colors.charcoal[600]} />}
               label="Edit Profile"
-              onPress={() => router.push("/(tabs)/profile/edit-profile")}
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/edit-profile") as never)
+              }
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<CreditCard size={20} color={Colors.charcoal[600]} />}
               label="Payment Methods"
-              onPress={() => router.push("/(tabs)/profile/payment-methods")}
+              onPress={() =>
+                router.push(
+                  tabPath(tabRoot, "profile/payment-methods") as never,
+                )
+              }
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<Coins size={20} color={Colors.warning} />}
+              label="Credits"
+              sublabel="Balance and peer treatment activity"
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/credits") as never)
+              }
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<Receipt size={20} color={Colors.sage[600]} />}
+              label="Subscription & billing"
+              sublabel="Plan, renewals, secure billing"
+              onPress={() => router.push("/settings/subscription" as never)}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
@@ -217,19 +260,26 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<HelpCircle size={20} color={Colors.charcoal[600]} />}
               label="Help Centre"
-              onPress={() => router.push("/(tabs)/profile/help-centre")}
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/help-centre") as never)
+              }
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Shield size={20} color={Colors.charcoal[600]} />}
               label="Privacy & Security"
-              onPress={() => router.push("/(tabs)/profile/privacy-security")}
+              onPress={() =>
+                router.push(
+                  tabPath(tabRoot, "profile/privacy-security") as never,
+                )
+              }
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
-              icon={<Settings size={20} color={Colors.charcoal[600]} />}
-              label="Settings"
-              onPress={() => router.push("/(tabs)/profile/settings")}
+              icon={<LayoutList size={20} color={Colors.sage[600]} />}
+              label="Settings & tools hub"
+              sublabel="Help, privacy routes, booking tools"
+              onPress={() => router.push("/settings" as never)}
             />
           </MenuSection>
 
@@ -247,7 +297,7 @@ export default function ProfileScreen() {
           <Text className="text-center text-charcoal-400 text-sm mb-4">
             Theramate v{Constants.expoConfig?.version ?? "1.0.0"}
           </Text>
-        </Animated.View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

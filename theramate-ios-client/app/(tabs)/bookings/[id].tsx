@@ -6,9 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { goBackOrReplace } from "@/lib/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -50,6 +55,10 @@ function paymentLabel(status: string | null): string {
 }
 
 export default function BookingDetailScreen() {
+  const tabRoot = useTabRoot();
+  const tabBarInset = useBottomTabBarHeight();
+  const tabBarHeight =
+    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useAuthStore((s) => s.session);
   const clientId = session?.user?.id;
@@ -71,7 +80,7 @@ export default function BookingDetailScreen() {
   });
 
   if (!clientId) {
-    router.replace("/(auth)/login");
+    router.replace("/login");
     return null;
   }
 
@@ -87,11 +96,11 @@ export default function BookingDetailScreen() {
       clientId,
       data.therapist_id,
     );
-    if (error || !conversation?.id) {
+    if (error || !conversation) {
       Alert.alert("Could not open chat", error?.message || "Please try again.");
       return;
     }
-    router.push(`/(tabs)/messages/${conversation.id}`);
+    router.push(tabPath(tabRoot, `messages/${conversation}`) as never);
   };
 
   const onRebook = () => {
@@ -157,7 +166,7 @@ export default function BookingDetailScreen() {
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
       <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace(tabPath(tabRoot, "bookings"))}
           className="p-2 -ml-2"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
@@ -193,7 +202,7 @@ export default function BookingDetailScreen() {
       ) : (
         <ScrollView
           className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 32 }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
         >
           <Card variant="default" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
@@ -269,7 +278,7 @@ export default function BookingDetailScreen() {
                 className="mt-3"
                 onPress={() =>
                   router.push({
-                    pathname: "/(tabs)/bookings/review",
+                    pathname: tabPath(tabRoot, "bookings/review") as any,
                     params: { sessionId: data.id },
                   })
                 }

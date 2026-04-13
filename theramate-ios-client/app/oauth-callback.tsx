@@ -50,7 +50,7 @@ export default function OAuthCallbackScreen() {
       );
       return;
     }
-    router.replace("/(auth)/oauth-completion");
+      router.replace("/oauth-completion");
   }, [params.code, params.error, params.error_description]);
 
   React.useEffect(() => {
@@ -93,7 +93,7 @@ export default function OAuthCallbackScreen() {
             <Button
               variant="primary"
               className="mt-3"
-              onPress={() => router.replace("/(auth)/login")}
+              onPress={() => router.replace("/login")}
             >
               Back to sign in
             </Button>

@@ -6,7 +6,7 @@
 **Platform:** iOS (React Native / Expo)  
 **Target Users:** Healthcare clients seeking therapy services  
 **Version:** 1.0 MVP  
-**Last Updated:** January 2026
+**Last Updated:** April 2026
 
 ### Vision Statement
 A beautiful, intuitive iOS app enabling clients to discover, book, and manage therapy sessions with verified healthcare practitioners. Built to seamlessly integrate with the existing Theramate web platform and backend infrastructure.
@@ -935,6 +935,8 @@ const { clientSecret } = await fetch('/functions/v1/create-session-payment', {
 const { error } = await presentPaymentSheet({ clientSecret });
 ```
 
+**Hosted Checkout & Customer Portal (in-app WebView):** When Payment Sheet is not available, or for Stripe Customer Portal and some Supabase **signed** URLs (reports, attachments), the app uses **`openHostedWebSession`** (`lib/openHostedWeb.ts`) which stores a one-shot session and navigates to **`app/hosted-web.tsx`**. Navigation is restricted by **`lib/hostedWebViewAllowlist.ts`** and **`components/web/ControlledHostedWebView.tsx`**. **`app/stripe-customer-portal.tsx`** wraps the same pattern for the billing portal. User-critical flows must **not** use `Linking.openURL` to Safari for these URLs.
+
 ### 7.2 Maps & Location - OpenStreetMap/Nominatim
 
 ```typescript
@@ -1340,7 +1342,7 @@ theramate-ios-client/
 │   ├── icons/
 │   └── animations/
 │
-├── app.json                      # Expo config
+├── app.config.js                 # Expo config
 ├── tailwind.config.js            # NativeWind config
 ├── tsconfig.json
 ├── babel.config.js

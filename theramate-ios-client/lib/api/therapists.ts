@@ -118,7 +118,7 @@ export async function getTherapistProfile(userId: string) {
     .from('reviews')
     .select('*')
     .eq('therapist_id', userId)
-    .eq('is_public', true)
+    .eq('review_status', 'approved')
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -128,7 +128,7 @@ export async function getTherapistProfile(userId: string) {
     .select('*')
     .eq('practitioner_id', userId)
     .eq('is_active', true)
-    .order('price_pence', { ascending: true });
+    .order('price_amount', { ascending: true });
 
   return {
     data: {
@@ -149,7 +149,7 @@ export async function getTherapistProducts(practitionerId: string) {
     .select('*')
     .eq('practitioner_id', practitionerId)
     .eq('is_active', true)
-    .order('price_pence', { ascending: true });
+    .order('price_amount', { ascending: true });
 
   return { data, error };
 }
@@ -162,7 +162,7 @@ export async function getTherapistReviews(therapistId: string, limit = 10, offse
     .from('reviews')
     .select('*', { count: 'exact' })
     .eq('therapist_id', therapistId)
-    .eq('is_public', true)
+    .eq('review_status', 'approved')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 

@@ -1,67 +1,63 @@
-import React from "react";
-import { View, Text, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import React, { useEffect, useRef } from "react";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { router, useRootNavigationState } from "expo-router";
 
-import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
-import { APP_CONFIG } from "@/constants/config";
+import { useAuthStore } from "@/stores/authStore";
+import { getMainAppHref } from "@/lib/postAuthRoute";
+import { Colors } from "@/constants/colors";
 
-export default function LandingScreen() {
+/**
+ * Entry gate: wait for auth bootstrap, then send users to main app or hero (role picker).
+ * Loading UI uses white + sage (not cream #FFFDF8) so it reads as “after splash”, not stuck native splash.
+ * Navigation runs only after root navigator is mounted (expo-router requirement).
+ */
+export default function IndexGate() {
   const { isInitialized, isAuthenticated } = useAuth();
+  const rootNavigation = useRootNavigationState();
+  const didNavigate = useRef(false);
 
-  React.useEffect(() => {
-    if (!isInitialized) return;
-    if (isAuthenticated) {
-      router.replace("/(tabs)");
+  useEffect(() => {
+    if (rootNavigation?.key == null) return;
+    if (!isInitialized || didNavigate.current) return;
+
+    if (!isAuthenticated) {
+      didNavigate.current = true;
+      router.replace("/hero");
+      return;
     }
-  }, [isAuthenticated, isInitialized]);
 
-  const openWeb = async () => {
-    await Linking.openURL(APP_CONFIG.WEB_URL);
-  };
-
-  if (!isInitialized) {
-    return null;
-  }
+    didNavigate.current = true;
+    void (async () => {
+      await useAuthStore.getState().refreshProfile();
+      const role = useAuthStore.getState().userProfile?.user_role;
+      router.replace(getMainAppHref(role));
+    })();
+  }, [rootNavigation?.key, isAuthenticated, isInitialized]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-1 px-6 justify-center">
-        <Text className="text-charcoal-900 text-4xl font-bold">Theramate</Text>
-        <Text className="text-charcoal-500 mt-3">
-          Book trusted therapy sessions, track progress, and manage your care in
-          one place.
-        </Text>
-        <Button
-          variant="primary"
-          className="mt-8"
-          onPress={() => router.replace("/(auth)/login")}
-        >
-          Sign in
-        </Button>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onPress={() => router.push("/(auth)/register")}
-        >
-          Create account
-        </Button>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onPress={() => router.push("/(tabs)/explore")}
-        >
-          Browse practitioners
-        </Button>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onPress={() => void openWeb()}
-        >
-          Open website
-        </Button>
-      </View>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color={Colors.sage[500]} />
+      <Text style={styles.label}>Loading…</Text>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.white,
+  },
+  label: {
+    marginTop: 16,
+    fontSize: 15,
+    color: Colors.charcoal[600],
+  },
+});

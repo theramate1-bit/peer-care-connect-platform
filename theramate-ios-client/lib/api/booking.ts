@@ -1,7 +1,11 @@
 /**
- * Practitioner products + booking RPC (aligned with web BookingFlow).
+ * Practitioner products + booking RPC.
+ * Slot list: 15-minute grid from `practitioner_availability` (or defaults / legacy rows),
+ * then removes overlaps with `client_sessions`, active `slot_holds`, and `calendar_events`
+ * (`block` / `unavailable`, `status = confirmed`). UI refetches periodically on the date step.
  */
 
+import { unknownToError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 import { createSessionCheckout } from "@/lib/api/payment";
 
@@ -47,6 +51,34 @@ type AvailabilitySlotRow = {
   duration_minutes: number | null;
 };
 
+/** JS getDay() 0–6 → JSON keys in `practitioner_availability.working_hours`. */
+const WEEKDAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+/**
+ * When a practitioner has products but never saved `practitioner_availability`
+ * (common) — match calendar migration defaults so slots still appear.
+ */
+const DEFAULT_WORKING_HOURS: Record<
+  string,
+  { enabled: boolean; start: string; end: string }
+> = {
+  monday: { enabled: true, start: "09:00", end: "17:00" },
+  tuesday: { enabled: true, start: "09:00", end: "17:00" },
+  wednesday: { enabled: true, start: "09:00", end: "17:00" },
+  thursday: { enabled: true, start: "09:00", end: "17:00" },
+  friday: { enabled: true, start: "09:00", end: "17:00" },
+  saturday: { enabled: false, start: "10:00", end: "15:00" },
+  sunday: { enabled: false, start: "10:00", end: "15:00" },
+};
+
 function toMinutes(time: string): number {
   const [h, m] = time.split(":").map((x) => Number.parseInt(x, 10) || 0);
   return h * 60 + m;
@@ -58,8 +90,207 @@ function toTimeString(totalMinutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** Parse `yyyy-MM-dd` as a local calendar date (no UTC day shift). */
+function localDayOfWeekFromDateString(dateStr: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!m) return new Date().getDay();
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const da = Number(m[3]);
+  return new Date(y, mo - 1, da, 12, 0, 0).getDay();
+}
+
+type DayWindow = { start: string; end: string };
+
+function dayEnabled(o: Record<string, unknown>): boolean {
+  const e = o.enabled;
+  if (e === false || e === "false" || e === 0) return false;
+  return true;
+}
+
+type BlockingInterval = { startMin: number; endMin: number };
+
+function intervalsOverlap(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+): boolean {
+  return aStart < bEnd && bStart < aEnd;
+}
+
+/** Local calendar day [00:00, next 00:00) for `yyyy-MM-dd` (device timezone). */
+function dayBoundsLocal(dateStr: string): { start: Date; end: Date } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!m) {
+    const s = new Date();
+    s.setHours(0, 0, 0, 0);
+    const e = new Date(s);
+    e.setDate(e.getDate() + 1);
+    return { start: s, end: e };
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const da = Number(m[3]);
+  return {
+    start: new Date(y, mo - 1, da, 0, 0, 0),
+    end: new Date(y, mo - 1, da + 1, 0, 0, 0),
+  };
+}
+
+function slotOverlapsCalendarEvent(
+  date: string,
+  hhmm: string,
+  durationMin: number,
+  evStartIso: string,
+  evEndIso: string,
+): boolean {
+  const slotStartMs = new Date(`${date}T${hhmm}:00`).getTime();
+  const slotEndMs = slotStartMs + durationMin * 60 * 1000;
+  const es = new Date(evStartIso).getTime();
+  const ee = new Date(evEndIso).getTime();
+  return slotStartMs < ee && es < slotEndMs;
+}
+
+/** Exclude starts where [start, start+duration) overlaps sessions, holds, or calendar blocks. */
+async function filterCandidatesByBlocks(
+  candidates: string[],
+  practitionerId: string,
+  date: string,
+  durationMin: number,
+): Promise<string[]> {
+  if (candidates.length === 0) return [];
+
+  const blocks: BlockingInterval[] = [];
+
+  const { data: sessions, error: sErr } = await supabase
+    .from("client_sessions")
+    .select("start_time, duration_minutes, status, expires_at")
+    .eq("therapist_id", practitionerId)
+    .eq("session_date", date);
+
+  if (sErr) throw sErr;
+
+  const now = Date.now();
+  const terminalStatuses = new Set([
+    "cancelled",
+    "completed",
+    "no_show",
+    "declined",
+    "expired",
+  ]);
+
+  for (const s of sessions || []) {
+    const st = String(s.status ?? "").toLowerCase();
+    if (terminalStatuses.has(st)) continue;
+    if (st === "pending_payment") {
+      const exp = s.expires_at;
+      if (!exp || new Date(exp).getTime() <= now) continue;
+    }
+
+    const startRaw = s.start_time;
+    const startStr =
+      typeof startRaw === "string"
+        ? startRaw
+        : startRaw != null
+          ? String(startRaw)
+          : "";
+    if (!startStr) continue;
+
+    const startMin = toMinutes(startStr);
+    const dur = Math.max(1, Number(s.duration_minutes) || 60);
+    blocks.push({ startMin, endMin: startMin + dur });
+  }
+
+  const { data: holds, error: hErr } = await supabase
+    .from("slot_holds")
+    .select("start_time, duration_minutes")
+    .eq("practitioner_id", practitionerId)
+    .eq("session_date", date)
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString());
+
+  if (hErr) throw hErr;
+
+  for (const h of holds || []) {
+    const startRaw = h.start_time;
+    const startStr =
+      typeof startRaw === "string"
+        ? startRaw
+        : startRaw != null
+          ? String(startRaw)
+          : "";
+    if (!startStr) continue;
+    const startMin = toMinutes(startStr);
+    const dur = Math.max(1, Number(h.duration_minutes) || 60);
+    blocks.push({ startMin, endMin: startMin + dur });
+  }
+
+  const afterSessions = candidates.filter((t) => {
+    const slotStart = toMinutes(t);
+    const slotEnd = slotStart + durationMin;
+    for (const b of blocks) {
+      if (intervalsOverlap(slotStart, slotEnd, b.startMin, b.endMin)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const { start: dayStart, end: dayEnd } = dayBoundsLocal(date);
+  const { data: calendarBlocks, error: cErr } = await supabase
+    .from("calendar_events")
+    .select("start_time, end_time")
+    .eq("user_id", practitionerId)
+    .in("event_type", ["block", "unavailable"])
+    .eq("status", "confirmed")
+    .lt("start_time", dayEnd.toISOString())
+    .gt("end_time", dayStart.toISOString());
+
+  if (cErr) throw cErr;
+
+  if (!calendarBlocks?.length) return afterSessions;
+
+  return afterSessions.filter((t) => {
+    for (const ev of calendarBlocks) {
+      const s = ev.start_time;
+      const e = ev.end_time;
+      if (typeof s !== "string" || typeof e !== "string") continue;
+      if (slotOverlapsCalendarEvent(date, t, durationMin, s, e)) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function windowsFromWorkingHoursDay(day: unknown): DayWindow[] {
+  if (!day || typeof day !== "object") return [];
+  const o = day as Record<string, unknown>;
+  if (!dayEnabled(o)) return [];
+
+  const fromHours: DayWindow[] = [];
+  if (Array.isArray(o.hours) && o.hours.length > 0) {
+    for (const h of o.hours) {
+      if (!h || typeof h !== "object") continue;
+      const hh = h as Record<string, unknown>;
+      if (typeof hh.start === "string" && typeof hh.end === "string") {
+        fromHours.push({ start: hh.start, end: hh.end });
+      }
+    }
+  }
+  if (fromHours.length > 0) return fromHours;
+
+  if (typeof o.start === "string" && typeof o.end === "string") {
+    return [{ start: o.start, end: o.end }];
+  }
+  return [];
+}
+
 /**
- * Generate selectable start times for a date from practitioner weekly availability.
+ * Generate selectable start times for a date.
+ * Primary source: `practitioner_availability.working_hours` (same as web).
+ * Fallback: legacy `availability_slots` rows (often empty).
  */
 export async function fetchAvailableStartTimes(params: {
   practitionerId: string;
@@ -67,40 +298,85 @@ export async function fetchAvailableStartTimes(params: {
   durationMinutes: number;
 }): Promise<{ data: string[]; error: Error | null }> {
   try {
-    const d = new Date(`${params.date}T12:00:00`);
-    const dayOfWeek = d.getDay();
+    const dayOfWeek = localDayOfWeekFromDateString(params.date);
+    const dayKey = WEEKDAY_KEYS[dayOfWeek];
     const requestedDuration = Math.max(15, params.durationMinutes);
+    const slotStep = 15;
 
-    const { data, error } = await supabase
-      .from("availability_slots")
-      .select("start_time, end_time, duration_minutes")
-      .eq("therapist_id", params.practitionerId)
-      .eq("day_of_week", dayOfWeek)
-      .eq("is_available", true)
-      .order("start_time", { ascending: true });
+    const { data: pa, error: paErr } = await supabase
+      .from("practitioner_availability")
+      .select("working_hours")
+      .eq("user_id", params.practitionerId)
+      .maybeSingle();
 
-    if (error) throw error;
-    const rows = (data || []) as AvailabilitySlotRow[];
-    if (rows.length === 0) {
+    if (paErr) throw paErr;
+
+    const rawWh = pa?.working_hours as Record<string, unknown> | undefined;
+    const hasSavedSchedule =
+      !!rawWh &&
+      typeof rawWh === "object" &&
+      Object.keys(rawWh).length > 0;
+
+    const wh = hasSavedSchedule ? rawWh! : DEFAULT_WORKING_HOURS;
+
+    const dayCfg = wh[dayKey];
+    if (dayCfg === undefined || dayCfg === null) {
       return { data: [], error: null };
     }
-
+    const windows = windowsFromWorkingHoursDay(dayCfg);
+    if (windows.length === 0) {
+      return { data: [], error: null };
+    }
     const times = new Set<string>();
-    for (const row of rows) {
-      const slotStep = Math.max(15, row.duration_minutes ?? 30);
-      const startM = toMinutes(row.start_time);
-      const endM = toMinutes(row.end_time);
+    for (const w of windows) {
+      const startM = toMinutes(w.start);
+      const endM = toMinutes(w.end);
       if (endM <= startM) continue;
-
       for (let t = startM; t + requestedDuration <= endM; t += slotStep) {
         times.add(toTimeString(t));
       }
     }
+    let candidates: string[] =
+      times.size > 0 ? [...times].sort() : [];
 
-    return { data: [...times].sort(), error: null };
+    if (candidates.length === 0 && !hasSavedSchedule) {
+      const { data, error } = await supabase
+        .from("availability_slots")
+        .select("start_time, end_time, duration_minutes")
+        .eq("therapist_id", params.practitionerId)
+        .eq("day_of_week", dayOfWeek)
+        .eq("is_available", true)
+        .order("start_time", { ascending: true });
+
+      if (error) throw error;
+      const rows = (data || []) as AvailabilitySlotRow[];
+      const legacyTimes = new Set<string>();
+      for (const row of rows) {
+        const step = Math.max(15, row.duration_minutes ?? 30);
+        const startM = toMinutes(row.start_time);
+        const endM = toMinutes(row.end_time);
+        if (endM <= startM) continue;
+
+        for (let t = startM; t + requestedDuration <= endM; t += step) {
+          legacyTimes.add(toTimeString(t));
+        }
+      }
+      candidates = [...legacyTimes].sort();
+    }
+
+    if (candidates.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const filtered = await filterCandidatesByBlocks(
+      candidates,
+      params.practitionerId,
+      params.date,
+      requestedDuration,
+    );
+    return { data: filtered.sort(), error: null };
   } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    return { data: [], error: err };
+    return { data: [], error: unknownToError(e) };
   }
 }
 

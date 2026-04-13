@@ -25,12 +25,12 @@ export type DeepLinkNavigation =
   | { pathname: "/review"; params: { sessionId?: string; token?: string } }
   | { pathname: "/notifications" }
   | { pathname: "/onboarding/stripe-return" }
-  | { pathname: "/(auth)/verify-email" }
-  | { pathname: "/(auth)/registration-success" }
-  | { pathname: "/(auth)/role-selection" }
-  | { pathname: "/(auth)/oauth-completion" }
-  | { pathname: "/(auth)/onboarding" }
-  | { pathname: "/(auth)/reset-password-confirm" }
+  | { pathname: "/verify-email" }
+  | { pathname: "/registration-success" }
+  | { pathname: "/role-selection" }
+  | { pathname: "/oauth-completion" }
+  | { pathname: "/onboarding" }
+  | { pathname: "/reset-password-confirm" }
   | { pathname: "/settings/subscription" }
   | { pathname: "/guest/mobile-requests" }
   /** Guest direct booking — `slug` preserves case (not lowercased). */
@@ -191,27 +191,27 @@ export function getNavigationFromDeepLink(
   }
 
   if (p === "auth/verify-email" || p === "verify-email") {
-    return { pathname: "/(auth)/verify-email" };
+    return { pathname: "/verify-email" };
   }
 
   if (p === "auth/registration-success" || p === "registration-success") {
-    return { pathname: "/(auth)/registration-success" };
+    return { pathname: "/registration-success" };
   }
 
   if (p === "auth/role-selection" || p === "role-selection") {
-    return { pathname: "/(auth)/role-selection" };
+    return { pathname: "/role-selection" };
   }
 
   if (p === "auth/oauth-completion" || p === "oauth-completion") {
-    return { pathname: "/(auth)/oauth-completion" };
+    return { pathname: "/oauth-completion" };
   }
 
   if (p === "onboarding" || p === "auth/onboarding") {
-    return { pathname: "/(auth)/onboarding" };
+    return { pathname: "/onboarding" };
   }
 
   if (p === "auth/reset-password-confirm" || p === "reset-password-confirm") {
-    return { pathname: "/(auth)/reset-password-confirm" };
+    return { pathname: "/reset-password-confirm" };
   }
 
   if (p === "subscription-success") {

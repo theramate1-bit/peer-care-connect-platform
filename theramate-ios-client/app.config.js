@@ -1,13 +1,146 @@
 /**
- * Dynamic Expo config — keeps `app.json` as source of truth and allows EAS project id from env.
+ * Single Expo config (no app.json) — satisfies expo-doctor and keeps dynamic linking from EXPO_PUBLIC_WEB_URL / EAS_PROJECT_ID.
+ * `extra.EXPO_PUBLIC_*` mirrors `.env` so `expo-constants` can read Supabase URL/anon key at runtime if Metro env inlining differs (e.g. CI).
  * @see https://docs.expo.dev/workflow/configuration/
  */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const appJson = require("./app.json");
 
-// Ensure Universal Links / App Links include whatever web origin you build against.
-// - EXPO_PUBLIC_WEB_URL is available at build time.
-// - We dynamically add `applinks:<host>` and Android `https://<host>/` intent data for that host (+ www variant).
+const path = require("path");
+
+try {
+  require("dotenv").config({ path: path.join(__dirname, ".env") });
+} catch {
+  /* optional devDependency */
+}
+
+const baseExpo = {
+  name: "Theramate",
+  slug: "theramate-client",
+  version: "1.0.0",
+  orientation: "portrait",
+  icon: "./assets/icon.png",
+  scheme: "theramate",
+  userInterfaceStyle: "automatic",
+  newArchEnabled: false,
+  splash: {
+    image: "./assets/splash.png",
+    resizeMode: "contain",
+    backgroundColor: "#FFFDF8",
+  },
+  assetBundlePatterns: ["**/*"],
+  ios: {
+    supportsTablet: true,
+    bundleIdentifier: "com.theramate.client",
+    buildNumber: "1",
+    associatedDomains: [
+      "applinks:theramate.com",
+      "applinks:www.theramate.com",
+    ],
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+      CFBundleDisplayName: "Theramate",
+      UIBackgroundModes: ["remote-notification"],
+      NSLocationWhenInUseUsageDescription:
+        "Theramate uses your location to find therapists near you.",
+      NSLocationAlwaysUsageDescription:
+        "Theramate uses your location to find therapists near you.",
+      NSCameraUsageDescription:
+        "Theramate needs camera access to take profile photos.",
+      NSPhotoLibraryUsageDescription:
+        "Theramate needs photo library access to select profile photos.",
+      NSCalendarsUsageDescription:
+        "Theramate can add your appointments to your calendar.",
+    },
+  },
+  android: {
+    adaptiveIcon: {
+      foregroundImage: "./assets/adaptive-icon.png",
+      backgroundColor: "#FFFDF8",
+    },
+    package: "com.theramate.client",
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [
+          { scheme: "https", host: "theramate.com", pathPrefix: "/" },
+          { scheme: "https", host: "www.theramate.com", pathPrefix: "/" },
+        ],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
+  },
+  web: {
+    bundler: "metro",
+    output: "static",
+    favicon: "./assets/favicon.png",
+  },
+  plugins: [
+    "expo-router",
+    "expo-secure-store",
+    "expo-font",
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/notification-icon.png",
+        color: "#7A9E7E",
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "Allow Theramate to use your location to find nearby therapists.",
+      },
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "Allow Theramate to access your photos for your profile picture.",
+      },
+    ],
+    "expo-document-picker",
+    [
+      "expo-av",
+      {
+        microphonePermission:
+          "Theramate can record short voice memos to transcribe into clinical notes (optional).",
+      },
+    ],
+    [
+      "expo-calendar",
+      {
+        calendarPermission:
+          "Allow Theramate to add appointments to your calendar.",
+      },
+    ],
+    [
+      "@stripe/stripe-react-native",
+      {
+        merchantIdentifier: "merchant.com.theramate",
+        enableGooglePay: false,
+      },
+    ],
+  ],
+  experiments: {
+    typedRoutes: true,
+  },
+  extra: {
+    router: {
+      origin: false,
+    },
+    eas: {},
+    /** Passthrough for `constants/config.ts` via `expo-constants` (see `API_CONFIG`). */
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:
+      process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    EXPO_PUBLIC_WEB_URL: process.env.EXPO_PUBLIC_WEB_URL,
+    EXPO_PUBLIC_POSTHOG_API_KEY: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
+    EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  },
+};
+
 function getWebHostVariants(webUrl) {
   try {
     const hostname = new URL(webUrl).hostname.toLowerCase().replace(/\/$/, "");
@@ -27,21 +160,17 @@ const defaultWebUrl = "https://theramate.com";
 const webUrlForLinks = process.env.EXPO_PUBLIC_WEB_URL || defaultWebUrl;
 const webHostVariants = getWebHostVariants(webUrlForLinks);
 
-// Extract existing iOS associated domains like `applinks:theramate.com`.
 const existingIosAssociatedDomains = Array.isArray(
-  appJson.expo?.ios?.associatedDomains,
+  baseExpo.ios?.associatedDomains,
 )
-  ? appJson.expo.ios.associatedDomains
+  ? baseExpo.ios.associatedDomains
   : [];
 
 const iosHosts = new Set(
   existingIosAssociatedDomains
     .map((d) =>
       typeof d === "string"
-        ? d
-            .replace(/^applinks:/, "")
-            .trim()
-            .toLowerCase()
+        ? d.replace(/^applinks:/, "").trim().toLowerCase()
         : null,
     )
     .filter(Boolean),
@@ -53,11 +182,10 @@ const updatedIosAssociatedDomains = Array.from(iosHosts).map(
   (h) => `applinks:${h}`,
 );
 
-// Extract existing Android HTTPS hosts from intent filter and extend with build-time web host variants.
 const existingAndroidIntentFilters = Array.isArray(
-  appJson.expo?.android?.intentFilters,
+  baseExpo.android?.intentFilters,
 )
-  ? appJson.expo.android.intentFilters
+  ? baseExpo.android.intentFilters
   : [];
 
 function hasSchemeIntentFilter(intentFilters, scheme) {
@@ -71,7 +199,6 @@ const updatedAndroidIntentFilters = existingAndroidIntentFilters.map(
     if (!filter || !Array.isArray(filter.data)) return filter;
     if (filter.action !== "VIEW") return filter;
 
-    // Only adjust HTTPS view filters (leave custom schemes / other actions alone).
     const isHttpsFilter = filter.data.some((d) => d && d.scheme === "https");
     if (!isHttpsFilter) return filter;
 
@@ -100,9 +227,7 @@ const updatedAndroidIntentFilters = existingAndroidIntentFilters.map(
   },
 );
 
-// Add explicit intent filter for custom scheme handling on Android (defensive).
-// Expo generally wires this automatically from `expo.scheme`, but this ensures predictable behavior.
-const scheme = appJson.expo?.scheme;
+const scheme = baseExpo.scheme;
 const androidIntentFiltersWithScheme = hasSchemeIntentFilter(
   updatedAndroidIntentFilters,
   scheme,
@@ -119,21 +244,22 @@ const androidIntentFiltersWithScheme = hasSchemeIntentFilter(
 
 module.exports = {
   expo: {
-    ...appJson.expo,
+    ...baseExpo,
     ios: {
-      ...(appJson.expo.ios || {}),
+      ...(baseExpo.ios || {}),
       associatedDomains: updatedIosAssociatedDomains,
     },
     android: {
-      ...(appJson.expo.android || {}),
+      ...(baseExpo.android || {}),
       intentFilters: androidIntentFiltersWithScheme,
     },
     extra: {
-      ...appJson.expo.extra,
+      ...baseExpo.extra,
       eas: {
-        ...appJson.expo.extra.eas,
-        projectId:
-          process.env.EAS_PROJECT_ID || appJson.expo.extra.eas.projectId,
+        ...baseExpo.extra.eas,
+        ...(process.env.EAS_PROJECT_ID
+          ? { projectId: process.env.EAS_PROJECT_ID }
+          : {}),
       },
     },
   },

@@ -5,6 +5,7 @@ module.exports = {
   testMatch: ["**/__tests__/**/*.test.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^expo-constants$": "<rootDir>/test/mocks/expo-constants.js",
   },
   testPathIgnorePatterns: ["/node_modules/"],
 };

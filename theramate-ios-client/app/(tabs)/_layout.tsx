@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { View, Text, Platform } from "react-native";
+import { View, Text, Platform, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import {
@@ -14,28 +14,63 @@ import {
   MessageCircle,
   User,
 } from "lucide-react-native";
+import { TabRootProvider } from "@/contexts/TabRootContext";
 import { Colors } from "@/constants/colors";
+import { useAuth } from "@/hooks/useAuth";
 
-type IconComponent = React.ComponentType<{
-  size?: number;
-  color?: string;
-  strokeWidth?: number;
-}>;
+/** Lucide icons share the same component type; keep in sync with imports above. */
+type TabIconComponent = typeof Home;
 
 interface TabIconProps {
-  icon: IconComponent;
+  icon: TabIconComponent;
   label: string;
   focused: boolean;
 }
 
+const tabIconStyles = StyleSheet.create({
+  outer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 8,
+    width: "100%",
+    maxWidth: "100%",
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconWrapFocused: {
+    backgroundColor: "rgba(122, 158, 126, 0.1)",
+  },
+  label: {
+    fontSize: 12,
+    lineHeight: 14,
+    marginTop: 4,
+    textAlign: "center",
+    alignSelf: "stretch",
+    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
+  },
+  labelFocused: {
+    color: Colors.sage[500],
+    fontWeight: "600",
+  },
+  labelIdle: {
+    color: Colors.charcoal[400],
+    fontWeight: "400",
+  },
+});
+
 function TabIcon({ icon: Icon, label, focused }: TabIconProps) {
   return (
-    <View className="items-center justify-center pt-2">
+    <View style={tabIconStyles.outer}>
       <View
-        className={`
-          w-10 h-10 rounded-xl items-center justify-center
-          ${focused ? "bg-sage-500/10" : "bg-transparent"}
-        `}
+        style={[
+          tabIconStyles.iconWrap,
+          focused ? tabIconStyles.iconWrapFocused : null,
+        ]}
       >
         <Icon
           size={24}
@@ -44,10 +79,13 @@ function TabIcon({ icon: Icon, label, focused }: TabIconProps) {
         />
       </View>
       <Text
-        className={`
-          text-xs mt-1
-          ${focused ? "text-sage-500 font-semibold" : "text-charcoal-400"}
-        `}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+        style={[
+          tabIconStyles.label,
+          focused ? tabIconStyles.labelFocused : tabIconStyles.labelIdle,
+        ]}
       >
         {label}
       </Text>
@@ -56,7 +94,12 @@ function TabIcon({ icon: Icon, label, focused }: TabIconProps) {
 }
 
 export default function TabsLayout() {
+  const { isAuthenticated } = useAuth();
+  /** Guests (browse without account) only use Explore — hide other tabs from the bar. */
+  const guestOnlyExplore = !isAuthenticated;
+
   return (
+    <TabRootProvider value="/(tabs)">
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -67,6 +110,11 @@ export default function TabsLayout() {
           elevation: 0,
           height: Platform.OS === "ios" ? 88 : 70,
           paddingBottom: Platform.OS === "ios" ? 24 : 8,
+        },
+        tabBarItemStyle: {
+          flex: 1,
+          minWidth: 0,
+          paddingHorizontal: 2,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
@@ -88,6 +136,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          href: guestOnlyExplore ? null : "/(tabs)",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={Home} label="Home" focused={focused} />
           ),
@@ -106,6 +155,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
+          href: guestOnlyExplore ? null : "/bookings",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={Calendar} label="Sessions" focused={focused} />
           ),
@@ -115,6 +165,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="messages"
         options={{
+          href: guestOnlyExplore ? null : "/messages",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={MessageCircle} label="Messages" focused={focused} />
           ),
@@ -124,11 +175,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
+          href: guestOnlyExplore ? null : "/profile",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={User} label="Profile" focused={focused} />
           ),
         }}
       />
     </Tabs>
+    </TabRootProvider>
   );
 }

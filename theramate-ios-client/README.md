@@ -67,18 +67,18 @@ npm run ios
 - ✅ Dashboard with upcoming sessions
 - ✅ Therapist discovery & search
 - ✅ Therapist profiles with reviews
-- ✅ Booking flow with Stripe payments
+- ✅ Booking flow with Stripe payments (Payment Sheet first; **hosted Checkout** in allowlisted in-app WebView when needed — see `app/hosted-web.tsx`, `lib/openHostedWeb.ts`)
 - ✅ My Sessions management
 - ✅ Push notifications
 
 ### Phase 2 - Communication
 
-- 🔲 Real-time messaging
-- 🔲 In-app notifications
+- ✅ Real-time messaging (tabs)
+- ✅ In-app notifications (`/notifications`); absolute URLs route to native screens or **in-app WebView** (`lib/notificationUrlOpen.ts`, `lib/notificationNavigation.ts`)
 
 ### Phase 3 - Engagement
 
-- 🔲 Favorites
+- ✅ Saved therapists — heart on Explore / practitioner profile; **Profile → Saved therapists** (persisted `favorites`)
 - 🔲 Reviews submission
 - 🔲 Progress tracking
 
@@ -88,18 +88,27 @@ npm run ios
 theramate-ios-client/
 ├── app/                    # Expo Router pages
 │   ├── (auth)/            # Auth screens
-│   ├── (tabs)/            # Main app tabs
-│   └── booking/           # Booking flow
+│   ├── (tabs)/            # Main app tabs (client)
+│   ├── (practitioner)/    # Practitioner shell (tabs + stack screens)
+│   ├── booking/           # Booking flow
+│   ├── hosted-web.tsx     # Allowlisted WebView (Stripe Checkout, portal, signed URLs)
+│   └── stripe-customer-portal.tsx
 ├── components/            # Reusable components
-│   └── ui/               # Base UI components
+│   ├── ui/                # Base UI components
+│   └── web/               # ControlledHostedWebView, etc.
 ├── lib/                   # Core utilities
-│   └── supabase.ts       # Supabase client
+│   ├── supabase.ts        # Supabase client
+│   ├── openHostedWeb.ts   # Navigate to hosted-web with pending session
+│   ├── hostedWebViewAllowlist.ts
+│   └── notificationUrlOpen.ts
 ├── stores/                # Zustand stores
 ├── hooks/                 # Custom hooks
 ├── types/                 # TypeScript types
-├── constants/            # App constants
-└── assets/               # Static assets
+├── constants/             # App constants
+└── assets/                # Static assets
 ```
+
+**Product docs (monorepo):** `docs/product/MOBILE_NATIVE_COMPLETION_CHECKLIST.md`, `docs/product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md`.
 
 ## 🔗 Backend Integration
 
@@ -118,6 +127,8 @@ See [PRD.md](./PRD.md) for complete product requirements including:
 - API endpoints
 - Auth flow
 - Third-party integrations
+
+Monorepo product docs: [Mobile native completion checklist](../docs/product/MOBILE_NATIVE_COMPLETION_CHECKLIST.md), [Mobile ↔ web inventory](../docs/product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md).
 
 ## 🛠 Tech Stack
 

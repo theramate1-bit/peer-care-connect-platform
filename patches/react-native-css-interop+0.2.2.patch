@@ -1,0 +1,52 @@
+diff --git a/node_modules/react-native-css-interop/.cache/android.js b/node_modules/react-native-css-interop/.cache/android.js
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/.cache/android.map b/node_modules/react-native-css-interop/.cache/android.map
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/.cache/ios.js b/node_modules/react-native-css-interop/.cache/ios.js
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/.cache/ios.map b/node_modules/react-native-css-interop/.cache/ios.map
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/.cache/macos.js b/node_modules/react-native-css-interop/.cache/macos.js
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/.cache/native.js b/node_modules/react-native-css-interop/.cache/native.js
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/.cache/windows.js b/node_modules/react-native-css-interop/.cache/windows.js
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-css-interop/dist/runtime/native/styles.js b/node_modules/react-native-css-interop/dist/runtime/native/styles.js
+index 533c93e..53ac312 100644
+--- a/node_modules/react-native-css-interop/dist/runtime/native/styles.js
++++ b/node_modules/react-native-css-interop/dist/runtime/native/styles.js
+@@ -14,12 +14,20 @@ const observable_1 = require("../observable");
+ const appearance_observables_1 = require("./appearance-observables");
+ const globals_1 = require("./globals");
+ const unit_observables_1 = require("./unit-observables");
+-global.__css_interop ??= {
+-    styles: new Map(),
+-    keyframes: new Map(),
+-    rootVariables: new Map(),
+-    universalVariables: new Map(),
+-};
++// Hermes Android: `global.__css_interop ??= …` can throw "property is not writable".
++try {
++    global.__css_interop ??= {
++        styles: new Map(),
++        keyframes: new Map(),
++        rootVariables: new Map(),
++        universalVariables: new Map(),
++    };
++}
++catch (_e) {
++    if (!global.__css_interop) {
++        throw _e;
++    }
++}
+ const styles = global.__css_interop.styles;
+ const keyframes = global.__css_interop.keyframes;
+ const rootVariables = global.__css_interop.rootVariables;

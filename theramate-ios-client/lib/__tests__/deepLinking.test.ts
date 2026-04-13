@@ -59,36 +59,36 @@ describe("getNavigationFromDeepLink", () => {
     expect(
       getNavigationFromDeepLink("https://theramate.com/auth/verify-email"),
     ).toEqual({
-      pathname: "/(auth)/verify-email",
+      pathname: "/verify-email",
     });
     expect(
       getNavigationFromDeepLink(
         "https://theramate.com/auth/registration-success",
       ),
     ).toEqual({
-      pathname: "/(auth)/registration-success",
+      pathname: "/registration-success",
     });
     expect(
       getNavigationFromDeepLink("https://theramate.com/auth/role-selection"),
     ).toEqual({
-      pathname: "/(auth)/role-selection",
+      pathname: "/role-selection",
     });
     expect(
       getNavigationFromDeepLink("https://theramate.com/auth/oauth-completion"),
     ).toEqual({
-      pathname: "/(auth)/oauth-completion",
+      pathname: "/oauth-completion",
     });
     expect(
       getNavigationFromDeepLink("https://theramate.com/onboarding"),
     ).toEqual({
-      pathname: "/(auth)/onboarding",
+      pathname: "/onboarding",
     });
     expect(
       getNavigationFromDeepLink(
         "https://theramate.com/auth/reset-password-confirm",
       ),
     ).toEqual({
-      pathname: "/(auth)/reset-password-confirm",
+      pathname: "/reset-password-confirm",
     });
     expect(
       getNavigationFromDeepLink("https://theramate.com/subscription-success"),

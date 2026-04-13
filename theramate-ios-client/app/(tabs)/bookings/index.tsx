@@ -11,10 +11,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import {
   Calendar,
   Clock,
@@ -22,6 +23,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Search,
 } from "lucide-react-native";
 
 import { PressableCard } from "@/components/ui/Card";
@@ -33,6 +35,8 @@ import {
   isSessionUpcoming,
   type SessionWithTherapist,
 } from "@/lib/api/clientSessions";
+import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 
 type TabType = "upcoming" | "past";
 
@@ -103,6 +107,7 @@ function SessionCard({
   session: SessionWithTherapist;
   isPast: boolean;
 }) {
+  const tabRoot = useTabRoot();
   const date = new Date(session.session_date);
   const formattedDate = date.toLocaleDateString("en-GB", {
     weekday: "short",
@@ -117,7 +122,9 @@ function SessionCard({
       variant="default"
       padding="md"
       className="mb-3"
-      onPress={() => router.push(`/(tabs)/bookings/${session.id}`)}
+      onPress={() =>
+        router.push(tabPath(tabRoot, `bookings/${session.id}`) as never)
+      }
     >
       <View className="flex-row items-start">
         <View className="items-center justify-center bg-cream-100 rounded-lg p-3 mr-4">
@@ -161,10 +168,16 @@ function SessionCard({
               <Button
                 variant="ghost"
                 size="sm"
-                onPress={() => router.push(`/(tabs)/bookings/${session.id}`)}
+                rightIcon={
+                  <ChevronRight size={16} color={Colors.charcoal[400]} />
+                }
+                onPress={() =>
+                  router.push(
+                    tabPath(tabRoot, `bookings/${session.id}`) as never,
+                  )
+                }
               >
-                <Text className="text-charcoal-700">View Details</Text>
-                <ChevronRight size={16} color={Colors.charcoal[400]} />
+                View details
               </Button>
             )}
             {isPast && displayStatus === "completed" && (
@@ -173,12 +186,12 @@ function SessionCard({
                 size="sm"
                 onPress={() =>
                   router.push({
-                    pathname: "/(tabs)/bookings/review",
+                    pathname: tabPath(tabRoot, "bookings/review") as any,
                     params: { sessionId: session.id },
                   })
                 }
               >
-                <Text className="text-sage-500">Leave Review</Text>
+                Leave review
               </Button>
             )}
           </View>
@@ -189,9 +202,11 @@ function SessionCard({
 }
 
 export default function BookingsScreen() {
+  const tabRoot = useTabRoot();
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
-  const session = useAuthStore((s) => s.session);
-  const clientId = session?.user?.id;
+  const clientId = useAuthStore(
+    (s) => s.authUser?.id ?? s.session?.user?.id,
+  );
 
   const {
     data: allSessions = [],
@@ -214,22 +229,36 @@ export default function BookingsScreen() {
 
   const sessions = activeTab === "upcoming" ? upcoming : past;
 
+  const tabBarInset = useBottomTabBarHeight();
+  const tabBarHeight =
+    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
+
   if (!clientId) {
     return (
       <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-        <View className="flex-1 px-6 pt-8 items-center justify-center">
-          <Text className="text-charcoal-800 text-lg font-semibold text-center">
-            My Sessions
+        <MainTabHeader title="Sessions" />
+        <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
+          <Calendar size={48} color={Colors.charcoal[300]} />
+          <Text className="text-charcoal-800 text-lg font-semibold text-center mt-6">
+            My sessions
           </Text>
-          <Text className="text-charcoal-500 text-center mt-3">
-            Sign in to see your upcoming and past sessions.
+          <Text className="text-charcoal-500 text-center mt-3 leading-6">
+            Sign in to see upcoming and past bookings, manage sessions in the app,
+            and message your practitioner.
           </Text>
           <Button
             variant="primary"
             className="mt-8"
-            onPress={() => router.replace("/(auth)/login")}
+            onPress={() => router.push("/login" as never)}
           >
-            <Text className="text-white font-semibold">Sign in</Text>
+            Sign in
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onPress={() => router.push("/register" as never)}
+          >
+            Create account
           </Button>
         </View>
       </SafeAreaView>
@@ -237,16 +266,27 @@ export default function BookingsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <Animated.View
-        entering={FadeInDown.delay(100).duration(500)}
-        className="px-6 pt-4 pb-4"
-      >
-        <Text className="text-charcoal-900 text-2xl font-bold mb-4">
-          My Sessions
-        </Text>
-
-        <View className="flex-row bg-cream-100 p-1 rounded-xl">
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      edges={["top"]}
+    >
+      <MainTabHeader
+        title="Sessions"
+        right={
+          <TouchableOpacity
+            onPress={() =>
+              router.push(tabPath(tabRoot, "explore") as never)
+            }
+            className="w-10 h-10 rounded-2xl bg-cream-100 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Find a therapist"
+          >
+            <Search size={20} color={Colors.sage[600]} />
+          </TouchableOpacity>
+        }
+      />
+      <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}>
+        <View className="flex-row bg-cream-100 p-1 rounded-xl mb-1">
           {(["upcoming", "past"] as TabType[]).map((tab) => (
             <TouchableOpacity
               key={tab}
@@ -263,7 +303,7 @@ export default function BookingsScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </Animated.View>
+      </View>
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center py-20">
@@ -289,7 +329,7 @@ export default function BookingsScreen() {
       ) : (
         <ScrollView
           className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -308,21 +348,18 @@ export default function BookingsScreen() {
               <Button
                 variant="primary"
                 className="mt-4"
-                onPress={() => router.push("/(tabs)/explore")}
+                onPress={() =>
+                  router.push(tabPath(tabRoot, "explore") as never)
+                }
               >
-                <Text className="text-white font-semibold">
-                  Find a Therapist
-                </Text>
+                Find a therapist
               </Button>
             </View>
           ) : (
-            sessions.map((s, index) => (
-              <Animated.View
-                key={s.id}
-                entering={FadeInDown.delay(200 + index * 80).duration(500)}
-              >
+            sessions.map((s) => (
+              <View key={s.id}>
                 <SessionCard session={s} isPast={activeTab === "past"} />
-              </Animated.View>
+              </View>
             ))
           )}
         </ScrollView>

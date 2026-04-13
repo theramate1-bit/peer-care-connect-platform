@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
+import { getSignedInTabRoot } from "@/lib/signedInRoutes";
 
 export default function OnboardingStripeReturnScreen() {
   return (
@@ -19,14 +20,14 @@ export default function OnboardingStripeReturnScreen() {
         <Button
           variant="primary"
           className="mt-8 w-full"
-          onPress={() => router.replace("/(auth)/onboarding")}
+          onPress={() => router.replace("/onboarding")}
         >
           Continue onboarding
         </Button>
         <Button
           variant="outline"
           className="mt-3 w-full"
-          onPress={() => router.replace("/(tabs)")}
+          onPress={() => router.replace(getSignedInTabRoot() as never)}
         >
           Go to dashboard
         </Button>

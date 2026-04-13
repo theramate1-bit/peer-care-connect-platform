@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, CreditCard, ShieldCheck } from "lucide-react-native";
+import { CreditCard, ShieldCheck, Wallet } from "lucide-react-native";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
@@ -20,6 +20,7 @@ import {
   fetchPaymentMethodSummaries,
   type PaymentMethodSummary,
 } from "@/lib/api/paymentMethods";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
 
 function PaymentMethodRow({ item }: { item: PaymentMethodSummary }) {
   return (
@@ -33,7 +34,8 @@ function PaymentMethodRow({ item }: { item: PaymentMethodSummary }) {
 }
 
 export default function PaymentMethodsScreen() {
-  const { userId } = useAuth();
+  const { userId, isAuthenticated, isInitialized } = useAuth();
+  const back = defaultSignedInProfileHref();
 
   const {
     data: account,
@@ -69,6 +71,15 @@ export default function PaymentMethodsScreen() {
     enabled: !!userId,
   });
 
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userId) {
+        void refetchAccount();
+        void refetchMethods();
+      }
+    }, [userId, refetchAccount, refetchMethods]),
+  );
+
   const loading = loadingAccount || loadingMethods;
   const hasError = accountError || methodsError;
   const errorMessage =
@@ -76,16 +87,32 @@ export default function PaymentMethodsScreen() {
     (methodsErrObj instanceof Error ? methodsErrObj.message : "") ||
     "Could not load payment methods.";
 
+  if (isInitialized && (!isAuthenticated || !userId)) {
+    return (
+      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+        <AppStackHeader title="Payment methods" fallbackHref={back} />
+        <View className="flex-1 px-6 pt-10">
+          <Text className="text-charcoal-900 text-xl font-bold">
+            Sign in required
+          </Text>
+          <Text className="text-charcoal-500 mt-3 leading-6">
+            Sign in to view saved payment methods and billing details.
+          </Text>
+          <Button
+            variant="primary"
+            className="mt-8"
+            onPress={() => router.replace("/login" as never)}
+          >
+            Sign in
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Payment Methods
-        </Text>
-      </View>
+      <AppStackHeader title="Payment methods" fallbackHref={back} />
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
@@ -157,16 +184,20 @@ export default function PaymentMethodsScreen() {
           </Card>
 
           <Button
-            variant="outline"
+            variant="primary"
             className="mt-5"
-            onPress={() =>
-              Alert.alert(
-                "Manage payment methods",
-                "Payment methods are currently managed during checkout. Dedicated card management UI can be added once Stripe customer portal endpoint is finalized.",
-              )
-            }
+            leftIcon={<Wallet size={18} color="#fff" />}
+            onPress={() => router.push("/stripe-customer-portal" as never)}
           >
-            <Text className="text-charcoal-700 font-medium">Manage cards</Text>
+            Update cards & billing
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-3"
+            leftIcon={<CreditCard size={18} color={Colors.sage[600]} />}
+            onPress={() => router.push("/settings/subscription" as never)}
+          >
+            Subscription overview
           </Button>
         </View>
       )}

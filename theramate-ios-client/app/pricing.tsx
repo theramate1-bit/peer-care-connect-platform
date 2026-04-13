@@ -1,38 +1,37 @@
 import React from "react";
-import { View, Text, Linking } from "react-native";
+import { Text, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { Search } from "lucide-react-native";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
-import { APP_CONFIG } from "@/constants/config";
+import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { signedInTabPath } from "@/lib/signedInRoutes";
 
 export default function PricingScreen() {
-  const openWeb = async () => {
-    await Linking.openURL(`${APP_CONFIG.WEB_URL}/pricing`);
-  };
-
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-1 px-6 justify-center">
-        <Text className="text-charcoal-900 text-3xl font-bold">Pricing</Text>
-        <Text className="text-charcoal-500 mt-3">
-          Service pricing can vary by practitioner and booking mode.
+      <AppStackHeader title="Pricing" fallbackHref={defaultSignedInProfileHref()} />
+      <ScrollView
+        className="flex-1 px-6"
+        contentContainerStyle={{ paddingTop: 24, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text className="text-charcoal-900 text-xl font-bold">Plans & fees</Text>
+        <Text className="text-charcoal-500 mt-3 leading-6">
+          Pricing varies by practitioner and service duration. View therapist cards
+          and product options directly in Explore.
         </Text>
         <Button
           variant="primary"
           className="mt-8"
-          onPress={() => void openWeb()}
+          leftIcon={<Search size={18} color="#fff" />}
+          onPress={() => router.replace(signedInTabPath("explore") as never)}
         >
-          Open pricing page
+          View therapist pricing
         </Button>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onPress={() => router.back()}
-        >
-          Back
-        </Button>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

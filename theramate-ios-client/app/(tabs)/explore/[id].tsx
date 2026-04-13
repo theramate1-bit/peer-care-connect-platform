@@ -2,11 +2,28 @@
  * Practitioner detail (from Explore) — opens booking modal next.
  */
 
-import React, { useMemo } from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import React, { useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, MapPin, Star } from "lucide-react-native";
+
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { goBackOrReplace } from "@/lib/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { getOrCreateConversation } from "@/lib/api/messages";
+import {
+  ChevronLeft,
+  Heart,
+  MapPin,
+  MessageCircle,
+  Star,
+} from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
@@ -15,11 +32,22 @@ import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { SPECIALIZATIONS } from "@/constants/config";
 import { useMarketplacePractitioners } from "@/hooks/useMarketplacePractitioners";
+import {
+  useFavoriteTherapistIds,
+  useToggleFavoriteTherapist,
+} from "@/hooks/useFavoriteTherapists";
 import { fetchTherapistPublicReviews } from "@/lib/api/reviews";
 
 export default function PractitionerDetailScreen() {
+  const tabRoot = useTabRoot();
+  const { userId } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: practitioners, isLoading } = useMarketplacePractitioners();
+  const { data: favoriteIds = [] } = useFavoriteTherapistIds();
+  const favoriteMutation = useToggleFavoriteTherapist();
+  const [messageBusy, setMessageBusy] = useState(false);
+
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
   const therapist = useMemo(
     () => practitioners?.find((p) => p.id === id),
@@ -59,6 +87,64 @@ export default function PractitionerDetailScreen() {
     });
   };
 
+  const onToggleFavorite = () => {
+    if (!therapist) return;
+    if (!userId) {
+      Alert.alert(
+        "Sign in required",
+        "Create an account or sign in to save therapists.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in", onPress: () => router.push("/login") },
+        ],
+      );
+      return;
+    }
+    const nextSaved = !favoriteSet.has(therapist.id);
+    favoriteMutation.mutate(
+      { therapistId: therapist.id, nextSaved },
+      {
+        onError: (e) =>
+          Alert.alert(
+            "Could not save",
+            e instanceof Error ? e.message : "Please try again.",
+          ),
+      },
+    );
+  };
+
+  const onMessageTherapist = async () => {
+    if (!therapist) return;
+    if (!userId) {
+      Alert.alert(
+        "Sign in required",
+        "Sign in to message this practitioner.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in", onPress: () => router.push("/login") },
+        ],
+      );
+      return;
+    }
+    setMessageBusy(true);
+    try {
+      const { data: conversationId, error } = await getOrCreateConversation(
+        userId,
+        therapist.id,
+      );
+      if (error || !conversationId) {
+        Alert.alert(
+          "Could not open chat",
+          error?.message ?? "Please try again.",
+        );
+        return;
+      }
+      router.push(tabPath(tabRoot, `messages/${conversationId}`) as never);
+    } finally {
+      setMessageBusy(false);
+    }
+  };
+
   const therapistMode = (therapist?.therapist_type || "").toLowerCase();
   const canBookClinic = therapistMode !== "mobile";
   const canRequestMobile =
@@ -80,17 +166,43 @@ export default function PractitionerDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Profile
-        </Text>
+      <View className="flex-row items-center justify-between px-4 pt-2 pb-4">
+        <View className="flex-row items-center flex-1 min-w-0">
+          <TouchableOpacity
+            onPress={() => goBackOrReplace(tabPath(tabRoot, "explore"))}
+            className="p-2 -ml-2"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <ChevronLeft size={28} color={Colors.charcoal[800]} />
+          </TouchableOpacity>
+          <Text className="text-charcoal-900 text-lg font-semibold ml-2">
+            Profile
+          </Text>
+        </View>
+        {therapist ? (
+          <TouchableOpacity
+            onPress={onToggleFavorite}
+            disabled={
+              favoriteMutation.isPending &&
+              favoriteMutation.variables?.therapistId === therapist.id
+            }
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              favoriteSet.has(therapist.id)
+                ? "Remove from saved"
+                : "Save therapist"
+            }
+          >
+            <Heart
+              size={24}
+              color={
+                favoriteSet.has(therapist.id) ? Colors.error : Colors.charcoal[400]
+              }
+              fill={favoriteSet.has(therapist.id) ? Colors.error : "transparent"}
+            />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {isLoading && !therapist ? (
@@ -106,6 +218,7 @@ export default function PractitionerDetailScreen() {
         >
           <View className="flex-row items-start">
             <Avatar
+              source={therapist.profile_photo_url ?? undefined}
               name={`${therapist.first_name} ${therapist.last_name}`}
               size="xl"
               verified={therapist.verified}
@@ -172,6 +285,16 @@ export default function PractitionerDetailScreen() {
               </Text>
             </Button>
           ) : null}
+          <Button
+            variant="outline"
+            className="mt-3"
+            onPress={() => void onMessageTherapist()}
+            isLoading={messageBusy}
+            disabled={messageBusy}
+            leftIcon={<MessageCircle size={18} color={Colors.sage[600]} />}
+          >
+            Message
+          </Button>
           <Text className="text-charcoal-500 text-sm mt-3">
             {canBookClinic && canRequestMobile
               ? "Choose clinic for in-practice sessions, or mobile for therapist home visits."

@@ -7,15 +7,17 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Goal, ClipboardList, User } from "lucide-react-native";
+import { Goal, ClipboardList, User } from "lucide-react-native";
 import { format } from "date-fns";
 
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchTreatmentPlanById } from "@/lib/api/treatmentPlans";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 
 function prettyJsonValue(value: unknown): string {
   if (typeof value === "string") return value;
@@ -60,6 +62,7 @@ function ListBlock({
 }
 
 export default function TreatmentPlanDetailScreen() {
+  const tabRoot = useTabRoot();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
 
@@ -79,14 +82,10 @@ export default function TreatmentPlanDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Plan details
-        </Text>
-      </View>
+      <AppStackHeader
+        title="Care plan"
+        fallbackHref={tabPath(tabRoot, "bookings")}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -95,7 +94,7 @@ export default function TreatmentPlanDetailScreen() {
       ) : isError ? (
         <View className="flex-1 px-6 pt-10">
           <Text className="text-charcoal-700 text-center">
-            {error instanceof Error ? error.message : "Could not load plan."}
+            {error instanceof Error ? error.message : "Could not load care plan."}
           </Text>
           <TouchableOpacity
             onPress={() => void refetch()}
@@ -107,7 +106,7 @@ export default function TreatmentPlanDetailScreen() {
       ) : !data ? (
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-charcoal-500 text-center">
-            Treatment plan not found.
+            Care plan not found.
           </Text>
         </View>
       ) : (
