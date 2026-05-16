@@ -51,7 +51,8 @@ import { generateSoapNotesFromTranscript } from "@/lib/api/soapNotes";
 import { transcribeSessionVoiceRecording } from "@/lib/api/aiSoapTranscribe";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
 import { useVoiceSessionRecorder } from "@/hooks/useVoiceSessionRecorder";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppStackHeader } from "@/components/navigation/AppStackHeader";
+import { PRACTITIONER_PTABS_HREF } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
 
 function formatVoiceDuration(totalSec: number): string {
@@ -161,16 +162,19 @@ export default function ClinicalNotesEditorScreen() {
           Alert.alert("Sign in required", msg);
           return;
         }
-        if (
-          tx.status === 403 ||
-          /pro plan|clinic subscription/i.test(msg)
-        ) {
+        if (tx.status === 403 || /pro plan|clinic subscription/i.test(msg)) {
           Alert.alert("Subscription", msg, [
             { text: "Cancel", style: "cancel" },
             {
-              text: "Open subscription",
+              text: "Plan & billing",
+              onPress: () => router.push("/settings/subscription" as never),
+            },
+            {
+              text: "Payment methods",
               onPress: () =>
-                router.push(signedInTabPath("profile/payment-methods") as never),
+                router.push(
+                  signedInTabPath("profile/payment-methods") as never,
+                ),
             },
           ]);
           return;
@@ -204,7 +208,9 @@ export default function ClinicalNotesEditorScreen() {
         return;
       }
       setDraft({});
-      await queryClient.invalidateQueries({ queryKey: ["treatment_notes", sessionId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["treatment_notes", sessionId],
+      });
       Alert.alert("Saved", "Clinical notes updated.");
     } finally {
       setSaving(false);
@@ -268,7 +274,10 @@ export default function ClinicalNotesEditorScreen() {
   const onAiDraft = async () => {
     const t = aiTranscript.trim();
     if (!t) {
-      Alert.alert("Transcript required", "Paste session notes or a rough transcript.");
+      Alert.alert(
+        "Transcript required",
+        "Paste session notes or a rough transcript.",
+      );
       return;
     }
     if (!sessionId) return;
@@ -283,16 +292,19 @@ export default function ClinicalNotesEditorScreen() {
       });
       if (res.error || !res.data) {
         const msg = res.error?.message ?? "Could not generate SOAP.";
-        if (
-          res.status === 403 ||
-          /pro plan|clinic/i.test(msg)
-        ) {
+        if (res.status === 403 || /pro plan|clinic/i.test(msg)) {
           Alert.alert("Subscription", msg, [
             { text: "Cancel", style: "cancel" },
             {
-              text: "Open subscription",
+              text: "Plan & billing",
+              onPress: () => router.push("/settings/subscription" as never),
+            },
+            {
+              text: "Payment methods",
               onPress: () =>
-                router.push(signedInTabPath("profile/payment-methods") as never),
+                router.push(
+                  signedInTabPath("profile/payment-methods") as never,
+                ),
             },
           ]);
         } else {
@@ -310,7 +322,10 @@ export default function ClinicalNotesEditorScreen() {
       setAiOpen(false);
       setAiTranscript("");
       setAiChief("");
-      Alert.alert("Draft ready", "Review and edit each section, then tap Save notes.");
+      Alert.alert(
+        "Draft ready",
+        "Review and edit each section, then tap Save notes.",
+      );
     } finally {
       setAiBusy(false);
     }
@@ -356,6 +371,10 @@ export default function ClinicalNotesEditorScreen() {
       style={{ flex: 1, backgroundColor: Colors.cream[50] }}
       edges={["top"]}
     >
+      <AppStackHeader
+        title="Session notes"
+        fallbackHref={PRACTITIONER_PTABS_HREF}
+      />
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -375,26 +394,29 @@ export default function ClinicalNotesEditorScreen() {
             contentContainerStyle={{ paddingBottom: 120 }}
             keyboardShouldPersistTaps="handled"
           >
-            <ScreenHeader
-              className="-mx-6 -mt-4 mb-2"
-              eyebrow="Practice"
-              title="Clinical notes"
-              subtitle="SOAP/DAP notes and secure file attachments."
-            />
+            <Text className="text-charcoal-500 text-sm mb-4">
+              SOAP / DAP notes and secure file attachments for this booking.
+            </Text>
 
             <Text className="text-charcoal-800 font-semibold mb-1">
               {sessionQuery.data.client_name}
             </Text>
             <Text className="text-charcoal-500 text-sm mb-4">
-              {sessionQuery.data.session_date} · {sessionQuery.data.start_time?.slice(0, 5)}
+              {sessionQuery.data.session_date} ·{" "}
+              {sessionQuery.data.start_time?.slice(0, 5)}
             </Text>
 
             <View className="flex-row items-start mb-6 bg-white border border-cream-200 rounded-xl px-4 py-3">
-              <MapPin size={18} color={Colors.charcoal[500]} style={{ marginTop: 2 }} />
+              <MapPin
+                size={18}
+                color={Colors.charcoal[500]}
+                style={{ marginTop: 2 }}
+              />
               <View className="flex-1 ml-2">
                 <Text className="text-charcoal-800 font-medium">
-                  {(sessionQuery.data.appointment_type || "clinic").toLowerCase() ===
-                  "mobile"
+                  {(
+                    sessionQuery.data.appointment_type || "clinic"
+                  ).toLowerCase() === "mobile"
                     ? "Mobile visit"
                     : "Clinic session"}
                 </Text>
@@ -404,8 +426,9 @@ export default function ClinicalNotesEditorScreen() {
                   </Text>
                 ) : (
                   <Text className="text-charcoal-400 text-xs mt-1">
-                    {(sessionQuery.data.appointment_type || "clinic").toLowerCase() ===
-                    "mobile"
+                    {(
+                      sessionQuery.data.appointment_type || "clinic"
+                    ).toLowerCase() === "mobile"
                       ? "No visit address on file for this booking."
                       : "At your practice location."}
                   </Text>
@@ -418,8 +441,8 @@ export default function ClinicalNotesEditorScreen() {
                 Clinical files
               </Text>
               <Text className="text-charcoal-400 text-xs mb-3">
-                Secure uploads stored with this session (visible to you; clients can open their
-                own session files when you share them here).
+                Secure uploads stored with this session (visible to you; clients
+                can open their own session files when you share them here).
               </Text>
               <Button
                 variant="outline"
@@ -434,33 +457,42 @@ export default function ClinicalNotesEditorScreen() {
               {attachmentsQuery.isLoading ? (
                 <ActivityIndicator className="mt-4" color={Colors.sage[500]} />
               ) : (attachmentsQuery.data?.length ?? 0) === 0 ? (
-                <Text className="text-charcoal-400 text-sm mt-3">No files yet.</Text>
+                <Text className="text-charcoal-400 text-sm mt-3">
+                  No files yet.
+                </Text>
               ) : (
                 <View className="mt-3">
-                  {(attachmentsQuery.data ?? []).map((f: ClinicalSessionAttachmentRow) => (
-                    <View
-                      key={f.id}
-                      className="flex-row items-center py-2 border-b border-cream-200"
-                    >
-                      <TouchableOpacity
-                        className="flex-1 pr-2"
-                        onPress={() => void onOpenAttachment(f.storage_path)}
+                  {(attachmentsQuery.data ?? []).map(
+                    (f: ClinicalSessionAttachmentRow) => (
+                      <View
+                        key={f.id}
+                        className="flex-row items-center py-2 border-b border-cream-200"
                       >
-                        <Text className="text-charcoal-800 font-medium" numberOfLines={1}>
-                          {f.file_name}
-                        </Text>
-                        <Text className="text-charcoal-400 text-xs mt-0.5">Tap to open</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        className="p-2"
-                        onPress={() => onRemoveAttachment(f.id, f.file_name)}
-                        disabled={attachBusy}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Trash2 size={18} color={Colors.charcoal[500]} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+                        <TouchableOpacity
+                          className="flex-1 pr-2"
+                          onPress={() => void onOpenAttachment(f.storage_path)}
+                        >
+                          <Text
+                            className="text-charcoal-800 font-medium"
+                            numberOfLines={1}
+                          >
+                            {f.file_name}
+                          </Text>
+                          <Text className="text-charcoal-400 text-xs mt-0.5">
+                            Tap to open
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          className="p-2"
+                          onPress={() => onRemoveAttachment(f.id, f.file_name)}
+                          disabled={attachBusy}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Trash2 size={18} color={Colors.charcoal[500]} />
+                        </TouchableOpacity>
+                      </View>
+                    ),
+                  )}
                 </View>
               )}
             </View>
@@ -470,8 +502,8 @@ export default function ClinicalNotesEditorScreen() {
                 AI-assisted SOAP
               </Text>
               <Text className="text-charcoal-400 text-xs mb-3">
-                Pro or Clinic: dictate or paste text, then generate a draft. Edit every
-                section before saving.
+                Pro or Clinic: dictate or paste text, then generate a draft.
+                Edit every section before saving.
               </Text>
 
               {voiceSupported ? (
@@ -484,8 +516,8 @@ export default function ClinicalNotesEditorScreen() {
                           Recording {formatVoiceDuration(voice.durationSec)}
                         </Text>
                         <Text className="text-charcoal-400 text-xs mt-0.5">
-                          Tap stop when finished — we transcribe, then open the draft
-                          sheet.
+                          Tap stop when finished — we transcribe, then open the
+                          draft sheet.
                         </Text>
                       </View>
                       <TouchableOpacity
@@ -496,7 +528,9 @@ export default function ClinicalNotesEditorScreen() {
                         accessibilityLabel="Stop recording"
                       >
                         <Square size={16} color="#fff" fill="#fff" />
-                        <Text className="text-white font-semibold ml-2">Stop</Text>
+                        <Text className="text-white font-semibold ml-2">
+                          Stop
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -507,7 +541,9 @@ export default function ClinicalNotesEditorScreen() {
                       onPress={() => void onStartVoice()}
                     >
                       <Text className="text-charcoal-800 font-semibold">
-                        {transcribingVoice ? "Transcribing…" : "Record voice memo"}
+                        {transcribingVoice
+                          ? "Transcribing…"
+                          : "Record voice memo"}
                       </Text>
                     </Button>
                   )}
@@ -583,9 +619,12 @@ export default function ClinicalNotesEditorScreen() {
               Draft SOAP from text
             </Text>
             <Text className="text-charcoal-500 text-sm mb-4">
-              Optional chief complaint, then paste everything that should inform S/O/A/P.
+              Optional chief complaint, then paste everything that should inform
+              S/O/A/P.
             </Text>
-            <Text className="text-charcoal-700 text-sm mb-1">Chief complaint (optional)</Text>
+            <Text className="text-charcoal-700 text-sm mb-1">
+              Chief complaint (optional)
+            </Text>
             <TextInput
               className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
               placeholderTextColor={Colors.charcoal[400]}
@@ -593,7 +632,9 @@ export default function ClinicalNotesEditorScreen() {
               value={aiChief}
               onChangeText={setAiChief}
             />
-            <Text className="text-charcoal-700 text-sm mb-1">Transcript / notes</Text>
+            <Text className="text-charcoal-700 text-sm mb-1">
+              Transcript / notes
+            </Text>
             <TextInput
               className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 min-h-[160px] mb-4"
               placeholderTextColor={Colors.charcoal[400]}

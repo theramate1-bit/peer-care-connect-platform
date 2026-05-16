@@ -102,6 +102,16 @@ function TherapistCard({
             </Text>
           )}
 
+          {therapist.accept_in_person_payment ? (
+            <View className="flex-row mt-2">
+              <View className="px-2 py-0.5 rounded-full bg-sage-50 border border-sage-200">
+                <Text className="text-sage-700 text-xs font-medium">
+                  Pay at clinic
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
           <View className="flex-row items-center mt-2">
             <Star size={14} color={Colors.warning} fill={Colors.warning} />
             <Text className="text-charcoal-700 text-sm ml-1 font-medium">
@@ -146,6 +156,7 @@ export default function ExploreScreen() {
   const [selectedSpecialization, setSelectedSpecialization] = useState<
     string | null
   >(null);
+  const [acceptsInPersonOnly, setAcceptsInPersonOnly] = useState(false);
 
   const {
     data: practitioners = [],
@@ -163,12 +174,13 @@ export default function ExploreScreen() {
         const specs = p.specializations || [];
         if (!specs.includes(selectedSpecialization)) return false;
       }
+      if (acceptsInPersonOnly && !p.accept_in_person_payment) return false;
       if (!q) return true;
       const name = `${p.first_name} ${p.last_name}`.toLowerCase();
       const loc = (p.location || "").toLowerCase();
       return name.includes(q) || loc.includes(q);
     });
-  }, [practitioners, searchQuery, selectedSpecialization]);
+  }, [practitioners, searchQuery, selectedSpecialization, acceptsInPersonOnly]);
 
   return (
     <SafeAreaView
@@ -176,14 +188,12 @@ export default function ExploreScreen() {
       edges={["top"]}
     >
       <MainTabHeader title="Explore" />
-      <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}>
+      <View
+        style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}
+      >
         {!isAuthenticated ? (
           <View className="mb-2 -ml-2">
-            <AuthBackHeader
-              fallbackHref="/hero"
-              label="Home"
-              alwaysReplace
-            />
+            <AuthBackHeader fallbackHref="/hero" label="Home" alwaysReplace />
           </View>
         ) : null}
         <Text className="text-charcoal-900 text-2xl font-bold mb-4">
@@ -275,6 +285,25 @@ export default function ExploreScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+
+          <TouchableOpacity
+            className={`px-4 py-2 rounded-full border ${
+              acceptsInPersonOnly
+                ? "bg-sage-500 border-sage-500"
+                : "bg-white border-cream-300"
+            }`}
+            onPress={() => setAcceptsInPersonOnly((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="Show only therapists who accept pay at clinic"
+          >
+            <Text
+              className={`text-sm font-medium ${
+                acceptsInPersonOnly ? "text-white" : "text-charcoal-700"
+              }`}
+            >
+              Pay at clinic
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -289,7 +318,10 @@ export default function ExploreScreen() {
             {formatUnknownError(error)}
           </Text>
           <Text className="text-charcoal-500 text-sm text-center mt-2">
-            If this mentions config or “Invalid API key”, copy `theramate-ios-client/.env.example` to `.env` and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, then restart Expo.
+            If this mentions config or “Invalid API key”, copy
+            `theramate-ios-client/.env.example` to `.env` and set
+            EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, then
+            restart Expo.
           </Text>
           <TouchableOpacity
             onPress={() => {
@@ -320,7 +352,10 @@ export default function ExploreScreen() {
                       "Create an account or sign in to save therapists.",
                       [
                         { text: "Cancel", style: "cancel" },
-                        { text: "Sign in", onPress: () => router.push("/login") },
+                        {
+                          text: "Sign in",
+                          onPress: () => router.push("/login"),
+                        },
                       ],
                     );
                     return;
@@ -351,7 +386,9 @@ export default function ExploreScreen() {
             <View className="px-6 pb-3 flex-row items-center justify-between">
               <Text className="text-charcoal-500 text-sm">
                 {filtered.length} therapist{filtered.length === 1 ? "" : "s"}
-                {searchQuery || selectedSpecialization ? " (filtered)" : ""}
+                {searchQuery || selectedSpecialization || acceptsInPersonOnly
+                  ? " (filtered)"
+                  : ""}
               </Text>
             </View>
           }

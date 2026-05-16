@@ -12,10 +12,11 @@ import {
   Alert,
   Modal,
   Pressable,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { CalendarClock } from "lucide-react-native";
+import { router, type Href } from "expo-router";
+import { CalendarClock, SlidersHorizontal } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
@@ -23,6 +24,8 @@ import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
 import {
   fetchPendingExchangeRequestsForRecipient,
+  fetchPendingExchangeRequestsSentByRequester,
+  cancelExchangeRequestByRequester,
   declineExchangeRequest,
   acceptExchangeRequest,
   bookExchangeReciprocalSession,
@@ -33,11 +36,21 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { ExchangeDiscoverPanel } from "@/components/practitioner/ExchangeDiscoverPanel";
+
+function formatExchangeTime(t: string | null | undefined): string {
+  if (t == null) return "";
+  const s = String(t);
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
+type ExchangeSegment = "discover" | "inbox";
 
 export default function PractitionerExchangeScreen() {
   const tabRoot = useTabRoot();
   const { userId } = useAuth();
   const queryClient = useQueryClient();
+  const [segment, setSegment] = useState<ExchangeSegment>("inbox");
   const [busy, setBusy] = useState<string | null>(null);
   const [slotModal, setSlotModal] = useState<{
     requestId: string;
@@ -49,7 +62,11 @@ export default function PractitionerExchangeScreen() {
     { session_date: string; start_time: string }[]
   >([]);
 
-  const { data: rows = [], isLoading, refetch } = useQuery({
+  const {
+    data: rows = [],
+    isLoading: loadingPending,
+    refetch: refetchPending,
+  } = useQuery({
     queryKey: ["exchange_pending", userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -65,14 +82,53 @@ export default function PractitionerExchangeScreen() {
     queryKey: ["exchange_reciprocal_needed", userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await fetchAcceptedExchangesNeedingReciprocal(
-        userId,
-      );
+      const { data, error } =
+        await fetchAcceptedExchangesNeedingReciprocal(userId);
       if (error) throw error;
       return data;
     },
     enabled: !!userId,
   });
+
+  const sentQuery = useQuery({
+    queryKey: ["exchange_sent", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } =
+        await fetchPendingExchangeRequestsSentByRequester(userId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
+  const inboxLoading =
+    loadingPending || reciprocalQuery.isLoading || sentQuery.isLoading;
+
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const onRefreshAll = useCallback(async () => {
+    setPullRefreshing(true);
+    try {
+      await Promise.all([
+        refetchPending(),
+        reciprocalQuery.refetch(),
+        sentQuery.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: ["exchange_eligible", userId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["credits", userId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["exchange_my_tier", userId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["practitioner_dashboard", userId],
+        }),
+      ]);
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [userId, queryClient, refetchPending, reciprocalQuery, sentQuery]);
 
   const loadSlotsFor = useCallback(
     async (requestId: string) => {
@@ -109,6 +165,43 @@ export default function PractitionerExchangeScreen() {
     void loadSlotsFor(row.exchange_request_id);
   };
 
+  const onCancelSent = (id: string) => {
+    if (!userId) return;
+    Alert.alert(
+      "Cancel this request?",
+      "The other practitioner will be notified.",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Cancel request",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(id);
+            try {
+              const res = await cancelExchangeRequestByRequester({
+                requestId: id,
+                requesterId: userId,
+              });
+              if (!res.ok) {
+                Alert.alert("Error", res.error?.message ?? "Could not cancel");
+                return;
+              }
+              await queryClient.invalidateQueries({
+                queryKey: ["exchange_sent", userId],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["practitioner_dashboard", userId],
+              });
+              void sentQuery.refetch();
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onDecline = (id: string) => {
     if (!userId) return;
     Alert.alert("Decline exchange", "Notify the other practitioner?", [
@@ -127,9 +220,13 @@ export default function PractitionerExchangeScreen() {
               Alert.alert("Error", res.error?.message || "Could not decline");
               return;
             }
-            await queryClient.invalidateQueries({ queryKey: ["exchange_pending"] });
-            await queryClient.invalidateQueries({ queryKey: ["practitioner_dashboard"] });
-            void refetch();
+            await queryClient.invalidateQueries({
+              queryKey: ["exchange_pending"],
+            });
+            await queryClient.invalidateQueries({
+              queryKey: ["practitioner_dashboard"],
+            });
+            void refetchPending();
           } finally {
             setBusy(null);
           }
@@ -168,9 +265,12 @@ export default function PractitionerExchangeScreen() {
               await queryClient.invalidateQueries({
                 queryKey: ["practitioner_dashboard", userId],
               });
-              void refetch();
+              void refetchPending();
               void reciprocalQuery.refetch();
-              Alert.alert("Accepted", "Book your return session below when ready.");
+              Alert.alert(
+                "Accepted",
+                "Book your return session below when ready.",
+              );
             } finally {
               setBusy(null);
             }
@@ -182,47 +282,43 @@ export default function PractitionerExchangeScreen() {
 
   const bookSlot = (sessionDate: string, startTime: string) => {
     if (!userId || !slotModal) return;
-    Alert.alert(
-      "Confirm return session",
-      `${sessionDate} at ${startTime}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Book",
-          onPress: () =>
-            void (async () => {
-              setBusy(slotModal.requestId);
-              try {
-                const res = await bookExchangeReciprocalSession({
-                  requestId: slotModal.requestId,
-                  recipientId: userId,
-                  sessionDate,
-                  startTime,
-                  durationMinutes: slotModal.durationMinutes ?? 60,
-                });
-                if (!res.ok) {
-                  Alert.alert(
-                    "Error",
-                    res.error?.message || "Could not book return session",
-                  );
-                  return;
-                }
-                setSlotModal(null);
-                await queryClient.invalidateQueries({
-                  queryKey: ["exchange_reciprocal_needed", userId],
-                });
-                await queryClient.invalidateQueries({
-                  queryKey: ["practitioner_dashboard", userId],
-                });
-                void reciprocalQuery.refetch();
-                Alert.alert("Booked", "Your return session is scheduled.");
-              } finally {
-                setBusy(null);
+    Alert.alert("Confirm return session", `${sessionDate} at ${startTime}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Book",
+        onPress: () =>
+          void (async () => {
+            setBusy(slotModal.requestId);
+            try {
+              const res = await bookExchangeReciprocalSession({
+                requestId: slotModal.requestId,
+                recipientId: userId,
+                sessionDate,
+                startTime,
+                durationMinutes: slotModal.durationMinutes ?? 60,
+              });
+              if (!res.ok) {
+                Alert.alert(
+                  "Error",
+                  res.error?.message || "Could not book return session",
+                );
+                return;
               }
-            })(),
-        },
-      ],
-    );
+              setSlotModal(null);
+              await queryClient.invalidateQueries({
+                queryKey: ["exchange_reciprocal_needed", userId],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["practitioner_dashboard", userId],
+              });
+              void reciprocalQuery.refetch();
+              Alert.alert("Booked", "Your return session is scheduled.");
+            } finally {
+              setBusy(null);
+            }
+          })(),
+      },
+    ]);
   };
 
   if (!userId) {
@@ -263,116 +359,300 @@ export default function PractitionerExchangeScreen() {
       style={{ flex: 1, backgroundColor: Colors.cream[50] }}
       edges={["top"]}
     >
-      <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        className="flex-1 px-6 pt-4"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={() => void onRefreshAll()}
+            tintColor={Colors.sage[500]}
+          />
+        }
+      >
         <ScreenHeader
           className="-mx-6 -mt-4 mb-2"
           eyebrow="Practice"
           title="Treatment exchange"
-          subtitle="Accept and decline requests, then book reciprocal sessions."
+          subtitle={
+            segment === "discover"
+              ? "Find peers in your rating tier and send a swap request."
+              : "See requests you’ve sent and received, and book return sessions when needed."
+          }
         />
-        <Text className="text-charcoal-600 leading-6 mb-6">
-          Review proposed times below. Accept or decline pending requests. After you
-          accept, book your return session from slots that match the other
-          practitioner&apos;s calendar and your availability.
-        </Text>
 
-        {reciprocalQuery.data && reciprocalQuery.data.length > 0 ? (
-          <View className="mb-6">
-            <Text className="text-charcoal-900 font-semibold text-base mb-2">
-              Book your return session
+        <View className="flex-row mb-4 gap-2">
+          <TouchableOpacity
+            onPress={() => setSegment("discover")}
+            className={`flex-1 py-3 rounded-xl border ${
+              segment === "discover"
+                ? "bg-sage-100 border-sage-400"
+                : "bg-cream-50 border-cream-300"
+            }`}
+          >
+            <Text
+              className={`text-center font-semibold ${
+                segment === "discover"
+                  ? "text-charcoal-900"
+                  : "text-charcoal-600"
+              }`}
+            >
+              Discover
             </Text>
-            <Text className="text-charcoal-500 text-sm mb-3">
-              These exchanges are accepted — pick a time for your session with the
-              requester (they are the therapist).
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSegment("inbox")}
+            className={`flex-1 py-3 rounded-xl border ${
+              segment === "inbox"
+                ? "bg-sage-100 border-sage-400"
+                : "bg-cream-50 border-cream-300"
+            }`}
+          >
+            <Text
+              className={`text-center font-semibold ${
+                segment === "inbox" ? "text-charcoal-900" : "text-charcoal-600"
+              }`}
+            >
+              Inbox
             </Text>
-            {reciprocalQuery.data.map((r) => (
-              <Card key={r.mutual_session_id} variant="default" padding="md" className="mb-3">
-                <Text className="text-charcoal-900 font-semibold">
-                  With {r.requester_name}
-                </Text>
-                {r.their_session_date ? (
-                  <Text className="text-charcoal-700 text-sm mt-2">
-                    Their session with you: {r.their_session_date}
-                    {r.their_start_time ? ` · ${String(r.their_start_time).slice(0, 5)}` : ""}
-                  </Text>
-                ) : null}
-                {r.reciprocal_booking_deadline ? (
-                  <Text className="text-amber-800 text-xs mt-2">
-                    Book by:{" "}
-                    {new Date(r.reciprocal_booking_deadline).toLocaleString()}
-                  </Text>
-                ) : null}
-                <Button
-                  variant="primary"
-                  className="mt-4"
-                  disabled={busy === r.exchange_request_id}
-                  isLoading={busy === r.exchange_request_id}
-                  onPress={() => openSlotModal(r)}
-                >
-                  Choose date and time
-                </Button>
-              </Card>
-            ))}
-          </View>
-        ) : null}
+          </TouchableOpacity>
+        </View>
 
-        <Text className="text-charcoal-900 font-semibold text-base mb-2">
-          Pending requests
-        </Text>
-
-        {isLoading || reciprocalQuery.isLoading ? (
-          <ActivityIndicator color={Colors.sage[500]} />
-        ) : rows.length === 0 ? (
-          <Text className="text-charcoal-500">No pending exchange requests.</Text>
+        {segment === "discover" ? (
+          <ExchangeDiscoverPanel userId={userId} />
         ) : (
-          rows.map((r) => (
-            <Card key={r.id} variant="default" padding="md" className="mb-3">
-              <Text className="text-charcoal-900 font-semibold">
-                {r.requester_name ?? "Practitioner"} proposes a swap
-              </Text>
-              {r.requested_session_date ? (
-                <Text className="text-charcoal-800 text-sm mt-2">
-                  Their session: {r.requested_session_date}{" "}
-                  {r.requested_start_time ? `· ${r.requested_start_time}` : ""}
-                  {r.duration_minutes != null
-                    ? ` · ${r.duration_minutes} min`
-                    : ""}
+          <>
+            <Text className="text-charcoal-600 leading-6 mb-6">
+              Accept or decline requests from others, track requests you&apos;ve
+              sent, and book your return session after you accept an exchange.
+            </Text>
+
+            {inboxLoading ? (
+              <ActivityIndicator color={Colors.sage[500]} className="py-6" />
+            ) : (
+              <>
+                {reciprocalQuery.data && reciprocalQuery.data.length > 0 ? (
+                  <View className="mb-6">
+                    <Text className="text-charcoal-900 font-semibold text-base mb-2">
+                      Book your return session
+                    </Text>
+                    <Text className="text-charcoal-500 text-sm mb-3">
+                      These exchanges are accepted — pick a time for your
+                      session with the requester (they are the therapist).
+                    </Text>
+                    {reciprocalQuery.data.map((r) => (
+                      <Card
+                        key={r.mutual_session_id}
+                        variant="default"
+                        padding="md"
+                        className="mb-3"
+                      >
+                        <Text className="text-charcoal-900 font-semibold">
+                          With {r.requester_name}
+                        </Text>
+                        {r.their_session_date ? (
+                          <Text className="text-charcoal-700 text-sm mt-2">
+                            Their session with you: {r.their_session_date}
+                            {r.their_start_time
+                              ? ` · ${String(r.their_start_time).slice(0, 5)}`
+                              : ""}
+                          </Text>
+                        ) : null}
+                        {r.reciprocal_booking_deadline ? (
+                          <Text className="text-amber-800 text-xs mt-2">
+                            Book by:{" "}
+                            {new Date(
+                              r.reciprocal_booking_deadline,
+                            ).toLocaleString()}
+                          </Text>
+                        ) : null}
+                        <TouchableOpacity
+                          onPress={() =>
+                            router.push(
+                              tabPath(
+                                tabRoot,
+                                `exchange/${r.exchange_request_id}`,
+                              ) as Href,
+                            )
+                          }
+                          className="mt-2 self-start"
+                        >
+                          <Text className="text-sage-600 text-sm font-medium">
+                            View request details
+                          </Text>
+                        </TouchableOpacity>
+                        <Button
+                          variant="primary"
+                          className="mt-4"
+                          disabled={busy === r.exchange_request_id}
+                          isLoading={busy === r.exchange_request_id}
+                          onPress={() => openSlotModal(r)}
+                        >
+                          Choose date and time
+                        </Button>
+                      </Card>
+                    ))}
+                  </View>
+                ) : null}
+
+                <Text className="text-charcoal-900 font-semibold text-base mb-2">
+                  Waiting on them
                 </Text>
-              ) : null}
-              {r.session_type ? (
-                <Text className="text-charcoal-500 text-sm mt-1">
-                  {r.session_type}
+                <Text className="text-charcoal-500 text-sm mb-3">
+                  Requests you sent — cancel if you need to propose a different
+                  time.
                 </Text>
-              ) : null}
-              {r.requester_notes ? (
-                <Text className="text-charcoal-600 text-sm mt-2">
-                  Note: {r.requester_notes}
+                {sentQuery.data && sentQuery.data.length > 0 ? (
+                  sentQuery.data.map((r) => (
+                    <Card
+                      key={r.id}
+                      variant="default"
+                      padding="md"
+                      className="mb-3"
+                    >
+                      <Text className="text-charcoal-900 font-semibold">
+                        With {r.recipient_name ?? "Practitioner"}
+                      </Text>
+                      {r.requested_session_date ? (
+                        <Text className="text-charcoal-800 text-sm mt-2">
+                          Proposed: {r.requested_session_date}
+                          {r.requested_start_time
+                            ? ` · ${formatExchangeTime(r.requested_start_time)}`
+                            : ""}
+                          {r.duration_minutes != null
+                            ? ` · ${r.duration_minutes} min`
+                            : ""}
+                        </Text>
+                      ) : null}
+                      {r.session_type ? (
+                        <Text className="text-charcoal-500 text-sm mt-1">
+                          {r.session_type}
+                        </Text>
+                      ) : null}
+                      {r.requester_notes ? (
+                        <Text className="text-charcoal-600 text-sm mt-2">
+                          Your note: {r.requester_notes}
+                        </Text>
+                      ) : null}
+                      <Text className="text-charcoal-400 text-xs mt-2">
+                        Sent{" "}
+                        {r.created_at
+                          ? new Date(r.created_at).toLocaleString()
+                          : ""}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push(
+                            tabPath(tabRoot, `exchange/${r.id}`) as Href,
+                          )
+                        }
+                        className="mt-2 self-start"
+                      >
+                        <Text className="text-sage-600 text-sm font-medium">
+                          View request details
+                        </Text>
+                      </TouchableOpacity>
+                      <Button
+                        variant="outline"
+                        className="mt-4"
+                        disabled={busy === r.id}
+                        isLoading={busy === r.id}
+                        onPress={() => onCancelSent(r.id)}
+                      >
+                        Cancel request
+                      </Button>
+                    </Card>
+                  ))
+                ) : (
+                  <Text className="text-charcoal-500 mb-6">
+                    No outgoing requests.
+                  </Text>
+                )}
+
+                <Text className="text-charcoal-900 font-semibold text-base mb-2">
+                  Needs your response
                 </Text>
-              ) : null}
-              <Text className="text-charcoal-400 text-xs mt-2">
-                Received{" "}
-                {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
-              </Text>
-              <Button
-                variant="primary"
-                className="mt-4"
-                disabled={busy === r.id}
-                isLoading={busy === r.id}
-                onPress={() => onAccept(r.id)}
-              >
-                Accept
-              </Button>
-              <Button
-                variant="destructive"
-                className="mt-3"
-                disabled={busy === r.id}
-                isLoading={busy === r.id}
-                onPress={() => onDecline(r.id)}
-              >
-                Decline
-              </Button>
-            </Card>
-          ))
+                <Text className="text-charcoal-500 text-sm mb-3">
+                  Accept or decline swaps others have proposed to you.
+                </Text>
+                {rows.length === 0 ? (
+                  <Text className="text-charcoal-500">
+                    No incoming requests.
+                  </Text>
+                ) : (
+                  rows.map((r) => (
+                    <Card
+                      key={r.id}
+                      variant="default"
+                      padding="md"
+                      className="mb-3"
+                    >
+                      <Text className="text-charcoal-900 font-semibold">
+                        {r.requester_name ?? "Practitioner"} proposes a swap
+                      </Text>
+                      {r.requested_session_date ? (
+                        <Text className="text-charcoal-800 text-sm mt-2">
+                          Their session: {r.requested_session_date}{" "}
+                          {r.requested_start_time
+                            ? `· ${formatExchangeTime(r.requested_start_time)}`
+                            : ""}
+                          {r.duration_minutes != null
+                            ? ` · ${r.duration_minutes} min`
+                            : ""}
+                        </Text>
+                      ) : null}
+                      {r.session_type ? (
+                        <Text className="text-charcoal-500 text-sm mt-1">
+                          {r.session_type}
+                        </Text>
+                      ) : null}
+                      {r.requester_notes ? (
+                        <Text className="text-charcoal-600 text-sm mt-2">
+                          Note: {r.requester_notes}
+                        </Text>
+                      ) : null}
+                      <Text className="text-charcoal-400 text-xs mt-2">
+                        Received{" "}
+                        {r.created_at
+                          ? new Date(r.created_at).toLocaleString()
+                          : ""}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push(
+                            tabPath(tabRoot, `exchange/${r.id}`) as Href,
+                          )
+                        }
+                        className="mt-2 self-start"
+                      >
+                        <Text className="text-sage-600 text-sm font-medium">
+                          View request details
+                        </Text>
+                      </TouchableOpacity>
+                      <Button
+                        variant="primary"
+                        className="mt-4"
+                        disabled={busy === r.id}
+                        isLoading={busy === r.id}
+                        onPress={() => onAccept(r.id)}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="mt-3"
+                        disabled={busy === r.id}
+                        isLoading={busy === r.id}
+                        onPress={() => onDecline(r.id)}
+                      >
+                        Decline
+                      </Button>
+                    </Card>
+                  ))
+                )}
+              </>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -404,20 +684,35 @@ export default function PractitionerExchangeScreen() {
             ) : slots.length === 0 ? (
               <View className="py-4">
                 <Text className="text-charcoal-600 leading-6">
-                  No open slots in the next two weeks before your deadline. Check
-                  your weekly hours, ask the other practitioner to free a time, or
-                  extend availability if you can.
+                  No open slots in the next two weeks before your deadline.
+                  Check your weekly hours, ask the other practitioner to free a
+                  time, or extend availability if you can.
                 </Text>
                 <Button
                   variant="outline"
                   className="mt-4"
-                  leftIcon={<CalendarClock size={18} color={Colors.sage[600]} />}
+                  leftIcon={
+                    <CalendarClock size={18} color={Colors.sage[600]} />
+                  }
                   onPress={() => {
                     setSlotModal(null);
                     router.push(tabPath(tabRoot, "availability") as never);
                   }}
                 >
                   Weekly hours
+                </Button>
+                <Button
+                  variant="outline"
+                  className="mt-3"
+                  leftIcon={
+                    <SlidersHorizontal size={18} color={Colors.sage[600]} />
+                  }
+                  onPress={() => {
+                    setSlotModal(null);
+                    router.push(tabPath(tabRoot, "schedule") as never);
+                  }}
+                >
+                  Open diary tools
                 </Button>
               </View>
             ) : (
@@ -436,7 +731,11 @@ export default function PractitionerExchangeScreen() {
                 ))}
               </ScrollView>
             )}
-            <Button variant="outline" className="mt-4" onPress={() => setSlotModal(null)}>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onPress={() => setSlotModal(null)}
+            >
               Close
             </Button>
           </Pressable>

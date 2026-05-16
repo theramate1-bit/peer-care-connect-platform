@@ -7,7 +7,8 @@
     "backend",
     "peer-care-connect",
     "ai-ugc-creator",
-    "theramate-ios-client"
+    "theramate-ios-client",
+    "packages/user-preferences"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=peer-care-connect",
@@ -31,7 +32,10 @@
     "agent-context:offline": "cd agent-context && docker compose -f docker-compose.offline.yml up -d",
     "agent-context:down": "cd agent-context && docker compose down",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "marketing:waitlist:dry": "node scripts/send-waitlist-marketing.mjs scripts/waitlist-leads.private.tsv --dry-run",
+    "marketing:waitlist:send": "node scripts/send-waitlist-marketing.mjs scripts/waitlist-leads.private.tsv",
+    "marketing:waitlist:resume": "node scripts/send-waitlist-marketing.mjs scripts/waitlist-leads-remaining.private.tsv"
   },
   "devDependencies": {
     "ajv": "^8.18.0",

@@ -1,24 +1,40 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { 
-  User, 
-  Heart, 
-  Calendar, 
-  Target, 
-  CheckCircle, 
+import React, { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  User,
+  Heart,
+  Calendar,
+  Target,
+  CheckCircle,
   ArrowRight,
   ArrowLeft,
-  Loader2
-} from 'lucide-react';
+  Loader2,
+} from "lucide-react";
+
+/** Canonical legal pages (must match mobile APP_CONFIG / website). */
+const LEGAL_TERMS_URL = "https://theramate.co.uk/terms";
+const LEGAL_PRIVACY_URL = "https://theramate.co.uk/privacy";
 
 interface OnboardingStep {
   id: string;
@@ -29,35 +45,35 @@ interface OnboardingStep {
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
-    id: 'personal',
-    title: 'Personal Information',
-    description: 'Tell us about yourself and your therapy goals',
-    icon: <User className="h-6 w-6" />
+    id: "personal",
+    title: "Personal Information",
+    description: "Tell us about yourself and your therapy goals",
+    icon: <User className="h-6 w-6" />,
   },
   {
-    id: 'health',
-    title: 'Health Background',
-    description: 'Share relevant health information for better care',
-    icon: <Heart className="h-6 w-6" />
+    id: "health",
+    title: "Health Background",
+    description: "Share relevant health information for better care",
+    icon: <Heart className="h-6 w-6" />,
   },
   {
-    id: 'preferences',
-    title: 'Therapy Preferences',
-    description: 'Choose your preferred therapy types and scheduling',
-    icon: <Calendar className="h-6 w-6" />
+    id: "preferences",
+    title: "Therapy Preferences",
+    description: "Choose your preferred therapy types and scheduling",
+    icon: <Calendar className="h-6 w-6" />,
   },
   {
-    id: 'goals',
-    title: 'Goals & Objectives',
-    description: 'Define what you want to achieve through therapy',
-    icon: <Target className="h-6 w-6" />
+    id: "goals",
+    title: "Goals & Objectives",
+    description: "Define what you want to achieve through therapy",
+    icon: <Target className="h-6 w-6" />,
   },
   {
-    id: 'complete',
-    title: 'Complete Setup',
-    description: 'Review and finalize your profile',
-    icon: <CheckCircle className="h-6 w-6" />
-  }
+    id: "complete",
+    title: "Complete Setup",
+    description: "Review and finalize your profile",
+    icon: <CheckCircle className="h-6 w-6" />,
+  },
 ];
 
 const ClientOnboarding: React.FC = () => {
@@ -67,51 +83,57 @@ const ClientOnboarding: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     // Personal Information
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
-    phone: '',
-    emergencyContact: '',
-    emergencyPhone: '',
-    
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    phone: "",
+    emergencyContact: "",
+    emergencyPhone: "",
+
     // Health Background
-    medicalConditions: '',
-    medications: '',
-    allergies: '',
-    previousTherapy: '',
-    
+    medicalConditions: "",
+    medications: "",
+    allergies: "",
+    previousTherapy: "",
+
     // Preferences
     preferredTherapyTypes: [] as string[],
-    preferredGender: '',
-    preferredLocation: '',
-    preferredTime: '',
-    maxTravelDistance: '',
-    
+    preferredGender: "",
+    preferredLocation: "",
+    preferredTime: "",
+    maxTravelDistance: "",
+
     // Goals
-    primaryGoal: '',
+    primaryGoal: "",
     secondaryGoals: [] as string[],
-    timeline: '',
-    budget: '',
-    
+    timeline: "",
+    budget: "",
+
     // Terms
     acceptTerms: false,
     acceptPrivacy: false,
-    allowMarketing: false
+    allowMarketing: false,
   });
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
-  const handleArrayChange = (field: string, value: string, checked: boolean) => {
-    setFormData(prev => ({
+  const handleArrayChange = (
+    field: string,
+    value: string,
+    checked: boolean,
+  ) => {
+    setFormData((prev) => ({
       ...prev,
-      [field]: checked 
-        ? [...prev[field as keyof typeof prev] as string[], value]
-        : (prev[field as keyof typeof prev] as string[]).filter(item => item !== value)
+      [field]: checked
+        ? [...(prev[field as keyof typeof prev] as string[]), value]
+        : (prev[field as keyof typeof prev] as string[]).filter(
+            (item) => item !== value,
+          ),
     }));
   };
 
@@ -129,11 +151,11 @@ const ClientOnboarding: React.FC = () => {
 
   const handleSubmit = async () => {
     setLoading(true);
-    
+
     try {
       // Update user profile in users table
       const { error } = await supabase
-        .from('users')
+        .from("users")
         .update({
           first_name: formData.firstName,
           last_name: formData.lastName,
@@ -155,9 +177,9 @@ const ClientOnboarding: React.FC = () => {
           timeline: formData.timeline,
           budget: formData.budget,
           onboarding_completed: true,
-          onboarding_date: new Date().toISOString()
+          onboarding_date: new Date().toISOString(),
         })
-        .eq('id', user?.id);
+        .eq("id", user?.id);
 
       if (error) throw error;
 
@@ -167,14 +189,14 @@ const ClientOnboarding: React.FC = () => {
       });
 
       // Redirect to dashboard
-      window.location.href = '/dashboard';
-      
+      window.location.href = "/dashboard";
     } catch (error) {
-      console.error('Onboarding error:', error);
+      console.error("Onboarding error:", error);
       toast({
         title: "Error",
-        description: "There was an error completing your onboarding. Please try again.",
-        variant: "destructive"
+        description:
+          "There was an error completing your onboarding. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -192,7 +214,9 @@ const ClientOnboarding: React.FC = () => {
                 <Input
                   id="firstName"
                   value={formData.firstName}
-                  onChange={(e) => handleInputChange('firstName', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("firstName", e.target.value)
+                  }
                   required
                 />
               </div>
@@ -201,12 +225,14 @@ const ClientOnboarding: React.FC = () => {
                 <Input
                   id="lastName"
                   value={formData.lastName}
-                  onChange={(e) => handleInputChange('lastName', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("lastName", e.target.value)
+                  }
                   required
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Date of Birth *</Label>
@@ -214,7 +240,9 @@ const ClientOnboarding: React.FC = () => {
                   id="dateOfBirth"
                   type="date"
                   value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("dateOfBirth", e.target.value)
+                  }
                   required
                 />
               </div>
@@ -224,18 +252,20 @@ const ClientOnboarding: React.FC = () => {
                   id="phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="emergencyContact">Emergency Contact Name</Label>
                 <Input
                   id="emergencyContact"
                   value={formData.emergencyContact}
-                  onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("emergencyContact", e.target.value)
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -244,7 +274,9 @@ const ClientOnboarding: React.FC = () => {
                   id="emergencyPhone"
                   type="tel"
                   value={formData.emergencyPhone}
-                  onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("emergencyPhone", e.target.value)
+                  }
                 />
               </div>
             </div>
@@ -260,39 +292,47 @@ const ClientOnboarding: React.FC = () => {
                 id="medicalConditions"
                 placeholder="Please list any relevant medical conditions..."
                 value={formData.medicalConditions}
-                onChange={(e) => handleInputChange('medicalConditions', e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("medicalConditions", e.target.value)
+                }
                 rows={3}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="medications">Current Medications</Label>
               <Textarea
                 id="medications"
                 placeholder="List any medications you're currently taking..."
                 value={formData.medications}
-                onChange={(e) => handleInputChange('medications', e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("medications", e.target.value)
+                }
                 rows={3}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="allergies">Allergies</Label>
               <Input
                 id="allergies"
                 placeholder="Any allergies we should know about?"
                 value={formData.allergies}
-                onChange={(e) => handleInputChange('allergies', e.target.value)}
+                onChange={(e) => handleInputChange("allergies", e.target.value)}
               />
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="previousTherapy">Previous Therapy Experience</Label>
+              <Label htmlFor="previousTherapy">
+                Previous Therapy Experience
+              </Label>
               <Textarea
                 id="previousTherapy"
                 placeholder="Have you had therapy before? What was helpful?"
                 value={formData.previousTherapy}
-                onChange={(e) => handleInputChange('previousTherapy', e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("previousTherapy", e.target.value)
+                }
                 rows={3}
               />
             </div>
@@ -305,12 +345,23 @@ const ClientOnboarding: React.FC = () => {
             <div className="space-y-2">
               <Label>Therapy Types You're Interested In</Label>
               <div className="grid grid-cols-2 gap-2">
-                {['Sports Therapy', 'Massage Therapy', 'Osteopathy', 'Physiotherapy', 'Counselling', 'Other'].map((type) => (
+                {[
+                  "Sports Therapy",
+                  "Massage Therapy",
+                  "Osteopathy",
+                  "Physiotherapy",
+                  "Counselling",
+                  "Other",
+                ].map((type) => (
                   <label key={type} className="flex items-center space-x-2">
                     <Checkbox
                       checked={formData.preferredTherapyTypes.includes(type)}
-                      onCheckedChange={(checked) => 
-                        handleArrayChange('preferredTherapyTypes', type, checked as boolean)
+                      onCheckedChange={(checked) =>
+                        handleArrayChange(
+                          "preferredTherapyTypes",
+                          type,
+                          checked as boolean,
+                        )
                       }
                     />
                     <span className="text-sm">{type}</span>
@@ -318,11 +369,18 @@ const ClientOnboarding: React.FC = () => {
                 ))}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="preferredGender">Preferred Therapist Gender</Label>
-                <Select value={formData.preferredGender} onValueChange={(value) => handleInputChange('preferredGender', value)}>
+                <Label htmlFor="preferredGender">
+                  Preferred Therapist Gender
+                </Label>
+                <Select
+                  value={formData.preferredGender}
+                  onValueChange={(value) =>
+                    handleInputChange("preferredGender", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select preference" />
                   </SelectTrigger>
@@ -336,7 +394,12 @@ const ClientOnboarding: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="preferredLocation">Preferred Location</Label>
-                <Select value={formData.preferredLocation} onValueChange={(value) => handleInputChange('preferredLocation', value)}>
+                <Select
+                  value={formData.preferredLocation}
+                  onValueChange={(value) =>
+                    handleInputChange("preferredLocation", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select location" />
                   </SelectTrigger>
@@ -349,11 +412,16 @@ const ClientOnboarding: React.FC = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="preferredTime">Preferred Time</Label>
-                <Select value={formData.preferredTime} onValueChange={(value) => handleInputChange('preferredTime', value)}>
+                <Select
+                  value={formData.preferredTime}
+                  onValueChange={(value) =>
+                    handleInputChange("preferredTime", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
@@ -367,7 +435,12 @@ const ClientOnboarding: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="maxTravelDistance">Max Travel Distance</Label>
-                <Select value={formData.maxTravelDistance} onValueChange={(value) => handleInputChange('maxTravelDistance', value)}>
+                <Select
+                  value={formData.maxTravelDistance}
+                  onValueChange={(value) =>
+                    handleInputChange("maxTravelDistance", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select distance" />
                   </SelectTrigger>
@@ -392,21 +465,36 @@ const ClientOnboarding: React.FC = () => {
                 id="primaryGoal"
                 placeholder="What is your main objective for seeking therapy?"
                 value={formData.primaryGoal}
-                onChange={(e) => handleInputChange('primaryGoal', e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("primaryGoal", e.target.value)
+                }
                 required
                 rows={3}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label>Secondary Goals</Label>
               <div className="grid grid-cols-2 gap-2">
-                {['Pain Relief', 'Injury Recovery', 'Stress Management', 'Flexibility', 'Strength Building', 'Mental Health', 'Performance Improvement', 'Prevention'].map((goal) => (
+                {[
+                  "Pain Relief",
+                  "Injury Recovery",
+                  "Stress Management",
+                  "Flexibility",
+                  "Strength Building",
+                  "Mental Health",
+                  "Performance Improvement",
+                  "Prevention",
+                ].map((goal) => (
                   <label key={goal} className="flex items-center space-x-2">
                     <Checkbox
                       checked={formData.secondaryGoals.includes(goal)}
-                      onCheckedChange={(checked) => 
-                        handleArrayChange('secondaryGoals', goal, checked as boolean)
+                      onCheckedChange={(checked) =>
+                        handleArrayChange(
+                          "secondaryGoals",
+                          goal,
+                          checked as boolean,
+                        )
                       }
                     />
                     <span className="text-sm">{goal}</span>
@@ -414,11 +502,16 @@ const ClientOnboarding: React.FC = () => {
                 ))}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="timeline">Timeline</Label>
-                <Select value={formData.timeline} onValueChange={(value) => handleInputChange('timeline', value)}>
+                <Select
+                  value={formData.timeline}
+                  onValueChange={(value) =>
+                    handleInputChange("timeline", value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select timeline" />
                   </SelectTrigger>
@@ -433,7 +526,10 @@ const ClientOnboarding: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="budget">Budget Range</Label>
-                <Select value={formData.budget} onValueChange={(value) => handleInputChange('budget', value)}>
+                <Select
+                  value={formData.budget}
+                  onValueChange={(value) => handleInputChange("budget", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select budget" />
                   </SelectTrigger>
@@ -454,23 +550,27 @@ const ClientOnboarding: React.FC = () => {
           <div className="space-y-4">
             <div className="bg-muted/50 rounded-lg p-4 space-y-4">
               <h3 className="font-semibold">Review Your Information</h3>
-              
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="font-medium">Name:</span> {formData.firstName} {formData.lastName}
+                  <span className="font-medium">Name:</span>{" "}
+                  {formData.firstName} {formData.lastName}
                 </div>
                 <div>
-                  <span className="font-medium">Phone:</span> {formData.phone || 'Not provided'}
+                  <span className="font-medium">Phone:</span>{" "}
+                  {formData.phone || "Not provided"}
                 </div>
                 <div>
-                  <span className="font-medium">Primary Goal:</span> {formData.primaryGoal}
+                  <span className="font-medium">Primary Goal:</span>{" "}
+                  {formData.primaryGoal}
                 </div>
                 <div>
-                  <span className="font-medium">Preferred Types:</span> {formData.preferredTherapyTypes.join(', ')}
+                  <span className="font-medium">Preferred Types:</span>{" "}
+                  {formData.preferredTherapyTypes.join(", ")}
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Terms & Conditions</Label>
@@ -478,25 +578,55 @@ const ClientOnboarding: React.FC = () => {
                   <label className="flex items-center space-x-2">
                     <Checkbox
                       checked={formData.acceptTerms}
-                      onCheckedChange={(checked) => handleInputChange('acceptTerms', checked)}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("acceptTerms", checked)
+                      }
                       required
                     />
-                    <span className="text-sm">I accept the Terms of Service *</span>
+                    <span className="text-sm">
+                      I accept the{" "}
+                      <a
+                        href={LEGAL_TERMS_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline underline-offset-2"
+                      >
+                        Terms of Service
+                      </a>{" "}
+                      *
+                    </span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <Checkbox
                       checked={formData.acceptPrivacy}
-                      onCheckedChange={(checked) => handleInputChange('acceptPrivacy', checked)}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("acceptPrivacy", checked)
+                      }
                       required
                     />
-                    <span className="text-sm">I accept the Privacy Policy *</span>
+                    <span className="text-sm">
+                      I accept the{" "}
+                      <a
+                        href={LEGAL_PRIVACY_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline underline-offset-2"
+                      >
+                        Privacy Policy
+                      </a>{" "}
+                      *
+                    </span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <Checkbox
                       checked={formData.allowMarketing}
-                      onCheckedChange={(checked) => handleInputChange('allowMarketing', checked)}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("allowMarketing", checked)
+                      }
                     />
-                    <span className="text-sm">I agree to receive marketing communications (optional)</span>
+                    <span className="text-sm">
+                      I agree to receive marketing communications (optional)
+                    </span>
                   </label>
                 </div>
               </div>
@@ -547,17 +677,23 @@ const ClientOnboarding: React.FC = () => {
             <div
               key={step.id}
               className={`flex flex-col items-center space-y-2 ${
-                index <= currentStep ? 'text-blue-600' : 'text-gray-400'
+                index <= currentStep ? "text-blue-600" : "text-gray-400"
               }`}
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-                index <= currentStep ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'
-              }`}>
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                  index <= currentStep
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-gray-300"
+                }`}
+              >
                 {step.icon}
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium">{step.title}</p>
-                <p className="text-xs text-gray-500 hidden sm:block">{step.description}</p>
+                <p className="text-xs text-gray-500 hidden sm:block">
+                  {step.description}
+                </p>
               </div>
             </div>
           ))}
@@ -574,9 +710,7 @@ const ClientOnboarding: React.FC = () => {
               {ONBOARDING_STEPS[currentStep].description}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {renderStepContent()}
-          </CardContent>
+          <CardContent>{renderStepContent()}</CardContent>
         </Card>
 
         {/* Navigation */}
@@ -629,7 +763,9 @@ const ClientOnboarding: React.FC = () => {
           <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentStep + 1) / ONBOARDING_STEPS.length) * 100}%` }}
+              style={{
+                width: `${((currentStep + 1) / ONBOARDING_STEPS.length) * 100}%`,
+              }}
             />
           </div>
         </div>

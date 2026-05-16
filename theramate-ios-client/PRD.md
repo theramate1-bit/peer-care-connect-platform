@@ -9,7 +9,12 @@
 **Last Updated:** April 2026
 
 ### Vision Statement
+
 A beautiful, intuitive iOS app enabling clients to discover, book, and manage therapy sessions with verified healthcare practitioners. Built to seamlessly integrate with the existing Theramate web platform and backend infrastructure.
+
+### Related planning artifacts
+
+BMAD-style backlog and technical planning live under `_bmad-output/planning-artifacts/` (repo root). Start at [**Planning artifacts README**](../_bmad-output/planning-artifacts/README.md); [**Epics & stories**](../_bmad-output/planning-artifacts/epics.md) spans client MVP phases, **Epic 10** (practitioner), **Epic 11** (exchange/credits), and **Epic 12** (guest). Shards: [**Practitioner**](../_bmad-output/planning-artifacts/prd-practitioner-shard.md) (**PFR**), [**Exchange & credits**](../_bmad-output/planning-artifacts/prd-exchange-credits-shard.md) (**EXFR**), [**Guest**](../_bmad-output/planning-artifacts/prd-guest-shard.md) (**GFR**), [**Marketplace discovery**](../_bmad-output/planning-artifacts/prd-marketplace-discovery-shard.md) (**MKFR**), [**Payments & Stripe**](../_bmad-output/planning-artifacts/prd-payments-stripe-shard.md) (**PYFR**), [**Subscription & billing portal**](../_bmad-output/planning-artifacts/prd-subscription-billing-portal-shard.md) (**SUBFR**), [**Notifications & messaging**](../_bmad-output/planning-artifacts/prd-notifications-messaging-shard.md) (**NMFR**), [**Clinical documentation**](../_bmad-output/planning-artifacts/prd-clinical-documentation-shard.md) (**CLFR**), [**Calendar sync**](../_bmad-output/planning-artifacts/prd-calendar-sync-shard.md) (**CALFR**).
 
 ---
 
@@ -19,38 +24,38 @@ A beautiful, intuitive iOS app enabling clients to discover, book, and manage th
 
 ```scss
 // Primary Palette - Warm & Inviting
-$cream-50: #FFFDF8;      // Background
-$cream-100: #FFF9EB;     // Card backgrounds
-$cream-200: #FFF3D6;     // Subtle highlights
-$cream-300: #FFE9B8;     // Borders
-$cream-400: #FFD98C;     // Interactive states
+$cream-50: #fffdf8; // Background
+$cream-100: #fff9eb; // Card backgrounds
+$cream-200: #fff3d6; // Subtle highlights
+$cream-300: #ffe9b8; // Borders
+$cream-400: #ffd98c; // Interactive states
 
 // Accent Colors
-$sage-500: #7A9E7E;      // Primary action (booking)
-$sage-600: #5C7F61;      // Pressed states
-$terracotta-500: #C9826D; // Secondary accent
-$terracotta-600: #A66B59; // Pressed states
+$sage-500: #7a9e7e; // Primary action (booking)
+$sage-600: #5c7f61; // Pressed states
+$terracotta-500: #c9826d; // Secondary accent
+$terracotta-600: #a66b59; // Pressed states
 
 // Semantic Colors
-$success: #6B9B6B;       // Confirmed sessions
-$warning: #E8A952;       // Pending states
-$error: #C75D5D;         // Cancellations
-$info: #6B8FAD;          // Information
+$success: #6b9b6b; // Confirmed sessions
+$warning: #e8a952; // Pending states
+$error: #c75d5d; // Cancellations
+$info: #6b8fad; // Information
 
 // Neutrals
-$charcoal-900: #2D2A26;  // Primary text
-$charcoal-700: #4A4641;  // Secondary text
-$charcoal-500: #6B6660;  // Tertiary text
-$charcoal-300: #A09A94;  // Placeholders
-$charcoal-100: #E8E4DF;  // Dividers
+$charcoal-900: #2d2a26; // Primary text
+$charcoal-700: #4a4641; // Secondary text
+$charcoal-500: #6b6660; // Tertiary text
+$charcoal-300: #a09a94; // Placeholders
+$charcoal-100: #e8e4df; // Dividers
 ```
 
 ### 1.2 Typography
 
 ```scss
 // Font Family: Outfit (modern, friendly, geometric)
-$font-display: 'Outfit', sans-serif;
-$font-body: 'Outfit', sans-serif;
+$font-display: "Outfit", sans-serif;
+$font-body: "Outfit", sans-serif;
 
 // Scale
 $text-xs: 12px;
@@ -92,6 +97,7 @@ $radius-full: 9999px;
 ### 1.4 UI Component Inspiration
 
 Drawing from:
+
 - **KokonutUI** - Card layouts, file upload patterns
 - **Magic UI** - Animated backgrounds, gradient effects
 - **Aceternity UI** - Smooth transitions, hover states
@@ -336,7 +342,7 @@ client_profiles (
 ```sql
 -- Marketplace Practitioners View
 CREATE VIEW marketplace_practitioners AS
-SELECT 
+SELECT
   tp.id,
   tp.user_id,
   u.first_name,
@@ -502,7 +508,7 @@ POST /rest/v1/rpc/get_next_available_slot
      Body: { practitioner_id: string, duration_minutes: number }
 
 POST /rest/v1/rpc/create_booking_with_validation
-     Body: { 
+     Body: {
        therapist_id: string,
        client_id: string,
        session_date: string,
@@ -529,7 +535,7 @@ POST /rest/v1/rpc/release_slot_hold
 ```typescript
 // Payment Processing
 POST /functions/v1/create-session-payment
-     Body: { 
+     Body: {
        session_id: string,
        amount: number,
        currency: string
@@ -559,35 +565,45 @@ POST /functions/v1/stripe-webhook
 
 ```typescript
 // Subscribe to messages in a conversation
-supabase.channel('messages:{conversationId}')
-  .on('postgres_changes', { 
-    event: 'INSERT', 
-    schema: 'public', 
-    table: 'messages',
-    filter: `conversation_id=eq.${conversationId}`
-  }, handleNewMessage)
+supabase.channel("messages:{conversationId}").on(
+  "postgres_changes",
+  {
+    event: "INSERT",
+    schema: "public",
+    table: "messages",
+    filter: `conversation_id=eq.${conversationId}`,
+  },
+  handleNewMessage,
+);
 
 // Subscribe to session updates
-supabase.channel('sessions:{userId}')
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'client_sessions',
-    filter: `client_id=eq.${userId}`
-  }, handleSessionUpdate)
+supabase.channel("sessions:{userId}").on(
+  "postgres_changes",
+  {
+    event: "*",
+    schema: "public",
+    table: "client_sessions",
+    filter: `client_id=eq.${userId}`,
+  },
+  handleSessionUpdate,
+);
 
 // Subscribe to notifications
-supabase.channel('notifications:{userId}')
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'notifications',
-    filter: `user_id=eq.${userId}`
-  }, handleNewNotification)
+supabase.channel("notifications:{userId}").on(
+  "postgres_changes",
+  {
+    event: "INSERT",
+    schema: "public",
+    table: "notifications",
+    filter: `user_id=eq.${userId}`,
+  },
+  handleNewNotification,
+);
 
 // Subscribe to availability changes (for live booking UI)
-supabase.channel('availability:{therapistId}')
-  .on('broadcast', { event: 'slot_changed' }, handleSlotChange)
+supabase
+  .channel("availability:{therapistId}")
+  .on("broadcast", { event: "slot_changed" }, handleSlotChange);
 ```
 
 ---
@@ -635,18 +651,18 @@ supabase.channel('availability:{therapistId}')
 
 ```typescript
 // Token storage (React Native)
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
 
 // Store tokens securely
-await SecureStore.setItemAsync('supabase_access_token', session.access_token);
-await SecureStore.setItemAsync('supabase_refresh_token', session.refresh_token);
+await SecureStore.setItemAsync("supabase_access_token", session.access_token);
+await SecureStore.setItemAsync("supabase_refresh_token", session.refresh_token);
 
 // Auto-refresh on app launch
 const refreshSession = async () => {
-  const refreshToken = await SecureStore.getItemAsync('supabase_refresh_token');
+  const refreshToken = await SecureStore.getItemAsync("supabase_refresh_token");
   if (refreshToken) {
-    const { data, error } = await supabase.auth.refreshSession({ 
-      refresh_token: refreshToken 
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token: refreshToken,
     });
     if (data.session) {
       // Store new tokens
@@ -667,11 +683,11 @@ const isClient = userProfile?.user_role === 'client';
 // Route protection
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" />;
   if (user.user_role !== 'client') return <Navigate to="/unauthorized" />;
-  
+
   return children;
 };
 ```
@@ -728,45 +744,45 @@ const ProtectedRoute = ({ children }) => {
 ```typescript
 // Existing Buckets
 const BUCKETS = {
-  avatars: 'avatars',           // User profile photos
-  qualifications: 'qualifications', // Practitioner documents
-  session_files: 'session-files',   // Session attachments
+  avatars: "avatars", // User profile photos
+  qualifications: "qualifications", // Practitioner documents
+  session_files: "session-files", // Session attachments
 };
 
 // Client-specific usage
 const uploadAvatar = async (userId: string, file: File) => {
-  const filePath = `${userId}/avatar.${file.type.split('/')[1]}`;
+  const filePath = `${userId}/avatar.${file.type.split("/")[1]}`;
   const { data, error } = await supabase.storage
-    .from('avatars')
+    .from("avatars")
     .upload(filePath, file, { upsert: true });
-  
+
   return data?.path;
 };
 
 // Get public URL
 const getAvatarUrl = (path: string) => {
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
   return data.publicUrl;
 };
 ```
 
 ### 5.2 File Types & Limits
 
-| Bucket | Allowed Types | Max Size | Access |
-|--------|---------------|----------|--------|
-| avatars | jpg, png, webp | 2MB | Public |
-| session_files | pdf, jpg, png | 10MB | Authenticated |
+| Bucket        | Allowed Types  | Max Size | Access        |
+| ------------- | -------------- | -------- | ------------- |
+| avatars       | jpg, png, webp | 2MB      | Public        |
+| session_files | pdf, jpg, png  | 10MB     | Authenticated |
 
 ### 5.3 Image Handling (React Native)
 
 ```typescript
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 
 const pickAndUploadAvatar = async () => {
   // Request permissions
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') return;
+  if (status !== "granted") return;
 
   // Pick image
   const result = await ImagePicker.launchImageLibraryAsync({
@@ -781,7 +797,7 @@ const pickAndUploadAvatar = async () => {
     const manipulated = await ImageManipulator.manipulateAsync(
       result.assets[0].uri,
       [{ resize: { width: 400, height: 400 } }],
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
     );
 
     // Upload to Supabase
@@ -826,23 +842,23 @@ function: sync-stripe-subscription
 ### 6.2 Client App Background Tasks (React Native)
 
 ```typescript
-import * as BackgroundFetch from 'expo-background-fetch';
-import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
+import * as BackgroundFetch from "expo-background-fetch";
+import * as TaskManager from "expo-task-manager";
+import * as Notifications from "expo-notifications";
 
 // Define background tasks
-const BACKGROUND_NOTIFICATION_TASK = 'background-notification-check';
-const SESSION_REMINDER_TASK = 'session-reminder-check';
+const BACKGROUND_NOTIFICATION_TASK = "background-notification-check";
+const SESSION_REMINDER_TASK = "session-reminder-check";
 
 // Register background task
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async () => {
   try {
     // Check for new notifications
     const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_read', false)
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_read", false)
       .limit(1);
 
     if (data && data.length > 0) {
@@ -874,19 +890,19 @@ await BackgroundFetch.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK, {
 
 ```typescript
 // Push notification setup
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 const registerForPushNotifications = async () => {
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  if (existingStatus !== 'granted') {
+  if (existingStatus !== "granted") {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
 
-  if (finalStatus !== 'granted') return null;
+  if (finalStatus !== "granted") return null;
 
   const token = await Notifications.getExpoPushTokenAsync({
     projectId: Constants.expoConfig?.extra?.eas?.projectId,
@@ -894,9 +910,9 @@ const registerForPushNotifications = async () => {
 
   // Save token to user profile
   await supabase
-    .from('users')
+    .from("users")
     .update({ push_token: token.data })
-    .eq('id', userId);
+    .eq("id", userId);
 
   return token.data;
 };
@@ -916,20 +932,20 @@ const registerForPushNotifications = async () => {
 // Already configured in existing backend
 
 // 2. Payment Sheet (Client pays for sessions)
-import { initStripe, presentPaymentSheet } from '@stripe/stripe-react-native';
+import { initStripe, presentPaymentSheet } from "@stripe/stripe-react-native";
 
 // Initialize Stripe
 await initStripe({
   publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-  merchantIdentifier: 'merchant.com.theramate',
-  urlScheme: 'theramate',
+  merchantIdentifier: "merchant.com.theramate",
+  urlScheme: "theramate",
 });
 
 // Create payment intent via Edge Function
-const { clientSecret } = await fetch('/functions/v1/create-session-payment', {
-  method: 'POST',
+const { clientSecret } = await fetch("/functions/v1/create-session-payment", {
+  method: "POST",
   body: JSON.stringify({ session_id: sessionId }),
-}).then(r => r.json());
+}).then((r) => r.json());
 
 // Present payment sheet
 const { error } = await presentPaymentSheet({ clientSecret });
@@ -975,15 +991,15 @@ import MapView, { Marker } from 'react-native-maps';
 ### 7.3 Analytics - PostHog / Mixpanel
 
 ```typescript
-import PostHog from 'posthog-react-native';
+import PostHog from "posthog-react-native";
 
 // Initialize
 const posthog = new PostHog(process.env.POSTHOG_API_KEY, {
-  host: 'https://app.posthog.com',
+  host: "https://app.posthog.com",
 });
 
 // Track events
-posthog.capture('session_booked', {
+posthog.capture("session_booked", {
   therapist_id: therapistId,
   session_type: sessionType,
   price: price,
@@ -992,18 +1008,18 @@ posthog.capture('session_booked', {
 // Identify user
 posthog.identify(userId, {
   email: user.email,
-  role: 'client',
+  role: "client",
 });
 ```
 
 ### 7.4 Error Tracking - Sentry
 
 ```typescript
-import * as Sentry from '@sentry/react-native';
+import * as Sentry from "@sentry/react-native";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
-  environment: __DEV__ ? 'development' : 'production',
+  environment: __DEV__ ? "development" : "production",
   tracesSampleRate: 0.2,
 });
 
@@ -1020,10 +1036,10 @@ try {
 
 ```typescript
 // Existing web integration, for mobile use WebView or native SDK
-import { CrispChat } from 'react-native-crisp-chat';
+import { CrispChat } from "react-native-crisp-chat";
 
 // Initialize
-CrispChat.configure('CRISP_WEBSITE_ID');
+CrispChat.configure("CRISP_WEBSITE_ID");
 CrispChat.setUser({
   email: user.email,
   nickname: `${user.first_name} ${user.last_name}`,
@@ -1036,14 +1052,16 @@ CrispChat.show();
 ### 7.6 Calendar Integration
 
 ```typescript
-import * as Calendar from 'expo-calendar';
+import * as Calendar from "expo-calendar";
 
 const addToCalendar = async (session) => {
   const { status } = await Calendar.requestCalendarPermissionsAsync();
-  if (status !== 'granted') return;
+  if (status !== "granted") return;
 
-  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-  const defaultCalendar = calendars.find(c => c.isPrimary) || calendars[0];
+  const calendars = await Calendar.getCalendarsAsync(
+    Calendar.EntityTypes.EVENT,
+  );
+  const defaultCalendar = calendars.find((c) => c.isPrimary) || calendars[0];
 
   await Calendar.createEventAsync(defaultCalendar.id, {
     title: `Therapy Session with ${session.therapist_name}`,
@@ -1100,7 +1118,7 @@ Base: NativeWind (Tailwind for React Native)
   - Same Tailwind classes as web
   - Consistent with existing design system
 
-Components: 
+Components:
   - Custom components with our cream theme
   - React Native Reanimated for animations
   - React Native Gesture Handler for gestures
@@ -1180,26 +1198,26 @@ Scripts:
     "expo-router": "~4.0.0",
     "react": "18.3.1",
     "react-native": "0.76.0",
-    
+
     "@supabase/supabase-js": "^2.45.0",
     "@tanstack/react-query": "^5.0.0",
     "zustand": "^5.0.0",
-    
+
     "nativewind": "^4.0.0",
     "tailwindcss": "^3.4.0",
-    
+
     "@stripe/stripe-react-native": "^0.37.0",
-    
+
     "expo-secure-store": "~14.0.0",
     "expo-notifications": "~0.30.0",
     "expo-image-picker": "~16.0.0",
     "expo-location": "~18.0.0",
     "expo-calendar": "~14.0.0",
-    
+
     "react-native-reanimated": "~3.16.0",
     "react-native-gesture-handler": "~2.20.0",
     "react-native-maps": "1.18.0",
-    
+
     "lucide-react-native": "^0.400.0",
     "date-fns": "^3.6.0"
   },
@@ -1436,43 +1454,43 @@ theramate-ios-client/
 
 ### 10.1 Phase 1 - Core MVP (4-6 weeks)
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| Auth & Onboarding | P0 | Login, register, password reset, client onboarding |
-| Dashboard | P0 | Next session, quick actions, recent activity |
-| Therapist Discovery | P0 | List view, search, filters, map view |
-| Therapist Profile | P0 | Bio, services, reviews, availability preview |
-| Booking Flow | P0 | Select service → time → confirm → pay |
-| My Sessions | P0 | Upcoming, past, cancel session |
-| Session Detail | P0 | Status, therapist info, location, notes |
-| Payments | P0 | Stripe payment sheet, Apple Pay |
-| Push Notifications | P0 | Session reminders, booking confirmations |
+| Feature             | Priority | Description                                        |
+| ------------------- | -------- | -------------------------------------------------- |
+| Auth & Onboarding   | P0       | Login, register, password reset, client onboarding |
+| Dashboard           | P0       | Next session, quick actions, recent activity       |
+| Therapist Discovery | P0       | List view, search, filters, map view               |
+| Therapist Profile   | P0       | Bio, services, reviews, availability preview       |
+| Booking Flow        | P0       | Select service → time → confirm → pay              |
+| My Sessions         | P0       | Upcoming, past, cancel session                     |
+| Session Detail      | P0       | Status, therapist info, location, notes            |
+| Payments            | P0       | Stripe payment sheet, Apple Pay                    |
+| Push Notifications  | P0       | Session reminders, booking confirmations           |
 
 ### 10.2 Phase 2 - Communication (2-3 weeks)
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| Messaging | P1 | Conversation list, realtime chat |
-| Message Notifications | P1 | Push for new messages |
-| In-app Notifications | P1 | Notification center |
+| Feature               | Priority | Description                      |
+| --------------------- | -------- | -------------------------------- |
+| Messaging             | P1       | Conversation list, realtime chat |
+| Message Notifications | P1       | Push for new messages            |
+| In-app Notifications  | P1       | Notification center              |
 
 ### 10.3 Phase 3 - Engagement (2-3 weeks)
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| Favorites | P2 | Save therapists |
-| Reviews | P2 | Submit post-session reviews |
-| Progress Tracking | P2 | View goals and metrics |
-| Treatment Plans | P2 | View assigned plans |
+| Feature           | Priority | Description                 |
+| ----------------- | -------- | --------------------------- |
+| Favorites         | P2       | Save therapists             |
+| Reviews           | P2       | Submit post-session reviews |
+| Progress Tracking | P2       | View goals and metrics      |
+| Treatment Plans   | P2       | View assigned plans         |
 
 ### 10.4 Future Phases
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| Rebooking | P3 | Quick rebook with same therapist |
-| Calendar Sync | P3 | Export to device calendar |
-| Home Exercise Programs | P3 | View assigned exercises |
-| Video Calls | P3 | In-app video consultations |
+| Feature                | Priority | Description                      |
+| ---------------------- | -------- | -------------------------------- |
+| Rebooking              | P3       | Quick rebook with same therapist |
+| Calendar Sync          | P3       | Export to device calendar        |
+| Home Exercise Programs | P3       | View assigned exercises          |
+| Video Calls            | P3       | In-app video consultations       |
 
 ---
 
@@ -1480,22 +1498,22 @@ theramate-ios-client/
 
 ### 11.1 Technical KPIs
 
-| Metric | Target |
-|--------|--------|
-| App Launch Time | < 2 seconds |
-| API Response Time | < 500ms (p95) |
-| Crash-free Sessions | > 99.5% |
-| Background Fetch Success | > 95% |
-| Offline Capability | Basic caching |
+| Metric                   | Target        |
+| ------------------------ | ------------- |
+| App Launch Time          | < 2 seconds   |
+| API Response Time        | < 500ms (p95) |
+| Crash-free Sessions      | > 99.5%       |
+| Background Fetch Success | > 95%         |
+| Offline Capability       | Basic caching |
 
 ### 11.2 Business KPIs
 
-| Metric | Target |
-|--------|--------|
-| App Store Rating | > 4.5 stars |
-| Session Booking Conversion | > 60% |
-| User Retention (30-day) | > 40% |
-| Push Notification Opt-in | > 70% |
+| Metric                     | Target      |
+| -------------------------- | ----------- |
+| App Store Rating           | > 4.5 stars |
+| Session Booking Conversion | > 60%       |
+| User Retention (30-day)    | > 40%       |
+| Push Notification Opt-in   | > 70%       |
 
 ---
 
@@ -1557,26 +1575,26 @@ module.exports = {
     extend: {
       colors: {
         cream: {
-          50: '#FFFDF8',
-          100: '#FFF9EB',
-          200: '#FFF3D6',
-          300: '#FFE9B8',
-          400: '#FFD98C',
+          50: "#FFFDF8",
+          100: "#FFF9EB",
+          200: "#FFF3D6",
+          300: "#FFE9B8",
+          400: "#FFD98C",
         },
         sage: {
-          500: '#7A9E7E',
-          600: '#5C7F61',
+          500: "#7A9E7E",
+          600: "#5C7F61",
         },
         terracotta: {
-          500: '#C9826D',
-          600: '#A66B59',
+          500: "#C9826D",
+          600: "#A66B59",
         },
         charcoal: {
-          100: '#E8E4DF',
-          300: '#A09A94',
-          500: '#6B6660',
-          700: '#4A4641',
-          900: '#2D2A26',
+          100: "#E8E4DF",
+          300: "#A09A94",
+          500: "#6B6660",
+          700: "#4A4641",
+          900: "#2D2A26",
         },
       },
     },
@@ -1589,6 +1607,7 @@ module.exports = {
 ## Appendix B: API Response Examples
 
 ### Therapist List Response
+
 ```json
 {
   "data": [
@@ -1598,7 +1617,7 @@ module.exports = {
       "first_name": "Sarah",
       "last_name": "Johnson",
       "specializations": ["sports_therapy", "rehabilitation"],
-      "hourly_rate": 80.00,
+      "hourly_rate": 80.0,
       "average_rating": 4.8,
       "total_reviews": 47,
       "profile_photo_url": "https://...",
@@ -1611,6 +1630,7 @@ module.exports = {
 ```
 
 ### Session Response
+
 ```json
 {
   "id": "uuid",
@@ -1620,7 +1640,7 @@ module.exports = {
   "start_time": "14:00:00",
   "duration_minutes": 60,
   "session_type": "Sports Therapy",
-  "price": 80.00,
+  "price": 80.0,
   "status": "confirmed",
   "payment_status": "paid",
   "therapist": {
@@ -1633,7 +1653,6 @@ module.exports = {
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: January 2026*  
-*Author: AI Assistant*
-
+_Document Version: 1.0_  
+_Last Updated: January 2026_  
+_Author: AI Assistant_

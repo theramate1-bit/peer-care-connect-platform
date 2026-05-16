@@ -17,9 +17,112 @@ export type ExchangeRequestRow = {
   session_type: string | null;
   requester_notes: string | null;
   recipient_notes: string | null;
-  /** Present when using `fetchPendingExchangeRequestsWithDetails`. */
+  /** Incoming: who asked you. */
   requester_name?: string;
+  /** Outgoing: who you asked. */
+  recipient_name?: string;
 };
+
+/** Single request for detail screen (requester or recipient only). */
+export type ExchangeRequestDetail = ExchangeRequestRow & {
+  updated_at: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  reciprocal_booking_deadline: string | null;
+  requester_name: string;
+  recipient_name: string;
+  viewerRole: "requester" | "recipient";
+};
+
+export async function fetchExchangeRequestByIdForParticipant(params: {
+  requestId: string;
+  userId: string;
+}): Promise<{ data: ExchangeRequestDetail | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from("treatment_exchange_requests")
+      .select(
+        "id, requester_id, recipient_id, status, created_at, updated_at, requested_session_date, requested_start_time, requested_end_time, duration_minutes, session_type, requester_notes, recipient_notes, accepted_at, declined_at, reciprocal_booking_deadline",
+      )
+      .eq("id", params.requestId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return { data: null, error: null };
+
+    const row = data as Record<string, unknown>;
+    const requesterId = String(row.requester_id);
+    const recipientId = String(row.recipient_id);
+    if (requesterId !== params.userId && recipientId !== params.userId) {
+      return { data: null, error: new Error("Not found") };
+    }
+    const viewerRole: "requester" | "recipient" =
+      requesterId === params.userId ? "requester" : "recipient";
+
+    const { data: users, error: uErr } = await supabase
+      .from("users")
+      .select("id, first_name, last_name")
+      .in("id", [requesterId, recipientId]);
+    if (uErr) throw uErr;
+
+    const nameFor = (uid: string): string => {
+      const u = (users || []).find((x: { id: string }) => x.id === uid) as
+        | { first_name: string | null; last_name: string | null }
+        | undefined;
+      if (!u) return "Practitioner";
+      const n = `${u.first_name || ""} ${u.last_name || ""}`.trim();
+      return n || "Practitioner";
+    };
+
+    const base: ExchangeRequestRow = {
+      id: String(row.id),
+      requester_id: requesterId,
+      recipient_id: recipientId,
+      status: row.status != null ? String(row.status) : null,
+      created_at: row.created_at != null ? String(row.created_at) : null,
+      requested_session_date:
+        row.requested_session_date != null
+          ? String(row.requested_session_date).slice(0, 10)
+          : null,
+      requested_start_time:
+        row.requested_start_time != null
+          ? String(row.requested_start_time)
+          : null,
+      requested_end_time:
+        row.requested_end_time != null ? String(row.requested_end_time) : null,
+      duration_minutes:
+        typeof row.duration_minutes === "number"
+          ? row.duration_minutes
+          : row.duration_minutes != null
+            ? Number(row.duration_minutes)
+            : null,
+      session_type: row.session_type != null ? String(row.session_type) : null,
+      requester_notes:
+        row.requester_notes != null ? String(row.requester_notes) : null,
+      recipient_notes:
+        row.recipient_notes != null ? String(row.recipient_notes) : null,
+    };
+
+    const detail: ExchangeRequestDetail = {
+      ...base,
+      requester_name: nameFor(requesterId),
+      recipient_name: nameFor(recipientId),
+      viewerRole,
+      updated_at: row.updated_at != null ? String(row.updated_at) : null,
+      accepted_at: row.accepted_at != null ? String(row.accepted_at) : null,
+      declined_at: row.declined_at != null ? String(row.declined_at) : null,
+      reciprocal_booking_deadline:
+        row.reciprocal_booking_deadline != null
+          ? String(row.reciprocal_booking_deadline)
+          : null,
+    };
+    return { data: detail, error: null };
+  } catch (e) {
+    return {
+      data: null,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
 
 export async function fetchPendingExchangeRequestsForRecipient(
   recipientId: string,
@@ -68,6 +171,74 @@ export async function fetchPendingExchangeRequestsWithDetails(
   } catch (e) {
     return {
       data: [],
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+/** Pending requests you sent (waiting on the other practitioner). */
+export async function fetchPendingExchangeRequestsSentByRequester(
+  requesterId: string,
+): Promise<{ data: ExchangeRequestRow[]; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from("treatment_exchange_requests")
+      .select(
+        "id, requester_id, recipient_id, status, created_at, requested_session_date, requested_start_time, requested_end_time, duration_minutes, session_type, requester_notes, recipient_notes",
+      )
+      .eq("requester_id", requesterId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const rows = (data || []) as ExchangeRequestRow[];
+    const ids = [...new Set(rows.map((r) => r.recipient_id))];
+    if (ids.length === 0) return { data: [], error: null };
+
+    const { data: users, error: uErr } = await supabase
+      .from("users")
+      .select("id, first_name, last_name")
+      .in("id", ids);
+    if (uErr) throw uErr;
+    const nameById = new Map<string, string>();
+    for (const u of (users || []) as {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+    }[]) {
+      const n = `${u.first_name || ""} ${u.last_name || ""}`.trim();
+      nameById.set(u.id, n || "Practitioner");
+    }
+
+    const enriched: ExchangeRequestRow[] = rows.map((r) => ({
+      ...r,
+      recipient_name: nameById.get(r.recipient_id) ?? "Practitioner",
+    }));
+    return { data: enriched, error: null };
+  } catch (e) {
+    return {
+      data: [],
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+export async function cancelExchangeRequestByRequester(params: {
+  requestId: string;
+  requesterId: string;
+}): Promise<{ ok: boolean; error: Error | null }> {
+  try {
+    const { error } = await supabase.rpc(
+      "cancel_exchange_request_by_requester",
+      {
+        p_request_id: params.requestId,
+        p_requester_id: params.requesterId,
+      },
+    );
+    if (error) throw error;
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
       error: e instanceof Error ? e : new Error(String(e)),
     };
   }
@@ -125,13 +296,16 @@ export async function bookExchangeReciprocalSession(params: {
   durationMinutes?: number;
 }): Promise<{ ok: boolean; error: Error | null; sessionId?: string }> {
   try {
-    const { data, error } = await supabase.rpc("book_exchange_reciprocal_session", {
-      p_request_id: params.requestId,
-      p_recipient_id: params.recipientId,
-      p_session_date: params.sessionDate,
-      p_start_time: params.startTime,
-      p_duration_minutes: params.durationMinutes ?? 60,
-    });
+    const { data, error } = await supabase.rpc(
+      "book_exchange_reciprocal_session",
+      {
+        p_request_id: params.requestId,
+        p_recipient_id: params.recipientId,
+        p_session_date: params.sessionDate,
+        p_start_time: params.startTime,
+        p_duration_minutes: params.durationMinutes ?? 60,
+      },
+    );
     if (error) throw error;
     return {
       ok: true,
@@ -194,7 +368,11 @@ export async function fetchAcceptedExchangesNeedingReciprocal(
     if (e3) throw e3;
     const nameById = new Map<string, string>();
     for (const u of users || []) {
-      const row = u as { id: string; first_name: string | null; last_name: string | null };
+      const row = u as {
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+      };
       const n = `${row.first_name || ""} ${row.last_name || ""}`.trim();
       nameById.set(row.id, n || "Practitioner");
     }
@@ -238,14 +416,16 @@ export async function fetchExchangeReciprocalAvailableSlots(params: {
   dayCount?: number;
 }): Promise<{ data: ReciprocalSlotRow[]; error: Error | null }> {
   try {
-    const from =
-      params.fromDate ?? new Date().toISOString().slice(0, 10);
-    const { data, error } = await supabase.rpc("get_exchange_reciprocal_available_slots", {
-      p_request_id: params.requestId,
-      p_recipient_id: params.recipientId,
-      p_from_date: from,
-      p_day_count: params.dayCount ?? 14,
-    });
+    const from = params.fromDate ?? new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase.rpc(
+      "get_exchange_reciprocal_available_slots",
+      {
+        p_request_id: params.requestId,
+        p_recipient_id: params.recipientId,
+        p_from_date: from,
+        p_day_count: params.dayCount ?? 14,
+      },
+    );
     if (error) throw error;
     const rows = (data || []) as { session_date: string; start_time: string }[];
     const normalized: ReciprocalSlotRow[] = rows.map((row) => ({

@@ -83,7 +83,7 @@ export default function StripeConnectEmbeddedScreen() {
   const [html, setHtml] = useState<string | null>(null);
 
   const baseUrl = useMemo(
-    () => APP_CONFIG.WEB_URL.replace(/\/$/, "") || "https://theramate.com",
+    () => APP_CONFIG.WEB_URL.replace(/\/$/, "") || "https://theramate.co.uk",
     [],
   );
 
@@ -105,9 +105,7 @@ export default function StripeConnectEmbeddedScreen() {
       const status = await fetchConnectAccountStatus(userId);
       if (status.error) throw status.error;
       if (status.notConnected || !status.data?.stripe_account_id) {
-        setErr(
-          "Create a Connect account in the app first, then return here.",
-        );
+        setErr("Create a Connect account in the app first, then return here.");
         setLoading(false);
         return;
       }

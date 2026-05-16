@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Import Stripe
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
+import { calculatePlatformFeePence } from "../_shared/platform-fee.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -182,12 +183,26 @@ async function handleCreatePaymentIntent(
       amount,
       currency,
       payment_type,
-      therapist_id,
+      // Accept both `therapist_id` (legacy) and `practitioner_id` (current
+      // mobile API). `payment.ts` sends `practitioner_id`, but the old
+      // destructure dropped it and persisted `payments.therapist_id = null`,
+      // breaking payouts reporting. Prefer an explicit value, otherwise
+      // fall through to metadata.therapist_id if the caller set it.
+      therapist_id: therapistIdBody,
+      practitioner_id: practitionerIdBody,
       project_id,
       session_id,
       idempotency_key,
       metadata,
     } = body;
+    const therapist_id =
+      therapistIdBody ||
+      practitionerIdBody ||
+      (metadata && typeof metadata === "object"
+        ? (metadata as Record<string, unknown>).therapist_id ||
+          (metadata as Record<string, unknown>).practitioner_id
+        : null) ||
+      null;
 
     // CRITICAL VALIDATION: Check required fields
     if (!amount || !currency) {
@@ -226,6 +241,27 @@ async function handleCreatePaymentIntent(
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
+    }
+
+    // Guard: reject Stripe payment creation for in_person (cash) sessions
+    {
+      const { data: sessionCheck } = await supabase
+        .from("client_sessions")
+        .select("payment_collection")
+        .eq("id", session_id)
+        .maybeSingle();
+      if (sessionCheck?.payment_collection === "in_person") {
+        return new Response(
+          JSON.stringify({
+            error:
+              "This session uses in-person payment and does not require online checkout.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     }
 
     // Validate metadata exists and has required fields
@@ -348,6 +384,76 @@ async function handleCreatePaymentIntent(
       );
     }
 
+    // P0: Route session payments through Stripe Connect so practitioners
+    // actually receive funds (destination charge with platform application
+    // fee). For non-session / platform-owned payments we skip this block.
+    // If `payment_type` is `session_payment` but no Connect account can be
+    // resolved, fail fast — this is better than silently keeping the full
+    // amount on the platform and having to reconcile manually.
+    let destinationAccountId: string | null = null;
+    const isSessionPayment =
+      !payment_type || payment_type === "session_payment";
+    if (isSessionPayment && therapist_id) {
+      const { data: practitionerAccount } = await supabase
+        .from("users")
+        .select("stripe_connect_account_id")
+        .eq("id", therapist_id)
+        .maybeSingle();
+      destinationAccountId =
+        practitionerAccount?.stripe_connect_account_id ?? null;
+      if (!destinationAccountId) {
+        const { data: fallbackConnect } = await supabase
+          .from("connect_accounts")
+          .select("stripe_account_id")
+          .eq("user_id", therapist_id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (fallbackConnect && fallbackConnect.length > 0) {
+          destinationAccountId = fallbackConnect[0].stripe_account_id;
+        }
+      }
+      if (!destinationAccountId) {
+        console.error(
+          "[CREATE-PAYMENT] Practitioner has no Stripe Connect account:",
+          therapist_id,
+        );
+        return new Response(
+          JSON.stringify({
+            error: "Practitioner not connected to Stripe",
+            details:
+              "The selected practitioner has not completed Stripe Connect onboarding, so payouts cannot be routed.",
+            practitioner_id: therapist_id,
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
+    const applicationFeeAmount =
+      destinationAccountId && Number.isFinite(Number(amount))
+        ? calculatePlatformFeePence(Number(amount))
+        : null;
+
+    const paymentIntentData: Record<string, unknown> = {
+      metadata: {
+        payment_type: payment_type || "session_payment",
+        therapist_id: therapist_id || "",
+        project_id: project_id || "",
+        session_id: session_id || "",
+        destination_account_id: destinationAccountId || "",
+        ...metadata,
+      },
+    };
+    if (destinationAccountId) {
+      paymentIntentData.transfer_data = { destination: destinationAccountId };
+      if (applicationFeeAmount != null) {
+        paymentIntentData.application_fee_amount = applicationFeeAmount;
+      }
+    }
+
     // Create Stripe Checkout Session instead of Payment Intent with idempotency
     const sessionOptions: any = {
       mode: "payment",
@@ -365,15 +471,7 @@ async function handleCreatePaymentIntent(
           quantity: 1,
         },
       ],
-      payment_intent_data: {
-        metadata: {
-          payment_type: payment_type || "session_payment",
-          therapist_id: therapist_id || "",
-          project_id: project_id || "",
-          session_id: session_id || "",
-          ...metadata,
-        },
-      },
+      payment_intent_data: paymentIntentData,
       customer: stripeCustomerId || undefined,
       customer_email: stripeCustomerId ? undefined : metadata.client_email,
       success_url: `${Deno.env.get("APP_URL")}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
@@ -392,11 +490,44 @@ async function handleCreatePaymentIntent(
       },
     };
 
-    // Create Checkout Session, supplying idempotency key via Stripe request options (not in payload)
-    const session = await stripe.checkout.sessions.create(
-      sessionOptions,
-      idempotency_key ? { idempotencyKey: idempotency_key } : undefined,
-    );
+    // Create Checkout Session, supplying idempotency key via Stripe request options (not in payload).
+    // If the destination account lacks `stripe_balance.stripe_transfers` capability, retry without
+    // transfer_data so the checkout still succeeds (platform holds the funds; capture/transfer flow
+    // settles the split later). Mirrors handleCreateMobileCheckoutSession to avoid a regression.
+    let session: any;
+    try {
+      session = await stripe.checkout.sessions.create(
+        sessionOptions,
+        idempotency_key ? { idempotencyKey: idempotency_key } : undefined,
+      );
+    } catch (primaryError: any) {
+      const errorMessage = String(primaryError?.message || "");
+      const transferCapabilityError =
+        destinationAccountId &&
+        (errorMessage.includes("stripe_balance.stripe_transfers") ||
+          errorMessage.includes("destination account needs"));
+      if (!transferCapabilityError) {
+        throw primaryError;
+      }
+      console.warn(
+        "[CREATE-PAYMENT] Destination transfer capability missing; retrying without transfer_data",
+        {
+          destination_account_id: destinationAccountId,
+          details: errorMessage,
+        },
+      );
+      const fallbackOptions = {
+        ...sessionOptions,
+        payment_intent_data: {
+          metadata: (paymentIntentData as { metadata: Record<string, unknown> })
+            .metadata,
+        },
+      };
+      session = await stripe.checkout.sessions.create(
+        fallbackOptions,
+        idempotency_key ? { idempotencyKey: idempotency_key } : undefined,
+      );
+    }
 
     // Store payment record in database with idempotency key
     // Default payment_type to 'session_payment' if not provided (required field)
@@ -1048,6 +1179,22 @@ async function handleCreateConnectAccount(
       }
 
       console.log("[CREATE-CONNECT] Saved to database:", connectAccount.id);
+
+      // P0: Link users.stripe_connect_account_id so get-connect-account-status
+      // (and any downstream lookup keyed on users.id -> users.stripe_connect_account_id)
+      // resolves the newly created account without a 404. Without this, mobile shows
+      // "Not connected" immediately after creation because the lookup in
+      // handleGetConnectAccountStatus returns early at the null-finalAccountId check.
+      const { error: userLinkError } = await supabase
+        .from("users")
+        .update({ stripe_connect_account_id: accountId })
+        .eq("id", authenticatedUserId);
+      if (userLinkError) {
+        console.error(
+          "[CREATE-CONNECT] Failed to set users.stripe_connect_account_id:",
+          userLinkError,
+        );
+      }
     }
 
     // Return account ID for embedded onboarding (NO Account Links - fully embedded)
@@ -1277,15 +1424,40 @@ async function handleGetConnectAccountStatus(
     // Get connect account from database or users table
     // If account_id was provided directly, we can use it even if user record doesn't have it set yet
     let userStripeAccountId = null;
-    if (targetUserId || actualUserId) {
+    const resolvedUserId = targetUserId || actualUserId;
+    if (resolvedUserId) {
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("stripe_connect_account_id")
-        .eq("id", targetUserId || actualUserId)
+        .eq("id", resolvedUserId)
         .maybeSingle();
 
       if (!userError && user) {
         userStripeAccountId = user.stripe_connect_account_id;
+      }
+    }
+
+    // P0 fallback: if users.stripe_connect_account_id is null (legacy rows or
+    // cases where handleCreateConnectAccount ran before the users linking fix
+    // shipped), resolve via connect_accounts.user_id before returning 404.
+    if (!stripeAccountId && !userStripeAccountId && resolvedUserId) {
+      const { data: fallbackRows, error: fallbackError } = await supabase
+        .from("connect_accounts")
+        .select("stripe_account_id")
+        .eq("user_id", resolvedUserId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (fallbackError) {
+        console.error(
+          "[CONNECT-STATUS] Fallback connect_accounts lookup failed:",
+          fallbackError,
+        );
+      } else if (fallbackRows && fallbackRows.length > 0) {
+        userStripeAccountId = fallbackRows[0].stripe_account_id;
+        console.log(
+          "[CONNECT-STATUS] Recovered stripe_account_id from connect_accounts fallback:",
+          userStripeAccountId,
+        );
       }
     }
 
@@ -1297,6 +1469,7 @@ async function handleGetConnectAccountStatus(
         JSON.stringify({
           error:
             "No Stripe account found. Please provide account_id or ensure user has a Stripe account.",
+          not_connected: true,
         }),
         {
           status: 404,
@@ -1851,8 +2024,10 @@ async function handleCreateCheckoutSession(
       );
     }
 
-    // Calculate application fee (0.5% platform fee)
-    const applicationFeeAmount = Math.round(product.price_amount * 0.005);
+    // Application fee: 1.95% + 20p (matches `create_mobile_booking_request` / platform-fee.ts)
+    const applicationFeeAmount = calculatePlatformFeePence(
+      product.price_amount,
+    );
 
     console.log("[CREATE-CHECKOUT-SESSION] Creating checkout session:", {
       price_id,
@@ -2079,7 +2254,7 @@ async function handleCreateMobileCheckoutSession(
       Number(mobileRequest.platform_fee_pence),
     )
       ? Number(mobileRequest.platform_fee_pence)
-      : Math.round(Number(amount) * 0.005);
+      : calculatePlatformFeePence(Number(amount));
 
     const paymentMetadata = {
       payment_type: "mobile_booking_request",
@@ -2399,7 +2574,7 @@ async function handleCaptureMobilePayment(
               Number(requestRow.platform_fee_pence),
             )
               ? Number(requestRow.platform_fee_pence)
-              : Math.round(grossAmount * 0.005);
+              : calculatePlatformFeePence(grossAmount);
             const practitionerAmount = Math.max(0, grossAmount - platformFee);
 
             if (practitionerAmount > 0) {

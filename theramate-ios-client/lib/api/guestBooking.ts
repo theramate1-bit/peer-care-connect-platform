@@ -86,6 +86,9 @@ export async function findBookingsByEmail(email: string): Promise<{
   }
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function fetchPublicTherapistById(id: string): Promise<{
   data: PublicTherapist | null;
   error: Error | null;
@@ -97,6 +100,56 @@ export async function fetchPublicTherapistById(id: string): Promise<{
         "id, first_name, last_name, location, bio, therapist_type, specializations, hourly_rate, is_verified",
       )
       .eq("id", id)
+      .maybeSingle();
+    if (error) throw error;
+    return { data: (data as PublicTherapist | null) ?? null, error: null };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+  }
+}
+
+/**
+ * Resolve a practitioner from the `/book/:slug` deep link. The `slug` param
+ * in shared booking URLs is `users.booking_slug`, not a UUID. Native used to
+ * look up by `id` which returned "Could not resolve" for every shared link.
+ * Now: try `booking_slug` first when the value is not a UUID, fall back to
+ * `id` so legacy UUID-based links continue to work.
+ */
+export async function fetchPublicTherapistBySlugOrId(
+  slugOrId: string,
+): Promise<{
+  data: PublicTherapist | null;
+  error: Error | null;
+}> {
+  const trimmed = slugOrId.trim();
+  if (!trimmed) {
+    return { data: null, error: new Error("Missing booking identifier") };
+  }
+  const selectCols =
+    "id, first_name, last_name, location, bio, therapist_type, specializations, hourly_rate, is_verified";
+  try {
+    if (!UUID_RE.test(trimmed)) {
+      const { data, error } = await supabase
+        .from("users")
+        .select(selectCols)
+        .eq("booking_slug", trimmed)
+        .maybeSingle();
+      if (error) {
+        // If booking_slug column is missing in this environment, fall through
+        // to id-based lookup instead of bubbling the schema error.
+        const msg = (error as { message?: string }).message || "";
+        if (!/column .* does not exist/i.test(msg)) {
+          throw error;
+        }
+      }
+      if (data) {
+        return { data: data as PublicTherapist, error: null };
+      }
+    }
+    const { data, error } = await supabase
+      .from("users")
+      .select(selectCols)
+      .eq("id", trimmed)
       .maybeSingle();
     if (error) throw error;
     return { data: (data as PublicTherapist | null) ?? null, error: null };

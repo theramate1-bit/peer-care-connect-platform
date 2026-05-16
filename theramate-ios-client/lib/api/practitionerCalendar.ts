@@ -43,20 +43,22 @@ export async function fetchPractitionerCalendarEvents(params: {
   }
 }
 
-/** Manual blocked time (`provider: internal`, `event_type: block`). */
+/** Manual blocked time (`provider: internal`, `event_type: block` or `unavailable`). */
 export async function insertPractitionerCalendarBlock(params: {
   userId: string;
   title: string;
   startTimeIso: string;
   endTimeIso: string;
   description?: string | null;
+  eventType?: "block" | "unavailable";
 }): Promise<{ ok: boolean; error: Error | null; id?: string }> {
   try {
+    const ev = params.eventType === "unavailable" ? "unavailable" : "block";
     const { data, error } = await supabase
       .from("calendar_events")
       .insert({
         user_id: params.userId,
-        event_type: "block",
+        event_type: ev,
         title: params.title.trim() || "Blocked",
         description: params.description?.trim() || null,
         start_time: params.startTimeIso,

@@ -56,6 +56,8 @@ function getPractitionerPaymentStatusText(raw: unknown): string {
     ["held", "authorized", "requires_approval", "pending_approval"].includes(s)
   )
     return "Pending practitioner approval — payment is authorized only (not captured yet).";
+  if (["awaiting_in_person"].includes(s))
+    return "Pay at clinic — client will pay cash or card at the appointment. Mark as paid in your diary after receiving payment.";
   if (["pending", "processing"].includes(s))
     return "Processing — payment initiated and awaiting final confirmation.";
   if (["failed", "cancelled", "canceled", "expired"].includes(s))
@@ -225,10 +227,20 @@ export function generateEmailTemplate(
         String(data.paymentStatus || "").toLowerCase() === "held" ||
         String(data.sessionStatus || "").toLowerCase() === "pending_approval" ||
         Boolean(data.requiresApproval);
+      const isPayAtClinic =
+        data.paymentCollection === "in_person" || Boolean(data.isPayAtClinic);
+      const sessionLabel = data.sessionType || "Session";
+      const practLabel = data.practitionerName || "your practitioner";
+      let emailSubject;
+      if (isApprovalPending) {
+        emailSubject = `We’ve got your request — waiting on ${practLabel}`;
+      } else if (isPayAtClinic) {
+        emailSubject = `You’re booked: ${sessionLabel} — pay at your appointment`;
+      } else {
+        emailSubject = `You’re booked: ${sessionLabel} with ${practLabel}`;
+      }
       return {
-        subject: isApprovalPending
-          ? `We’ve got your request — waiting on ${data.practitionerName || "your practitioner"}`
-          : `You’re booked: ${data.sessionType || "Session"} with ${data.practitionerName || "your practitioner"}`,
+        subject: emailSubject,
         html: `
           <!DOCTYPE html>
           <html>
@@ -246,7 +258,9 @@ export function generateEmailTemplate(
               <p>${
                 isApprovalPending
                   ? `Thanks for booking. We’ve asked <strong>${escapeHtml(String(data.practitionerName || "your practitioner"))}</strong> to confirm. Your card has a temporary hold only — you won’t be charged unless they accept.`
-                  : `Your appointment with <strong>${escapeHtml(String(data.practitionerName || "your practitioner"))}</strong> is confirmed. Everything you need is below.`
+                  : isPayAtClinic
+                    ? `Your appointment with <strong>${escapeHtml(String(data.practitionerName || "your practitioner"))}</strong> is confirmed. You'll pay directly at the clinic on the day of your visit — no online payment needed.`
+                    : `Your appointment with <strong>${escapeHtml(String(data.practitionerName || "your practitioner"))}</strong> is confirmed. Everything you need is below.`
               }</p>
               ${
                 isApprovalPending
@@ -278,7 +292,9 @@ export function generateEmailTemplate(
               <p style="font-size:13px;color:#57606a;">${
                 isApprovalPending
                   ? "If they accept, we’ll charge your card and you’ll get a confirmation. If not, the hold is released automatically."
-                  : "Tip: arrive a few minutes early. Need to change the time? Use your account or message your practitioner — please give at least 24 hours’ notice where you can."
+                  : isPayAtClinic
+                    ? "Remember to bring your preferred payment method (cash or card) to your appointment. Need to change the time? Message your practitioner and please give at least 24 hours notice."
+                    : "Tip: arrive a few minutes early. Need to change the time? Use your account or message your practitioner — please give at least 24 hours’ notice where you can."
               }</p>
             </div>
             ${footer}
@@ -556,7 +572,7 @@ export function generateEmailTemplate(
             <style>${BASE_STYLES}</style>
           </head>
           <body>
-            ${getPreheader(`Your session was cancelled. ${data.refundAmount != null && Number(data.refundAmount) > 0 ? `Refund: ${formatPounds(data.refundAmount)}.` : ""} Book another session.`)}
+            ${getPreheader(`Your session was cancelled. ${!data.isPayAtClinic && data.refundAmount != null && Number(data.refundAmount) > 0 ? `Refund: ${formatPounds(data.refundAmount)}.` : ""} Book another session.`)}
             ${getEmailHeader(baseUrl, "Session cancelled")}
               <p>Hi ${greetingFirst(recipientName)},</p>
               <p>This session is <strong>no longer going ahead</strong>. We’re sorry for the inconvenience — you can rebook anytime that suits you.</p>
@@ -568,7 +584,7 @@ export function generateEmailTemplate(
                 <p><strong>Practitioner</strong><br>${escapeHtml(String(data.practitionerName || "—"))}</p>
                 ${data.sessionLocation ? `<p><strong>Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color:#0969da;text-decoration:none;font-weight:600">${escapeHtml(data.sessionLocation)}</a>` : escapeHtml(data.sessionLocation)}</p>` : ""}
                 ${data.cancellationReason ? `<p><strong>Reason:</strong> ${escapeHtml(String(data.cancellationReason))}</p>` : ""}
-                ${data.refundAmount != null && data.refundAmount !== "" ? `<p><strong>Refund Amount:</strong> ${formatPounds(data.refundAmount)}</p>` : ""}
+                ${!data.isPayAtClinic && data.refundAmount != null && data.refundAmount !== "" && Number(data.refundAmount) > 0 ? `<p><strong>Refund Amount:</strong> ${formatPounds(data.refundAmount)}</p>` : ""}
               </div>
 
               <div style="text-align: center; margin: 30px 0;">
@@ -577,7 +593,8 @@ export function generateEmailTemplate(
                 <a href="${baseUrl}/terms#cancellation" style="${CTA_SECONDARY}">View Cancellation Policy</a>
               </div>
 
-              ${data.refundAmount != null && data.refundAmount !== "" && Number(data.refundAmount) > 0 ? "<p><strong>Refund:</strong> Your refund will be processed within 5-10 business days.</p>" : ""}
+              ${data.isPayAtClinic ? "<p>This was a pay-at-clinic booking — no card was charged.</p>" : ""}
+              ${!data.isPayAtClinic && data.refundAmount != null && data.refundAmount !== "" && Number(data.refundAmount) > 0 ? "<p><strong>Refund:</strong> Your refund will be processed within 5-10 business days.</p>" : ""}
             </div>
             ${footer}
           </body>
@@ -623,6 +640,7 @@ export function generateEmailTemplate(
               </div>
 
               <p>Please make sure to update your calendar with the new time.</p>
+              ${data.isPayAtClinic ? "<p>This is a pay-at-clinic booking — no card has been charged and payment is still due at your appointment.</p>" : ""}
             </div>
             ${footer}
           </body>

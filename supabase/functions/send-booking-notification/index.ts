@@ -49,12 +49,12 @@ Deno.serve(async (req) => {
     if (
       !sessionId ||
       !emailType ||
-      !["cancellation", "rescheduling"].includes(emailType)
+      !["cancellation", "rescheduling", "confirmation"].includes(emailType)
     ) {
       return new Response(
         JSON.stringify({
           error:
-            "sessionId and emailType (cancellation | rescheduling) required",
+            "sessionId and emailType (cancellation | rescheduling | confirmation) required",
         }),
         {
           status: 400,
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const { data: session, error: sessionError } = await supabase
       .from("client_sessions")
       .select(
-        "id, client_email, client_name, guest_view_token, therapist_id, session_date, start_time, duration_minutes, session_type, appointment_type, visit_address",
+        "id, client_email, client_name, guest_view_token, therapist_id, session_date, start_time, duration_minutes, session_type, appointment_type, visit_address, payment_collection, payment_status",
       )
       .eq("id", sessionId)
       .single();
@@ -158,6 +158,8 @@ Deno.serve(async (req) => {
             sessionLocation: locationData.sessionLocation || undefined,
             directionsUrl: locationData.directionsUrlForClient,
             bookingUrl,
+            paymentCollection: session.payment_collection,
+            isPayAtClinic: session.payment_collection === "in_person",
           },
         }),
       });
@@ -174,6 +176,107 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (emailType === "confirmation") {
+      // Pay-at-clinic / in-person booking from BookingFlow has no Stripe webhook
+      // to fire `booking_confirmation_*` emails. This branch closes that gap by
+      // sending both the client and the practitioner copy from a single call.
+      if (!practitioner.email) {
+        return new Response(
+          JSON.stringify({ error: "Practitioner has no email on file" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const baseData = {
+        sessionId: session.id,
+        sessionType: session.session_type ?? undefined,
+        sessionDate: session.session_date,
+        sessionTime,
+        sessionDuration: session.duration_minutes ?? 60,
+        practitionerName,
+        sessionLocation: locationData.sessionLocation || undefined,
+        directionsUrl: locationData.directionsUrlForClient,
+        visitAddress: locationData.visitAddress,
+        bookingUrl,
+        paymentCollection: session.payment_collection,
+        isPayAtClinic: session.payment_collection === "in_person",
+      };
+
+      const invokeSendEmail = async (payload: {
+        emailType: string;
+        recipientEmail: string;
+        recipientName?: string;
+        data: Record<string, unknown>;
+      }) => {
+        const r = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) {
+          const text = await r.text();
+          console.warn(
+            "send-booking-notification confirmation: send-email failed",
+            payload.emailType,
+            r.status,
+            text,
+          );
+          return { ok: false as const, status: r.status, details: text };
+        }
+        return { ok: true as const };
+      };
+
+      const results = await Promise.all([
+        invokeSendEmail({
+          emailType: "booking_confirmation_client",
+          recipientEmail: session.client_email,
+          recipientName: session.client_name ?? undefined,
+          data: baseData,
+        }),
+        invokeSendEmail({
+          emailType: "booking_confirmation_practitioner",
+          recipientEmail: practitioner.email,
+          recipientName: practitionerName,
+          data: {
+            ...baseData,
+            clientName: session.client_name,
+            clientEmail: session.client_email ?? undefined,
+            directionsUrl: locationData.directionsUrlForPractitioner,
+          },
+        }),
+      ]);
+
+      const failed = results.filter((x) => !x.ok);
+      if (failed.length === results.length) {
+        return new Response(
+          JSON.stringify({
+            error: "send-email failed for all recipients",
+            details: failed.map((f) => ("details" in f ? f.details : "")),
+          }),
+          {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          sent: results.length - failed.length,
+          failed: failed.length,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (emailType === "rescheduling") {
@@ -203,6 +306,8 @@ Deno.serve(async (req) => {
             sessionLocation: locationData.sessionLocation || undefined,
             directionsUrl: locationData.directionsUrlForClient,
             bookingUrl,
+            paymentCollection: session.payment_collection,
+            isPayAtClinic: session.payment_collection === "in_person",
           },
         }),
       });

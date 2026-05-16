@@ -194,6 +194,11 @@ serve(async (req) => {
     const validActions = [
       "get_auth_url",
       "exchange_code",
+      "refresh_token",
+      "sync_events",
+      "push_event",
+      "fetch_events",
+      // Backward-compat aliases used by older clients/docs.
       "create_event",
       "list_events",
       "update_event",
@@ -254,6 +259,25 @@ serve(async (req) => {
         );
 
       case "fetch_events":
+        return handleFetchEvents(
+          params.startTime,
+          params.endTime,
+          supabase,
+          user.id,
+          googleClientId,
+          googleClientSecret,
+        );
+
+      // Aliases (legacy action names)
+      case "create_event":
+        return handlePushEvent(
+          params.event,
+          supabase,
+          user.id,
+          googleClientId,
+          googleClientSecret,
+        );
+      case "list_events":
         return handleFetchEvents(
           params.startTime,
           params.endTime,

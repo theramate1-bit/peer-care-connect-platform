@@ -11,7 +11,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Target, CheckCircle2, PauseCircle, PlayCircle } from "lucide-react-native";
+import {
+  Target,
+  CheckCircle2,
+  PauseCircle,
+  PlayCircle,
+} from "lucide-react-native";
 import { format } from "date-fns";
 
 import { AppStackHeader } from "@/components/navigation/AppStackHeader";
@@ -89,6 +94,7 @@ export default function ProgressGoalsScreen() {
     try {
       const res = await createGoal({
         clientId: userId,
+        practitionerId: userId,
         title,
         description,
         targetValue: n,
@@ -140,7 +146,10 @@ export default function ProgressGoalsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="Progress & goals" fallbackHref={defaultSignedInProfileHref()} />
+      <AppStackHeader
+        title="Progress & goals"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       <View className="px-6 pt-4">
         <Button variant="primary" onPress={() => setCreating(true)}>

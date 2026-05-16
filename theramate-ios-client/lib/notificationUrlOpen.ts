@@ -15,7 +15,9 @@ import { tabPath } from "@/lib/tabPath";
 
 function normalizeWebHost(): string | null {
   try {
-    return new URL(APP_CONFIG.WEB_URL).hostname.replace(/^www\./, "").toLowerCase();
+    return new URL(APP_CONFIG.WEB_URL).hostname
+      .replace(/^www\./, "")
+      .toLowerCase();
   } catch {
     return null;
   }
@@ -65,6 +67,7 @@ export function tryMapWebUrlToRoute(
     "/privacy",
     "/terms",
     "/cookies",
+    "/dpa",
     "/pricing",
     "/how-it-works",
     "/contact",
@@ -76,6 +79,7 @@ export function tryMapWebUrlToRoute(
       "/privacy": "/privacy",
       "/terms": "/terms",
       "/cookies": "/cookies",
+      "/dpa": "/dpa",
       "/pricing": "/pricing",
       "/how-it-works": "/how-it-works",
       "/contact": "/contact",

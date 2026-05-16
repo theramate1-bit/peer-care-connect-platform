@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -19,7 +19,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchMarketplacePractitioners,
+  type MarketplacePractitioner,
+} from "@/lib/marketplacePractitioners";
 import {
   Search,
   Filter,
@@ -38,28 +41,6 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/config/payments";
 
-interface Therapist {
-  id: string;
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  profile_photo_url?: string;
-  professional_statement?: string;
-  specializations: string[];
-  average_rating: number;
-  total_reviews: number;
-  hourly_rate: number;
-  location: string;
-  verification_status: string;
-  profile_completion_score: number;
-  therapy_types: string[];
-  availability: string[];
-  languages: string[];
-  experience_years: number;
-  qualifications: string[];
-  certifications: string[];
-}
-
 interface SearchFilters {
   therapyType: string;
   location: string;
@@ -69,11 +50,12 @@ interface SearchFilters {
   gender: string;
   experience: string;
   verifiedOnly: boolean;
+  acceptsInPerson: boolean;
 }
 
 const TherapistSearch: React.FC = () => {
   const { toast } = useToast();
-  const [therapists, setTherapists] = useState<Therapist[]>([]);
+  const [therapists, setTherapists] = useState<MarketplacePractitioner[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({
@@ -85,98 +67,92 @@ const TherapistSearch: React.FC = () => {
     gender: "",
     experience: "",
     verifiedOnly: false,
+    acceptsInPerson: false,
   });
   const [showFilters, setShowFilters] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
 
   useEffect(() => {
-    loadTherapists();
-  }, [filters]);
-
-  const loadTherapists = async () => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from("users")
-        .select("*")
-        .in("user_role", ["sports_therapist", "massage_therapist", "osteopath"])
-        .eq("is_active", true);
-
-      // Apply filters
-      if (filters.therapyType) {
-        query = query.contains("specializations", [filters.therapyType]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await fetchMarketplacePractitioners();
+        if (cancelled) return;
+        if (error) throw error;
+        setTherapists(data || []);
+      } catch (error) {
+        console.error("Error loading therapists:", error);
+        if (!cancelled) {
+          toast({
+            title: "Error",
+            description: "Failed to load therapists. Please try again.",
+            variant: "destructive",
+          });
+          setTherapists([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (filters.location) {
-        query = query.ilike("location", `%${filters.location}%`);
-      }
-      if (filters.verifiedOnly) {
-        query = query.eq("verification_status", "verified");
-      }
-      if (filters.experience) {
-        const minExperience = parseInt(filters.experience);
-        query = query.gte("experience_years", minExperience);
-      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-      const { data, error } = await query;
+  const filteredTherapists = useMemo(() => {
+    let list = therapists;
 
-      if (error) throw error;
-
-      // Apply price range filter and calculate ratings
-      let filteredData = data || [];
-      if (filters.priceRange) {
-        const [min, max] = filters.priceRange.split("-").map(Number);
-        filteredData = filteredData.filter((therapist) => {
-          if (max) {
-            return therapist.hourly_rate >= min && therapist.hourly_rate <= max;
-          }
-          return therapist.hourly_rate >= min;
-        });
-      }
-
-      // Calculate average ratings for each therapist
-      const therapistsWithRatings = await Promise.all(
-        filteredData.map(async (therapist) => {
-          const { data: reviews } = await supabase
-            .from("reviews")
-            .select("overall_rating")
-            .eq("therapist_id", therapist.id)
-            .eq("review_status", "published");
-
-          const averageRating = reviews?.length
-            ? reviews.reduce((sum, r) => sum + r.overall_rating, 0) /
-              reviews.length
-            : 0;
-
-          return {
-            ...therapist,
-            average_rating: averageRating,
-            total_reviews: reviews?.length || 0,
-          };
-        }),
+    if (filters.therapyType) {
+      list = list.filter((t) =>
+        (t.specializations || []).includes(filters.therapyType),
       );
-
-      // Apply rating filter
-      if (filters.rating) {
-        const minRating = parseFloat(filters.rating);
-        filteredData = therapistsWithRatings.filter(
-          (therapist) => therapist.average_rating >= minRating,
-        );
-      } else {
-        filteredData = therapistsWithRatings;
-      }
-
-      setTherapists(filteredData);
-    } catch (error) {
-      console.error("Error loading therapists:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load therapists. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
-  };
+    if (filters.location.trim()) {
+      const loc = filters.location.toLowerCase();
+      list = list.filter((t) => (t.location || "").toLowerCase().includes(loc));
+    }
+    if (filters.priceRange) {
+      const [min, max] = filters.priceRange.split("-").map(Number);
+      list = list.filter((t) => {
+        const rate = t.from_price ?? t.hourly_rate ?? 0;
+        if (max) return rate >= min && rate <= max;
+        return rate >= min;
+      });
+    }
+    if (filters.rating) {
+      const minRating = parseFloat(filters.rating);
+      list = list.filter((t) => t.average_rating >= minRating);
+    }
+    if (filters.verifiedOnly) {
+      list = list.filter((t) => t.verified);
+    }
+    if (filters.acceptsInPerson) {
+      list = list.filter((t) => t.accept_in_person_payment);
+    }
+    if (filters.experience) {
+      const minExperience = parseInt(filters.experience, 10);
+      list = list.filter((t) => (t.experience_years ?? 0) >= minExperience);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((t) => {
+        const name = `${t.first_name} ${t.last_name}`.toLowerCase();
+        const specs = (t.specializations || []).join(" ").toLowerCase();
+        const loc = (t.location || "").toLowerCase();
+        const bio = (t.bio || "").toLowerCase();
+        return (
+          name.includes(q) ||
+          specs.includes(q) ||
+          loc.includes(q) ||
+          bio.includes(q)
+        );
+      });
+    }
+
+    return list;
+  }, [therapists, filters, searchQuery]);
 
   const handleFilterChange = (field: keyof SearchFilters, value: any) => {
     setFilters((prev) => ({
@@ -195,6 +171,7 @@ const TherapistSearch: React.FC = () => {
       gender: "",
       experience: "",
       verifiedOnly: false,
+      acceptsInPerson: false,
     });
   };
 
@@ -205,25 +182,6 @@ const TherapistSearch: React.FC = () => {
         : [...prev, therapistId],
     );
   };
-
-  const filteredTherapists = therapists.filter((therapist) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const name =
-        `${therapist.first_name} ${therapist.last_name}`.toLowerCase();
-      const specializations = therapist.specializations.join(" ").toLowerCase();
-      const location = therapist.location.toLowerCase();
-
-      if (
-        !name.includes(query) &&
-        !specializations.includes(query) &&
-        !location.includes(query)
-      ) {
-        return false;
-      }
-    }
-    return true;
-  });
 
   const getRatingStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -446,6 +404,19 @@ const TherapistSearch: React.FC = () => {
                 />
                 <Label htmlFor="verifiedOnly">Verified therapists only</Label>
               </div>
+
+              <div className="flex items-center space-x-2 pt-6">
+                <Checkbox
+                  id="acceptsInPerson"
+                  checked={filters.acceptsInPerson}
+                  onCheckedChange={(checked) =>
+                    handleFilterChange("acceptsInPerson", checked)
+                  }
+                />
+                <Label htmlFor="acceptsInPerson">
+                  Accepts pay at clinic (cash)
+                </Label>
+              </div>
             </div>
           )}
         </div>
@@ -516,7 +487,9 @@ const TherapistSearch: React.FC = () => {
                           {therapist.first_name} {therapist.last_name}
                         </CardTitle>
                         <div className="flex items-center space-x-2 mt-1">
-                          {getVerificationBadge(therapist.verification_status)}
+                          {getVerificationBadge(
+                            therapist.verified ? "verified" : "pending",
+                          )}
                         </div>
                       </div>
                     </div>
@@ -551,7 +524,7 @@ const TherapistSearch: React.FC = () => {
 
                   {/* Specializations */}
                   <div className="flex flex-wrap gap-1">
-                    {therapist.specializations
+                    {(therapist.specializations || [])
                       .slice(0, 3)
                       .map((spec, index) => (
                         <Badge
@@ -562,9 +535,17 @@ const TherapistSearch: React.FC = () => {
                           {spec}
                         </Badge>
                       ))}
-                    {therapist.specializations.length > 3 && (
+                    {(therapist.specializations || []).length > 3 && (
                       <Badge variant="outline" className="text-xs">
-                        +{therapist.specializations.length - 3} more
+                        +{(therapist.specializations || []).length - 3} more
+                      </Badge>
+                    )}
+                    {therapist.accept_in_person_payment && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-green-300 text-green-800 bg-green-50"
+                      >
+                        Pay at clinic
                       </Badge>
                     )}
                   </div>
@@ -580,38 +561,36 @@ const TherapistSearch: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center space-x-2 text-gray-600">
                       <MapPin className="h-4 w-4" />
-                      <span>{therapist.location}</span>
+                      <span>{therapist.location || "—"}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-600">
                       <Clock className="h-4 w-4" />
-                      <span>{therapist.experience_years} years</span>
+                      <span>
+                        {therapist.experience_years != null
+                          ? `${therapist.experience_years} years exp.`
+                          : "—"}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-600">
                       <DollarSign className="h-4 w-4" />
                       <span>
-                        {formatCurrency(therapist.hourly_rate * 100)}/hr
+                        {therapist.from_price != null
+                          ? `From £${therapist.from_price.toFixed(0)}`
+                          : therapist.hourly_rate != null
+                            ? `${formatCurrency(therapist.hourly_rate * 100)}/hr`
+                            : "—"}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-600">
                       <Award className="h-4 w-4" />
-                      <span>
-                        {therapist.qualifications.length} qualifications
-                      </span>
+                      <span>{therapist.therapist_type || "—"}</span>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex space-x-2 pt-2">
                     {(() => {
-                      const therapyTypes = (therapist.therapy_types || []).map(
-                        (t) => t.toLowerCase(),
-                      );
-                      // "Hybrid" practitioners are those that support BOTH modes:
-                      // - clinic (in-person)
-                      // - mobile (request)
-                      const isHybrid =
-                        therapyTypes.includes("clinic") &&
-                        therapyTypes.includes("mobile");
+                      const isHybrid = therapist.therapist_type === "hybrid";
 
                       if (isHybrid) {
                         return (

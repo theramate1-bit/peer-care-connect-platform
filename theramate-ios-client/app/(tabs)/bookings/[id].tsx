@@ -136,9 +136,13 @@ export default function BookingDetailScreen() {
                 sessionId: data.id,
               });
               if (!res.ok) {
+                const late = res.errorCode === "CANCEL_WINDOW_CLOSED";
                 Alert.alert(
-                  "Could not cancel",
-                  res.error?.message || "Please try again.",
+                  late ? "Cancellation window closed" : "Could not cancel",
+                  res.error?.message ||
+                    (late
+                      ? "Sessions must be cancelled at least 24 hours in advance. Contact your practitioner if you need a late change."
+                      : "Please try again."),
                 );
                 return;
               }

@@ -22,6 +22,7 @@ import {
   Star,
   Heart,
   MessageCircle,
+  Ticket,
 } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -119,7 +120,9 @@ export default function HomeScreen() {
           />
         }
       >
-        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}>
+        <View
+          style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}
+        >
           <View className="flex-row items-center justify-between">
             <View>
               <Text className="text-charcoal-500 text-base">Good morning,</Text>
@@ -273,6 +276,26 @@ export default function HomeScreen() {
             </PressableCard>
           </Link>
 
+          <Link href="/booking/find" asChild>
+            <PressableCard
+              variant="default"
+              padding="md"
+              className="mt-3 flex-row items-center border border-cream-200"
+            >
+              <View className="w-11 h-11 rounded-xl bg-charcoal-100 items-center justify-center">
+                <Ticket size={22} color={Colors.charcoal[600]} />
+              </View>
+              <View className="flex-1 ml-3">
+                <Text className="text-charcoal-900 font-semibold">
+                  Find my booking
+                </Text>
+                <Text className="text-charcoal-500 text-sm mt-0.5">
+                  Look up a session with your email or reference
+                </Text>
+              </View>
+              <ChevronRight size={20} color={Colors.charcoal[300]} />
+            </PressableCard>
+          </Link>
         </View>
 
         <View style={{ paddingHorizontal: 24 }}>

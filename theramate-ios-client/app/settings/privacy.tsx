@@ -25,19 +25,29 @@ export default function SettingsPrivacyRouteScreen() {
         <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mt-6 mb-2">
           In this app
         </Text>
-        <Card variant="default" padding="md" className="mb-4 border border-cream-200">
+        <Card
+          variant="default"
+          padding="md"
+          className="mb-4 border border-cream-200"
+        >
           <Button
             variant="primary"
             leftIcon={<Shield size={18} color="#fff" />}
             onPress={() =>
-              router.replace(signedInTabPath("profile/privacy-security") as never)
+              router.replace(
+                signedInTabPath("profile/privacy-security") as never,
+              )
             }
           >
             Open privacy & security
           </Button>
         </Card>
 
-        <Card variant="default" padding="md" className="mb-4 border border-cream-200">
+        <Card
+          variant="default"
+          padding="md"
+          className="mb-4 border border-cream-200"
+        >
           <Button
             variant="outline"
             className="mb-2"
@@ -47,13 +57,30 @@ export default function SettingsPrivacyRouteScreen() {
           </Button>
           <Button
             variant="outline"
+            className="mb-2"
+            onPress={() => router.push("/terms" as never)}
+          >
+            Terms of service
+          </Button>
+          <Button
+            variant="outline"
+            className="mb-2"
             onPress={() => router.push("/cookies" as never)}
           >
             Cookie settings
           </Button>
+          <Button
+            variant="outline"
+            onPress={() => router.push("/dpa" as never)}
+          >
+            Data processing (practitioners)
+          </Button>
         </Card>
 
-        <Button variant="outline" onPress={() => router.replace("/settings" as never)}>
+        <Button
+          variant="outline"
+          onPress={() => router.replace("/settings" as never)}
+        >
           Back to settings hub
         </Button>
       </ScrollView>

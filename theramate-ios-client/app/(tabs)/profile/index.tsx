@@ -134,7 +134,9 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}>
+        <View
+          style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}
+        >
           {/* Profile Card */}
           <PressableCard variant="elevated" padding="lg">
             <View className="flex-row items-center">
@@ -251,7 +253,16 @@ export default function ProfileScreen() {
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
               icon={<Bell size={20} color={Colors.charcoal[600]} />}
-              label="Notifications"
+              label="Notification settings"
+              sublabel="Email, SMS and reminder preferences"
+              onPress={() =>
+                router.push(tabPath(tabRoot, "profile/notifications") as never)
+              }
+            />
+            <View className="h-px bg-cream-200 mx-4" />
+            <MenuItem
+              icon={<Bell size={20} color={Colors.charcoal[600]} />}
+              label="Notifications inbox"
               onPress={() => router.push("/notifications")}
             />
           </MenuSection>

@@ -43,7 +43,7 @@ export async function enrichEmailDataFromSession(
   const { data: session, error } = await supabase
     .from("client_sessions")
     .select(
-      "id, client_email, client_name, therapist_id, session_date, start_time, duration_minutes, session_type, price, platform_fee_amount, practitioner_amount, guest_view_token, appointment_type, visit_address, payment_status, status, requires_approval, stripe_payment_intent_id, session_timezone",
+      "id, client_email, client_name, therapist_id, session_date, start_time, duration_minutes, session_type, price, platform_fee_amount, practitioner_amount, guest_view_token, appointment_type, visit_address, payment_status, status, requires_approval, stripe_payment_intent_id, session_timezone, payment_collection",
     )
     .eq("id", sessionId)
     .maybeSingle();
@@ -117,6 +117,8 @@ export async function enrichEmailDataFromSession(
       bookingUrl: bookingUrl ?? d.bookingUrl,
       clientName: session.client_name ?? d.clientName,
       sessionDuration: session.duration_minutes ?? d.sessionDuration,
+      paymentCollection: session.payment_collection ?? d.paymentCollection,
+      isPayAtClinic: session.payment_collection === "in_person",
     };
   }
 
@@ -142,9 +144,10 @@ export async function enrichEmailDataFromSession(
     paymentStatus: session.payment_status ?? d.paymentStatus,
     sessionStatus: session.status ?? d.sessionStatus,
     requiresApproval: session.requires_approval ?? d.requiresApproval,
-    // Payment references should be real when available (used by strict validator for payment emails)
     paymentId: session.stripe_payment_intent_id ?? d.paymentId,
     sessionTimezone: session.session_timezone ?? d.sessionTimezone,
+    paymentCollection: session.payment_collection ?? d.paymentCollection,
+    isPayAtClinic: session.payment_collection === "in_person",
   };
 }
 

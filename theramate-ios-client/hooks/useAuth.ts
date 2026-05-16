@@ -39,9 +39,7 @@ export function useAuth() {
   const isPractitioner = isPractitionerPortalRole(
     userProfile?.user_role ?? undefined,
   );
-  // Only clients use the in-app onboarding screen; practitioners may finish setup elsewhere.
-  const needsOnboarding =
-    isClient && userProfile?.onboarding_status !== "completed";
+  const needsOnboarding = userProfile?.onboarding_status !== "completed";
   const userId = authUser?.id;
 
   return {

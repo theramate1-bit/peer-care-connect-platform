@@ -6,6 +6,8 @@ This document describes the core data structures in Peer Care Connect. It is wri
 
 The platform uses **Supabase** (PostgreSQL) as its database. All tables live in the `public` schema. Row Level Security (RLS) enforces access control—users see only data they are allowed to access.
 
+**Live schema & edge inventory:** [Supabase MCP live reference](./supabase-mcp-live-reference.md) — tables, critical columns, deployed edge functions, RLS advisory (refresh via MCP after migrations).
+
 **Key concepts:**
 
 - **Practitioners** are users with `user_role = 'practitioner'`. They offer services, manage availability, and see the practice dashboard.

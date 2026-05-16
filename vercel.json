@@ -1,6 +1,12 @@
 {
   "version": 2,
   "name": "peer-care-connect",
+  "rewrites": [
+    { "source": "/dpa", "destination": "/dpa.html" },
+    { "source": "/dpa/", "destination": "/dpa.html" },
+    { "source": "/subprocessors", "destination": "/subprocessors.html" },
+    { "source": "/subprocessors/", "destination": "/subprocessors.html" }
+  ],
   "builds": [
     {
       "src": "package.json",
@@ -14,6 +20,22 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/$1"
+    },
+    {
+      "src": "/dpa",
+      "dest": "/dpa.html"
+    },
+    {
+      "src": "/dpa/",
+      "dest": "/dpa.html"
+    },
+    {
+      "src": "/subprocessors",
+      "dest": "/subprocessors.html"
+    },
+    {
+      "src": "/subprocessors/",
+      "dest": "/subprocessors.html"
     },
     {
       "src": "/:path((?!api|sitemap\\.xml|sitemap_index\\.xml|sitemapindex\\.xml|sitemap-1\\.xml|robots\\.txt).*)",

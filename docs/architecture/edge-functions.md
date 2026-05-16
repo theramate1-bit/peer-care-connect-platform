@@ -1,5 +1,7 @@
 # Edge Functions Reference
 
+**Live deployed inventory & JWT flags:** [Supabase MCP live reference](./supabase-mcp-live-reference.md) — refresh via MCP `list_edge_functions` after deploys.
+
 **Audience:** Junior developers
 
 Supabase Edge Functions run serverless Deno code. This document lists all functions, their purpose, callers, and links to source code. Schema is verified via Supabase MCP.

@@ -3,7 +3,7 @@
  * Lives under `(ptabs)` so the bottom tab bar stays visible.
  */
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
@@ -24,10 +25,15 @@ import { usePractitionerClients } from "@/hooks/usePractitionerClients";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PRACTITIONER_PTABS_HREF } from "@/lib/navigation";
+import type { ClientEngagementStatus } from "@/lib/api/practitionerClients";
+
+type StatusFilter = "all" | ClientEngagementStatus;
 
 export default function PractitionerClientsScreen() {
   const tabRoot = useTabRoot();
   const { userId } = useAuth();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const {
     data = [],
     isLoading,
@@ -36,6 +42,20 @@ export default function PractitionerClientsScreen() {
     refetch,
     isFetching,
   } = usePractitionerClients(userId);
+
+  const filtered = useMemo(() => {
+    let rows = data;
+    if (statusFilter !== "all") {
+      rows = rows.filter((c) => c.status === statusFilter);
+    }
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.email && c.email.toLowerCase().includes(q)),
+    );
+  }, [data, search, statusFilter]);
 
   if (!userId) {
     return (
@@ -48,8 +68,8 @@ export default function PractitionerClientsScreen() {
             Practitioner sign-in required
           </Text>
           <Text className="text-charcoal-500 text-center mt-3 leading-6">
-            Sign in with your practitioner account to view clients you have treated
-            and open their profiles.
+            Sign in with your practitioner account to view clients you have
+            treated and open their profiles.
           </Text>
           <Button
             variant="primary"
@@ -102,8 +122,60 @@ export default function PractitionerClientsScreen() {
             Practice
           </Text>
           <Text className="text-charcoal-500 text-sm mb-4">
-            People you&apos;ve treated and their session history.
+            Roster from paid client sessions only; excludes cancelled, no-show,
+            and peer exchange rows.
           </Text>
+
+          <TextInput
+            className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
+            placeholder="Search by name or email"
+            placeholderTextColor={Colors.charcoal[400]}
+            value={search}
+            onChangeText={setSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <Text className="text-charcoal-700 text-xs font-semibold mb-2">
+            Status (engagement)
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mb-4"
+            contentContainerStyle={{ gap: 8 }}
+          >
+            {(["all", "active", "new", "inactive"] as const).map((key) => {
+              const on = statusFilter === key;
+              const label =
+                key === "all"
+                  ? "All"
+                  : key === "active"
+                    ? "Active"
+                    : key === "new"
+                      ? "New"
+                      : "Inactive";
+              return (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => setStatusFilter(key)}
+                  className={`px-3 py-2 rounded-xl border ${
+                    on
+                      ? "bg-sage-500 border-sage-500"
+                      : "bg-white border-cream-200"
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${
+                      on ? "text-white" : "text-charcoal-800"
+                    }`}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
           <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
             In this app
@@ -124,17 +196,30 @@ export default function PractitionerClientsScreen() {
 
           {data.length === 0 ? (
             <Text className="text-charcoal-500 text-center py-8">
-              No clients yet — sessions will appear here.
+              No clients yet — they appear here after paid sessions.
+            </Text>
+          ) : filtered.length === 0 ? (
+            <Text className="text-charcoal-500 text-center py-8">
+              No matches for your search or status filter.
             </Text>
           ) : (
-            data.map((c) => (
+            filtered.map((c) => (
               <TouchableOpacity
-                key={c.client_id}
-                onPress={() =>
-                  router.push(
-                    tabPath(tabRoot, `clients/${c.client_id}`) as Href,
-                  )
-                }
+                key={c.key}
+                onPress={() => {
+                  if (c.client_id) {
+                    router.push(
+                      tabPath(tabRoot, `clients/${c.client_id}`) as Href,
+                    );
+                  } else if (c.email) {
+                    router.push(
+                      `${tabPath(
+                        tabRoot,
+                        "clients/guest",
+                      )}?email=${encodeURIComponent(c.email)}` as Href,
+                    );
+                  }
+                }}
                 activeOpacity={0.85}
               >
                 <Card variant="default" padding="md" className="mb-3">
@@ -149,7 +234,10 @@ export default function PractitionerClientsScreen() {
                         </Text>
                       ) : null}
                       <Text className="text-charcoal-400 text-xs mt-2">
+                        <Text className="capitalize">{c.status}</Text>
+                        {" · "}
                         {c.session_count} session(s)
+                        {` · £${c.total_spent.toFixed(2)} total`}
                         {c.last_session_date
                           ? ` · Last ${c.last_session_date}`
                           : ""}

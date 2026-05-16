@@ -1,16 +1,12 @@
 import React, { useEffect, useRef } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { router, useRootNavigationState } from "expo-router";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/authStore";
 import { getMainAppHref } from "@/lib/postAuthRoute";
 import { Colors } from "@/constants/colors";
+import { isPractitionerPortalRole } from "@/lib/authRoles";
 
 /**
  * Entry gate: wait for auth bootstrap, then send users to main app or hero (role picker).
@@ -35,7 +31,19 @@ export default function IndexGate() {
     didNavigate.current = true;
     void (async () => {
       await useAuthStore.getState().refreshProfile();
-      const role = useAuthStore.getState().userProfile?.user_role;
+      const profile = useAuthStore.getState().userProfile;
+      const role = profile?.user_role;
+      const onboarding = profile?.onboarding_status;
+      if (onboarding && onboarding !== "completed") {
+        if (isPractitionerPortalRole(role)) {
+          router.replace("/practitioner-onboarding");
+          return;
+        }
+        if (role === "client") {
+          router.replace("/onboarding");
+          return;
+        }
+      }
       router.replace(getMainAppHref(role));
     })();
   }, [rootNavigation?.key, isAuthenticated, isInitialized]);

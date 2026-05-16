@@ -62,16 +62,19 @@ export const APP_CONFIG = {
   SCHEME: "theramate",
   OAUTH_CALLBACK_PATH: "oauth-callback",
   RESET_PASSWORD_PATH: "reset-password-confirm",
-  WEB_URL: (envPublic("EXPO_PUBLIC_WEB_URL") ?? "https://theramate.com").replace(
-    /\/$/,
-    "",
-  ),
+  WEB_URL: (
+    envPublic("EXPO_PUBLIC_WEB_URL") ?? "https://theramate.co.uk"
+  ).replace(/\/$/, ""),
 
   // Support
-  SUPPORT_EMAIL: "support@theramate.com",
-  PRIVACY_URL: "https://theramate.com/privacy",
-  TERMS_URL: "https://theramate.com/terms",
-  HELP_URL: "https://theramate.com/help",
+  SUPPORT_EMAIL: "support@theramate.co.uk",
+  PRIVACY_URL: "https://theramate.co.uk/privacy",
+  TERMS_URL: "https://theramate.co.uk/terms",
+  HELP_URL: "https://theramate.co.uk/help",
+  /** Article 28-style Data Processing Agreement for practitioners — publish this route on the website. */
+  DPA_URL: "https://theramate.co.uk/dpa",
+  /** Published sub-processor transparency list (website). */
+  SUBPROCESSORS_URL: "https://theramate.co.uk/subprocessors",
 } as const;
 
 // Session/Booking Constants
@@ -114,6 +117,9 @@ export const UI_CONFIG = {
   // Pull to refresh
   REFRESH_CONTROL_OFFSET: 40,
 } as const;
+
+/** Profile and clinic image uploads (parity with web `Profile.tsx`). */
+export const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 // Map Configuration
 export const MAP_CONFIG = {

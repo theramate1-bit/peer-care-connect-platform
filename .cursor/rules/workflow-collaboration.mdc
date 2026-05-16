@@ -1,0 +1,32 @@
+---
+description: Evolving rules, checkpoints, reasoning-before-code, tight scope, MCP/tools over guessing
+alwaysApply: true
+---
+
+# AI collaboration workflow
+
+## 1. Self-updating rules (learn from fixes)
+
+- Canonical rules live in **`.cursor/rules/*.mdc`** (and root **`.cursorrules`** as a short index).
+- After fixing a **non-trivial bug**, closing a **subtle regression**, or discovering a **recurring pitfall** in this codebase, add a **short, concrete bullet** to the **most relevant** existing `.mdc` (architecture, mobile, payments, etc.). If no file fits, create a **small scoped** `.mdc` with a clear `description` and appropriate `globs` / `alwaysApply`.
+- Keep entries **terse**: symptom → cause → guardrail (one line each max when possible). Do not write long essays in rules files.
+
+## 2. Checkpoints before “quick fixes”
+
+- When work looks like a **small change that might spiral** (debugging, exploratory edits), **suggest the human making a git commit or stash** before proceeding so rollback stays cheap. This is a reminder, not a blocker.
+
+## 3. Reasoning before code (non-trivial work)
+
+- For anything beyond a **one-line typo**, **briefly state**: planned approach, files touched, and **what could break** (tests, edge cases, API/schema assumptions) **before** large edits.
+- If the user asks explicitly for plan-only, **do not write code** until they confirm.
+
+## 4. Scope lock
+
+- **Default:** touch **only** files needed for the request.
+- If the user names specific paths, **do not modify other files** unless they explicitly widen scope.
+- No drive-by refactors, dependency churn, or “cleanup” outside the task.
+
+## 5. Context via tools (MCP, repo)
+
+- **Prefer reading** real files, schemas, and APIs via **repository search**, **terminal**, and **MCP servers** (Supabase, GitHub, etc.) over guessing names or behavior.
+- When integrating with external systems, **verify** signatures and env vars from code or docs in-repo rather than inventing them.

@@ -24,7 +24,13 @@ export default function PractitionerProjectsListScreen() {
   const tabRoot = useTabRoot();
   const { userId } = useAuth();
 
-  const { data = [], isLoading, refetch, isFetching, error } = useQuery({
+  const {
+    data = [],
+    isLoading,
+    refetch,
+    isFetching,
+    error,
+  } = useQuery({
     queryKey: ["legacy_projects", userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -58,8 +64,8 @@ export default function PractitionerProjectsListScreen() {
         />
 
         <Text className="text-charcoal-600 leading-6 mb-4">
-          Long-form therapy projects (legacy schema). Full editing is in app;
-          you can review status here.
+          Long-form therapy projects: edit details and phases here; data stays
+          on your practice account.
         </Text>
         <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
           In this app
@@ -69,7 +75,9 @@ export default function PractitionerProjectsListScreen() {
           <ActivityIndicator color={Colors.sage[500]} className="py-10" />
         ) : error ? (
           <Text className="text-charcoal-600">
-            {error instanceof Error ? error.message : "Could not load projects."}
+            {error instanceof Error
+              ? error.message
+              : "Could not load projects."}
           </Text>
         ) : data.length === 0 ? (
           <Text className="text-charcoal-500 py-8">

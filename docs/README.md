@@ -17,6 +17,7 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 ### Architecture
 
 - [System Overview](./architecture/system-overview.md)
+- [**Supabase MCP live reference**](./architecture/supabase-mcp-live-reference.md) — **tables, columns, RLS note, edge functions** (from MCP; refresh after schema/deploy changes)
 - [Database Schema](./architecture/database-schema.md) 🆕 - Core tables, relationships, guest/client, practitioner types
 - [Database Tables MCP Reference](./architecture/database-tables-mcp-reference.md) 🆕 - Full MCP-derived schema, every table, code links
 - [Edge Functions](./architecture/edge-functions.md) 🆕 - All Edge Functions with purpose and code links
@@ -26,6 +27,9 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 
 ### Features
 
+- **[Guest (feature-by-feature)](./features/guest/README.md)** — identity, web guest mode, native mobile requests, tokens, practitioner ops, messaging
+- **[Client (feature-by-feature)](./features/client/README.md)** — identity, web/native booking, sessions, profile, messaging
+- **[Practitioner types — clinic, mobile, hybrid](./features/practitioner-types/README.md)** — `therapist_type`, booking UX, buffers, onboarding (high importance)
 - [Booking System](./features/booking-system.md)
 - [How Booking Works](./features/how-booking-works.md) 🆕 - Step-by-step guide
 - [Booking Flows Reference](./features/booking-flows-reference.md) 🆕 - Canonical map of every booking flow, step behavior, and save timing
@@ -44,6 +48,7 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 - [How Treatment Exchange Works](./features/how-treatment-exchange-works.md) 🆕 - Exchange system explained
 - [Treatment Notes](./features/treatment-notes.md)
 - [Pre-Assessment Form: Practitioner View UX Plan](./features/pre-assessment-practitioner-ux-plan.md) 🆕 - UX placement and integration guide
+- [Feature-by-feature gaps index](./product/FEATURE_BY_FEATURE_GAPS_INDEX.md) 🆕 - Current missing items and parity gaps tracker
 
 ### Integrations
 
@@ -52,11 +57,12 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 ### Customer mobile (Theramate)
 
 - [Theramate iOS/Android app](../theramate-ios-client/README.md)
-- [BMAD interim UX artifact (customer mobile)](../_bmad-output/planning-artifacts/ux-design-customer-mobile.md)
+- [**BMAD planning artifacts (index)**](../_bmad-output/planning-artifacts/README.md) — also [architecture](../_bmad-output/planning-artifacts/architecture.md), [epics](../_bmad-output/planning-artifacts/epics.md), [story backlog index](../_bmad-output/planning-artifacts/story-backlog-index.md), [UX alignment](../_bmad-output/planning-artifacts/ux-design-alignment.md), [practitioner shard](../_bmad-output/planning-artifacts/prd-practitioner-shard.md), [exchange & credits shard](../_bmad-output/planning-artifacts/prd-exchange-credits-shard.md), [guest shard](../_bmad-output/planning-artifacts/prd-guest-shard.md), [marketplace discovery shard](../_bmad-output/planning-artifacts/prd-marketplace-discovery-shard.md), [payments & Stripe shard](../_bmad-output/planning-artifacts/prd-payments-stripe-shard.md), [subscription & billing portal shard](../_bmad-output/planning-artifacts/prd-subscription-billing-portal-shard.md), [notifications & messaging shard](../_bmad-output/planning-artifacts/prd-notifications-messaging-shard.md), [clinical documentation shard](../_bmad-output/planning-artifacts/prd-clinical-documentation-shard.md), [calendar sync shard](../_bmad-output/planning-artifacts/prd-calendar-sync-shard.md), [NFR release checklist](../_bmad-output/planning-artifacts/nfr-release-verification-checklist.md), [readiness (2026-05-03)](../_bmad-output/planning-artifacts/implementation-readiness-report-2026-05-03.md), [readiness follow-up (2026-05-04)](../_bmad-output/planning-artifacts/implementation-readiness-report-2026-05-04.md)
 - [Mobile / web full screen inventory](./product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md)
 
 ### Product & Email
 
+- **[User types: Guest, Client, Practitioner](./product/USER_TYPES_OVERVIEW.md)** — canonical definitions, code paths in this repo, doc map (start here)
 - [Email 20 Templates Audit](./product/EMAIL_20_TEMPLATES_AUDIT.md) – Template inventory, URLs, content, triggers
 - [Email UX Design Audit Checklist](./product/EMAIL_20_UX_DESIGN_AUDIT_CHECKLIST.md) – Per-template UX gaps and quick wins
 - [Email UX Roadmap (Medium Effort)](./product/EMAIL_UX_ROADMAP_MEDIUM_EFFORT.md) – MJML, Juice, logo, dark mode
@@ -163,4 +169,4 @@ See [Contributing Guidelines](../CONTRIBUTING.md) for how to contribute document
 
 ---
 
-**Last Updated:** 2025-02-09
+**Last Updated:** 2026-04-21

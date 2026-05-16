@@ -1,43 +1,56 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { 
-  CreditCard, 
-  Calendar, 
-  Lock, 
-  CheckCircle, 
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  CreditCard,
+  Calendar,
+  Lock,
+  CheckCircle,
   AlertCircle,
   Loader2,
   Shield,
   Zap,
-  Info
-} from 'lucide-react';
-import { 
-  getProductById, 
-  getPriceById, 
-  calculatePaymentBreakdown, 
+  Info,
+} from "lucide-react";
+import {
+  getProductById,
+  getPriceById,
+  calculatePaymentBreakdown,
+  calculateMarketplaceFee,
   formatCurrency,
-  MARKETPLACE_FEE 
-} from '@/config/payments';
+  MARKETPLACE_FEE_DISPLAY,
+} from "@/config/payments";
 
 interface PaymentFormProps {
   amount: number;
   currency?: string;
-  paymentType: 'subscription' | 'one_time';
+  paymentType: "subscription" | "one_time";
   therapistId?: string;
   projectId?: string;
   sessionId?: string;
   stripeProductId?: string;
   stripePriceId?: string;
   productCategory?: string;
-  therapistType?: 'sports_therapist' | 'massage_therapist' | 'osteopath';
+  therapistType?: "sports_therapist" | "massage_therapist" | "osteopath";
   onSuccess?: (paymentId: string) => void;
   onCancel?: () => void;
 }
@@ -55,7 +68,7 @@ interface PaymentMethod {
 
 const PaymentForm: React.FC<PaymentFormProps> = ({
   amount,
-  currency = 'gbp',
+  currency = "gbp",
   paymentType,
   therapistId,
   projectId,
@@ -65,20 +78,24 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   productCategory,
   therapistType,
   onSuccess,
-  onCancel
+  onCancel,
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [savedPaymentMethods, setSavedPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
+    null,
+  );
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState<
+    PaymentMethod[]
+  >([]);
   const [useSavedMethod, setUseSavedMethod] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<any>(null);
   const [cardDetails, setCardDetails] = useState({
-    number: '',
-    expiry: '',
-    cvc: '',
-    name: ''
+    number: "",
+    expiry: "",
+    cvc: "",
+    name: "",
   });
 
   useEffect(() => {
@@ -89,7 +106,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
   useEffect(() => {
     // Calculate fee breakdown for marketplace payments
-    if (productCategory && ['sports_therapy', 'massage_therapy', 'osteopath', 'general'].includes(productCategory)) {
+    if (
+      productCategory &&
+      ["sports_therapy", "massage_therapy", "osteopath", "general"].includes(
+        productCategory,
+      )
+    ) {
       const breakdown = calculatePaymentBreakdown(amount);
       setFeeBreakdown(breakdown);
     }
@@ -99,29 +121,32 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     try {
       // Fetch saved payment methods from Stripe Customer API
       // This would integrate with Stripe to get customer's saved cards
-      const { data, error } = await supabase.functions.invoke('stripe-payment', {
-        body: {
-          action: 'get-saved-payment-methods',
-          customer_id: user?.id
-        }
-      });
-      
+      const { data, error } = await supabase.functions.invoke(
+        "stripe-payment",
+        {
+          body: {
+            action: "get-saved-payment-methods",
+            customer_id: user?.id,
+          },
+        },
+      );
+
       if (error) {
-        console.error('Error loading payment methods:', error);
+        console.error("Error loading payment methods:", error);
         setSavedPaymentMethods([]);
       } else {
         setSavedPaymentMethods(data?.paymentMethods || []);
       }
     } catch (error) {
-      console.error('Error loading payment methods:', error);
+      console.error("Error loading payment methods:", error);
       setSavedPaymentMethods([]);
     }
   };
 
   const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: currency.toUpperCase()
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: currency.toUpperCase(),
     }).format(amount / 100); // Convert from pence to pounds
   };
 
@@ -130,8 +155,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     if (feeBreakdown) {
       return feeBreakdown.marketplaceFee;
     }
-    if (paymentType === 'one_time') {
-      return Math.round(amount * 0.03); // 3% marketplace fee
+    if (paymentType === "one_time") {
+      return calculateMarketplaceFee(amount);
     }
     return 0;
   };
@@ -141,37 +166,42 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   };
 
   const handleCardInputChange = (field: string, value: string) => {
-    setCardDetails(prev => ({
+    setCardDetails((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const validateCardDetails = () => {
-    if (!cardDetails.number || !cardDetails.expiry || !cardDetails.cvc || !cardDetails.name) {
+    if (
+      !cardDetails.number ||
+      !cardDetails.expiry ||
+      !cardDetails.cvc ||
+      !cardDetails.name
+    ) {
       return false;
     }
-    
+
     // Basic validation
     if (cardDetails.number.length < 13 || cardDetails.number.length > 19) {
       return false;
     }
-    
+
     if (cardDetails.cvc.length < 3 || cardDetails.cvc.length > 4) {
       return false;
     }
-    
+
     return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateCardDetails()) {
       toast({
         title: "Validation Error",
         description: "Please fill in all card details correctly",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -180,45 +210,51 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
     try {
       // Capture Endorsely referral ID if present
-      const endorselyReferral = typeof window !== 'undefined' ? window.endorsely_referral : undefined;
+      const endorselyReferral =
+        typeof window !== "undefined" ? window.endorsely_referral : undefined;
 
       // Create payment intent
-      const { data, error } = await supabase.functions.invoke('stripe-payment', {
-        body: {
-          action: 'create-payment-intent',
-          amount: getTotalAmount(),
-          currency: currency.toLowerCase(),
-          payment_type: paymentType,
-          user_id: user?.id,
-          therapist_id: therapistId,
-          project_id: projectId,
-          session_id: sessionId,
-          stripe_product_id: stripeProductId,
-          stripe_price_id: stripePriceId,
-          product_category: productCategory,
-          therapist_type: therapistType,
-          endorsely_referral: endorselyReferral,
-          metadata: {
+      const { data, error } = await supabase.functions.invoke(
+        "stripe-payment",
+        {
+          body: {
+            action: "create-payment-intent",
+            amount: getTotalAmount(),
+            currency: currency.toLowerCase(),
             payment_type: paymentType,
+            user_id: user?.id,
             therapist_id: therapistId,
             project_id: projectId,
             session_id: sessionId,
+            stripe_product_id: stripeProductId,
+            stripe_price_id: stripePriceId,
             product_category: productCategory,
             therapist_type: therapistType,
-            ...(endorselyReferral && { endorsely_referral: endorselyReferral })
-          }
-        }
-      });
+            endorsely_referral: endorselyReferral,
+            metadata: {
+              payment_type: paymentType,
+              therapist_id: therapistId,
+              project_id: projectId,
+              session_id: sessionId,
+              product_category: productCategory,
+              therapist_type: therapistType,
+              ...(endorselyReferral && {
+                endorsely_referral: endorselyReferral,
+              }),
+            },
+          },
+        },
+      );
 
       if (error) throw error;
 
       // Confirm the payment with Stripe
-      const confirmResult = await supabase.functions.invoke('stripe-payment', {
+      const confirmResult = await supabase.functions.invoke("stripe-payment", {
         body: {
-          action: 'confirm-payment',
+          action: "confirm-payment",
           payment_intent_id: data.payment_intent_id,
-          payment_method_id: useSavedMethod ? paymentMethod?.id : undefined
-        }
+          payment_method_id: useSavedMethod ? paymentMethod?.id : undefined,
+        },
       });
 
       if (confirmResult.error) throw confirmResult.error;
@@ -231,37 +267,35 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       if (onSuccess) {
         onSuccess(data.payment_intent_id);
       }
-
     } catch (error) {
-      console.error('Payment error:', error);
+      console.error("Payment error:", error);
       toast({
         title: "Payment Failed",
-        description: "There was an error processing your payment. Please try again.",
-        variant: "destructive"
+        description:
+          "There was an error processing your payment. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
 
-
-
   const getPaymentTypeLabel = () => {
     switch (paymentType) {
-      case 'subscription':
-        return 'Subscription Payment';
-      case 'one_time':
-        return 'One-time Payment';
+      case "subscription":
+        return "Subscription Payment";
+      case "one_time":
+        return "One-time Payment";
       default:
-        return 'Payment';
+        return "Payment";
     }
   };
 
   const getPaymentTypeIcon = () => {
     switch (paymentType) {
-      case 'subscription':
+      case "subscription":
         return <Calendar className="h-4 w-4" />;
-      case 'one_time':
+      case "one_time":
         return <Zap className="h-4 w-4" />;
       default:
         return <CreditCard className="h-4 w-4" />;
@@ -284,19 +318,25 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           {/* Payment Summary */}
           <div className="bg-muted/50 rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Service Amount:</span>
+              <span className="text-sm text-muted-foreground">
+                Service Amount:
+              </span>
               <span className="font-medium">{formatAmount(amount)}</span>
             </div>
-            
+
             {/* Marketplace Fee Display */}
             {feeBreakdown && feeBreakdown.marketplaceFee > 0 && (
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <span className="text-sm text-muted-foreground">Marketplace Fee ({(MARKETPLACE_FEE.rate * 100).toFixed(1)}%):</span>
+                    <span className="text-sm text-muted-foreground">
+                      Platform fee ({MARKETPLACE_FEE_DISPLAY}):
+                    </span>
                     <Info className="h-3 w-3 text-muted-foreground" />
                   </div>
-                  <span className="font-medium">{formatCurrency(feeBreakdown.marketplaceFee)}</span>
+                  <span className="font-medium">
+                    {formatCurrency(feeBreakdown.marketplaceFee)}
+                  </span>
                 </div>
                 <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded">
                   <div className="flex items-center gap-1 mb-1">
@@ -304,16 +344,24 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                     <span className="font-medium">Fee Breakdown:</span>
                   </div>
                   <div>• You pay: {formatCurrency(amount)}</div>
-                  <div>• Practitioner receives: {formatCurrency(feeBreakdown.practitionerPayout)}</div>
-                  <div>• Platform fee: {formatCurrency(feeBreakdown.marketplaceFee)}</div>
+                  <div>
+                    • Practitioner receives:{" "}
+                    {formatCurrency(feeBreakdown.practitionerPayout)}
+                  </div>
+                  <div>
+                    • Platform fee:{" "}
+                    {formatCurrency(feeBreakdown.marketplaceFee)}
+                  </div>
                 </div>
               </>
             )}
-            
+
             <div className="border-t pt-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold">Total Payment:</span>
-                <span className="font-bold text-lg">{formatAmount(getTotalAmount())}</span>
+                <span className="font-bold text-lg">
+                  {formatAmount(getTotalAmount())}
+                </span>
               </div>
             </div>
           </div>
@@ -351,10 +399,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           {useSavedMethod && savedPaymentMethods.length > 0 && (
             <div className="space-y-3">
               <Label>Select Payment Method</Label>
-              <Select onValueChange={(value) => {
-                const method = savedPaymentMethods.find(m => m.id === value);
-                setPaymentMethod(method || null);
-              }}>
+              <Select
+                onValueChange={(value) => {
+                  const method = savedPaymentMethods.find(
+                    (m) => m.id === value,
+                  );
+                  setPaymentMethod(method || null);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a payment method" />
                 </SelectTrigger>
@@ -364,7 +416,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4" />
                         <span>
-                          {method.card?.brand?.toUpperCase()} •••• {method.card?.last4}
+                          {method.card?.brand?.toUpperCase()} ••••{" "}
+                          {method.card?.last4}
                         </span>
                       </div>
                     </SelectItem>
@@ -384,7 +437,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   type="text"
                   placeholder="1234 5678 9012 3456"
                   value={cardDetails.number}
-                  onChange={(e) => handleCardInputChange('number', e.target.value.replace(/\s/g, ''))}
+                  onChange={(e) =>
+                    handleCardInputChange(
+                      "number",
+                      e.target.value.replace(/\s/g, ""),
+                    )
+                  }
                   maxLength={19}
                 />
               </div>
@@ -397,7 +455,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                     type="text"
                     placeholder="MM/YY"
                     value={cardDetails.expiry}
-                    onChange={(e) => handleCardInputChange('expiry', e.target.value)}
+                    onChange={(e) =>
+                      handleCardInputChange("expiry", e.target.value)
+                    }
                     maxLength={5}
                   />
                 </div>
@@ -408,7 +468,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                     type="text"
                     placeholder="123"
                     value={cardDetails.cvc}
-                    onChange={(e) => handleCardInputChange('cvc', e.target.value)}
+                    onChange={(e) =>
+                      handleCardInputChange("cvc", e.target.value)
+                    }
                     maxLength={4}
                   />
                 </div>
@@ -421,7 +483,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   type="text"
                   placeholder="John Doe"
                   value={cardDetails.name}
-                  onChange={(e) => handleCardInputChange('name', e.target.value)}
+                  onChange={(e) =>
+                    handleCardInputChange("name", e.target.value)
+                  }
                 />
               </div>
 
@@ -438,9 +502,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
               </div>
 
               {/* Submit Button */}
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={loading || !validateCardDetails()}
               >
                 {loading ? (
@@ -465,17 +529,19 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 <div className="flex items-center gap-2 mb-2">
                   <CreditCard className="h-4 w-4" />
                   <span className="font-medium">
-                    {paymentMethod.card?.brand?.toUpperCase()} •••• {paymentMethod.card?.last4}
+                    {paymentMethod.card?.brand?.toUpperCase()} ••••{" "}
+                    {paymentMethod.card?.last4}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Expires {paymentMethod.card?.exp_month}/{paymentMethod.card?.exp_year}
+                  Expires {paymentMethod.card?.exp_month}/
+                  {paymentMethod.card?.exp_year}
                 </p>
               </div>
 
-              <Button 
+              <Button
                 onClick={handleSubmit}
-                className="w-full" 
+                className="w-full"
                 disabled={loading}
               >
                 {loading ? (
@@ -495,9 +561,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
           {/* Cancel Button */}
           {onCancel && (
-            <Button 
-              variant="outline" 
-              onClick={onCancel} 
+            <Button
+              variant="outline"
+              onClick={onCancel}
               className="w-full"
               disabled={loading}
             >
@@ -508,7 +574,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           {/* Payment Info */}
           <div className="text-xs text-muted-foreground text-center space-y-1">
             <p>Your payment is processed securely by Stripe</p>
-            <p>You will receive a confirmation email once payment is complete</p>
+            <p>
+              You will receive a confirmation email once payment is complete
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -32,6 +32,12 @@ export default function AuthLayout() {
           gestureEnabled: false,
         }}
       />
+      <Stack.Screen
+        name="practitioner-onboarding"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
     </Stack>
   );
 }

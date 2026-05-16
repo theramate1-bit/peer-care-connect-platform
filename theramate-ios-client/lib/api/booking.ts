@@ -8,6 +8,7 @@
 import { unknownToError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 import { createSessionCheckout } from "@/lib/api/payment";
+import { BOOKING_CONFIG } from "@/constants/config";
 
 export type PractitionerProductRow = {
   id: string;
@@ -61,6 +62,103 @@ const WEEKDAY_KEYS = [
   "friday",
   "saturday",
 ] as const;
+
+const DEFAULT_PRACTITIONER_TIMEZONE = "Europe/London";
+
+const SHORT_WEEKDAY_TO_DOW: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+function normalizePractitionerTz(tz: string | null | undefined): string {
+  const s = (tz || "").trim();
+  return s || DEFAULT_PRACTITIONER_TIMEZONE;
+}
+
+function zonedDateTimeToUtcMs(
+  dateStr: string,
+  timeHHMM: string,
+  timeZone: string,
+): number | null {
+  const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!dm) return null;
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const da = Number(dm[3]);
+  const norm =
+    timeHHMM.trim().length >= 5 ? timeHHMM.trim().slice(0, 5) : timeHHMM.trim();
+  const tm = /^(\d{1,2}):(\d{2})$/.exec(norm);
+  if (!tm) return null;
+  const hh = Number(tm[1]);
+  const mm = Number(tm[2]);
+  if (![y, mo, da, hh, mm].every((n) => Number.isFinite(n))) return null;
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const matchesMinute = (t: number): boolean => {
+    const parts = Object.fromEntries(
+      fmt
+        .formatToParts(new Date(t))
+        .filter((p) => p.type !== "literal")
+        .map((p) => [p.type, p.value]),
+    ) as Record<string, string>;
+    const py = Number(parts.year);
+    const pm = Number(parts.month);
+    const pd = Number(parts.day);
+    const ph = Number(parts.hour);
+    const pmi = Number(parts.minute);
+    return py === y && pm === mo && pd === da && ph === hh && pmi === mm;
+  };
+
+  const lo = Date.UTC(y, mo - 1, da - 1, 0, 0, 0);
+  const hi = Date.UTC(y, mo - 1, da + 2, 0, 0, 0);
+  for (let t = lo; t <= hi; t += 60 * 1000) {
+    if (matchesMinute(t)) return t;
+  }
+  return null;
+}
+
+function addDaysToYmd(dateStr: string, days: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!m) return dateStr;
+  const u = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days);
+  return new Date(u).toISOString().slice(0, 10);
+}
+
+function weekdayInPractitionerZone(dateStr: string, timeZone: string): number {
+  const ms = zonedDateTimeToUtcMs(dateStr, "12:00", timeZone);
+  if (ms == null) return localDayOfWeekFromDateString(dateStr);
+  const short = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+  }).format(new Date(ms));
+  const key = short.slice(0, 3);
+  return SHORT_WEEKDAY_TO_DOW[key] ?? localDayOfWeekFromDateString(dateStr);
+}
+
+function dayBoundsInPractitionerZone(
+  dateStr: string,
+  timeZone: string,
+): { start: Date; end: Date } | null {
+  const startMs = zonedDateTimeToUtcMs(dateStr, "00:00", timeZone);
+  const nextYmd = addDaysToYmd(dateStr, 1);
+  const endMs = zonedDateTimeToUtcMs(nextYmd, "00:00", timeZone);
+  if (startMs == null || endMs == null) return null;
+  return { start: new Date(startMs), end: new Date(endMs) };
+}
 
 /**
  * When a practitioner has products but never saved `practitioner_availability`
@@ -144,8 +242,16 @@ function slotOverlapsCalendarEvent(
   durationMin: number,
   evStartIso: string,
   evEndIso: string,
+  practitionerTimeZone: string,
 ): boolean {
-  const slotStartMs = new Date(`${date}T${hhmm}:00`).getTime();
+  const slotStartMs = zonedDateTimeToUtcMs(date, hhmm, practitionerTimeZone);
+  if (slotStartMs == null) {
+    const slotStartMsLocal = new Date(`${date}T${hhmm}:00`).getTime();
+    const slotEndMsLocal = slotStartMsLocal + durationMin * 60 * 1000;
+    const es = new Date(evStartIso).getTime();
+    const ee = new Date(evEndIso).getTime();
+    return slotStartMsLocal < ee && es < slotEndMsLocal;
+  }
   const slotEndMs = slotStartMs + durationMin * 60 * 1000;
   const es = new Date(evStartIso).getTime();
   const ee = new Date(evEndIso).getTime();
@@ -158,6 +264,7 @@ async function filterCandidatesByBlocks(
   practitionerId: string,
   date: string,
   durationMin: number,
+  practitionerTimeZone: string,
 ): Promise<string[]> {
   if (candidates.length === 0) return [];
 
@@ -237,15 +344,17 @@ async function filterCandidatesByBlocks(
     return true;
   });
 
-  const { start: dayStart, end: dayEnd } = dayBoundsLocal(date);
+  const bounds =
+    dayBoundsInPractitionerZone(date, practitionerTimeZone) ??
+    dayBoundsLocal(date);
   const { data: calendarBlocks, error: cErr } = await supabase
     .from("calendar_events")
     .select("start_time, end_time")
     .eq("user_id", practitionerId)
     .in("event_type", ["block", "unavailable"])
     .eq("status", "confirmed")
-    .lt("start_time", dayEnd.toISOString())
-    .gt("end_time", dayStart.toISOString());
+    .lt("start_time", bounds.end.toISOString())
+    .gt("end_time", bounds.start.toISOString());
 
   if (cErr) throw cErr;
 
@@ -256,7 +365,16 @@ async function filterCandidatesByBlocks(
       const s = ev.start_time;
       const e = ev.end_time;
       if (typeof s !== "string" || typeof e !== "string") continue;
-      if (slotOverlapsCalendarEvent(date, t, durationMin, s, e)) {
+      if (
+        slotOverlapsCalendarEvent(
+          date,
+          t,
+          durationMin,
+          s,
+          e,
+          practitionerTimeZone,
+        )
+      ) {
         return false;
       }
     }
@@ -298,24 +416,26 @@ export async function fetchAvailableStartTimes(params: {
   durationMinutes: number;
 }): Promise<{ data: string[]; error: Error | null }> {
   try {
-    const dayOfWeek = localDayOfWeekFromDateString(params.date);
-    const dayKey = WEEKDAY_KEYS[dayOfWeek];
     const requestedDuration = Math.max(15, params.durationMinutes);
     const slotStep = 15;
 
     const { data: pa, error: paErr } = await supabase
       .from("practitioner_availability")
-      .select("working_hours")
+      .select("working_hours, timezone")
       .eq("user_id", params.practitionerId)
       .maybeSingle();
 
     if (paErr) throw paErr;
 
+    const practitionerTz = normalizePractitionerTz(
+      pa?.timezone as string | undefined,
+    );
+    const dayOfWeek = weekdayInPractitionerZone(params.date, practitionerTz);
+    const dayKey = WEEKDAY_KEYS[dayOfWeek];
+
     const rawWh = pa?.working_hours as Record<string, unknown> | undefined;
     const hasSavedSchedule =
-      !!rawWh &&
-      typeof rawWh === "object" &&
-      Object.keys(rawWh).length > 0;
+      !!rawWh && typeof rawWh === "object" && Object.keys(rawWh).length > 0;
 
     const wh = hasSavedSchedule ? rawWh! : DEFAULT_WORKING_HOURS;
 
@@ -336,8 +456,7 @@ export async function fetchAvailableStartTimes(params: {
         times.add(toTimeString(t));
       }
     }
-    let candidates: string[] =
-      times.size > 0 ? [...times].sort() : [];
+    let candidates: string[] = times.size > 0 ? [...times].sort() : [];
 
     if (candidates.length === 0 && !hasSavedSchedule) {
       const { data, error } = await supabase
@@ -373,8 +492,18 @@ export async function fetchAvailableStartTimes(params: {
       params.practitionerId,
       params.date,
       requestedDuration,
+      practitionerTz,
     );
-    return { data: filtered.sort(), error: null };
+
+    const cutoff =
+      Date.now() + BOOKING_CONFIG.MIN_BOOKING_BUFFER_HOURS * 3600 * 1000;
+    const withBuffer = filtered.filter((slot) => {
+      const ms = zonedDateTimeToUtcMs(params.date, slot, practitionerTz);
+      if (ms == null) return false;
+      return ms >= cutoff;
+    });
+
+    return { data: withBuffer.sort(), error: null };
   } catch (e) {
     return { data: [], error: unknownToError(e) };
   }
@@ -397,13 +526,15 @@ export type BookAndPayParams = {
   startTime: string;
   product: PractitionerProductRow;
   notes?: string | null;
+  paymentCollection?: "online" | "in_person";
 };
 
 export type BookAndPayResult =
   | {
       ok: true;
-      checkoutUrl: string;
       sessionId: string;
+      paymentCollection: "online" | "in_person";
+      checkoutUrl?: string;
       checkoutSessionId?: string;
       paymentIntentClientSecret?: string;
       customerId?: string;
@@ -439,6 +570,8 @@ export type CreateMobileRequestResult =
 export async function bookSessionAndOpenCheckout(
   p: BookAndPayParams,
 ): Promise<BookAndPayResult> {
+  const paymentCollection = p.paymentCollection ?? "online";
+  const isInPerson = paymentCollection === "in_person";
   const priceMinor = p.product.price_amount;
   const price = Math.round(priceMinor) / 100;
   const duration = p.product.duration_minutes ?? 60;
@@ -461,11 +594,12 @@ export async function bookSessionAndOpenCheckout(
       p_price: price,
       p_client_phone: p.clientPhone,
       p_notes: notes,
-      p_payment_status: "pending",
-      p_status: "pending_payment",
-      p_expires_at: expiresAt,
+      p_payment_status: isInPerson ? "awaiting_in_person" : "pending",
+      p_status: isInPerson ? "scheduled" : "pending_payment",
+      p_expires_at: isInPerson ? null : expiresAt,
       p_idempotency_key: idempotencyKey,
       p_is_guest_booking: false,
+      p_payment_collection: paymentCollection,
       p_appointment_type: "clinic",
       p_visit_address: null,
     } as Record<string, unknown>,
@@ -486,6 +620,13 @@ export async function bookSessionAndOpenCheckout(
   }
 
   const sessionId = result.session_id;
+  if (isInPerson) {
+    return {
+      ok: true,
+      sessionId,
+      paymentCollection: "in_person",
+    };
+  }
 
   const payment = await createSessionCheckout({
     sessionId,
@@ -528,6 +669,7 @@ export async function bookSessionAndOpenCheckout(
 
   return {
     ok: true,
+    paymentCollection: "online",
     checkoutUrl: payment.checkoutUrl,
     sessionId,
     checkoutSessionId: payment.checkoutSessionId,

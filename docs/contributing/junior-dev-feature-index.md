@@ -39,7 +39,10 @@
 | **Dashboard**          | [dashboard-overview.md](../features/dashboard-overview.md)                           | Practitioner home; Today's Schedule, New Bookings, metrics        |
 | **Client Management**  | [client-management-overview.md](../features/client-management-overview.md)           | Client list, sessions, treatment notes, goals                     |
 | **Services & Pricing** | [services-and-pricing-overview.md](../features/services-and-pricing-overview.md)     | Products, service types, marketplace eligibility                  |
+| **Payment System**     | [payment-system.md](../features/payment-system.md)                                   | Checkout, Connect, payouts, subscriptions, webhooks               |
+| **Credit System**      | [credit-system.md](../features/credit-system.md)                                     | Credits, balances, exchange economy entry point                   |
 | **Treatment Exchange** | [how-treatment-exchange-works.md](../features/how-treatment-exchange-works.md)       | Credits, request flow, accept/decline                             |
+| **Treatment Notes**    | [treatment-notes.md](../features/treatment-notes.md)                                 | Clinical notes, SOAP flows, attachments, care-plan context        |
 | **Notifications**      | [notifications-overview.md](../features/notifications-overview.md)                   | In-app notifications, read/dismiss, routing                       |
 | **Messaging**          | [messaging.md](../features/messaging.md)                                             | Practitioner–client messaging; guest email path                   |
 | **Profile**            | [profile-and-onboarding-overview.md](../features/profile-and-onboarding-overview.md) | Profile page, onboarding, therapist type validation               |
@@ -56,13 +59,15 @@
 
 ## Booking & Payments
 
-| Topic                       | Doc                                                                  | Summary                            |
-| --------------------------- | -------------------------------------------------------------------- | ---------------------------------- |
-| **How booking works**       | [how-booking-works.md](../features/how-booking-works.md)             | Booking flow steps                 |
-| **Booking flows reference** | [booking-flows-reference.md](../features/booking-flows-reference.md) | Step behavior, save timing         |
-| **Session location rule**   | [session-location-rule.md](../features/session-location-rule.md)     | Clinic vs Visit display            |
-| **How payments work**       | [how-payments-work.md](../features/how-payments-work.md)             | Stripe, checkout                   |
-| **How credits work**        | [how-credits-work.md](../features/how-credits-work.md)               | Credit economy, treatment exchange |
+| Topic                         | Doc                                                                  | Summary                            |
+| ----------------------------- | -------------------------------------------------------------------- | ---------------------------------- |
+| **How booking works**         | [how-booking-works.md](../features/how-booking-works.md)             | Booking flow steps                 |
+| **Booking flows reference**   | [booking-flows-reference.md](../features/booking-flows-reference.md) | Step behavior, save timing         |
+| **Session location rule**     | [session-location-rule.md](../features/session-location-rule.md)     | Clinic vs Visit display            |
+| **Payment system (overview)** | [payment-system.md](../features/payment-system.md)                   | End-to-end money flow map          |
+| **How payments work**         | [how-payments-work.md](../features/how-payments-work.md)             | Stripe, checkout                   |
+| **Credit system (overview)**  | [credit-system.md](../features/credit-system.md)                     | Credits and exchange entry point   |
+| **How credits work**          | [how-credits-work.md](../features/how-credits-work.md)               | Credit economy, treatment exchange |
 
 ---
 
@@ -79,11 +84,14 @@
 | Understand clinic/mobile/hybrid logic         | [PRACTITIONER_TYPE_CLINIC_BASED.md](../product/PRACTITIONER_TYPE_CLINIC_BASED.md) + Mobile + Hybrid |
 | Understand what the diary shows               | [diary-overview.md](../features/diary-overview.md)                                                  |
 | Understand what the dashboard shows           | [dashboard-overview.md](../features/dashboard-overview.md)                                          |
+| Understand checkout/payout/subscription flow  | [payment-system.md](../features/payment-system.md)                                                  |
+| Understand credits at a system level          | [credit-system.md](../features/credit-system.md)                                                    |
 | Understand treatment exchange flow            | [how-treatment-exchange-works.md](../features/how-treatment-exchange-works.md)                      |
+| Understand treatment-note architecture        | [treatment-notes.md](../features/treatment-notes.md)                                                |
 | Understand notifications                      | [notifications-overview.md](../features/notifications-overview.md)                                  |
 | Understand messaging (guest vs client)        | [messaging.md](../features/messaging.md)                                                            |
 | General onboarding                            | [junior-developer-guide.md](./junior-developer-guide.md)                                            |
 
 ---
 
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-04-21

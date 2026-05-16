@@ -4,6 +4,8 @@
 
 This document describes every core table in the `public` schema, derived from Supabase MCP (`list_tables`, `execute_sql`). Each table includes: purpose, key columns, defaults, and links to code that reads/writes it.
 
+**Concise live snapshot (tables + edge functions + security advisory):** [supabase-mcp-live-reference.md](./supabase-mcp-live-reference.md)
+
 **Full schema:** For every table with complete column definitions (type, nullable, default), see [database-complete-schema.md](./database-complete-schema.md).
 
 ---

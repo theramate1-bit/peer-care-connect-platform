@@ -271,7 +271,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ isLoading: true, error: null });
 
-          if (options?.signupRole === "client" || options?.signupRole === "practitioner") {
+          if (
+            options?.signupRole === "client" ||
+            options?.signupRole === "practitioner"
+          ) {
             await setPendingOAuthSignupRole(options.signupRole);
           } else {
             await clearPendingOAuthSignupRole();
@@ -424,5 +427,4 @@ export const selectIsAuthenticated = (state: AuthState) => !!state.session;
 export const selectIsClient = (state: AuthState) =>
   state.userProfile?.user_role === "client";
 export const selectNeedsOnboarding = (state: AuthState) =>
-  state.userProfile?.user_role === "client" &&
-  state.userProfile?.onboarding_status !== "completed";
+  !!state.userProfile && state.userProfile.onboarding_status !== "completed";

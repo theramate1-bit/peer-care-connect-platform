@@ -23,6 +23,7 @@ import {
   XCircle,
   AlertCircle,
   MapPin,
+  Plus,
 } from "lucide-react-native";
 
 import { PressableCard } from "@/components/ui/Card";
@@ -38,6 +39,23 @@ import {
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 
 type TabType = "upcoming" | "past";
+
+const paymentStatusSummary = (session: SessionWithClient): string => {
+  const paymentCollection = (
+    session.payment_collection || "online"
+  ).toLowerCase();
+  const paymentStatus = (session.payment_status || "pending").toLowerCase();
+  if (paymentCollection === "in_person") {
+    if (paymentStatus === "completed") return "Paid in person";
+    if (paymentStatus === "awaiting_in_person")
+      return "Awaiting payment at clinic";
+    return "Pay at clinic";
+  }
+  if (paymentStatus === "completed" || paymentStatus === "paid")
+    return "Paid online";
+  if (paymentStatus === "pending") return "Online payment pending";
+  return `Payment: ${paymentStatus.replace("_", " ")}`;
+};
 
 const StatusBadge = ({ status }: { status: string }) => {
   const config = {
@@ -153,7 +171,10 @@ function SessionCard({
 
           <View className="flex-row items-center mt-2">
             <MapPin size={12} color={Colors.charcoal[400]} />
-            <Text className="text-charcoal-400 text-xs ml-1 flex-1" numberOfLines={2}>
+            <Text
+              className="text-charcoal-400 text-xs ml-1 flex-1"
+              numberOfLines={2}
+            >
               {(session.appointment_type || "clinic").toLowerCase() === "mobile"
                 ? session.visit_address
                   ? `Visit · ${session.visit_address}`
@@ -161,6 +182,10 @@ function SessionCard({
                 : "Clinic"}
             </Text>
           </View>
+
+          <Text className="text-charcoal-500 text-xs mt-2">
+            {paymentStatusSummary(session)}
+          </Text>
 
           <View className="flex-row items-center justify-between mt-3">
             <Text className="text-sage-600 font-semibold">
@@ -262,16 +287,26 @@ export default function PractitionerBookingsScreen() {
         title="Sessions"
         subtitle="Upcoming and past — open one for notes, care plans, and messages."
         right={
-          <TouchableOpacity
-            onPress={() =>
-              router.push(tabPath(tabRoot, "schedule") as Href)
-            }
-            className="w-11 h-11 rounded-2xl bg-white border border-cream-200 items-center justify-center"
-            accessibilityRole="button"
-            accessibilityLabel="Diary"
-          >
-            <Calendar size={22} color={Colors.sage[600]} />
-          </TouchableOpacity>
+          <View className="flex-row items-center">
+            <TouchableOpacity
+              onPress={() =>
+                router.push(tabPath(tabRoot, "bookings/new") as Href)
+              }
+              className="w-11 h-11 rounded-2xl bg-sage-500 items-center justify-center mr-2"
+              accessibilityRole="button"
+              accessibilityLabel="New manual booking"
+            >
+              <Plus size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push(tabPath(tabRoot, "schedule") as Href)}
+              className="w-11 h-11 rounded-2xl bg-white border border-cream-200 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel="Diary"
+            >
+              <Calendar size={22} color={Colors.sage[600]} />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -338,15 +373,25 @@ export default function PractitionerBookingsScreen() {
                 No {activeTab} sessions
               </Text>
               {activeTab === "upcoming" ? (
-                <Button
-                  variant="primary"
-                  className="mt-6"
-                  onPress={() =>
-                    router.push(tabPath(tabRoot, "schedule") as Href)
-                  }
-                >
-                  Open diary
-                </Button>
+                <View className="mt-6 w-full items-center">
+                  <Button
+                    variant="primary"
+                    onPress={() =>
+                      router.push(tabPath(tabRoot, "bookings/new") as Href)
+                    }
+                  >
+                    Create manual booking
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="mt-2"
+                    onPress={() =>
+                      router.push(tabPath(tabRoot, "schedule") as Href)
+                    }
+                  >
+                    Open diary
+                  </Button>
+                </View>
               ) : null}
             </View>
           ) : (

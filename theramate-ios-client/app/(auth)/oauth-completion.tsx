@@ -16,6 +16,7 @@ import {
 import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { useAuthStore } from "@/stores/authStore";
 import { getMainAppHref } from "@/lib/postAuthRoute";
+import { isPractitionerPortalRole } from "@/lib/authRoles";
 import type { UserRole } from "@/types/database";
 
 function sleep(ms: number) {
@@ -159,11 +160,17 @@ export default function OAuthCompletionScreen() {
       // Onboarding’s `updateProfile` requires it; refresh before leaving this screen.
       await useAuthStore.getState().refreshProfile();
 
-      // Only clients use the in-app onboarding flow; practitioners may use other surfaces.
-      if (profile.user_role === "client" && profile.onboarding_status !== "completed") {
-        setStatusMessage("Opening onboarding…");
-        router.replace("/onboarding");
-        return;
+      if (profile.onboarding_status !== "completed") {
+        if (profile.user_role === "client") {
+          setStatusMessage("Opening onboarding…");
+          router.replace("/onboarding");
+          return;
+        }
+        if (isPractitionerPortalRole(profile.user_role)) {
+          setStatusMessage("Opening practitioner setup…");
+          router.replace("/practitioner-onboarding");
+          return;
+        }
       }
 
       setStatusMessage("Opening your dashboard…");
@@ -250,10 +257,7 @@ export default function OAuthCompletionScreen() {
 
         {!fatalError && !timedOut && isRetrying && (
           <View className="w-full mt-6">
-            <Button
-              variant="primary"
-              onPress={() => router.replace("/login")}
-            >
+            <Button variant="primary" onPress={() => router.replace("/login")}>
               <Text className="text-white font-semibold">Back to sign in</Text>
             </Button>
           </View>

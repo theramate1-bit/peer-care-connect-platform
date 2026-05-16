@@ -1,5 +1,5 @@
 /**
- * Booking flow — service, date/time, confirm, Stripe Checkout (Edge Function).
+ * Booking flow — service, date/time, pre-assessment, payment method, confirm.
  */
 
 import React, { useMemo, useState } from "react";
@@ -34,11 +34,12 @@ import { signedInTabPath } from "@/lib/signedInRoutes";
 import { useAuthStore } from "@/stores/authStore";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
 
-const STEP_LABELS = [
+const BASE_STEP_LABELS = [
   "Service",
   "Date & time",
   "Pre-assessment",
-  "Review & pay",
+  "Payment method",
+  "Review & confirm",
 ] as const;
 
 export default function BookingModalScreen() {
@@ -88,6 +89,18 @@ export default function BookingModalScreen() {
   const [mobilityImpact, setMobilityImpact] = useState("");
   const [goals, setGoals] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [paymentCollection, setPaymentCollection] = useState<
+    "online" | "in_person"
+  >("online");
+
+  const supportsInPerson = therapist?.accept_in_person_payment === true;
+  const stepLabels = supportsInPerson
+    ? BASE_STEP_LABELS
+    : (BASE_STEP_LABELS.filter(
+        (x) => x !== "Payment method",
+      ) as readonly string[]);
+  const reviewStep = stepLabels.length - 1;
+  const paymentStep = supportsInPerson ? 3 : -1;
 
   const dateOptions = useMemo(() => {
     return Array.from({ length: 21 }, (_, i) => {
@@ -175,6 +188,7 @@ Current issue: ${currentIssue || "Not provided"}
 Pain level (0-10): ${painLevel || "0"}
 Mobility impact: ${mobilityImpact || "Not provided"}
 Goals: ${goals || "Not provided"}`,
+        paymentCollection,
       });
 
       if (!result.ok) {
@@ -188,6 +202,28 @@ Goals: ${goals || "Not provided"}`,
       await queryClient.invalidateQueries({
         queryKey: ["client_sessions", userId],
       });
+
+      if (result.paymentCollection === "in_person") {
+        Alert.alert(
+          "Booking confirmed",
+          "Your session is booked. You will pay at the clinic.",
+          [
+            {
+              text: "Open booking",
+              onPress: () =>
+                router.replace(
+                  tabPath(
+                    getMainAppHref(
+                      useAuthStore.getState().userProfile?.user_role,
+                    ),
+                    `bookings/${result.sessionId}`,
+                  ) as never,
+                ),
+            },
+          ],
+        );
+        return;
+      }
 
       // Prefer native PaymentSheet when server returns required Stripe secrets.
       if (result.paymentIntentClientSecret) {
@@ -205,9 +241,7 @@ Goals: ${goals || "Not provided"}`,
           if (!presented.error) {
             router.replace(
               tabPath(
-                getMainAppHref(
-                  useAuthStore.getState().userProfile?.user_role,
-                ),
+                getMainAppHref(useAuthStore.getState().userProfile?.user_role),
                 `bookings/${result.sessionId}`,
               ) as never,
             );
@@ -216,6 +250,13 @@ Goals: ${goals || "Not provided"}`,
         }
       }
 
+      if (!result.checkoutUrl) {
+        Alert.alert(
+          "Payment setup failed",
+          "Could not open checkout. Please try again.",
+        );
+        return;
+      }
       openHostedWebSession({
         kind: "stripe_checkout",
         url: result.checkoutUrl,
@@ -239,9 +280,7 @@ Goals: ${goals || "Not provided"}`,
           <Button
             variant="primary"
             className="mt-8"
-            onPress={() =>
-              router.replace(signedInTabPath("explore") as never)
-            }
+            onPress={() => router.replace(signedInTabPath("explore") as never)}
           >
             Browse therapists
           </Button>
@@ -286,9 +325,7 @@ Goals: ${goals || "Not provided"}`,
           <Button
             variant="primary"
             className="mt-8"
-            onPress={() =>
-              router.replace(signedInTabPath("explore") as never)
-            }
+            onPress={() => router.replace(signedInTabPath("explore") as never)}
           >
             Open Explore
           </Button>
@@ -314,10 +351,10 @@ Goals: ${goals || "Not provided"}`,
           {therapist.first_name} {therapist.last_name}
         </Text>
         <Text className="text-charcoal-600 text-sm font-medium mt-2">
-          {STEP_LABELS[step]}
+          {stepLabels[step]}
         </Text>
         <Text className="text-charcoal-400 text-xs mt-1">
-          Step {step + 1} of 4
+          Step {step + 1} of {stepLabels.length}
         </Text>
       </View>
 
@@ -337,7 +374,8 @@ Goals: ${goals || "Not provided"}`,
               <ActivityIndicator color={Colors.sage[500]} />
             ) : products.length === 0 ? (
               <Text className="text-charcoal-500">
-                No bookable services found. Try again later or choose another practitioner.
+                No bookable services found. Try again later or choose another
+                practitioner.
               </Text>
             ) : (
               products.map((p) => (
@@ -543,7 +581,7 @@ Goals: ${goals || "Not provided"}`,
             <Button
               variant="primary"
               className="mt-8"
-              onPress={() => setStep(3)}
+              onPress={() => setStep(supportsInPerson ? 3 : reviewStep)}
             >
               <Text className="text-white font-semibold">
                 Continue to review
@@ -559,13 +597,74 @@ Goals: ${goals || "Not provided"}`,
           </View>
         )}
 
-        {step === 3 && selectedProduct && (
+        {step === paymentStep && selectedProduct && (
           <View>
             <Text className="text-charcoal-800 font-semibold mb-1">
-              Review & pay
+              Payment method
             </Text>
             <Text className="text-charcoal-500 text-sm mb-4">
-              Check details, then complete secure payment.
+              Choose whether to pay online now or at the clinic.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setPaymentCollection("online")}
+              className={`mb-3 p-4 rounded-xl border ${
+                paymentCollection === "online"
+                  ? "border-sage-500 bg-sage-500/10"
+                  : "border-cream-200 bg-white"
+              }`}
+            >
+              <Text className="text-charcoal-900 font-semibold">
+                Pay online
+              </Text>
+              <Text className="text-charcoal-500 text-sm mt-1">
+                Secure card payment now via Stripe.
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setPaymentCollection("in_person")}
+              className={`mb-3 p-4 rounded-xl border ${
+                paymentCollection === "in_person"
+                  ? "border-sage-500 bg-sage-500/10"
+                  : "border-cream-200 bg-white"
+              }`}
+            >
+              <Text className="text-charcoal-900 font-semibold">
+                Pay at clinic
+              </Text>
+              <Text className="text-charcoal-500 text-sm mt-1">
+                Pay by cash or card terminal at your appointment.
+              </Text>
+            </TouchableOpacity>
+
+            <Button
+              variant="primary"
+              className="mt-4"
+              onPress={() => setStep(reviewStep)}
+            >
+              <Text className="text-white font-semibold">Continue</Text>
+            </Button>
+            <Button
+              variant="outline"
+              className="mt-3"
+              onPress={() => setStep(2)}
+            >
+              <Text className="text-charcoal-700 font-medium">Back</Text>
+            </Button>
+          </View>
+        )}
+
+        {step === reviewStep && selectedProduct && (
+          <View>
+            <Text className="text-charcoal-800 font-semibold mb-1">
+              Review & confirm
+            </Text>
+            <Text className="text-charcoal-500 text-sm mb-4">
+              Check details, then{" "}
+              {paymentCollection === "in_person"
+                ? "confirm your booking."
+                : "complete secure payment."}
             </Text>
             <View className="bg-white border border-cream-200 rounded-xl p-4 mb-4">
               <Text className="text-charcoal-900 font-semibold">
@@ -581,6 +680,17 @@ Goals: ${goals || "Not provided"}`,
               <Text className="text-charcoal-900 font-semibold mt-3">
                 {priceLabel}
               </Text>
+              <Text className="text-charcoal-600 mt-2">
+                Payment:{" "}
+                {paymentCollection === "in_person"
+                  ? "Pay at clinic"
+                  : "Pay online"}
+              </Text>
+              {paymentCollection === "in_person" ? (
+                <Text className="text-charcoal-500 text-sm mt-1">
+                  No platform fee is charged on pay-at-clinic bookings.
+                </Text>
+              ) : null}
             </View>
 
             <TouchableOpacity
@@ -612,13 +722,17 @@ Goals: ${goals || "Not provided"}`,
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-white font-semibold">Pay securely</Text>
+                <Text className="text-white font-semibold">
+                  {paymentCollection === "in_person"
+                    ? "Confirm booking"
+                    : "Pay securely"}
+                </Text>
               )}
             </Button>
             <Button
               variant="outline"
               className="mt-3"
-              onPress={() => setStep(2)}
+              onPress={() => setStep(supportsInPerson ? paymentStep : 2)}
               disabled={submitting}
             >
               <Text className="text-charcoal-700 font-medium">Back</Text>

@@ -138,7 +138,11 @@ export default function SettingsSubscriptionScreen() {
               ? error.message
               : "Could not load subscription."}
           </Text>
-          <Button variant="primary" className="mt-6" onPress={() => void refetch()}>
+          <Button
+            variant="primary"
+            className="mt-6"
+            onPress={() => void refetch()}
+          >
             Retry
           </Button>
         </View>
@@ -149,7 +153,11 @@ export default function SettingsSubscriptionScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {summary?.accessDenied ? (
-            <Card variant="default" padding="md" className="mb-4 border border-warning/30">
+            <Card
+              variant="default"
+              padding="md"
+              className="mb-4 border border-warning/30"
+            >
               <View className="flex-row items-start">
                 <AlertCircle size={20} color={Colors.warning} />
                 <Text className="text-charcoal-800 ml-2 flex-1 leading-6">
@@ -168,9 +176,16 @@ export default function SettingsSubscriptionScreen() {
               </Text>
               <Text className="text-charcoal-500 mt-2 leading-6">
                 When you subscribe to a Theramate plan, your status and renewal
-                dates will appear here. You can add or manage cards in the secure
-                billing area once you have a Stripe customer record.
+                dates will appear here. You can add or manage cards in the
+                secure billing area once you have a Stripe customer record.
               </Text>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onPress={() => router.push("/pricing" as never)}
+              >
+                Plans & platform fees
+              </Button>
             </Card>
           ) : sub ? (
             <Card variant="default" padding="md" className="mb-4">

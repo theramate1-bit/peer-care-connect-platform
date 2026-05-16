@@ -1,0 +1,432 @@
+/**
+ * Single treatment exchange request — native detail, accept / decline / cancel, status for all states.
+ */
+
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams, router, type Href } from "expo-router";
+import { ChevronLeft } from "lucide-react-native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { Colors } from "@/constants/colors";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { goBackOrReplace } from "@/lib/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  fetchExchangeRequestByIdForParticipant,
+  fetchAcceptedExchangesNeedingReciprocal,
+  declineExchangeRequest,
+  acceptExchangeRequest,
+  cancelExchangeRequestByRequester,
+  type ExchangeRequestDetail,
+} from "@/lib/api/practitionerExchange";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function fmtTime(t: string | null | undefined): string {
+  if (t == null) return "";
+  const s = String(t);
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
+function statusTitle(status: string | null | undefined): string {
+  const s = (status || "").toLowerCase();
+  if (s === "pending") return "Pending";
+  if (s === "accepted") return "Accepted";
+  if (s === "declined") return "Declined";
+  if (s === "cancelled") return "Cancelled";
+  if (s === "expired") return "Expired";
+  return status || "Unknown";
+}
+
+export default function PractitionerExchangeRequestDetailScreen() {
+  const tabRoot = useTabRoot();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+
+  const requestId = typeof id === "string" ? id : "";
+  const idOk = UUID_RE.test(requestId);
+
+  const {
+    data: detail,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["exchange_request_detail", requestId, userId],
+    queryFn: async () => {
+      if (!userId || !idOk) return null;
+      const { data, error: e } = await fetchExchangeRequestByIdForParticipant({
+        requestId,
+        userId,
+      });
+      if (e) throw e;
+      return data;
+    },
+    enabled: !!userId && idOk,
+  });
+
+  const { data: reciprocalRows = [] } = useQuery({
+    queryKey: ["exchange_reciprocal_needed", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error: e } =
+        await fetchAcceptedExchangesNeedingReciprocal(userId);
+      if (e) throw e;
+      return data;
+    },
+    enabled: !!userId && !!detail && detail.status === "accepted",
+  });
+
+  const needsReciprocalBook =
+    detail?.viewerRole === "recipient" &&
+    detail.status === "accepted" &&
+    reciprocalRows.some((r) => r.exchange_request_id === requestId);
+
+  const invalidateAll = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["exchange_pending"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_reciprocal_needed", userId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_sent", userId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["practitioner_dashboard", userId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_request_detail"],
+    });
+  };
+
+  const backToList = () =>
+    goBackOrReplace(tabPath(tabRoot, "exchange") as Href);
+
+  const onDecline = (row: ExchangeRequestDetail) => {
+    if (!userId) return;
+    Alert.alert("Decline exchange", "Notify the other practitioner?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Decline",
+        style: "destructive",
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const res = await declineExchangeRequest({
+              requestId: row.id,
+              recipientId: userId,
+              reason: declineReason.trim() || undefined,
+            });
+            if (!res.ok) {
+              Alert.alert("Error", res.error?.message || "Could not decline");
+              return;
+            }
+            await invalidateAll();
+            void refetch();
+            backToList();
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const onAccept = (row: ExchangeRequestDetail) => {
+    if (!userId) return;
+    Alert.alert(
+      "Accept exchange?",
+      "This confirms the requested session and starts the exchange. You will then book your return session.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Accept",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const res = await acceptExchangeRequest({
+                requestId: row.id,
+                recipientId: userId,
+              });
+              if (!res.ok) {
+                Alert.alert("Error", res.error?.message || "Could not accept");
+                return;
+              }
+              await invalidateAll();
+              void refetch();
+              Alert.alert(
+                "Accepted",
+                "Book your return session from Treatment exchange.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onCancel = (row: ExchangeRequestDetail) => {
+    if (!userId) return;
+    Alert.alert(
+      "Cancel this request?",
+      "The other practitioner will be notified.",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Cancel request",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const res = await cancelExchangeRequestByRequester({
+                requestId: row.id,
+                requesterId: userId,
+              });
+              if (!res.ok) {
+                Alert.alert("Error", res.error?.message || "Could not cancel");
+                return;
+              }
+              await invalidateAll();
+              void refetch();
+              backToList();
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
+      edges={["top"]}
+    >
+      <View className="px-4 pt-2 pb-1 flex-row items-center">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <ChevronLeft size={28} color={Colors.charcoal[800]} />
+        </TouchableOpacity>
+      </View>
+
+      {!idOk ? (
+        <View className="flex-1 px-6 justify-center">
+          <Text className="text-charcoal-600 text-center">
+            Invalid request link.
+          </Text>
+          <Button variant="outline" className="mt-6" onPress={backToList}>
+            Back to Treatment exchange
+          </Button>
+        </View>
+      ) : isLoading ? (
+        <View className="flex-1 items-center justify-center py-20">
+          <ActivityIndicator size="large" color={Colors.sage[500]} />
+        </View>
+      ) : error ? (
+        <View className="flex-1 px-6 justify-center">
+          <Text className="text-charcoal-600 text-center">
+            {error instanceof Error ? error.message : "Could not load request."}
+          </Text>
+          <Button
+            variant="outline"
+            className="mt-6"
+            onPress={() => void refetch()}
+          >
+            Retry
+          </Button>
+        </View>
+      ) : !detail ? (
+        <View className="flex-1 px-6 justify-center">
+          <Text className="text-charcoal-600 text-center">
+            Request not found or you don&apos;t have access.
+          </Text>
+          <Button variant="outline" className="mt-6" onPress={backToList}>
+            Back to Treatment exchange
+          </Button>
+        </View>
+      ) : (
+        <ScrollView
+          className="flex-1 px-6 pt-2"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          <ScreenHeader
+            className="-mx-6 -mt-2 mb-2"
+            eyebrow="Practice"
+            title="Exchange request"
+            subtitle={
+              detail.viewerRole === "recipient"
+                ? `From ${detail.requester_name}`
+                : `To ${detail.recipient_name}`
+            }
+          />
+
+          <Card variant="elevated" padding="md" className="mb-4">
+            <Text className="text-charcoal-500 text-xs uppercase font-semibold">
+              Status
+            </Text>
+            <Text className="text-charcoal-900 text-xl font-bold mt-1">
+              {statusTitle(detail.status)}
+            </Text>
+          </Card>
+
+          <Card variant="default" padding="md" className="mb-3">
+            <Text className="text-charcoal-800 font-semibold">
+              Proposed session
+            </Text>
+            {detail.requested_session_date ? (
+              <Text className="text-charcoal-700 mt-2">
+                {detail.requested_session_date}
+                {detail.requested_start_time
+                  ? ` · ${fmtTime(detail.requested_start_time)}`
+                  : ""}
+                {detail.duration_minutes != null
+                  ? ` · ${detail.duration_minutes} min`
+                  : ""}
+              </Text>
+            ) : (
+              <Text className="text-charcoal-500 mt-2">—</Text>
+            )}
+            {detail.session_type ? (
+              <Text className="text-charcoal-500 text-sm mt-2">
+                {detail.session_type}
+              </Text>
+            ) : null}
+          </Card>
+
+          {detail.requester_notes ? (
+            <Card variant="default" padding="md" className="mb-3">
+              <Text className="text-charcoal-500 text-sm">
+                {detail.viewerRole === "requester" ? "Your note" : "Their note"}
+              </Text>
+              <Text className="text-charcoal-800 mt-2">
+                {detail.requester_notes}
+              </Text>
+            </Card>
+          ) : null}
+
+          {detail.recipient_notes && detail.status === "declined" ? (
+            <Card variant="default" padding="md" className="mb-3">
+              <Text className="text-charcoal-500 text-sm">Decline note</Text>
+              <Text className="text-charcoal-800 mt-2">
+                {detail.recipient_notes}
+              </Text>
+            </Card>
+          ) : null}
+
+          {detail.reciprocal_booking_deadline &&
+          detail.status === "accepted" &&
+          needsReciprocalBook ? (
+            <Card
+              variant="default"
+              padding="md"
+              className="mb-3 border border-amber-200"
+            >
+              <Text className="text-amber-900 text-sm font-semibold">
+                Book your return session by{" "}
+                {new Date(detail.reciprocal_booking_deadline).toLocaleString()}
+              </Text>
+              <Button
+                variant="primary"
+                className="mt-3"
+                onPress={() =>
+                  router.push(tabPath(tabRoot, "exchange") as Href)
+                }
+              >
+                Open booking in Treatment exchange
+              </Button>
+            </Card>
+          ) : null}
+
+          <Text className="text-charcoal-400 text-xs mt-2 mb-4">
+            Created{" "}
+            {detail.created_at
+              ? new Date(detail.created_at).toLocaleString()
+              : "—"}
+            {detail.updated_at && detail.updated_at !== detail.created_at
+              ? ` · Updated ${new Date(detail.updated_at).toLocaleString()}`
+              : ""}
+            {detail.accepted_at
+              ? ` · Accepted ${new Date(detail.accepted_at).toLocaleString()}`
+              : ""}
+            {detail.declined_at
+              ? ` · Declined ${new Date(detail.declined_at).toLocaleString()}`
+              : ""}
+          </Text>
+
+          {detail.status === "pending" && detail.viewerRole === "recipient" ? (
+            <>
+              <Text className="text-charcoal-500 text-sm mb-2">
+                Optional message when declining
+              </Text>
+              <TextInput
+                className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-4"
+                placeholder="Reason (optional)"
+                placeholderTextColor={Colors.charcoal[400]}
+                value={declineReason}
+                onChangeText={setDeclineReason}
+                multiline
+              />
+              <Button
+                variant="primary"
+                disabled={busy}
+                isLoading={busy}
+                onPress={() => onAccept(detail)}
+              >
+                Accept
+              </Button>
+              <Button
+                variant="destructive"
+                className="mt-3"
+                disabled={busy}
+                isLoading={busy}
+                onPress={() => onDecline(detail)}
+              >
+                Decline
+              </Button>
+            </>
+          ) : null}
+
+          {detail.status === "pending" && detail.viewerRole === "requester" ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              isLoading={busy}
+              onPress={() => onCancel(detail)}
+            >
+              Cancel request
+            </Button>
+          ) : null}
+
+          {detail.status !== "pending" ? (
+            <Button variant="outline" className="mt-4" onPress={backToList}>
+              Back to list
+            </Button>
+          ) : null}
+        </ScrollView>
+      )}
+    </SafeAreaView>
+  );
+}

@@ -4,7 +4,11 @@
  */
 
 import React, { useEffect, useLayoutEffect } from "react";
-import { InteractionManager } from "react-native";
+import {
+  AppState,
+  type AppStateStatus,
+  InteractionManager,
+} from "react-native";
 import { Stack, router, useRootNavigationState } from "expo-router";
 import * as ExpoSplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -15,7 +19,7 @@ import { StripeProvider } from "@stripe/stripe-react-native";
 import * as Linking from "expo-linking";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { useAuthStore } from "@/stores/authStore";
-import { authHelpers } from "@/lib/supabase";
+import { authHelpers, supabase } from "@/lib/supabase";
 import { API_CONFIG } from "@/constants/config";
 import { Colors } from "@/constants/colors";
 import {
@@ -48,11 +52,36 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Supabase auth-js: pause refresh in background (iOS throttles timers); resume on foreground. */
+type AuthAutoRefresh = {
+  startAutoRefresh?: () => void | Promise<void>;
+  stopAutoRefresh?: () => void | Promise<void>;
+};
+
 export default function RootLayout() {
   const rootNavigation = useRootNavigationState();
 
   useEffect(() => {
     void useAuthStore.getState().initialize();
+  }, []);
+
+  useEffect(() => {
+    const auth = supabase.auth as AuthAutoRefresh;
+    const syncAutoRefresh = (state: AppStateStatus) => {
+      if (state === "active") {
+        void auth.startAutoRefresh?.();
+      } else {
+        void auth.stopAutoRefresh?.();
+      }
+    };
+
+    syncAutoRefresh(AppState.currentState);
+
+    const sub = AppState.addEventListener("change", syncAutoRefresh);
+    return () => {
+      sub.remove();
+      void auth.stopAutoRefresh?.();
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -145,129 +174,107 @@ export default function RootLayout() {
   const stripeKeyRaw = API_CONFIG.STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
   const useStripe =
     stripeKeyRaw.length > 0 &&
-    (stripeKeyRaw.startsWith("pk_test_") || stripeKeyRaw.startsWith("pk_live_"));
+    (stripeKeyRaw.startsWith("pk_test_") ||
+      stripeKeyRaw.startsWith("pk_live_"));
   const appTree = (
     <>
       <StatusBar style="dark" />
       <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: Colors.cream[50] },
-                animation: "slide_from_right",
-              }}
-            >
-              {/* Auth Group */}
-              <Stack.Screen
-                name="(auth)"
-                options={{
-                  headerShown: false,
-                }}
-              />
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: Colors.cream[50] },
+          animation: "slide_from_right",
+        }}
+      >
+        {/* Auth Group */}
+        <Stack.Screen
+          name="(auth)"
+          options={{
+            headerShown: false,
+          }}
+        />
 
-              {/* Main App Tabs */}
-              <Stack.Screen
-                name="(tabs)"
-                options={{
-                  headerShown: false,
-                }}
-              />
+        {/* Main App Tabs */}
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+          }}
+        />
 
-              <Stack.Screen
-                name="(practitioner)"
-                options={{
-                  headerShown: false,
-                }}
-              />
+        <Stack.Screen
+          name="(practitioner)"
+          options={{
+            headerShown: false,
+          }}
+        />
 
-              {/* Modal Screens */}
-              <Stack.Screen
-                name="booking"
-                options={{
-                  presentation: "modal",
-                  animation: "slide_from_bottom",
-                }}
-              />
-              <Stack.Screen
-                name="book/[slug]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="therapist/[id]/public"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="guest/mobile-requests"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="review" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="booking-success"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="mobile-booking/success"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="mobile-booking/pending"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="how-it-works"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="pricing" options={{ headerShown: false }} />
-              <Stack.Screen name="contact" options={{ headerShown: false }} />
-              <Stack.Screen name="privacy" options={{ headerShown: false }} />
-              <Stack.Screen name="terms" options={{ headerShown: false }} />
-              <Stack.Screen name="help" options={{ headerShown: false }} />
-              <Stack.Screen name="cookies" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="diagnostics"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="notifications"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="settings" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="settings/privacy"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="settings/subscription"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="stripe-customer-portal"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="subscription-success"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="onboarding/stripe-return"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="find-therapists"
-                options={{ headerShown: false }}
-              />
+        {/* Modal Screens */}
+        <Stack.Screen
+          name="booking"
+          options={{
+            presentation: "modal",
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen name="book/[slug]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="therapist/[id]/public"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="guest/mobile-requests"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="review" options={{ headerShown: false }} />
+        <Stack.Screen name="booking-success" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="mobile-booking/success"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="mobile-booking/pending"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="how-it-works" options={{ headerShown: false }} />
+        <Stack.Screen name="pricing" options={{ headerShown: false }} />
+        <Stack.Screen name="contact" options={{ headerShown: false }} />
+        <Stack.Screen name="privacy" options={{ headerShown: false }} />
+        <Stack.Screen name="terms" options={{ headerShown: false }} />
+        <Stack.Screen name="help" options={{ headerShown: false }} />
+        <Stack.Screen name="cookies" options={{ headerShown: false }} />
+        <Stack.Screen name="dpa" options={{ headerShown: false }} />
+        <Stack.Screen name="diagnostics" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="settings/privacy"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="settings/subscription"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="stripe-customer-portal"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="subscription-success"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="onboarding/stripe-return"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="find-therapists" options={{ headerShown: false }} />
 
-              {/* OAuth return targets (Universal Links + custom scheme); must exist or deep links show unmatched */}
-              <Stack.Screen
-                name="oauth-callback"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="auth/callback"
-                options={{ headerShown: false }}
-              />
+        {/* OAuth return targets (Universal Links + custom scheme); must exist or deep links show unmatched */}
+        <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
 
-              <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-            </Stack>
+        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+      </Stack>
     </>
   );
 

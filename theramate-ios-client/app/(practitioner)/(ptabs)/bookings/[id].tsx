@@ -9,6 +9,7 @@ import {
   Modal,
   FlatList,
   Platform,
+  TextInput,
 } from "react-native";
 import {
   SafeAreaView,
@@ -21,6 +22,7 @@ import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,
+  CalendarClock,
   Clock,
   User,
   CreditCard,
@@ -28,6 +30,8 @@ import {
   MessageCircle,
   MapPin,
   ClipboardList,
+  Banknote,
+  Check,
 } from "lucide-react-native";
 import { format } from "date-fns";
 
@@ -36,8 +40,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
-import { fetchPractitionerSessionById } from "@/lib/api/practitionerSessions";
+import {
+  fetchPractitionerSessionById,
+  markSessionPaidInPerson,
+} from "@/lib/api/practitionerSessions";
 import { getOrCreateConversation } from "@/lib/api/messages";
+import { supabase } from "@/lib/supabase";
 import {
   fetchTreatmentPlansForClient,
   fetchTreatmentPlanLinksForSession,
@@ -52,11 +60,20 @@ function statusLabel(status: string | null): string {
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
-function paymentLabel(status: string | null): string {
+function paymentLabel(
+  status: string | null,
+  collection: string | null,
+): string {
   const key = (status || "pending").toLowerCase();
+  const isInPerson = (collection || "").toLowerCase() === "in_person";
+  if (key === "awaiting_in_person") return "Awaiting payment at clinic";
+  if (key === "completed" && isInPerson) return "Paid in person";
+  if (key === "completed") return "Paid";
+  if (key === "cancelled") return "Cancelled — no charge";
   if (key === "paid") return "Paid";
   if (key === "held") return "Held (authorization)";
   if (key === "refunded") return "Refunded";
+  if (key === "released") return "Released";
   if (key === "failed") return "Failed";
   return "Pending";
 }
@@ -66,11 +83,7 @@ export default function PractitionerBookingDetailScreen() {
   /** Absolute tab bar would cover the last actions without extra scroll padding. */
   const tabBarInset = useBottomTabBarHeight();
   const tabBarHeight =
-    tabBarInset > 0
-      ? tabBarInset
-      : Platform.OS === "ios"
-        ? 88
-        : 70;
+    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
   const queryClient = useQueryClient();
@@ -78,6 +91,14 @@ export default function PractitionerBookingDetailScreen() {
 
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [linkingPlan, setLinkingPlan] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [paymentMethodChoice, setPaymentMethodChoice] = useState<
+    "cash" | "external_terminal" | "bank_transfer" | "other"
+  >("cash");
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [rescheduling, setRescheduling] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["practitioner_session_detail", userId, id],
@@ -135,10 +156,12 @@ export default function PractitionerBookingDetailScreen() {
     if (!id) return;
     setLinkingPlan(true);
     try {
-      const { data: linkId, error: linkErr } = await linkSessionToTreatmentPlan({
-        planId,
-        sessionId: id,
-      });
+      const { data: linkId, error: linkErr } = await linkSessionToTreatmentPlan(
+        {
+          planId,
+          sessionId: id,
+        },
+      );
       if (linkErr || !linkId) {
         Alert.alert(
           "Could not link",
@@ -164,15 +187,172 @@ export default function PractitionerBookingDetailScreen() {
       Alert.alert("Unavailable", "Client is not linked for messaging.");
       return;
     }
-    const { data: conversation, error: convErr } = await getOrCreateConversation(
-      data.client_id,
-      userId,
-    );
+    const { data: conversation, error: convErr } =
+      await getOrCreateConversation(data.client_id, userId);
     if (convErr || !conversation) {
-      Alert.alert("Could not open chat", convErr?.message || "Please try again.");
+      Alert.alert(
+        "Could not open chat",
+        convErr?.message || "Please try again.",
+      );
       return;
     }
     router.push(tabPath(tabRoot, `messages/${conversation}`) as never);
+  };
+
+  const confirmMarkPaid = () => {
+    if (!id) return;
+    const methodLabel = (() => {
+      switch (paymentMethodChoice) {
+        case "external_terminal":
+          return "Card Terminal";
+        case "bank_transfer":
+          return "Bank Transfer";
+        case "other":
+          return "Other";
+        default:
+          return "Cash";
+      }
+    })();
+    Alert.alert(
+      "Mark session as paid",
+      `Record this session as paid by ${methodLabel}? You will not be able to undo this.`,
+      [
+        { text: "Not yet", style: "cancel" },
+        {
+          text: "Mark paid",
+          style: "default",
+          onPress: async () => {
+            setMarkingPaid(true);
+            try {
+              const { ok, error: markErr } = await markSessionPaidInPerson({
+                sessionId: id,
+                method: paymentMethodChoice,
+              });
+              if (!ok) {
+                Alert.alert(
+                  "Could not mark as paid",
+                  markErr?.message || "Please try again.",
+                );
+                return;
+              }
+              await queryClient.invalidateQueries({
+                queryKey: ["practitioner_session_detail", userId, id],
+              });
+              await refetch();
+            } finally {
+              setMarkingPaid(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const cyclePaymentMethod = () => {
+    const order: Array<typeof paymentMethodChoice> = [
+      "cash",
+      "external_terminal",
+      "bank_transfer",
+      "other",
+    ];
+    const idx = order.indexOf(paymentMethodChoice);
+    setPaymentMethodChoice(order[(idx + 1) % order.length]);
+  };
+
+  const paymentMethodLabel = (() => {
+    switch (paymentMethodChoice) {
+      case "external_terminal":
+        return "Card Terminal";
+      case "bank_transfer":
+        return "Bank Transfer";
+      case "other":
+        return "Other";
+      default:
+        return "Cash";
+    }
+  })();
+
+  const onConfirmReschedule = async () => {
+    if (!id || !data) return;
+    const todayIso = new Date().toISOString().split("T")[0];
+    const existingTime = (data.start_time || "").slice(0, 5);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+      Alert.alert("Check the form", "Date must be YYYY-MM-DD.");
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(newTime)) {
+      Alert.alert("Check the form", "Time must be HH:MM (24h).");
+      return;
+    }
+    if (newDate < todayIso) {
+      Alert.alert("Check the form", "Date must be today or later.");
+      return;
+    }
+    if (newDate === data.session_date && newTime === existingTime) {
+      Alert.alert("Check the form", "Pick a different date or time.");
+      return;
+    }
+
+    setRescheduling(true);
+    try {
+      const now = new Date().toISOString();
+      const { error: updateErr } = await supabase
+        .from("client_sessions")
+        .update({
+          session_date: newDate,
+          start_time: newTime,
+          updated_at: now,
+        })
+        .eq("id", id);
+      if (updateErr) {
+        const raw = updateErr.message || "";
+        const friendly = /overlap|conflict|blocked/i.test(raw)
+          ? "That slot clashes with another session or blocked time."
+          : raw || "Could not reschedule session";
+        throw new Error(friendly);
+      }
+
+      try {
+        await supabase.functions.invoke("send-booking-notification", {
+          body: {
+            emailType: "rescheduling",
+            sessionId: id,
+            originalDate: data.session_date,
+            originalTime: existingTime,
+            newDate,
+            newTime,
+            rescheduledBy: "practitioner",
+          },
+        });
+      } catch (notifyErr) {
+        console.warn("Reschedule notification failed", notifyErr);
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: ["practitioner_session_detail", userId, id],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["practitionerSessions"],
+      });
+      await refetch();
+
+      Alert.alert(
+        "Session rescheduled",
+        (data.payment_collection || "").toLowerCase() === "in_person"
+          ? "Client was emailed. Pay-at-clinic status preserved."
+          : "Client was emailed.",
+      );
+      setShowReschedule(false);
+      setNewDate("");
+      setNewTime("");
+    } catch (err) {
+      Alert.alert(
+        "Could not reschedule",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setRescheduling(false);
+    }
   };
 
   if (!userId) {
@@ -279,10 +459,165 @@ export default function PractitionerBookingDetailScreen() {
             <View className="flex-row items-center mt-3">
               <CreditCard size={18} color={Colors.charcoal[500]} />
               <Text className="text-charcoal-800 font-medium ml-2">
-                Payment: {paymentLabel(data.payment_status)}
+                Payment:{" "}
+                {paymentLabel(data.payment_status, data.payment_collection)}
               </Text>
             </View>
+
+            {data.payment_collection === "in_person" &&
+            (data.payment_status || "").toLowerCase() ===
+              "awaiting_in_person" &&
+            (data.status || "").toLowerCase() !== "cancelled" &&
+            (data.status || "").toLowerCase() !== "no_show" ? (
+              <View className="mt-4 pt-3 border-t border-cream-200">
+                <Text className="text-charcoal-600 text-sm">
+                  Action needed: collect payment at the appointment, then record
+                  it here.
+                </Text>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-charcoal-600 text-sm">
+                    Payment method
+                  </Text>
+                  <TouchableOpacity
+                    onPress={cyclePaymentMethod}
+                    className="bg-cream-100 px-3 py-1.5 rounded-lg"
+                    accessibilityRole="button"
+                    accessibilityLabel={`Payment method: ${paymentMethodLabel}. Tap to change.`}
+                  >
+                    <Text className="text-charcoal-800 font-medium">
+                      {paymentMethodLabel}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Button
+                  variant="primary"
+                  className="mt-3"
+                  onPress={confirmMarkPaid}
+                  disabled={markingPaid}
+                >
+                  <View className="flex-row items-center justify-center">
+                    <Banknote size={18} color="#fff" />
+                    <Text className="text-white font-semibold ml-2">
+                      {markingPaid ? "Saving…" : "Record payment received"}
+                    </Text>
+                  </View>
+                </Button>
+                <Text className="text-charcoal-500 text-xs mt-2">
+                  No platform commission is charged on in-person payments.
+                </Text>
+              </View>
+            ) : null}
+
+            {data.payment_collection === "in_person" &&
+            (data.payment_status || "").toLowerCase() === "completed" ? (
+              <View className="mt-3 flex-row items-center">
+                <Check size={16} color={Colors.sage[600]} />
+                <Text className="text-sage-600 text-sm ml-2">
+                  Recorded as paid in person. No further payment action needed.
+                </Text>
+              </View>
+            ) : null}
           </Card>
+
+          {!["cancelled", "completed", "no_show"].includes(
+            (data.status || "").toLowerCase(),
+          ) ? (
+            <Card variant="default" padding="md" className="mb-3">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <CalendarClock size={18} color={Colors.charcoal[500]} />
+                  <Text className="text-charcoal-800 font-medium ml-2">
+                    Reschedule
+                  </Text>
+                </View>
+                {!showReschedule ? (
+                  <TouchableOpacity
+                    onPress={() => setShowReschedule(true)}
+                    className="bg-cream-100 px-3 py-1.5 rounded-lg"
+                    accessibilityRole="button"
+                    accessibilityLabel="Open reschedule form"
+                  >
+                    <Text className="text-charcoal-800 font-medium text-sm">
+                      Change date/time
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {showReschedule ? (
+                <View className="mt-3">
+                  <Text className="text-charcoal-500 text-xs mb-2">
+                    Currently: {data.session_date} at{" "}
+                    {(data.start_time || "").slice(0, 5)}
+                  </Text>
+                  <View className="flex-row gap-3">
+                    <View className="flex-1">
+                      <Text className="text-charcoal-700 text-sm mb-1">
+                        New date
+                      </Text>
+                      <TextInput
+                        className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900"
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={Colors.charcoal[400]}
+                        value={newDate}
+                        onChangeText={setNewDate}
+                        autoCapitalize="none"
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-charcoal-700 text-sm mb-1">
+                        New time
+                      </Text>
+                      <TextInput
+                        className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900"
+                        placeholder="HH:MM"
+                        placeholderTextColor={Colors.charcoal[400]}
+                        value={newTime}
+                        onChangeText={setNewTime}
+                        autoCapitalize="none"
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </View>
+                  </View>
+                  {(data.payment_collection || "").toLowerCase() ===
+                  "in_person" ? (
+                    <Text className="text-charcoal-500 text-xs mt-2">
+                      Pay-at-clinic status is preserved. Client will be emailed.
+                    </Text>
+                  ) : (
+                    <Text className="text-charcoal-500 text-xs mt-2">
+                      Client will be emailed with the new time.
+                    </Text>
+                  )}
+                  <View className="flex-row gap-2 mt-3">
+                    <Button
+                      variant="primary"
+                      onPress={() => void onConfirmReschedule()}
+                      disabled={rescheduling}
+                    >
+                      <Text className="text-white font-semibold">
+                        {rescheduling ? "Saving…" : "Confirm reschedule"}
+                      </Text>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onPress={() => {
+                        setShowReschedule(false);
+                        setNewDate("");
+                        setNewTime("");
+                      }}
+                      disabled={rescheduling}
+                    >
+                      <Text className="text-charcoal-700 font-medium">
+                        Keep current
+                      </Text>
+                    </Button>
+                  </View>
+                </View>
+              ) : null}
+            </Card>
+          ) : null}
 
           <Card variant="default" padding="md">
             <View className="flex-row items-center">

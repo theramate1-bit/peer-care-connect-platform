@@ -31,10 +31,13 @@ export default function NewTreatmentPlanScreen() {
     : params.clientId;
   const queryClient = useQueryClient();
 
-  const {
-    data: clients = [],
-    isLoading: loadingClients,
-  } = usePractitionerClients(userId);
+  const { data: clientsRaw = [], isLoading: loadingClients } =
+    usePractitionerClients(userId);
+
+  const clients = useMemo(
+    () => clientsRaw.filter((c) => c.client_id),
+    [clientsRaw],
+  );
 
   const [title, setTitle] = useState("");
   const [clientId, setClientId] = useState(clientIdParam ?? "");
@@ -86,7 +89,9 @@ export default function NewTreatmentPlanScreen() {
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["treatment_plans"] });
-      await queryClient.invalidateQueries({ queryKey: ["treatment_plans_client"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["treatment_plans_client"],
+      });
       router.replace(tabPath(tabRoot, `treatment-plans/${id}`) as never);
     } finally {
       setBusy(false);
@@ -116,15 +121,18 @@ export default function NewTreatmentPlanScreen() {
         </View>
       </View>
 
-      <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        className="flex-1 px-6 pt-4"
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         <Text className="text-charcoal-900 font-semibold mb-2">Client</Text>
         {loadingClients ? (
           <ActivityIndicator color={Colors.sage[500]} className="my-4" />
         ) : clients.length === 0 && !manualMode ? (
           <View className="mb-4">
             <Text className="text-charcoal-500 text-sm mb-3">
-              No clients found from past sessions yet. Enter a client&apos;s user
-              ID manually, or book a session first.
+              No clients found from past sessions yet. Enter a client&apos;s
+              user ID manually, or book a session first.
             </Text>
             <Button variant="outline" onPress={() => setManualMode(true)}>
               <Text className="text-charcoal-800 font-medium">
@@ -137,11 +145,12 @@ export default function NewTreatmentPlanScreen() {
             {!manualMode ? (
               <View className="mb-4">
                 {clients.map((c) => {
-                  const sel = clientId === c.client_id;
+                  const cid = c.client_id as string;
+                  const sel = clientId === cid;
                   return (
                     <TouchableOpacity
-                      key={c.client_id}
-                      onPress={() => setClientId(c.client_id)}
+                      key={c.key}
+                      onPress={() => setClientId(cid)}
                       activeOpacity={0.85}
                     >
                       <Card
@@ -209,7 +218,9 @@ export default function NewTreatmentPlanScreen() {
           value={title}
           onChangeText={setTitle}
         />
-        <Text className="text-charcoal-700 text-sm mb-1">Goals (one per line)</Text>
+        <Text className="text-charcoal-700 text-sm mb-1">
+          Goals (one per line)
+        </Text>
         <TextInput
           className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-4 min-h-[100px]"
           placeholderTextColor={Colors.charcoal[400]}
@@ -239,7 +250,11 @@ export default function NewTreatmentPlanScreen() {
           onChangeText={setClinicianNotes}
         />
 
-        <Button variant="primary" disabled={busy} onPress={() => void onCreate()}>
+        <Button
+          variant="primary"
+          disabled={busy}
+          onPress={() => void onCreate()}
+        >
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (

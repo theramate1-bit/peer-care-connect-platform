@@ -1,0 +1,15 @@
+# AI collaboration (this repo)
+
+**Full agent instructions:** `.cursor/rules/` — especially `workflow-collaboration.mdc` (always on) and `anti-hallucination-protocol.mdc`.
+
+## Evolving rules
+
+Rules are meant to **grow with the project**. After a meaningful bugfix or repeated pitfall, add a **short bullet** to the best-fitting `.cursor/rules/*.mdc` so the stack learns this codebase instead of starting cold each session.
+
+## Humans: checkpoints
+
+Before “this should be easy” debugging or a chain of small edits, **git commit** or **stash** so you can roll back cleanly.
+
+## Agents
+
+Honor **tight file scope**, **reason-before-code** on non-trivial tasks, and **read the repo / MCP** instead of guessing.

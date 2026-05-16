@@ -1,5 +1,7 @@
 # User type: Guest
 
+**Feature-by-feature docs (this repo, `src/` + `theramate-ios-client/`):** [Guest features index](../features/guest/README.md)
+
 **Definition:** A person who books (or is messaged) without a registered account. They have a `users` row with `user_role = 'guest'` created via `upsert_guest_user`. Sessions use `client_id` = that guest user id and `is_guest_booking = true`. No auth identity; they access booking details via token or email link.
 
 ---

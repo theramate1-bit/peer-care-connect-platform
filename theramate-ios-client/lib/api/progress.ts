@@ -31,8 +31,40 @@ export async function fetchGoals(
   }
 }
 
+export type ProgressMetricRow = {
+  id: string;
+  metric_name: string;
+  metric_value: number;
+  metric_unit: string;
+  session_date: string;
+  notes: string | null;
+  created_at: string | null;
+};
+
+export async function fetchProgressMetricsForClient(params: {
+  clientId: string;
+  practitionerId: string;
+}): Promise<{ data: ProgressMetricRow[]; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from("progress_metrics")
+      .select(
+        "id, metric_name, metric_value, metric_unit, session_date, notes, created_at",
+      )
+      .eq("client_id", params.clientId)
+      .eq("practitioner_id", params.practitionerId)
+      .order("session_date", { ascending: false });
+    if (error) throw error;
+    return { data: (data || []) as ProgressMetricRow[], error: null };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    return { data: [], error: err };
+  }
+}
+
 export async function createGoal(params: {
   clientId: string;
+  practitionerId: string;
   title: string;
   description: string;
   targetValue: number;
@@ -42,7 +74,7 @@ export async function createGoal(params: {
   try {
     const { error } = await supabase.from("progress_goals").insert({
       client_id: params.clientId,
-      practitioner_id: params.clientId,
+      practitioner_id: params.practitionerId,
       goal_title: params.title.trim(),
       goal_description: params.description.trim(),
       target_value: params.targetValue,

@@ -1,5 +1,7 @@
 # User type: Client
 
+**Feature-by-feature docs (this repo, `src/` + `theramate-ios-client/`):** [Client features index](../features/client/README.md)
+
 **Definition:** A registered user with auth. They have a `users` row tied to `auth.uid()` and can log in. Sessions use `client_id` = that user id and `is_guest_booking = false` (or not set). They can use the client dashboard, “My Sessions,” in-app messaging, and full booking flows without token links.
 
 ---

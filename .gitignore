@@ -83,6 +83,13 @@ _bmad-output/
 *private*
 secrets/
 
+# Local marketing lead lists (PII — do not commit)
+scripts/waitlist-leads.tsv
+scripts/waitlist-leads.private.tsv
+scripts/waitlist-leads-remaining.private.tsv
+scripts/waitlist-leads.local.tsv
+scripts/resend-api-key.local
+
 # Build artifacts
 *.map
 *.min.js

@@ -35,7 +35,8 @@ export default function PractitionerBillingScreen() {
     queryKey: ["connect_status", userId],
     queryFn: async () => {
       if (!userId) return null;
-      const { data, notConnected, error } = await fetchConnectAccountStatus(userId);
+      const { data, notConnected, error } =
+        await fetchConnectAccountStatus(userId);
       if (error) throw error;
       return { data, notConnected };
     },
@@ -92,8 +93,8 @@ export default function PractitionerBillingScreen() {
             Practitioner sign-in required
           </Text>
           <Text className="text-charcoal-500 text-center mt-3 leading-6">
-            Sign in with your practitioner account to view payouts, payment activity,
-            and Stripe Connect status.
+            Sign in with your practitioner account to view payouts, payment
+            activity, and Stripe Connect status.
           </Text>
           <Button
             variant="primary"
@@ -149,7 +150,9 @@ export default function PractitionerBillingScreen() {
           In this app
         </Text>
         <Card variant="elevated" padding="lg" className="mb-4">
-          <Text className="text-charcoal-900 font-semibold">Stripe Connect</Text>
+          <Text className="text-charcoal-900 font-semibold">
+            Stripe Connect
+          </Text>
           {connectQuery.isLoading ? (
             <View className="py-4">
               <ActivityIndicator color={Colors.sage[500]} />
@@ -176,7 +179,9 @@ export default function PractitionerBillingScreen() {
                 Status: {connectQuery.data.data.status}
               </Text>
               <Text className="text-charcoal-700 text-sm mt-1">
-                Charges: {connectQuery.data.data.chargesEnabled ? "enabled" : "disabled"} · Payouts:{" "}
+                Charges:{" "}
+                {connectQuery.data.data.chargesEnabled ? "enabled" : "disabled"}{" "}
+                · Payouts:{" "}
                 {connectQuery.data.data.payoutsEnabled ? "enabled" : "disabled"}
               </Text>
               {!connectQuery.data.data.isFullyOnboarded ? (
@@ -234,7 +239,9 @@ export default function PractitionerBillingScreen() {
                             : "—"}
                         </Text>
                         {sub ? (
-                          <Text className="text-charcoal-400 text-xs mt-1">{sub}</Text>
+                          <Text className="text-charcoal-400 text-xs mt-1">
+                            {sub}
+                          </Text>
                         ) : null}
                         {p.session_id ? (
                           <Text className="text-sage-700 text-xs mt-2">
@@ -266,7 +273,9 @@ export default function PractitionerBillingScreen() {
           </Text>
         )}
 
-        <Text className="text-charcoal-900 font-semibold mb-2">Recent payouts</Text>
+        <Text className="text-charcoal-900 font-semibold mb-2">
+          Recent payouts
+        </Text>
         {payoutsQuery.isLoading ? (
           <View className="py-8 items-center">
             <ActivityIndicator color={Colors.sage[500]} />
@@ -281,11 +290,15 @@ export default function PractitionerBillingScreen() {
                       {p.status ?? "pending"}
                     </Text>
                     <Text className="text-charcoal-500 text-sm mt-1">
-                      Arrival: {p.arrival_date ? new Date(p.arrival_date).toLocaleDateString() : "—"}
+                      Arrival:{" "}
+                      {p.arrival_date
+                        ? new Date(p.arrival_date).toLocaleDateString()
+                        : "—"}
                     </Text>
                   </View>
                   <Text className="text-charcoal-900 font-semibold">
-                    {(p.amount / 100).toFixed(2)} {(p.currency ?? "gbp").toUpperCase()}
+                    {(p.amount / 100).toFixed(2)}{" "}
+                    {(p.currency ?? "gbp").toUpperCase()}
                   </Text>
                 </View>
               </Card>
@@ -297,10 +310,6 @@ export default function PractitionerBillingScreen() {
           </Text>
         )}
 
-        <Text className="text-charcoal-600 leading-6 mb-4">
-          Invoices, tax forms, and Stripe documents open in a secure in-app view when
-          you continue from billing or Connect.
-        </Text>
         <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
           Related
         </Text>
@@ -314,7 +323,9 @@ export default function PractitionerBillingScreen() {
         <Button
           variant="outline"
           className="mt-3"
-          onPress={() => router.push(tabPath(tabRoot, "stripe-connect") as never)}
+          onPress={() =>
+            router.push(tabPath(tabRoot, "stripe-connect") as never)
+          }
         >
           Stripe Connect (in app)
         </Button>

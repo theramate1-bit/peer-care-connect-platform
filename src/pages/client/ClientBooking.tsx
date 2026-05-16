@@ -10,35 +10,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Star, Clock, Filter } from "lucide-react";
+import { Search, MapPin, Star, Filter } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import BookingFlow from "@/components/booking/BookingFlow";
-
-interface Practitioner {
-  id: string;
-  first_name: string;
-  last_name: string;
-  user_role: "sports_therapist" | "massage_therapist" | "osteopath";
-  location: string;
-  bio: string;
-  hourly_rate: number;
-  specializations: string[];
-  average_rating: number;
-  total_reviews: number;
-}
+import {
+  fetchMarketplacePractitioners,
+  type MarketplacePractitioner,
+} from "@/lib/marketplacePractitioners";
 
 const ClientBooking: React.FC = () => {
-  const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
+  const [practitioners, setPractitioners] = useState<MarketplacePractitioner[]>(
+    [],
+  );
   const [filteredPractitioners, setFilteredPractitioners] = useState<
-    Practitioner[]
+    MarketplacePractitioner[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
   const [selectedPractitioner, setSelectedPractitioner] =
-    useState<Practitioner | null>(null);
+    useState<MarketplacePractitioner | null>(null);
+  const [isGuestMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("guest") === "1";
+  });
 
   useEffect(() => {
     fetchPractitioners();
@@ -62,25 +58,7 @@ const ClientBooking: React.FC = () => {
 
   const fetchPractitioners = async () => {
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select(
-          `
-          id,
-          first_name,
-          last_name,
-          user_role,
-          location,
-          bio,
-          hourly_rate,
-          specializations,
-          average_rating,
-          total_reviews
-        `,
-        )
-        .in("user_role", ["sports_therapist", "massage_therapist", "osteopath"])
-        .eq("is_active", true);
-
+      const { data, error } = await fetchMarketplacePractitioners();
       if (error) throw error;
       setPractitioners(data || []);
     } catch (error) {
@@ -96,16 +74,16 @@ const ClientBooking: React.FC = () => {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(
-        (p) =>
-          `${p.first_name} ${p.last_name}`
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          p.bio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.specializations.some((spec) =>
-            spec.toLowerCase().includes(searchTerm.toLowerCase()),
-          ),
-      );
+      const q = searchTerm.toLowerCase();
+      filtered = filtered.filter((p) => {
+        const specs = p.specializations ?? [];
+        const bio = (p.bio ?? "").toLowerCase();
+        return (
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) ||
+          bio.includes(q) ||
+          specs.some((spec) => spec.toLowerCase().includes(q))
+        );
+      });
     }
 
     // Type filter
@@ -140,7 +118,13 @@ const ClientBooking: React.FC = () => {
     }
   };
 
-  const renderPractitionerCard = (practitioner: Practitioner) => (
+  const priceLabel = (p: MarketplacePractitioner) => {
+    if (p.from_price != null) return `From £${p.from_price.toFixed(0)}`;
+    if (p.hourly_rate != null) return `£${p.hourly_rate}/hr`;
+    return "—";
+  };
+
+  const renderPractitionerCard = (practitioner: MarketplacePractitioner) => (
     <Card key={practitioner.id} className="hover:shadow-md transition-shadow">
       <CardHeader>
         <div className="flex justify-between items-start">
@@ -162,7 +146,7 @@ const ClientBooking: React.FC = () => {
           </div>
           <div className="text-right">
             <div className="text-lg font-semibold">
-              £{practitioner.hourly_rate}/hour
+              {priceLabel(practitioner)}
             </div>
             {practitioner.average_rating > 0 && (
               <div className="flex items-center gap-1 text-sm">
@@ -179,20 +163,20 @@ const ClientBooking: React.FC = () => {
 
       <CardContent>
         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-          {practitioner.bio ||
+          {practitioner.bio?.trim() ||
             "Professional therapist ready to help you achieve your health goals."}
         </p>
 
-        {practitioner.specializations.length > 0 && (
+        {(practitioner.specializations ?? []).length > 0 && (
           <div className="flex flex-wrap gap-1 mb-4">
-            {practitioner.specializations.slice(0, 3).map((spec) => (
+            {(practitioner.specializations ?? []).slice(0, 3).map((spec) => (
               <Badge key={spec} variant="outline" className="text-xs">
                 {spec}
               </Badge>
             ))}
-            {practitioner.specializations.length > 3 && (
+            {(practitioner.specializations ?? []).length > 3 && (
               <Badge variant="outline" className="text-xs">
-                +{practitioner.specializations.length - 3} more
+                +{(practitioner.specializations ?? []).length - 3} more
               </Badge>
             )}
           </div>
@@ -213,7 +197,14 @@ const ClientBooking: React.FC = () => {
       <BookingFlow
         practitionerId={selectedPractitioner.id}
         practitionerName={`${selectedPractitioner.first_name} ${selectedPractitioner.last_name}`}
-        practitionerType={selectedPractitioner.user_role}
+        practitionerType={
+          selectedPractitioner.user_role as
+            | "sports_therapist"
+            | "massage_therapist"
+            | "osteopath"
+        }
+        acceptInPersonPayment={selectedPractitioner.accept_in_person_payment}
+        guestMode={isGuestMode}
         onBookingComplete={(sessionId) => {
           toast.success("Booking created successfully!");
           setSelectedPractitioner(null);

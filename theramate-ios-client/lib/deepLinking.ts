@@ -43,7 +43,12 @@ export type DeepLinkNavigation =
     };
 
 function webHostSet(): Set<string> {
-  const hosts = new Set<string>(["theramate.com", "www.theramate.com"]);
+  const hosts = new Set<string>([
+    "theramate.com",
+    "www.theramate.com",
+    "theramate.co.uk",
+    "www.theramate.co.uk",
+  ]);
   try {
     const fromConfig = new URL(APP_CONFIG.WEB_URL).hostname;
     if (fromConfig) hosts.add(fromConfig);

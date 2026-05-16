@@ -1,3 +1,5 @@
+> **Implementation paths:** [Practitioner types (feature-by-feature)](./practitioner-types/README.md) — `therapist_type`, clinic / mobile / hybrid in this repo.
+
 # Clinic, Mobile & Hybrid Flows – Complete Reference
 
 **Audience:** Junior developers (and anyone confused about "booking" vs "requesting")

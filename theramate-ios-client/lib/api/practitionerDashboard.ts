@@ -2,16 +2,25 @@
  * Aggregates practitioner home data: sessions, pending actions, light metrics.
  */
 
-import { fetchPractitionerSessions, type SessionWithClient } from "./practitionerSessions";
+import {
+  fetchPractitionerSessions,
+  type SessionWithClient,
+} from "./practitionerSessions";
 import { fetchPractitionerMobileRequests } from "./practitionerMobileRequests";
-import { fetchPendingExchangeRequestsForRecipient } from "./practitionerExchange";
+import {
+  fetchAcceptedExchangesNeedingReciprocal,
+  fetchPendingExchangeRequestsForRecipient,
+} from "./practitionerExchange";
 import { fetchUserNotifications } from "./notifications";
 
 export type PractitionerDashboardData = {
   sessions: SessionWithClient[];
   todaySessions: SessionWithClient[];
   pendingMobileRequestsCount: number;
+  /** Incoming exchange requests needing accept/decline. */
   pendingExchangeCount: number;
+  /** Accepted exchanges where you still owe the reciprocal session (recipient = you). */
+  exchangeReciprocalNeededCount: number;
   unreadNotificationsCount: number;
   monthSessionCount: number;
   monthRevenuePence: number;
@@ -25,21 +34,19 @@ export async function fetchPractitionerDashboard(
   practitionerId: string,
 ): Promise<{ data: PractitionerDashboardData | null; error: Error | null }> {
   try {
-    const [
-      sessionsRes,
-      mobileRes,
-      exchangeRes,
-      notifRes,
-    ] = await Promise.all([
-      fetchPractitionerSessions(practitionerId),
-      fetchPractitionerMobileRequests(practitionerId, "pending"),
-      fetchPendingExchangeRequestsForRecipient(practitionerId),
-      fetchUserNotifications(practitionerId),
-    ]);
+    const [sessionsRes, mobileRes, exchangeRes, reciprocalRes, notifRes] =
+      await Promise.all([
+        fetchPractitionerSessions(practitionerId),
+        fetchPractitionerMobileRequests(practitionerId, "pending"),
+        fetchPendingExchangeRequestsForRecipient(practitionerId),
+        fetchAcceptedExchangesNeedingReciprocal(practitionerId),
+        fetchUserNotifications(practitionerId),
+      ]);
 
     if (sessionsRes.error) throw sessionsRes.error;
     if (mobileRes.error) throw mobileRes.error;
     if (exchangeRes.error) throw exchangeRes.error;
+    if (reciprocalRes.error) throw reciprocalRes.error;
     if (notifRes.error) throw notifRes.error;
 
     const sessions = sessionsRes.data;
@@ -51,13 +58,16 @@ export async function fetchPractitionerDashboard(
     const m = now.getMonth();
     const monthStart = `${y}-${String(m + 1).padStart(2, "0")}-01`;
     const monthSessions = sessions.filter(
-      (s) => s.session_date >= monthStart && s.session_date.slice(0, 7) === `${y}-${String(m + 1).padStart(2, "0")}`,
+      (s) =>
+        s.session_date >= monthStart &&
+        s.session_date.slice(0, 7) === `${y}-${String(m + 1).padStart(2, "0")}`,
     );
     let monthRevenuePence = 0;
     for (const s of monthSessions) {
       const st = (s.status || "").toLowerCase();
       if (st === "cancelled" || st === "declined" || st === "expired") continue;
-      if (s.price != null) monthRevenuePence += Math.round(Number(s.price) * 100);
+      if (s.price != null)
+        monthRevenuePence += Math.round(Number(s.price) * 100);
     }
 
     const unread = (notifRes.data || []).filter(
@@ -71,6 +81,7 @@ export async function fetchPractitionerDashboard(
       ),
       pendingMobileRequestsCount: mobileRes.data.length,
       pendingExchangeCount: exchangeRes.data.length,
+      exchangeReciprocalNeededCount: reciprocalRes.data.length,
       unreadNotificationsCount: unread,
       monthSessionCount: monthSessions.filter((s) => {
         const st = (s.status || "").toLowerCase();

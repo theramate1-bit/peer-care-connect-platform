@@ -53,6 +53,12 @@ STRIPE_SECRET_KEY=your_stripe_secret_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 ```
 
+**Important:** Never prefix Stripe secrets with `VITE_`.
+
+- ✅ **OK** (client-safe): `VITE_STRIPE_PUBLISHABLE_KEY=pk_*`
+- ✅ **OK** (server-only): `STRIPE_SECRET_KEY=sk_*`, `STRIPE_WEBHOOK_SECRET=whsec_*` (set in Supabase Edge Function secrets / server runtime)
+- ❌ **NEVER**: `VITE_STRIPE_SECRET_KEY`, `VITE_STRIPE_WEBHOOK_SECRET` — Vite will bundle these into `assets/index-*.js` and they become public.
+
 **Where to get these:**
 
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com)
@@ -85,6 +91,23 @@ RESEND_API_KEY=re_your_resend_api_key_here
 1. Sign up at [Resend](https://resend.com)
 2. Navigate to **API Keys**
 3. Create a new key
+
+### Infobip API (SMS)
+
+These variables are **server-only** and must be set as **Supabase Edge Function secrets** (do not expose them via `VITE_*` or `EXPO_PUBLIC_*`).
+
+```env
+INFOBIP_API_KEY=your_infobip_api_key
+INFOBIP_BASE_URL=https://your-subdomain.api.infobip.com
+INFOBIP_SMS_FROM=YourSenderId
+```
+
+**Where to get:**
+
+1. Sign up / log in to [Infobip](https://www.infobip.com/)
+2. Navigate to **API keys** and create a key (rotate any key that was shared in chat)
+3. Copy your account’s **API base URL** (shown in the Infobip console)
+4. Configure an approved **sender** for SMS and use it for `INFOBIP_SMS_FROM`
 
 ## Environment-Specific Configuration
 

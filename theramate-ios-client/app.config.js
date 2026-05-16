@@ -12,6 +12,9 @@ try {
   /* optional devDependency */
 }
 
+/** `@theramate/theramate-client` — set in Expo / `eas init`. Override with `EAS_PROJECT_ID` in CI if needed. */
+const DEFAULT_EAS_PROJECT_ID = "5ce9ebe4-a46b-4916-8f98-961efd6113da";
+
 const baseExpo = {
   name: "Theramate",
   slug: "theramate-client",
@@ -32,8 +35,8 @@ const baseExpo = {
     bundleIdentifier: "com.theramate.client",
     buildNumber: "1",
     associatedDomains: [
-      "applinks:theramate.com",
-      "applinks:www.theramate.com",
+      "applinks:theramate.co.uk",
+      "applinks:www.theramate.co.uk",
     ],
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -62,8 +65,8 @@ const baseExpo = {
         action: "VIEW",
         autoVerify: true,
         data: [
-          { scheme: "https", host: "theramate.com", pathPrefix: "/" },
-          { scheme: "https", host: "www.theramate.com", pathPrefix: "/" },
+          { scheme: "https", host: "theramate.co.uk", pathPrefix: "/" },
+          { scheme: "https", host: "www.theramate.co.uk", pathPrefix: "/" },
         ],
         category: ["BROWSABLE", "DEFAULT"],
       },
@@ -156,7 +159,8 @@ function getWebHostVariants(webUrl) {
   }
 }
 
-const defaultWebUrl = "https://theramate.com";
+/** Align with `constants/config.ts` default `APP_CONFIG.WEB_URL` when `EXPO_PUBLIC_WEB_URL` is unset. */
+const defaultWebUrl = "https://theramate.co.uk";
 const webUrlForLinks = process.env.EXPO_PUBLIC_WEB_URL || defaultWebUrl;
 const webHostVariants = getWebHostVariants(webUrlForLinks);
 
@@ -170,7 +174,10 @@ const iosHosts = new Set(
   existingIosAssociatedDomains
     .map((d) =>
       typeof d === "string"
-        ? d.replace(/^applinks:/, "").trim().toLowerCase()
+        ? d
+            .replace(/^applinks:/, "")
+            .trim()
+            .toLowerCase()
         : null,
     )
     .filter(Boolean),
@@ -257,9 +264,7 @@ module.exports = {
       ...baseExpo.extra,
       eas: {
         ...baseExpo.extra.eas,
-        ...(process.env.EAS_PROJECT_ID
-          ? { projectId: process.env.EAS_PROJECT_ID }
-          : {}),
+        projectId: process.env.EAS_PROJECT_ID || DEFAULT_EAS_PROJECT_ID,
       },
     },
   },

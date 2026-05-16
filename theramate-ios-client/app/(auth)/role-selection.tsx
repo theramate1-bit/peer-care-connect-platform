@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 export default function RoleSelectionScreen() {
   const { updateProfile, refreshProfile } = useAuth();
   const [saving, setSaving] = React.useState(false);
+  const [savingPractitioner, setSavingPractitioner] = React.useState(false);
 
   const chooseClient = async () => {
     setSaving(true);
@@ -29,6 +30,24 @@ export default function RoleSelectionScreen() {
     }
   };
 
+  const choosePractitioner = async () => {
+    setSavingPractitioner(true);
+    try {
+      const res = await updateProfile({
+        user_role: "sports_therapist",
+        onboarding_status: "pending",
+      });
+      if (!res.success) {
+        Alert.alert("Could not set role", res.error || "Please try again.");
+        return;
+      }
+      await refreshProfile();
+      router.replace("/practitioner-onboarding");
+    } finally {
+      setSavingPractitioner(false);
+    }
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-cream-50">
       <View className="px-6 pt-2">
@@ -39,17 +58,28 @@ export default function RoleSelectionScreen() {
           Choose your role
         </Text>
         <Text className="text-charcoal-500 text-center mt-3">
-          Theramate mobile currently supports client journeys.
+          Choose whether you book sessions as a client or run your practice as a
+          practitioner (same roles as the web app).
         </Text>
 
         <Button
           variant="primary"
           className="mt-8 w-full"
           onPress={() => void chooseClient()}
-          disabled={saving}
+          disabled={saving || savingPractitioner}
           isLoading={saving}
         >
           Continue as client
+        </Button>
+
+        <Button
+          variant="outline"
+          className="mt-4 w-full"
+          onPress={() => void choosePractitioner()}
+          disabled={saving || savingPractitioner}
+          isLoading={savingPractitioner}
+        >
+          Continue as practitioner
         </Button>
       </View>
     </SafeAreaView>

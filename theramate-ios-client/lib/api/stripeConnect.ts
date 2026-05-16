@@ -80,3 +80,61 @@ export async function fetchConnectAccountStatus(userId: string): Promise<{
     };
   }
 }
+
+/**
+ * Creates a Stripe Connect account (Accounts v2) for the signed-in user via Edge Function.
+ * Requires a contact email for Stripe (auth email is typical).
+ */
+export async function createConnectAccount(params: {
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  businessType?: "individual" | "company";
+}): Promise<
+  | {
+      ok: true;
+      stripe_account_id: string | null;
+      connect_account_id: string | null;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const { data, error: fnErr } = await supabase.functions.invoke(
+      "stripe-payment",
+      {
+        body: {
+          action: "create-connect-account",
+          email: params.email,
+          firstName: params.firstName ?? undefined,
+          lastName: params.lastName ?? undefined,
+          businessType: params.businessType ?? "individual",
+          business_type: params.businessType ?? "individual",
+        },
+      },
+    );
+    if (fnErr) {
+      return { ok: false, error: fnErr.message };
+    }
+    const raw = data as Record<string, unknown> | null;
+    if (!raw || raw.error) {
+      return {
+        ok: false,
+        error: String(
+          raw?.error ?? raw?.details ?? "Could not create Connect account",
+        ),
+      };
+    }
+    const sid =
+      typeof raw.stripe_account_id === "string" ? raw.stripe_account_id : null;
+    const cid =
+      typeof raw.connect_account_id === "string"
+        ? raw.connect_account_id
+        : null;
+    return { ok: true, stripe_account_id: sid, connect_account_id: cid };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}

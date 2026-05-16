@@ -19,7 +19,10 @@ export type MarketplacePractitioner = {
   location: string | null;
   hourly_rate: number | null;
   specializations: string[] | null;
+  /** Discipline (sports_therapist, etc.) — aligned with web marketplace list. */
+  user_role: string;
   therapist_type: string | null;
+  bio: string | null;
   average_rating: number;
   total_reviews: number;
   verified: boolean;
@@ -27,6 +30,9 @@ export type MarketplacePractitioner = {
   profile_photo_url: string | null;
   /** Lowest active product price in major units (e.g. GBP), for display */
   from_price: number | null;
+  /** Practitioner accepts pay-at-clinic (cash/terminal) bookings. */
+  accept_in_person_payment: boolean;
+  experience_years: number | null;
 };
 
 type UserRow = {
@@ -36,9 +42,13 @@ type UserRow = {
   location: string | null;
   hourly_rate: number | null;
   specializations: string[] | null;
+  user_role: string;
   therapist_type: string | null;
+  bio: string | null;
   is_verified: boolean | null;
   profile_photo_url: string | null;
+  accept_in_person_payment: boolean | null;
+  experience_years: number | null;
 };
 
 export async function fetchMarketplacePractitioners(): Promise<{
@@ -49,7 +59,7 @@ export async function fetchMarketplacePractitioners(): Promise<{
     const { data: usersData, error: usersError } = await supabase
       .from("users")
       .select(
-        "id, first_name, last_name, location, hourly_rate, specializations, therapist_type, is_verified, profile_photo_url",
+        "id, first_name, last_name, location, hourly_rate, specializations, user_role, therapist_type, bio, is_verified, profile_photo_url, accept_in_person_payment, experience_years",
       )
       // DB has therapist role values beyond generated `UserRole` type
       .in("user_role", [...THERAPIST_ROLES] as unknown as string[])
@@ -60,7 +70,8 @@ export async function fetchMarketplacePractitioners(): Promise<{
 
     if (usersError) throw usersError;
 
-    const users = (usersData || []) as UserRow[];
+    // DB column `accept_in_person_payment` isn't in generated types yet; cast through unknown.
+    const users = (usersData || []) as unknown as UserRow[];
     const practitionerIds = users.map((p) => p.id);
     if (practitionerIds.length === 0) {
       return { data: [], error: null };
@@ -129,12 +140,16 @@ export async function fetchMarketplacePractitioners(): Promise<{
         location: p.location,
         hourly_rate: p.hourly_rate,
         specializations: p.specializations,
+        user_role: p.user_role,
         therapist_type: p.therapist_type,
+        bio: p.bio?.trim() || null,
         average_rating,
         total_reviews,
         verified: p.is_verified === true,
         profile_photo_url: p.profile_photo_url?.trim() || null,
         from_price,
+        accept_in_person_payment: p.accept_in_person_payment === true,
+        experience_years: p.experience_years ?? null,
       };
     });
 

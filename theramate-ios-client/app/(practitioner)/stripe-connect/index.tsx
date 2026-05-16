@@ -6,23 +6,27 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronLeft, Landmark } from "lucide-react-native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { fetchConnectAccountStatus } from "@/lib/api/stripeConnect";
+import {
+  createConnectAccount,
+  fetchConnectAccountStatus,
+} from "@/lib/api/stripeConnect";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 export default function PractitionerStripeConnectScreen() {
   const tabRoot = useTabRoot();
-  const { userId } = useAuth();
+  const { userId, user, userProfile } = useAuth();
   const queryClient = useQueryClient();
 
   const statusQuery = useQuery({
@@ -35,6 +39,37 @@ export default function PractitionerStripeConnectScreen() {
       return { data, notConnected };
     },
     enabled: !!userId,
+  });
+
+  const createAccountMutation = useMutation({
+    mutationFn: async () => {
+      const email = user?.email?.trim();
+      if (!email) {
+        throw new Error(
+          "Your account has no email on file. Add one in profile settings.",
+        );
+      }
+      const res = await createConnectAccount({
+        email,
+        firstName: userProfile?.first_name,
+        lastName: userProfile?.last_name,
+        businessType: "individual",
+      });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["stripe_connect_status", userId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["connect_status", userId],
+      });
+      router.push(tabPath(tabRoot, "stripe-connect/embedded") as never);
+    },
+    onError: (e: Error) => {
+      Alert.alert("Stripe Connect", e.message);
+    },
   });
 
   if (!userId) {
@@ -125,8 +160,14 @@ export default function PractitionerStripeConnectScreen() {
             </Text>
           </Card>
         ) : statusQuery.isError ? (
-          <Card variant="default" padding="md" className="mb-4 border border-cream-200">
-            <Text className="text-charcoal-900 font-semibold">Could not load status</Text>
+          <Card
+            variant="default"
+            padding="md"
+            className="mb-4 border border-cream-200"
+          >
+            <Text className="text-charcoal-900 font-semibold">
+              Could not load status
+            </Text>
             <Text className="text-charcoal-600 text-sm mt-2">
               {statusQuery.error instanceof Error
                 ? statusQuery.error.message
@@ -139,8 +180,18 @@ export default function PractitionerStripeConnectScreen() {
               Not connected yet
             </Text>
             <Text className="text-charcoal-600 text-sm mt-2">
-              Complete Stripe Connect to take payments and receive payouts.
+              Create a payout account, then finish verification in embedded
+              onboarding (no external browser).
             </Text>
+            <Button
+              variant="primary"
+              className="mt-4"
+              disabled={createAccountMutation.isPending}
+              isLoading={createAccountMutation.isPending}
+              onPress={() => createAccountMutation.mutate()}
+            >
+              Create account & continue setup
+            </Button>
           </Card>
         ) : statusQuery.data?.data ? (
           <Card variant="default" padding="md" className="mb-4">
@@ -193,16 +244,16 @@ export default function PractitionerStripeConnectScreen() {
           </Button>
         ) : null}
 
-        <Button
-          variant={statusQuery.data?.notConnected ? "primary" : "outline"}
-          className="mt-3"
-          leftIcon={<Landmark size={18} color={statusQuery.data?.notConnected ? "#fff" : Colors.sage[600]} />}
-          onPress={() =>
-            router.push(tabPath(tabRoot, "stripe-connect") as never)
-          }
-        >
-          Payout account details
-        </Button>
+        {!statusQuery.data?.notConnected ? (
+          <Button
+            variant="outline"
+            className="mt-3"
+            leftIcon={<Landmark size={18} color={Colors.sage[600]} />}
+            onPress={() => router.push(tabPath(tabRoot, "billing") as never)}
+          >
+            Billing & payouts
+          </Button>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

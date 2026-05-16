@@ -5,6 +5,8 @@ export type TabRootHref = "/(tabs)" | "/(practitioner)/(ptabs)";
 const PRACTITIONER_STACK_FIRST_SEGMENTS = new Set([
   "analytics",
   "availability",
+  "block-time",
+  "calendar-sync",
   "billing",
   "clinical-files",
   "clinical-notes",
@@ -13,6 +15,7 @@ const PRACTITIONER_STACK_FIRST_SEGMENTS = new Set([
   "explore",
   "marketplace",
   "mobile-requests",
+  "patient-history-requests",
   "projects",
   "services",
   "stripe-connect",

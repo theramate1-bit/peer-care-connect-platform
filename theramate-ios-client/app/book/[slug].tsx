@@ -4,25 +4,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
-import { fetchPublicTherapistById } from "@/lib/api/guestBooking";
+import { fetchPublicTherapistBySlugOrId } from "@/lib/api/guestBooking";
 import { signedInTabPath } from "@/lib/signedInRoutes";
 
 export default function DirectBookingScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const [loading, setLoading] = React.useState(true);
   const [name, setName] = React.useState<string | null>(null);
+  const [practitionerId, setPractitionerId] = React.useState<string | null>(
+    null,
+  );
 
   React.useEffect(() => {
     let mounted = true;
     void (async () => {
       if (!slug) return;
-      const { data } = await fetchPublicTherapistById(slug);
+      const { data } = await fetchPublicTherapistBySlugOrId(slug);
       if (!mounted) return;
       if (data) {
         setName(
           `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
             "Therapist",
         );
+        setPractitionerId(data.id);
       }
       setLoading(false);
     })();
@@ -47,14 +51,14 @@ export default function DirectBookingScreen() {
           </Text>
         )}
 
-        {slug ? (
+        {practitionerId ? (
           <Button
             variant="primary"
             className="mt-6"
             onPress={() =>
               router.push({
                 pathname: "/booking",
-                params: { practitionerId: slug },
+                params: { practitionerId },
               })
             }
           >
@@ -79,8 +83,8 @@ export default function DirectBookingScreen() {
         </Button>
 
         <Text className="text-charcoal-400 text-xs mt-6">
-          If this link does not load, use Browse practitioners or contact support
-          with your practitioner&apos;s name.
+          If this link does not load, use Browse practitioners or contact
+          support with your practitioner&apos;s name.
         </Text>
       </View>
     </SafeAreaView>

@@ -225,32 +225,36 @@ export async function fetchClientSessionById(params: {
   }
 }
 
+type CancelSessionRpcResult = {
+  success?: boolean;
+  error_code?: string;
+  error_message?: string;
+};
+
 export async function cancelClientSession(params: {
   clientId: string;
   sessionId: string;
   reason?: string;
-}): Promise<{ ok: boolean; error: Error | null }> {
+}): Promise<{
+  ok: boolean;
+  error: Error | null;
+  errorCode?: string;
+}> {
   try {
-    const updates: Record<string, unknown> = {
-      status: "cancelled",
-      cancellation_reason: params.reason || "Cancelled by client",
-      cancelled_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase
-      .from("client_sessions")
-      .update(updates)
-      .eq("id", params.sessionId)
-      .eq("client_id", params.clientId)
-      .in("status", [
-        "scheduled",
-        "confirmed",
-        "pending_payment",
-        "pending_approval",
-      ]);
+    const { data, error } = await supabase.rpc("cancel_client_session", {
+      p_session_id: params.sessionId,
+      p_reason: params.reason?.trim() || "Cancelled by client",
+      p_cancelled_by: "client",
+    });
 
     if (error) throw error;
+    const payload = data as CancelSessionRpcResult | null;
+    if (!payload?.success) {
+      const code = payload?.error_code;
+      const msg = payload?.error_message || "Could not cancel session";
+      const err = new Error(msg);
+      return { ok: false, error: err, errorCode: code };
+    }
     return { ok: true, error: null };
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));

@@ -15,13 +15,23 @@ import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { supabase } from "@/lib/supabase";
+import {
+  buildNotificationPreferencesUpsert,
+  buildUsersPreferencesUpdate,
+  loadProfilePreferences,
+  type ProfilePreferencesViewModel,
+} from "@/lib/userPreferences";
 
-type NotificationPrefs = {
-  notify_booking_updates: boolean;
-  notify_messages: boolean;
-  notify_reminders: boolean;
-  notify_marketing: boolean;
-};
+type NotificationPrefs = Pick<
+  ProfilePreferencesViewModel,
+  | "emailNotifications"
+  | "smsNotifications"
+  | "calendarReminders"
+  | "receiveInAppNotifications"
+  | "marketingEmails"
+  | "platformUpdates"
+>;
 
 function ToggleRow({
   label,
@@ -51,45 +61,51 @@ function ToggleRow({
   );
 }
 
-function getInitialPrefs(raw: unknown): NotificationPrefs {
-  const base: NotificationPrefs = {
-    notify_booking_updates: true,
-    notify_messages: true,
-    notify_reminders: true,
-    notify_marketing: false,
-  };
-  if (!raw || typeof raw !== "object") return base;
-  const src = raw as Record<string, unknown>;
-  return {
-    notify_booking_updates:
-      typeof src.notify_booking_updates === "boolean"
-        ? src.notify_booking_updates
-        : base.notify_booking_updates,
-    notify_messages:
-      typeof src.notify_messages === "boolean"
-        ? src.notify_messages
-        : base.notify_messages,
-    notify_reminders:
-      typeof src.notify_reminders === "boolean"
-        ? src.notify_reminders
-        : base.notify_reminders,
-    notify_marketing:
-      typeof src.notify_marketing === "boolean"
-        ? src.notify_marketing
-        : base.notify_marketing,
-  };
-}
+const defaultPrefs: NotificationPrefs = {
+  emailNotifications: true,
+  smsNotifications: false,
+  calendarReminders: true,
+  receiveInAppNotifications: true,
+  marketingEmails: false,
+  platformUpdates: false,
+};
 
 export default function NotificationSettingsScreen() {
   const { userProfile, updateProfile, refreshProfile } = useAuth();
   const [saving, setSaving] = React.useState(false);
-  const [prefs, setPrefs] = React.useState<NotificationPrefs>(
-    getInitialPrefs(userProfile?.preferences ?? null),
-  );
+  const [prefs, setPrefs] = React.useState<NotificationPrefs>(defaultPrefs);
 
   React.useEffect(() => {
-    setPrefs(getInitialPrefs(userProfile?.preferences ?? null));
-  }, [userProfile?.preferences]);
+    let canceled = false;
+    const load = async () => {
+      if (!userProfile?.id) {
+        setPrefs(defaultPrefs);
+        return;
+      }
+      const { data: notificationPrefs } = await supabase
+        .from("notification_preferences")
+        .select("email, sms, in_app, email_reminders")
+        .eq("user_id", userProfile.id)
+        .maybeSingle();
+      if (canceled) return;
+      const merged = loadProfilePreferences(
+        userProfile.preferences ?? null,
+        notificationPrefs,
+      );
+      setPrefs({
+        emailNotifications: merged.emailNotifications,
+        smsNotifications: merged.smsNotifications,
+        calendarReminders: merged.calendarReminders,
+        receiveInAppNotifications: merged.receiveInAppNotifications,
+        marketingEmails: merged.marketingEmails,
+        platformUpdates: merged.platformUpdates,
+      });
+    };
+    void load();
+    return () => {
+      canceled = true;
+    };
+  }, [userProfile?.id, userProfile?.preferences]);
 
   const update = (key: keyof NotificationPrefs) => {
     setPrefs((p) => ({ ...p, [key]: !p[key] }));
@@ -98,21 +114,46 @@ export default function NotificationSettingsScreen() {
   const onSave = async () => {
     setSaving(true);
     try {
-      const existing =
-        userProfile?.preferences && typeof userProfile.preferences === "object"
-          ? (userProfile.preferences as Record<string, unknown>)
-          : {};
+      if (!userProfile?.id) {
+        Alert.alert("Could not save settings", "Please sign in again.");
+        return;
+      }
+      const merged = loadProfilePreferences(userProfile.preferences ?? null);
+      const nextPreferences: ProfilePreferencesViewModel = {
+        ...merged,
+        emailNotifications: prefs.emailNotifications,
+        smsNotifications: prefs.smsNotifications,
+        calendarReminders: prefs.calendarReminders,
+        receiveInAppNotifications: prefs.receiveInAppNotifications,
+        marketingEmails: prefs.marketingEmails,
+        platformUpdates: prefs.platformUpdates,
+      };
       const result = await updateProfile({
-        preferences: {
-          ...existing,
-          ...prefs,
-        } as any,
+        preferences: buildUsersPreferencesUpdate(
+          nextPreferences,
+          userProfile.preferences ?? {},
+        ) as any,
       });
       if (!result.success) {
         Alert.alert(
           "Could not save settings",
           result.error || "Please try again.",
         );
+        return;
+      }
+      const { error: notificationError } = await supabase
+        .from("notification_preferences")
+        .upsert(
+          buildNotificationPreferencesUpsert({
+            userId: userProfile.id,
+            preferences: nextPreferences,
+            email: userProfile.email ?? null,
+            phone: userProfile.phone ?? null,
+          }),
+          { onConflict: "user_id" },
+        );
+      if (notificationError) {
+        Alert.alert("Could not save settings", notificationError.message);
         return;
       }
       await refreshProfile();
@@ -125,36 +166,53 @@ export default function NotificationSettingsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="Notification preferences" fallbackHref={defaultSignedInProfileHref()} />
+      <AppStackHeader
+        title="Notification preferences"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       <View className="px-6 pt-4">
         <Card variant="default" padding="md">
           <ToggleRow
             label="Booking updates"
             desc="Changes to bookings, approvals, and cancellations."
-            value={prefs.notify_booking_updates}
-            onToggle={() => update("notify_booking_updates")}
+            value={prefs.emailNotifications}
+            onToggle={() => update("emailNotifications")}
+          />
+          <View className="h-px bg-cream-200" />
+          <ToggleRow
+            label="SMS updates"
+            desc="Text alerts for key booking changes."
+            value={prefs.smsNotifications}
+            onToggle={() => update("smsNotifications")}
           />
           <View className="h-px bg-cream-200" />
           <ToggleRow
             label="Messages"
             desc="New chat messages from therapists."
-            value={prefs.notify_messages}
-            onToggle={() => update("notify_messages")}
+            value={prefs.receiveInAppNotifications}
+            onToggle={() => update("receiveInAppNotifications")}
           />
           <View className="h-px bg-cream-200" />
           <ToggleRow
             label="Session reminders"
             desc="Reminders before upcoming sessions."
-            value={prefs.notify_reminders}
-            onToggle={() => update("notify_reminders")}
+            value={prefs.calendarReminders}
+            onToggle={() => update("calendarReminders")}
           />
           <View className="h-px bg-cream-200" />
           <ToggleRow
             label="Product updates"
             desc="Occasional updates and product announcements."
-            value={prefs.notify_marketing}
-            onToggle={() => update("notify_marketing")}
+            value={prefs.marketingEmails}
+            onToggle={() => update("marketingEmails")}
+          />
+          <View className="h-px bg-cream-200" />
+          <ToggleRow
+            label="Platform updates"
+            desc="Product changes and release improvements."
+            value={prefs.platformUpdates}
+            onToggle={() => update("platformUpdates")}
           />
         </Card>
 

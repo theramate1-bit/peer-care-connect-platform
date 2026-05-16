@@ -29,7 +29,7 @@ function isKnownInAppRoute(path: string): boolean {
       p,
     ) ||
     /^\/(settings|settings\/privacy|settings\/subscription)$/.test(p) ||
-    /^\/(help|privacy|terms|cookies|contact|pricing|how-it-works|find-therapists|diagnostics)$/.test(
+    /^\/(help|privacy|terms|cookies|dpa|contact|pricing|how-it-works|find-therapists|diagnostics)$/.test(
       p,
     ) ||
     /^\/(notifications|review|booking-success|subscription-success|stripe-customer-portal|hosted-web)$/.test(
@@ -39,16 +39,13 @@ function isKnownInAppRoute(path: string): boolean {
     /^\/therapist\/[^/]+\/public$/.test(p) ||
     /^\/(guest\/mobile-requests|mobile-booking\/(success|pending))$/.test(p) ||
     /^\/(profile|messages|bookings|explore|schedule)(\/.*)?$/.test(p) ||
-    /^\/(analytics|availability|billing|clients|clinical-files|clinical-notes|credits|exchange|marketplace|mobile-requests|projects|services|stripe-connect|treatment-plans)(\/.*)?$/.test(
+    /^\/(analytics|availability|billing|clients|clinical-files|clinical-notes|credits|exchange|marketplace|mobile-requests|patient-history-requests|projects|services|stripe-connect|treatment-plans)(\/.*)?$/.test(
       p,
     )
   );
 }
 
-function pickStr(
-  p: Record<string, unknown>,
-  ...keys: string[]
-): string | null {
+function pickStr(p: Record<string, unknown>, ...keys: string[]): string | null {
   for (const k of keys) {
     const v = p[k];
     if (typeof v === "string" && v.length > 0) return v;
@@ -81,7 +78,8 @@ export function resolveNotificationNavigation(options: {
   const isClientShell = root === "/(tabs)";
   const webBase = APP_CONFIG.WEB_URL.replace(/\/$/, "");
 
-  const explicitRoute = typeof p.route === "string" && p.route.trim() ? p.route : null;
+  const explicitRoute =
+    typeof p.route === "string" && p.route.trim() ? p.route : null;
   if (
     explicitRoute &&
     isSafeInAppRoute(explicitRoute) &&
@@ -110,7 +108,10 @@ export function resolveNotificationNavigation(options: {
     );
     if (planId) {
       if (root === "/(practitioner)/(ptabs)") {
-        return { kind: "route", path: tabPath(root, `treatment-plans/${planId}`) };
+        return {
+          kind: "route",
+          path: tabPath(root, `treatment-plans/${planId}`),
+        };
       }
       return {
         kind: "route",
@@ -122,6 +123,14 @@ export function resolveNotificationNavigation(options: {
   if (screenLc === "exchange" || screenLc === "treatment_exchange") {
     if (isClientShell) {
       return { kind: "route", path: tabPath(root, "profile/credits") };
+    }
+    const exchangeReqId =
+      pickStr(p, "requestId", "request_id", "exchange_request_id") ?? null;
+    if (exchangeReqId && !exchangeReqId.includes(" ")) {
+      return {
+        kind: "route",
+        path: tabPath(root, `exchange/${exchangeReqId}`),
+      };
     }
     return { kind: "route", path: tabPath(root, "exchange") };
   }
@@ -151,9 +160,19 @@ export function resolveNotificationNavigation(options: {
   }
 
   if (
-    screenLc === "bookings" &&
-    pickStr(p, "session_id", "sessionId")
+    screenLc === "patient_history_requests" ||
+    screenLc === "patient-history-requests" ||
+    screenLc === "history_requests"
   ) {
+    if (!isClientShell) {
+      return {
+        kind: "route",
+        path: tabPath(root, "patient-history-requests"),
+      };
+    }
+  }
+
+  if (screenLc === "bookings" && pickStr(p, "session_id", "sessionId")) {
     const sid = pickStr(p, "session_id", "sessionId")!;
     return { kind: "route", path: tabPath(root, `bookings/${sid}`) };
   }
@@ -223,6 +242,8 @@ export function resolveNotificationNavigation(options: {
     pickStr(p, "source_type", "sourceType") ??
     ""
   ).toLowerCase();
+  const srcId = options.sourceId ?? pickStr(p, "source_id", "sourceId") ?? null;
+
   if (
     st.includes("treatment_exchange") ||
     st.includes("slot_hold") ||
@@ -231,11 +252,20 @@ export function resolveNotificationNavigation(options: {
     if (isClientShell) {
       return { kind: "route", path: tabPath(root, "profile/credits") };
     }
+    const fromPayload =
+      pickStr(p, "requestId", "request_id", "exchange_request_id") ?? null;
+    const rid = fromPayload || srcId;
+    if (
+      rid &&
+      !rid.includes(" ") &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        rid,
+      )
+    ) {
+      return { kind: "route", path: tabPath(root, `exchange/${rid}`) };
+    }
     return { kind: "route", path: tabPath(root, "exchange") };
   }
-
-  const srcId =
-    options.sourceId ?? pickStr(p, "source_id", "sourceId") ?? null;
 
   if (st.includes("mobile") || mobileReqId) {
     const mid = mobileReqId || srcId;
@@ -268,7 +298,11 @@ export function resolveNotificationNavigation(options: {
       ? webPath
       : `${webBase}${webPath.startsWith("/") ? "" : "/"}${webPath}`;
     const mappedRoute = tryMapWebUrlToRoute(url, options.role);
-    if (mappedRoute && isSafeInAppRoute(mappedRoute) && isKnownInAppRoute(mappedRoute)) {
+    if (
+      mappedRoute &&
+      isSafeInAppRoute(mappedRoute) &&
+      isKnownInAppRoute(mappedRoute)
+    ) {
       return { kind: "route", path: mappedRoute };
     }
     return { kind: "url", url };
