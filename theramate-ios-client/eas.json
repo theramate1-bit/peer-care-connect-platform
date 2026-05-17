@@ -18,6 +18,7 @@
     "production": {
       "channel": "production",
       "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2",
         "resourceClass": "m-medium",
         "autoIncrement": true
       },
@@ -29,6 +30,7 @@
   "submit": {
     "production": {
       "ios": {
+        "ascAppId": "6769485585",
         "appleTeamId": "X3GU2G68AL",
         "bundleIdentifier": "com.theramate.client"
       }
