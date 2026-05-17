@@ -52,16 +52,9 @@ else
 fi
 
 if [[ ! -d "$APP_PATH" ]]; then
-  echo "Building Debug simulator binary (first run; several minutes)..."
+  echo "Building Debug simulator binary via fastlane (first run; several minutes)..."
   cd "$CLIENT_DIR/ios"
-  xcodebuild \
-    -workspace Theramate.xcworkspace \
-    -scheme Theramate \
-    -configuration Debug \
-    -sdk iphonesimulator \
-    -destination "id=$SIM_ID" \
-    -derivedDataPath ./build/DerivedData \
-    build
+  fastlane sim
 fi
 
 xcrun simctl uninstall booted "$BUNDLE_ID" 2>/dev/null || true

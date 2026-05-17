@@ -18,7 +18,33 @@
 8. **Universal Links** — `associatedDomains` are set for `theramate.com` / `www`. Host **apple-app-site-association** on those domains or Universal Links will not open the app from Safari.
 9. **Payments & portal in-app** — Primary **Stripe Checkout**, **Customer Portal**, and **signed document/export** flows use an **allowlisted in-app WebView** (`app/hosted-web.tsx`, `app/stripe-customer-portal.tsx`) so users are not sent to the system browser for those steps. **OAuth** uses **`expo-web-browser` `openAuthSessionAsync`** (in-app auth sheet, same PKCE flow); deep links to `oauth-callback` remain for Universal Links fallback.
 
-## Build & submit commands
+## Local Xcode / Fastlane (simulator)
+
+From `theramate-ios-client/ios` (no Apple certs required for simulator):
+
+```bash
+pod install
+fastlane sim
+# or from app root:
+npm run ios:fastlane:sim
+```
+
+Open the workspace in Xcode: `fastlane open_xcode` or `open ios/Theramate.xcworkspace`.
+
+## Device archive / TestFlight (signing required)
+
+This Mac must have an Apple Developer team configured:
+
+```bash
+export APPLE_TEAM_ID="XXXXXXXXXX"   # Membership → Team ID
+cd theramate-ios-client/ios
+fastlane check_signing
+fastlane archive
+```
+
+If `security find-identity` shows **0 valid identities**, add your Apple ID in **Xcode → Settings → Accounts** and download certificates, or use **EAS Build** (recommended below).
+
+## Build & submit commands (EAS)
 
 ```bash
 cd theramate-ios-client

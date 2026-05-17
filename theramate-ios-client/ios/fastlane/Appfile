@@ -1,0 +1,12 @@
+app_identifier("com.theramate.client")
+# Set before `fastlane archive` / `fastlane beta`:
+#   export APPLE_TEAM_ID="XXXXXXXXXX"   # Apple Developer → Membership → Team ID
+#   export APPLE_ID="you@example.com"   # optional, for upload lanes
+
+if ENV["APPLE_ID"]
+  apple_id(ENV["APPLE_ID"])
+end
+
+if ENV["APPLE_TEAM_ID"]
+  team_id(ENV["APPLE_TEAM_ID"])
+end

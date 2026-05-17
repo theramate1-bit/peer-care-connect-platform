@@ -1,0 +1,133 @@
+# Theramate iOS — Fastlane
+# Run from: theramate-ios-client/ios
+#
+# Local simulator (no Apple certs required):
+#   fastlane sim
+#
+# Device archive / TestFlight (requires signing):
+#   export APPLE_TEAM_ID="your_team_id"
+#   fastlane archive
+
+default_platform(:ios)
+
+def project_path
+  "Theramate.xcodeproj"
+end
+
+def workspace_path
+  "Theramate.xcworkspace"
+end
+
+def scheme_name
+  "Theramate"
+end
+
+def derived_data_path
+  File.expand_path("../build/DerivedData", __dir__)
+end
+
+platform :ios do
+  before_all do
+    ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] ||= "120"
+  end
+
+  desc "Install CocoaPods"
+  lane :pods do
+    cocoapods(
+      clean_install: false,
+      podfile: "./Podfile"
+    )
+  end
+
+  desc "Verify Xcode + workspace; warn if signing is missing for device builds"
+  lane :check_signing do
+    identities = ""
+    begin
+      identities = sh("security find-identity -v -p codesigning", log: false).strip
+    rescue StandardError
+      identities = ""
+    end
+
+    if identities.include?("0 valid identities found") && ENV["APPLE_TEAM_ID"].to_s.empty?
+      UI.important("No code signing identities on this Mac and APPLE_TEAM_ID is unset.")
+      UI.important("Simulator builds work without certs: fastlane sim")
+      UI.important("For archive/TestFlight:")
+      UI.important("  1. Enroll in Apple Developer Program")
+      UI.important("  2. Xcode → Settings → Accounts → add Apple ID")
+      UI.important("  3. export APPLE_TEAM_ID=<Team ID>")
+      UI.important("  4. fastlane archive   (or use EAS: eas build --platform ios)")
+    else
+      UI.success("Signing check passed (identities or APPLE_TEAM_ID present).")
+    end
+  end
+
+  desc "Build Debug for iOS Simulator (no signing certificates required). Set FASTLANE_SIM_CLEAN=1 for clean build."
+  lane :sim do
+    pods unless File.exist?("Pods/Manifest.lock")
+    do_clean = ENV["FASTLANE_SIM_CLEAN"].to_s == "1"
+
+    xcodebuild(
+      workspace: workspace_path,
+      scheme: scheme_name,
+      configuration: "Debug",
+      sdk: "iphonesimulator",
+      destination: "generic/platform=iOS Simulator",
+      derivedDataPath: derived_data_path,
+      clean: do_clean,
+      build: true,
+      code_signing_allowed: false,
+      suppress_xcode_output: false
+    )
+
+    app_path = File.join(
+      derived_data_path,
+      "Build/Products/Debug-iphonesimulator/Theramate.app"
+    )
+    UI.success("Simulator build OK: #{app_path}")
+  end
+
+  desc "Open Theramate.xcworkspace in Xcode"
+  lane :open_xcode do
+    sh("open", File.expand_path("../#{workspace_path}", __dir__))
+  end
+
+  private_lane :apply_signing_settings do
+    team_id = ENV["APPLE_TEAM_ID"]
+    UI.user_error!("Set APPLE_TEAM_ID (10-char Team ID from Apple Developer) before device/archive lanes.") if team_id.to_s.empty?
+
+    update_code_signing_settings(
+      use_automatic_signing: true,
+      team_id: team_id,
+      path: project_path,
+      targets: ["Theramate"],
+      code_sign_identity: "Apple Development"
+    )
+  end
+
+  desc "Archive Release .ipa (requires APPLE_TEAM_ID + Xcode signing)"
+  lane :archive do
+    check_signing
+    apply_signing_settings
+    pods
+
+    build_app(
+      workspace: workspace_path,
+      scheme: scheme_name,
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: "./ExportOptions.plist",
+      output_directory: "./build",
+      output_name: "Theramate.ipa",
+      clean: true,
+      include_bitcode: false
+    )
+  end
+
+  desc "Archive and upload to TestFlight (requires APPLE_ID + app-specific password or API key)"
+  lane :beta do
+    archive
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

@@ -6,6 +6,8 @@
     <string>development</string>
     <key>com.apple.developer.associated-domains</key>
     <array>
+      <string>applinks:theramate.co.uk</string>
+      <string>applinks:www.theramate.co.uk</string>
       <string>applinks:theramate.com</string>
       <string>applinks:www.theramate.com</string>
     </array>
