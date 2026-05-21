@@ -19,7 +19,7 @@ export const HELP_DOCUMENT: LegalDocument = {
         "Diary: view the month, tap a day for sessions and blocked time. Add or remove internal blocks here; external calendar blocks show as read-only.",
         "Sessions: open a booking for details, notes, care plans, and messages with that client. Profile → Clients lists everyone you treat; open a client for history and shortcuts.",
         "Weekly hours & services: Profile → Weekly hours and Services & products control when you can be booked and what you sell. Marketplace links to products you offer online.",
-        "Treatment exchange: discover peers in your tier, send requests, track outgoing and incoming swaps, accept or decline, then book your return session when prompted. Mobile visit requests appear on Home when action is needed and under Profile routes.",
+        "Treatment exchange: discover peers in your tier, send requests, track outgoing and incoming swaps, accept or request a different time, then book your return session when prompted. Mobile visit requests appear on Home when action is needed and under Profile routes.",
         "Money & analytics: Billing and Stripe Connect (from Profile) cover payouts and account status. Analytics summarises sessions and reports; generate exports where your plan allows.",
         "Notifications: use the bell on Home or the global Notifications screen so booking and exchange updates are not missed.",
       ],

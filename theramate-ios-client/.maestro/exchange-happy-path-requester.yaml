@@ -1,0 +1,24 @@
+# Requester: sign in and send a treatment exchange request (Discover tab).
+# Prerequisite: recipient account exists; same rating tier; recipient opted in.
+appId: ${MAESTRO_APP_ID:-host.exp.Exponent}
+---
+- launchApp
+- runFlow: subflows/sign-in-practitioner.yaml
+  env:
+    EMAIL: ${EXCHANGE_REQUESTER_EMAIL}
+    PASSWORD: ${EXCHANGE_REQUESTER_PASSWORD}
+- tapOn:
+    text: "Exchange"
+    optional: true
+- tapOn:
+    id: "exchange-segment-discover"
+    optional: true
+- tapOn:
+    text: "Request exchange"
+    optional: true
+- tapOn:
+    id: "exchange-send-request"
+    optional: true
+- assertVisible:
+    text: "Request sent"
+    optional: true

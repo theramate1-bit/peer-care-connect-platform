@@ -1,5 +1,5 @@
 /**
- * Single treatment exchange request — native detail, accept / decline / cancel, status for all states.
+ * Single treatment exchange request — detail, accept / reschedule / cancel, all statuses.
  */
 
 import React, { useState } from "react";
@@ -24,14 +24,19 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   fetchExchangeRequestByIdForParticipant,
   fetchAcceptedExchangesNeedingReciprocal,
-  declineExchangeRequest,
+  fetchAcceptedExchangesAwaitingReciprocalByRequester,
+  rescheduleExchangeRequest,
+  requestExchangeExtension,
+  approveExchangeExtension,
   acceptExchangeRequest,
   cancelExchangeRequestByRequester,
+  formatExchangeConflictMessage,
   type ExchangeRequestDetail,
 } from "@/lib/api/practitionerExchange";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { ExchangeReciprocalSlotModal } from "@/components/practitioner/ExchangeReciprocalSlotModal";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,7 +51,7 @@ function statusTitle(status: string | null | undefined): string {
   const s = (status || "").toLowerCase();
   if (s === "pending") return "Pending";
   if (s === "accepted") return "Accepted";
-  if (s === "declined") return "Declined";
+  if (s === "declined") return "Different time requested";
   if (s === "cancelled") return "Cancelled";
   if (s === "expired") return "Expired";
   return status || "Unknown";
@@ -59,6 +64,7 @@ export default function PractitionerExchangeRequestDetailScreen() {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
+  const [slotModalOpen, setSlotModalOpen] = useState(false);
 
   const requestId = typeof id === "string" ? id : "";
   const idOk = UUID_RE.test(requestId);
@@ -94,10 +100,27 @@ export default function PractitionerExchangeRequestDetailScreen() {
     enabled: !!userId && !!detail && detail.status === "accepted",
   });
 
+  const { data: awaitingAsRequester = [] } = useQuery({
+    queryKey: ["exchange_awaiting_reciprocal", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error: e } =
+        await fetchAcceptedExchangesAwaitingReciprocalByRequester(userId);
+      if (e) throw e;
+      return data;
+    },
+    enabled: !!userId && !!detail && detail.status === "accepted",
+  });
+
   const needsReciprocalBook =
     detail?.viewerRole === "recipient" &&
     detail.status === "accepted" &&
     reciprocalRows.some((r) => r.exchange_request_id === requestId);
+
+  const waitingForTheirReciprocalBook =
+    detail?.viewerRole === "requester" &&
+    detail.status === "accepted" &&
+    awaitingAsRequester.some((r) => r.exchange_request_id === requestId);
 
   const invalidateAll = async () => {
     await queryClient.invalidateQueries({ queryKey: ["exchange_pending"] });
@@ -111,6 +134,9 @@ export default function PractitionerExchangeRequestDetailScreen() {
       queryKey: ["practitioner_dashboard", userId],
     });
     await queryClient.invalidateQueries({
+      queryKey: ["exchange_awaiting_reciprocal", userId],
+    });
+    await queryClient.invalidateQueries({
       queryKey: ["exchange_request_detail"],
     });
   };
@@ -118,41 +144,124 @@ export default function PractitionerExchangeRequestDetailScreen() {
   const backToList = () =>
     goBackOrReplace(tabPath(tabRoot, "exchange") as Href);
 
-  const onDecline = (row: ExchangeRequestDetail) => {
+  const onRequestExtension = (row: ExchangeRequestDetail) => {
     if (!userId) return;
-    Alert.alert("Decline exchange", "Notify the other practitioner?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Decline",
-        style: "destructive",
-        onPress: async () => {
-          setBusy(true);
-          try {
-            const res = await declineExchangeRequest({
-              requestId: row.id,
-              recipientId: userId,
-              reason: declineReason.trim() || undefined,
-            });
-            if (!res.ok) {
-              Alert.alert("Error", res.error?.message || "Could not decline");
-              return;
-            }
-            await invalidateAll();
-            void refetch();
-            backToList();
-          } finally {
-            setBusy(false);
-          }
+    Alert.alert(
+      "Request more time?",
+      "Ask for 3 more days to book your return session. The other practitioner must approve.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Request extension",
+          onPress: () =>
+            void (async () => {
+              setBusy(true);
+              try {
+                const res = await requestExchangeExtension({
+                  requestId: row.id,
+                  recipientId: userId,
+                  extensionDays: 3,
+                });
+                if (!res.ok) {
+                  Alert.alert(
+                    "Error",
+                    res.error?.message || "Could not request extension",
+                  );
+                  return;
+                }
+                await invalidateAll();
+                void refetch();
+                Alert.alert("Requested", "They will be notified to approve.");
+              } finally {
+                setBusy(false);
+              }
+            })(),
         },
-      },
-    ]);
+      ],
+    );
+  };
+
+  const onApproveExtension = (row: ExchangeRequestDetail) => {
+    if (!userId) return;
+    Alert.alert(
+      "Approve extension?",
+      `Grant ${row.extension_days ?? 3} more days to book their return session.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve",
+          onPress: () =>
+            void (async () => {
+              setBusy(true);
+              try {
+                const res = await approveExchangeExtension({
+                  requestId: row.id,
+                  requesterId: userId,
+                });
+                if (!res.ok) {
+                  Alert.alert(
+                    "Error",
+                    res.error?.message || "Could not approve extension",
+                  );
+                  return;
+                }
+                await invalidateAll();
+                void refetch();
+                Alert.alert("Approved", "Their deadline has been extended.");
+              } finally {
+                setBusy(false);
+              }
+            })(),
+        },
+      ],
+    );
+  };
+
+  const onReschedule = (row: ExchangeRequestDetail) => {
+    if (!userId) return;
+    Alert.alert(
+      "Request a different time?",
+      "Release this slot so they can send a new request with a time that works for you.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Release slot",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const res = await rescheduleExchangeRequest({
+                requestId: row.id,
+                recipientId: userId,
+                reason: declineReason.trim() || undefined,
+              });
+              if (!res.ok) {
+                const msg = res.error?.message || "Could not reschedule";
+                Alert.alert(
+                  "Error",
+                  msg.includes("RESCHEDULE_CAP_EXCEEDED")
+                    ? "You have reached the reschedule limit for this pair. Accept or ask them to send a new request."
+                    : formatExchangeConflictMessage(msg),
+                );
+                return;
+              }
+              await invalidateAll();
+              void refetch();
+              backToList();
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const onAccept = (row: ExchangeRequestDetail) => {
     if (!userId) return;
     Alert.alert(
       "Accept exchange?",
-      "This confirms the requested session and starts the exchange. You will then book your return session.",
+      "This adds their session to your diary. You will still need to book your return session with them.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -165,14 +274,19 @@ export default function PractitionerExchangeRequestDetailScreen() {
                 recipientId: userId,
               });
               if (!res.ok) {
-                Alert.alert("Error", res.error?.message || "Could not accept");
+                Alert.alert(
+                  "Error",
+                  formatExchangeConflictMessage(
+                    res.error?.message ?? "Could not accept",
+                  ),
+                );
                 return;
               }
               await invalidateAll();
               void refetch();
               Alert.alert(
                 "Accepted",
-                "Book your return session from Treatment exchange.",
+                "Choose date and time below to book your return session.",
               );
             } finally {
               setBusy(false);
@@ -329,7 +443,9 @@ export default function PractitionerExchangeRequestDetailScreen() {
 
           {detail.recipient_notes && detail.status === "declined" ? (
             <Card variant="default" padding="md" className="mb-3">
-              <Text className="text-charcoal-500 text-sm">Decline note</Text>
+              <Text className="text-charcoal-500 text-sm">
+                Availability note
+              </Text>
               <Text className="text-charcoal-800 mt-2">
                 {detail.recipient_notes}
               </Text>
@@ -349,14 +465,30 @@ export default function PractitionerExchangeRequestDetailScreen() {
                 {new Date(detail.reciprocal_booking_deadline).toLocaleString()}
               </Text>
               <Button
+                testID="exchange-choose-reciprocal"
                 variant="primary"
                 className="mt-3"
-                onPress={() =>
-                  router.push(tabPath(tabRoot, "exchange") as Href)
-                }
+                onPress={() => setSlotModalOpen(true)}
               >
-                Open booking in Treatment exchange
+                Choose date and time
               </Button>
+            </Card>
+          ) : null}
+
+          {waitingForTheirReciprocalBook ? (
+            <Card variant="default" padding="md" className="mb-3">
+              <Text className="text-charcoal-800 text-sm leading-6">
+                Waiting for {detail.recipient_name} to book their return session
+                with you. You will be notified when the exchange is complete.
+              </Text>
+              {detail.reciprocal_booking_deadline ? (
+                <Text className="text-charcoal-500 text-xs mt-2">
+                  Deadline:{" "}
+                  {new Date(
+                    detail.reciprocal_booking_deadline,
+                  ).toLocaleString()}
+                </Text>
+              ) : null}
             </Card>
           ) : null}
 
@@ -372,18 +504,47 @@ export default function PractitionerExchangeRequestDetailScreen() {
               ? ` · Accepted ${new Date(detail.accepted_at).toLocaleString()}`
               : ""}
             {detail.declined_at
-              ? ` · Declined ${new Date(detail.declined_at).toLocaleString()}`
+              ? ` · Different time requested ${new Date(detail.declined_at).toLocaleString()}`
               : ""}
           </Text>
+
+          {detail.status === "accepted" &&
+          detail.viewerRole === "recipient" &&
+          needsReciprocalBook &&
+          !detail.extension_requested_at ? (
+            <Button
+              variant="outline"
+              className="mb-4"
+              disabled={busy}
+              onPress={() => onRequestExtension(detail)}
+            >
+              Request more time (3 days)
+            </Button>
+          ) : null}
+
+          {detail.status === "accepted" &&
+          detail.viewerRole === "requester" &&
+          detail.extension_requested_at &&
+          !detail.extension_approved_at ? (
+            <Button
+              variant="primary"
+              className="mb-4"
+              disabled={busy}
+              isLoading={busy}
+              onPress={() => onApproveExtension(detail)}
+            >
+              Approve extension ({detail.extension_days ?? 3} days)
+            </Button>
+          ) : null}
 
           {detail.status === "pending" && detail.viewerRole === "recipient" ? (
             <>
               <Text className="text-charcoal-500 text-sm mb-2">
-                Optional message when declining
+                Suggest when you are available (optional)
               </Text>
               <TextInput
                 className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-4"
-                placeholder="Reason (optional)"
+                placeholder="e.g. I'm available Tuesdays after 2pm"
                 placeholderTextColor={Colors.charcoal[400]}
                 value={declineReason}
                 onChangeText={setDeclineReason}
@@ -402,9 +563,9 @@ export default function PractitionerExchangeRequestDetailScreen() {
                 className="mt-3"
                 disabled={busy}
                 isLoading={busy}
-                onPress={() => onDecline(detail)}
+                onPress={() => onReschedule(detail)}
               >
-                Decline
+                Request different time
               </Button>
             </>
           ) : null}
@@ -427,6 +588,21 @@ export default function PractitionerExchangeRequestDetailScreen() {
           ) : null}
         </ScrollView>
       )}
+
+      {detail && userId && needsReciprocalBook ? (
+        <ExchangeReciprocalSlotModal
+          visible={slotModalOpen}
+          requestId={detail.id}
+          peerLabel={detail.requester_name}
+          durationMinutes={detail.duration_minutes}
+          recipientId={userId}
+          onClose={() => setSlotModalOpen(false)}
+          onBooked={async () => {
+            await invalidateAll();
+            void refetch();
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

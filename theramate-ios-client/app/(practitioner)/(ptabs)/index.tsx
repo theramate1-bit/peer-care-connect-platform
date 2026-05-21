@@ -86,18 +86,20 @@ export default function PractitionerHomeScreen() {
   const pendingTotal =
     (dash?.pendingMobileRequestsCount ?? 0) +
     (dash?.pendingExchangeCount ?? 0) +
-    (dash?.exchangeReciprocalNeededCount ?? 0);
+    (dash?.exchangeReciprocalNeededCount ?? 0) +
+    (dash?.exchangeExtensionPendingCount ?? 0);
 
   const goActionRequired = () => {
     if (!dash) return;
     const m = dash.pendingMobileRequestsCount ?? 0;
     const exIn = dash.pendingExchangeCount ?? 0;
     const exRec = dash.exchangeReciprocalNeededCount ?? 0;
+    const exExt = dash.exchangeExtensionPendingCount ?? 0;
     if (m > 0) {
       router.push(tabPath(tabRoot, "mobile-requests") as Href);
       return;
     }
-    if (exIn > 0 || exRec > 0) {
+    if (exIn > 0 || exRec > 0 || exExt > 0) {
       router.push(tabPath(tabRoot, "exchange") as Href);
       return;
     }
@@ -188,6 +190,9 @@ export default function PractitionerHomeScreen() {
                       : ""}
                     {dash.exchangeReciprocalNeededCount > 0
                       ? `${dash.exchangeReciprocalNeededCount} return session(s) to book. `
+                      : ""}
+                    {dash.exchangeExtensionPendingCount > 0
+                      ? `${dash.exchangeExtensionPendingCount} extension(s) to approve. `
                       : ""}
                   </Text>
                   <Text className="text-sage-600 text-sm font-medium mt-2">

@@ -1,0 +1,20 @@
+# Shared practitioner sign-in (adjust selectors to match your login screen).
+appId: ${MAESTRO_APP_ID:-host.exp.Exponent}
+---
+- tapOn:
+    text: "Sign in"
+    optional: true
+- tapOn:
+    text: "Email"
+    optional: true
+- inputText: ${EMAIL}
+- tapOn:
+    text: "Password"
+    optional: true
+- inputText: ${PASSWORD}
+- tapOn:
+    text: "Log in"
+    optional: true
+- tapOn:
+    text: "Sign in"
+    optional: true

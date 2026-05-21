@@ -1,313 +1,337 @@
 # How Treatment Exchange Works
 
-A comprehensive guide to understanding the treatment exchange system for junior developers.
+A guide to the treatment exchange system for developers and PMs. **Backend behaviour** below matches production Supabase (migrations `20260519120000`–`20260520140000`). **Mobile UI** matches [`docs/product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md`](../product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md) — use that doc for screen QA and Maestro.
+
+**Last updated:** 2026-05-21
+
+---
 
 ## Overview
 
-Treatment exchange allows practitioners to exchange treatments with each other using credits instead of money. This creates a peer-to-peer economy where practitioners can receive treatments by providing treatments to others.
+Treatment exchange lets practitioners swap treatments using **credits** (1 credit per minute). Both must opt in (`treatment_exchange_opt_in`). Matching uses **rating tiers** (0–1★, 2–3★, 4–5★), role, and discovery filters.
 
-## Key Concepts
+---
 
-### What is Treatment Exchange?
+## Golden flow (backend + mobile) — source of truth
 
-- Practitioners can request treatments from other practitioners
-- Credits are used as currency (1 credit per minute of treatment)
-- Both practitioners must opt-in to participate
-- Matching is based on rating tiers, specialization, and distance
+This replaces the old “accept + book reciprocal in one modal” model.
 
-### Rating Tiers
+```mermaid
+stateDiagram-v2
+  direction LR
 
-Practitioners are matched within the same rating tier:
+  [*] --> pending: create_treatment_exchange_request
 
-- **Tier 0:** 0-1 stars
-- **Tier 1:** 2-3 stars
-- **Tier 2:** 4-5 stars
+  pending --> accepted: accept_exchange_request
+  pending --> declined: decline_exchange_request
+  pending --> cancelled: cancel_exchange_request_by_requester
+  pending --> expired: reconcile cron
 
-This ensures practitioners exchange with peers of similar quality.
+  accepted --> complete: book_exchange_reciprocal_session
 
-### Credit System
+  declined --> [*]
+  cancelled --> [*]
+  expired --> [*]
+  complete --> [*]
 
-- **Cost:** 1 credit per minute of treatment (e.g., 60 credits for 60 minutes)
-- **Earning:** Practitioners earn 1 credit per patient booking they complete
-- **Spending:** Credits are deducted when booking a treatment exchange
-
-## User Sequence: Send Request
+  note right of accepted
+    Leg 1: peer client_sessions on accept
+    Leg 2 + credits on reciprocal book only
+  end note
+```
 
 ```mermaid
 sequenceDiagram
-    participant Requester
-    participant App
-    participant SlotHold
-    participant DB
-    participant Recipient
+  autonumber
+  participant A as Requester
+  participant B as Recipient
+  participant DB as Supabase
+  participant M as Mobile (theramate-ios-client)
 
-    Requester->>App: Select recipient, date/time, service
-    App->>App: Check credits (1/min)
-    App->>SlotHold: holdSlot(recipientId, date, time, 10min)
-    SlotHold->>DB: INSERT slot_holds (status=active)
-    App->>DB: INSERT treatment_exchange_requests (status=pending)
-    App->>DB: link_slot_hold_to_request
-    App->>DB: INSERT notifications (recipient)
-    App->>Recipient: Notification: "New treatment exchange request"
-    App->>Requester: "Request sent"
+  A->>M: Discover → send request
+  M->>DB: create_treatment_exchange_request
+  Note over A,M: Inbox ③ Waiting on them
+
+  B->>M: Accept (hub or detail)
+  M->>DB: accept_exchange_request
+  DB->>DB: Leg-1 session + mutual_exchange_sessions
+  Note over B,M: Inbox ① Book your return session
+  Note over A,M: Inbox ② Waiting for their return book
+
+  B->>M: Choose date and time → slot modal
+  M->>DB: get_exchange_reciprocal_available_slots
+  M->>DB: book_exchange_reciprocal_session
+  DB->>DB: Leg-2 session + process_peer_booking_credits
+  Note over A,B: Schedule diary — Treatment exchange filter
 ```
 
 ---
 
-## User Sequence: Accept & Book Reciprocal
+## Key concepts
 
-```mermaid
-sequenceDiagram
-    participant Recipient
-    participant Modal
-    participant Service
-    participant DB
-    participant Requester
+### Two legs (do not bundle at accept)
 
-    Recipient->>Modal: Open ExchangeAcceptanceModal (from dashboard)
-    Modal->>DB: Fetch recipient's products
-    Recipient->>Modal: Select service, date/time for reciprocal
-    Recipient->>Modal: Click Accept
-    Modal->>Service: acceptExchangeRequest
-    Service->>DB: UPDATE treatment_exchange_requests status=accepted
-    Service->>DB: INSERT mutual_exchange_sessions
-    Modal->>Service: bookReciprocalExchange (recipient's chosen date/time)
-    Service->>DB: INSERT client_sessions (requester as therapist, recipient as client)
-    Service->>DB: Deduct credits from recipient (when both booked)
-    Service->>Requester: Notification: "Exchange accepted"
-    Service->>Recipient: Session in diary
-```
+| Leg                | Who delivers                                | When created               | RPC                                |
+| ------------------ | ------------------------------------------- | -------------------------- | ---------------------------------- |
+| **Leg 1**          | Recipient treats requester at proposed time | On **accept**              | `accept_exchange_request`          |
+| **Leg 2** (return) | Recipient books on **requester’s** calendar | Separate step after accept | `book_exchange_reciprocal_session` |
 
----
+**Credits:** Burn via `process_peer_booking_credits` only after **leg 2** is booked (idempotent). Pre-reciprocal cancel must not mint credits (`process_peer_booking_refund`).
 
-## User Sequence: Decline
+### Slot holds
 
-```mermaid
-sequenceDiagram
-    participant Recipient
-    participant App
-    participant DB
-    participant Requester
-    participant SlotHold
+- **Send:** `create_treatment_exchange_request` holds recipient slot (~10 min) while pending.
+- **Conflicts:** `assert_practitioner_slot_available` on send, accept, and reciprocal book (`CONFLICT_*` → mobile `formatExchangeConflictMessage`).
+- **Pending requests** do not auto-expire in current product copy; cron may still set `expired` — see notifications.
 
-    Recipient->>App: Click Decline (optional: reason)
-    App->>DB: decline_exchange_request RPC
-    DB->>DB: UPDATE treatment_exchange_requests status=declined
-    DB->>SlotHold: Release slot_holds
-    DB->>DB: Dismiss recipient notifications
-    App->>Requester: Notification: "Request declined"
-```
+### Rating tiers
+
+| Tier | Stars |
+| ---- | ----- |
+| 0    | 0–1★  |
+| 1    | 2–3★  |
+| 2    | 4–5★  |
+
+Mobile discovery: `theramate-ios-client/lib/api/treatmentExchangeDiscovery.ts`.
 
 ---
 
-## High-Level Flow (Summary)
+## User sequence: Send request
 
-```
-1. Practitioner A wants treatment
-   ↓
-2. Check Practitioner A has enough credits
-   ↓
-3. Find eligible practitioners (same rating tier, opted-in)
-   ↓
-4. Practitioner A sends request to Practitioner B
-   ↓
-5. Practitioner B receives notification
-   ↓
-6. Practitioner B accepts/declines
-   ↓
-7. If accepted:
-   - Credits deducted from Practitioner A
-   - Session created
-   - Both practitioners notified
+```mermaid
+sequenceDiagram
+  participant Requester
+  participant App as Mobile Discover / RPC
+  participant DB
+  participant Recipient
+
+  Requester->>App: Opt in + pick peer, date, time, duration
+  App->>App: Credit pre-check (balance ≥ duration)
+  App->>DB: create_treatment_exchange_request
+  DB->>DB: slot_holds + treatment_exchange_requests pending
+  DB->>Recipient: Notification
+  App->>Requester: Queue ③ Waiting on them
 ```
 
-## Key Components
+**Mobile:** `ExchangeDiscoverPanel` → RPC `create_treatment_exchange_request`.
 
-### 1. TreatmentExchangeService
+---
 
-**Location:** `src/lib/treatment-exchange.ts`
+## User sequence: Accept (leg 1 only)
 
-**Main Functions:**
+```mermaid
+sequenceDiagram
+  participant Recipient
+  participant App as Exchange hub / detail
+  participant DB
+  participant Requester
 
-#### Check Credit Balance
-
-```typescript
-const { hasSufficientCredits, currentBalance } =
-  await TreatmentExchangeService.checkCreditBalance(userId, requiredCredits);
+  Recipient->>App: Accept
+  App->>DB: accept_exchange_request
+  DB->>DB: status=accepted, mutual_exchange_sessions active
+  DB->>DB: Leg-1 client_sessions (is_peer_booking)
+  App->>Recipient: Queue ① — book return later
+  App->>Requester: Queue ② — waiting for their book
+  Note over Recipient,DB: Credits NOT deducted yet
 ```
 
-#### Get Eligible Practitioners
+**Mobile:** Inbox **Needs your response** or `exchange/[id]` → **Accept**. Copy: still need **Choose date and time** for return session.
 
-```typescript
-const practitioners = await TreatmentExchangeService.getEligiblePractitioners(
-  userId,
-  {
-    specializations: ["sports_therapy"],
-    max_distance_km: 10,
-  },
-);
+---
+
+## User sequence: Book reciprocal (leg 2)
+
+```mermaid
+sequenceDiagram
+  participant Recipient
+  participant Modal as ExchangeReciprocalSlotModal
+  participant DB
+  participant Requester
+
+  Recipient->>Modal: Choose date and time
+  Modal->>DB: get_exchange_reciprocal_available_slots
+  Note over Modal: Slots from requester calendar — not recipient weekly hours
+  Recipient->>Modal: Confirm slot
+  Modal->>DB: book_exchange_reciprocal_session
+  DB->>DB: Leg-2 client_sessions
+  DB->>DB: process_peer_booking_credits when both legs exist
+  Modal->>Recipient: Booked
 ```
 
-#### Send Exchange Request
+**Mobile:** Hub queue ① or detail → `testID="exchange-choose-reciprocal"`.
 
-```typescript
-const requestId = await TreatmentExchangeService.sendExchangeRequest(
-  requesterId,
-  recipientId,
-  {
-    session_date: "2025-02-15",
-    start_time: "14:00",
-    end_time: "15:00",
-    duration_minutes: 60,
-    session_type: "massage",
-    notes: "Focus on lower back",
-  },
-);
+---
+
+## User sequence: Request different time (was “decline”)
+
+```mermaid
+sequenceDiagram
+  participant Recipient
+  participant App
+  participant DB
+  participant Requester
+
+  Recipient->>App: Request different time (+ optional availability note)
+  App->>DB: decline_exchange_request
+  DB->>DB: status=declined, release holds
+  App->>Requester: Notification + availability note on detail
 ```
 
-### 2. Exchange Request States
+**UI copy:** Always **“Request different time”** — never “Decline” on mobile. DB status remains `declined`.
 
-- `pending` - Request sent, awaiting response
-- `accepted` - Request accepted, session created
-- `declined` - Request declined by recipient
-- `expired` - Request expired (time limit reached)
-- `cancelled` - Request cancelled by requester
+---
 
-### 3. Matching Logic
+## User sequence: Cancel
 
-Practitioners are matched based on:
+| Actor     | When                    | RPC                                                                      |
+| --------- | ----------------------- | ------------------------------------------------------------------------ |
+| Requester | `pending`               | `cancel_exchange_request_by_requester`                                   |
+| Either    | Booked peer **session** | `process_peer_booking_refund` from booking detail (not diary reschedule) |
 
-1. **Rating Tier** - Must be in same tier (0, 1, or 2)
-2. **Opt-in Status** - Must have `treatment_exchange_opt_in = true`
-3. **Profile Completion** - Must have `profile_completed = true`
-4. **Specialization** - Optional filter
-5. **Distance** - Optional maximum distance filter
-6. **Session Types** - Optional preferred session types
+---
 
-## Step-by-Step Breakdown
+## Mobile inbox (four active queues)
 
-### Step 1: Check Credits
+```mermaid
+flowchart TD
+  IN[Inbox] --> Q1["① Book your return session"]
+  IN --> Q2["② Waiting for their return book"]
+  IN --> Q3["③ Waiting on them"]
+  IN --> Q4["④ Needs your response"]
 
-```typescript
-// Before sending request, check if user has enough credits
-const requiredCredits = 60; // For 60-minute session
-const { hasSufficientCredits, currentBalance } =
-  await TreatmentExchangeService.checkCreditBalance(userId, requiredCredits);
-
-if (!hasSufficientCredits) {
-  // Show error: "You need 60 credits but only have {currentBalance}"
-  return;
-}
+  Q1 --> SLOT[Choose date and time]
+  Q2 --> DET[View detail / approve extension]
+  Q3 --> CAN[Cancel request]
+  Q4 --> ACC[Accept / Request different time]
 ```
 
-### Step 2: Find Eligible Practitioners
+| Queue | API (mobile)                                          |
+| ----- | ----------------------------------------------------- |
+| ①     | `fetchAcceptedExchangesNeedingReciprocal`             |
+| ②     | `fetchAcceptedExchangesAwaitingReciprocalByRequester` |
+| ③     | `fetchPendingExchangeRequestsSentByRequester`         |
+| ④     | `fetchPendingExchangeRequestsForRecipient`            |
 
-```typescript
-// Get list of practitioners who can receive the request
-const practitioners = await TreatmentExchangeService.getEligiblePractitioners(
-  userId,
-  {
-    specializations: ["sports_therapy"],
-    max_distance_km: 10,
-  },
-);
+No terminal **history** list on mobile yet — open declined/cancelled/expired via notification or `exchange/[id]`.
 
-// Filtered by:
-// - Same rating tier
-// - Opted into treatment exchange
-// - Within distance (if specified)
-// - Has specialization (if specified)
-```
+Full navigation diagram: [TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md §1–2](../product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md).
 
-### Step 3: Send Request
+---
 
-```typescript
-// Create exchange request
-const requestId = await TreatmentExchangeService.sendExchangeRequest(
-  requesterId, // Practitioner requesting treatment
-  recipientId, // Practitioner to receive request
-  {
-    session_date: "2025-02-15",
-    start_time: "14:00",
-    end_time: "15:00",
-    duration_minutes: 60,
-    session_type: "massage",
-    notes: "Focus on lower back pain",
-  },
-);
-```
+## Request states
 
-### Step 4: Accept/Decline
+| Status      | Meaning                                           |
+| ----------- | ------------------------------------------------- |
+| `pending`   | Awaiting recipient accept or different time       |
+| `accepted`  | Leg 1 booked; reciprocal may still be outstanding |
+| `declined`  | Recipient requested different time                |
+| `cancelled` | Requester cancelled while pending                 |
+| `expired`   | Reconcile/cron (requester may be notified)        |
 
-```typescript
-// Recipient accepts the request
-await TreatmentExchangeService.acceptExchangeRequest(requestId, recipientId);
+**“Confirmed”** applies to **sessions** (`client_sessions` / diary), not to `treatment_exchange_requests`. See [TREATMENT_EXCHANGE_NOTIFICATION_FLOWS.md](../product/TREATMENT_EXCHANGE_NOTIFICATION_FLOWS.md).
 
-// This:
-// 1. Deducts credits from requester
-// 2. Creates mutual exchange session
-// 3. Sends notifications to both parties
-```
+---
 
-## Database Tables
+## Database tables (essentials)
 
 ### `treatment_exchange_requests`
 
-Stores exchange requests:
-
-- `requester_id` - Who requested
-- `recipient_id` - Who received request
-- `status` - pending/accepted/declined/expired/cancelled
-- `requested_session_date` - When treatment is requested
-- `duration_minutes` - Length of treatment
+- `requester_id`, `recipient_id`, `status`
+- `requested_session_date`, `requested_start_time`, `duration_minutes`
+- `reciprocal_booking_deadline`, extension fields
 
 ### `mutual_exchange_sessions`
 
-Stores completed exchange sessions:
+- `exchange_request_id`
+- `practitioner_a_id` = **requester**, `practitioner_b_id` = **recipient**
+- `practitioner_a_booked` / `practitioner_b_booked`, `practitioner_a_session_id` / `practitioner_b_session_id`
+- `status` (e.g. `active`)
 
-- `practitioner_a_id` - First practitioner
-- `practitioner_b_id` - Second practitioner
-- `credits_exchanged` - Number of credits used
-- `status` - scheduled/confirmed/completed/cancelled
+### `client_sessions` (peer legs)
 
-## Common Questions
+- `is_peer_booking = true` for exchange sessions
+- Leg 1 on accept; leg 2 on reciprocal book
 
-**Q: Why rating tiers?**
-A: Ensures practitioners exchange with peers of similar quality. A 5-star practitioner shouldn't be matched with a 1-star practitioner.
-
-**Q: What happens if credits are insufficient?**
-A: The request cannot be sent. User must earn more credits first.
-
-**Q: Can a request be cancelled?**
-A: Yes, the requester can cancel before it's accepted. Credits are not deducted until acceptance.
-
-**Q: What if the recipient declines?**
-A: No credits are deducted. The requester can send a new request to someone else.
-
-## In-Depth: Where Exchange Appears
-
-| Surface                    | Source                      | Filter                                                 |
-| -------------------------- | --------------------------- | ------------------------------------------------------ |
-| **Today's Schedule**       | treatment_exchange_requests | session_date = today, recipient_id = user              |
-| **New Bookings sidebar**   | notifications               | source_type in (treatment_exchange_request, slot_hold) |
-| **Exchange Requests page** | treatment_exchange_requests | recipient_id = user OR requester_id = user             |
-
-Same pending request can appear in New Bookings and Exchange Requests page, but only in Today's Schedule when the requested date is today.
-
-## Related Files
-
-- `src/lib/treatment-exchange.ts` - Main service
-- `src/lib/credits.ts` - Credit management
-- `src/lib/exchange-notifications.ts` - Notification handling
-- `src/components/treatment-exchange/` - UI components
-
-## Next Steps
-
-- Read `src/lib/treatment-exchange.ts`
-- Understand the matching algorithm
-- Review the credit deduction flow
-- Study the notification system
+Schema reference: [database-tables-mcp-reference.md](../architecture/database-tables-mcp-reference.md).
 
 ---
 
-**Last Updated:** 2025-02-09
+## Where exchange appears
+
+| Surface                             | Platform | Notes                                                       |
+| ----------------------------------- | -------- | ----------------------------------------------------------- |
+| **Treatment exchange** hub + detail | Mobile   | `/(practitioner)/exchange`, `exchange/[id]`                 |
+| **Discover** send                   | Mobile   | Segment on hub                                              |
+| **Schedule** peer filter            | Mobile   | Category “Treatment exchange”                               |
+| **Booking detail** peer card        | Mobile   | Cancel, view request; no generic reschedule                 |
+| **Home — Action required**          | Mobile   | Mobile requests first, then exchange counts                 |
+| **Mobile requests** snapshot        | Mobile   | Partial mirror (no queue ②)                                 |
+| **Credits** shortcut                | Mobile   | Link to exchange                                            |
+| **Exchange Requests** (web)         | Web      | May differ by branch — verify `src/` on your checkout       |
+| **Notifications**                   | Both     | `notificationNavigation.ts` → `exchange` or `exchange/[id]` |
+
+---
+
+## Implementation map
+
+### Mobile (this repo — primary UI)
+
+| Concern          | Path                                                                           |
+| ---------------- | ------------------------------------------------------------------------------ |
+| API              | `theramate-ios-client/lib/api/practitionerExchange.ts`                         |
+| Discovery + send | `theramate-ios-client/lib/api/treatmentExchangeDiscovery.ts`                   |
+| Hub              | `theramate-ios-client/app/(practitioner)/exchange/index.tsx`                   |
+| Detail           | `theramate-ios-client/app/(practitioner)/exchange/[id].tsx`                    |
+| Slot modal       | `theramate-ios-client/components/practitioner/ExchangeReciprocalSlotModal.tsx` |
+| Peer session     | `theramate-ios-client/app/(practitioner)/(ptabs)/bookings/[id].tsx`            |
+| Dashboard counts | `theramate-ios-client/lib/api/practitionerDashboard.ts`                        |
+| Maestro          | `theramate-ios-client/.maestro/exchange-*.yaml`                                |
+
+### Supabase
+
+| Concern      | Path                                                                           |
+| ------------ | ------------------------------------------------------------------------------ |
+| Migrations   | `supabase/migrations/20260519120000_*` … `20260520140000_*`                    |
+| Smoke script | `scripts/verify-treatment-exchange-rpcs.mjs`                                   |
+| Staging E2E  | `test-scripts/treatment-exchange-staging-e2e.js` (`npm run test:exchange:e2e`) |
+
+### Web (legacy paths — verify on branch)
+
+Older docs referenced `src/lib/treatment-exchange.ts` and `ExchangeAcceptanceModal`. **Do not assume** reciprocal-at-accept on web without reading the current branch. Grep `src/` for `exchange` / `treatment_exchange` before changing web UX.
+
+---
+
+## Common questions (corrected)
+
+**Q: When are credits deducted?**  
+A: When **both** legs are booked — `process_peer_booking_credits` runs from `book_exchange_reciprocal_session`, not on accept alone.
+
+**Q: Can the requester cancel?**  
+A: Yes, while `pending` — `cancel_exchange_request_by_requester`. No credits burned.
+
+**Q: What does “declined” mean in the DB?**  
+A: Recipient chose **request different time**; they can send a new request with another slot.
+
+**Q: Why two steps after accept?**  
+A: Leg 1 locks the proposed swap; leg 2 picks a return time on the **requester’s** availability (`get_exchange_reciprocal_available_slots`).
+
+**Q: Can I reschedule a peer session from the diary?**  
+A: **No** on mobile — use exchange flows or **cancel exchange session** on booking detail (`process_peer_booking_refund`).
+
+---
+
+## Related docs
+
+- [TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md](../product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md) — screen diagrams, QA checklist
+- [TREATMENT_EXCHANGE_UX_GAPS.md](../product/TREATMENT_EXCHANGE_UX_GAPS.md) — gap tracker
+- [TREATMENT_EXCHANGE_SMOKE_TESTS.md](../product/TREATMENT_EXCHANGE_SMOKE_TESTS.md) — RPC + Maestro smoke
+- [credit-system.md](./credit-system.md) / [how-credits-work.md](./how-credits-work.md) — credits economy
+
+---
+
+## Changelog (doc alignment)
+
+| Date       | Change                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-21 | Replaced accept+reciprocal-in-one-modal sequence with two-leg prod flow; linked mobile screen-flow doc; fixed credits timing and file paths |
+| 2025-02-09 | Original junior-dev guide (partially outdated UI)                                                                                           |

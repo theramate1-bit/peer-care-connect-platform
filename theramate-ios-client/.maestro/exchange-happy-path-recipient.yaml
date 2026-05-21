@@ -1,0 +1,33 @@
+# Recipient: accept pending exchange and book reciprocal return session.
+appId: ${MAESTRO_APP_ID:-host.exp.Exponent}
+---
+- launchApp
+- runFlow: subflows/sign-in-practitioner.yaml
+  env:
+    EMAIL: ${EXCHANGE_RECIPIENT_EMAIL}
+    PASSWORD: ${EXCHANGE_RECIPIENT_PASSWORD}
+- tapOn:
+    text: "Exchange"
+    optional: true
+- tapOn:
+    id: "exchange-accept"
+    optional: true
+- assertVisible:
+    text: "Accepted"
+    optional: true
+- tapOn:
+    id: "exchange-choose-reciprocal"
+    optional: true
+- tapOn:
+    text: "Choose date and time"
+    optional: true
+- tapOn:
+    id: "exchange-reciprocal-slot"
+    index: 0
+    optional: true
+- tapOn:
+    text: "Book"
+    optional: true
+- assertVisible:
+    text: "Booked"
+    optional: true

@@ -29,6 +29,7 @@ import {
   sendTreatmentExchangeRequest,
   type EligibleExchangePractitioner,
 } from "@/lib/api/treatmentExchangeDiscovery";
+import { formatExchangeConflictMessage } from "@/lib/api/practitionerExchange";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -324,7 +325,10 @@ function PeerRow(props: {
         notes: notes.trim() || undefined,
       });
       if (!res.ok) {
-        Alert.alert("Could not send", res.error?.message ?? "Try again.");
+        Alert.alert(
+          "Could not send",
+          formatExchangeConflictMessage(res.error?.message ?? "Try again."),
+        );
         return;
       }
       setModalOpen(false);
@@ -335,7 +339,7 @@ function PeerRow(props: {
       onSent();
       Alert.alert(
         "Request sent",
-        `${name} will be notified to accept or decline.`,
+        `${name} will be notified to accept or suggest a different time.`,
       );
     } finally {
       setBusy(false);
@@ -370,6 +374,7 @@ function PeerRow(props: {
           </View>
         </View>
         <Button
+          testID="exchange-open-send-modal"
           variant="primary"
           className="mt-4"
           onPress={() => setModalOpen(true)}
@@ -476,6 +481,7 @@ function PeerRow(props: {
             />
 
             <Button
+              testID="exchange-send-request"
               variant="primary"
               onPress={() => void submit()}
               isLoading={busy}

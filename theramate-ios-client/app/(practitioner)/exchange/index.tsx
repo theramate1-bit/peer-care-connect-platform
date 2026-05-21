@@ -1,5 +1,5 @@
 /**
- * Treatment exchange — pending list, accept/decline, reciprocal booking with slot picker.
+ * Treatment exchange — discover peers, inbox queues, reciprocal slot booking.
  */
 
 import React, { useCallback, useState } from "react";
@@ -10,13 +10,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Modal,
-  Pressable,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
-import { CalendarClock, SlidersHorizontal } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
@@ -26,17 +23,19 @@ import {
   fetchPendingExchangeRequestsForRecipient,
   fetchPendingExchangeRequestsSentByRequester,
   cancelExchangeRequestByRequester,
-  declineExchangeRequest,
+  rescheduleExchangeRequest,
+  requestExchangeExtension,
   acceptExchangeRequest,
-  bookExchangeReciprocalSession,
   fetchAcceptedExchangesNeedingReciprocal,
-  fetchExchangeReciprocalAvailableSlots,
+  fetchAcceptedExchangesAwaitingReciprocalByRequester,
+  formatExchangeConflictMessage,
   type ExchangeNeedingReciprocalRow,
 } from "@/lib/api/practitionerExchange";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import { ExchangeDiscoverPanel } from "@/components/practitioner/ExchangeDiscoverPanel";
+import { ExchangeReciprocalSlotModal } from "@/components/practitioner/ExchangeReciprocalSlotModal";
 
 function formatExchangeTime(t: string | null | undefined): string {
   if (t == null) return "";
@@ -57,10 +56,6 @@ export default function PractitionerExchangeScreen() {
     label: string;
     durationMinutes: number | null;
   } | null>(null);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [slots, setSlots] = useState<
-    { session_date: string; start_time: string }[]
-  >([]);
 
   const {
     data: rows = [],
@@ -102,8 +97,23 @@ export default function PractitionerExchangeScreen() {
     enabled: !!userId,
   });
 
+  const awaitingReciprocalQuery = useQuery({
+    queryKey: ["exchange_awaiting_reciprocal", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } =
+        await fetchAcceptedExchangesAwaitingReciprocalByRequester(userId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
   const inboxLoading =
-    loadingPending || reciprocalQuery.isLoading || sentQuery.isLoading;
+    loadingPending ||
+    reciprocalQuery.isLoading ||
+    sentQuery.isLoading ||
+    awaitingReciprocalQuery.isLoading;
 
   const [pullRefreshing, setPullRefreshing] = useState(false);
 
@@ -114,6 +124,7 @@ export default function PractitionerExchangeScreen() {
         refetchPending(),
         reciprocalQuery.refetch(),
         sentQuery.refetch(),
+        awaitingReciprocalQuery.refetch(),
         queryClient.invalidateQueries({
           queryKey: ["exchange_eligible", userId],
         }),
@@ -128,41 +139,36 @@ export default function PractitionerExchangeScreen() {
     } finally {
       setPullRefreshing(false);
     }
-  }, [userId, queryClient, refetchPending, reciprocalQuery, sentQuery]);
-
-  const loadSlotsFor = useCallback(
-    async (requestId: string) => {
-      if (!userId) return;
-      setSlotsLoading(true);
-      setSlots([]);
-      try {
-        const { data, error } = await fetchExchangeReciprocalAvailableSlots({
-          requestId,
-          recipientId: userId,
-          dayCount: 14,
-        });
-        if (error) throw error;
-        setSlots(data);
-      } catch (e) {
-        Alert.alert(
-          "Slots",
-          e instanceof Error ? e.message : "Could not load available times.",
-        );
-      } finally {
-        setSlotsLoading(false);
-      }
-    },
-    [userId],
-  );
+  }, [
+    userId,
+    queryClient,
+    refetchPending,
+    reciprocalQuery,
+    sentQuery,
+    awaitingReciprocalQuery,
+  ]);
 
   const openSlotModal = (row: ExchangeNeedingReciprocalRow) => {
-    const label = row.requester_name;
     setSlotModal({
       requestId: row.exchange_request_id,
-      label,
+      label: row.requester_name,
       durationMinutes: row.duration_minutes,
     });
-    void loadSlotsFor(row.exchange_request_id);
+  };
+
+  const onReciprocalBooked = async () => {
+    if (!userId) return;
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_reciprocal_needed", userId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_awaiting_reciprocal", userId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["practitioner_dashboard", userId],
+    });
+    void reciprocalQuery.refetch();
+    void awaitingReciprocalQuery.refetch();
   };
 
   const onCancelSent = (id: string) => {
@@ -202,44 +208,103 @@ export default function PractitionerExchangeScreen() {
     );
   };
 
-  const onDecline = (id: string) => {
+  const onRequestExtension = (requestId: string) => {
     if (!userId) return;
-    Alert.alert("Decline exchange", "Notify the other practitioner?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Decline",
-        style: "destructive",
-        onPress: async () => {
-          setBusy(id);
-          try {
-            const res = await declineExchangeRequest({
-              requestId: id,
-              recipientId: userId,
-            });
-            if (!res.ok) {
-              Alert.alert("Error", res.error?.message || "Could not decline");
-              return;
-            }
-            await queryClient.invalidateQueries({
-              queryKey: ["exchange_pending"],
-            });
-            await queryClient.invalidateQueries({
-              queryKey: ["practitioner_dashboard"],
-            });
-            void refetchPending();
-          } finally {
-            setBusy(null);
-          }
+    Alert.alert(
+      "Request more time?",
+      "Ask for 3 more days to book your return session. The other practitioner must approve.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Request extension",
+          onPress: () =>
+            void (async () => {
+              setBusy(requestId);
+              try {
+                const res = await requestExchangeExtension({
+                  requestId,
+                  recipientId: userId,
+                  extensionDays: 3,
+                });
+                if (!res.ok) {
+                  Alert.alert(
+                    "Error",
+                    res.error?.message || "Could not request extension",
+                  );
+                  return;
+                }
+                await queryClient.invalidateQueries({
+                  queryKey: ["exchange_reciprocal_needed", userId],
+                });
+                await queryClient.invalidateQueries({
+                  queryKey: ["exchange_awaiting_reciprocal", userId],
+                });
+                await queryClient.invalidateQueries({
+                  queryKey: ["practitioner_dashboard", userId],
+                });
+                void reciprocalQuery.refetch();
+                void awaitingReciprocalQuery.refetch();
+                Alert.alert(
+                  "Requested",
+                  "They will be notified to approve the extension.",
+                );
+              } finally {
+                setBusy(null);
+              }
+            })(),
         },
-      },
-    ]);
+      ],
+    );
+  };
+
+  const onReschedule = (id: string) => {
+    if (!userId) return;
+    Alert.alert(
+      "Request a different time?",
+      "This releases the slot so they can send a new request. Add availability notes on the request detail screen if helpful.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Release slot",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(id);
+            try {
+              const res = await rescheduleExchangeRequest({
+                requestId: id,
+                recipientId: userId,
+              });
+              if (!res.ok) {
+                const msg = res.error?.message || "Could not reschedule";
+                Alert.alert(
+                  "Error",
+                  msg.includes("RESCHEDULE_CAP_EXCEEDED")
+                    ? "You have reached the reschedule limit for this pair. Accept or ask them to send a new request."
+                    : formatExchangeConflictMessage(msg),
+                );
+                return;
+              }
+              await queryClient.invalidateQueries({
+                queryKey: ["exchange_pending"],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["practitioner_dashboard"],
+              });
+              void refetchPending();
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const onAccept = (id: string) => {
     if (!userId) return;
     Alert.alert(
       "Accept exchange?",
-      "This confirms the requested session and starts the exchange. You will then book your return session with the other practitioner.",
+      "This adds their session to your diary and starts the swap. You will still need to book your return session with them.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -253,7 +318,12 @@ export default function PractitionerExchangeScreen() {
                 recipientId: userId,
               });
               if (!res.ok) {
-                Alert.alert("Error", res.error?.message || "Could not accept");
+                Alert.alert(
+                  "Error",
+                  formatExchangeConflictMessage(
+                    res.error?.message ?? "Could not accept",
+                  ),
+                );
                 return;
               }
               await queryClient.invalidateQueries({
@@ -261,6 +331,9 @@ export default function PractitionerExchangeScreen() {
               });
               await queryClient.invalidateQueries({
                 queryKey: ["exchange_reciprocal_needed", userId],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["exchange_awaiting_reciprocal", userId],
               });
               await queryClient.invalidateQueries({
                 queryKey: ["practitioner_dashboard", userId],
@@ -278,47 +351,6 @@ export default function PractitionerExchangeScreen() {
         },
       ],
     );
-  };
-
-  const bookSlot = (sessionDate: string, startTime: string) => {
-    if (!userId || !slotModal) return;
-    Alert.alert("Confirm return session", `${sessionDate} at ${startTime}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Book",
-        onPress: () =>
-          void (async () => {
-            setBusy(slotModal.requestId);
-            try {
-              const res = await bookExchangeReciprocalSession({
-                requestId: slotModal.requestId,
-                recipientId: userId,
-                sessionDate,
-                startTime,
-                durationMinutes: slotModal.durationMinutes ?? 60,
-              });
-              if (!res.ok) {
-                Alert.alert(
-                  "Error",
-                  res.error?.message || "Could not book return session",
-                );
-                return;
-              }
-              setSlotModal(null);
-              await queryClient.invalidateQueries({
-                queryKey: ["exchange_reciprocal_needed", userId],
-              });
-              await queryClient.invalidateQueries({
-                queryKey: ["practitioner_dashboard", userId],
-              });
-              void reciprocalQuery.refetch();
-              Alert.alert("Booked", "Your return session is scheduled.");
-            } finally {
-              setBusy(null);
-            }
-          })(),
-      },
-    ]);
   };
 
   if (!userId) {
@@ -383,6 +415,7 @@ export default function PractitionerExchangeScreen() {
 
         <View className="flex-row mb-4 gap-2">
           <TouchableOpacity
+            testID="exchange-segment-discover"
             onPress={() => setSegment("discover")}
             className={`flex-1 py-3 rounded-xl border ${
               segment === "discover"
@@ -423,8 +456,8 @@ export default function PractitionerExchangeScreen() {
         ) : (
           <>
             <Text className="text-charcoal-600 leading-6 mb-6">
-              Accept or decline requests from others, track requests you&apos;ve
-              sent, and book your return session after you accept an exchange.
+              Accept or request a different time for incoming swaps, track
+              outgoing requests, and book your return session after you accept.
             </Text>
 
             {inboxLoading ? (
@@ -482,6 +515,7 @@ export default function PractitionerExchangeScreen() {
                           </Text>
                         </TouchableOpacity>
                         <Button
+                          testID="exchange-choose-reciprocal"
                           variant="primary"
                           className="mt-4"
                           disabled={busy === r.exchange_request_id}
@@ -490,6 +524,80 @@ export default function PractitionerExchangeScreen() {
                         >
                           Choose date and time
                         </Button>
+                        {r.extension_requested_at ? null : (
+                          <Button
+                            variant="outline"
+                            className="mt-3"
+                            disabled={busy === r.exchange_request_id}
+                            onPress={() =>
+                              onRequestExtension(r.exchange_request_id)
+                            }
+                          >
+                            Request more time (3 days)
+                          </Button>
+                        )}
+                      </Card>
+                    ))}
+                  </View>
+                ) : null}
+
+                {awaitingReciprocalQuery.data &&
+                awaitingReciprocalQuery.data.length > 0 ? (
+                  <View className="mb-6">
+                    <Text className="text-charcoal-900 font-semibold text-base mb-2">
+                      Waiting for their return book
+                    </Text>
+                    <Text className="text-charcoal-500 text-sm mb-3">
+                      They accepted your swap — they still need to book their
+                      return session with you.
+                    </Text>
+                    {awaitingReciprocalQuery.data.map((r) => (
+                      <Card
+                        key={r.mutual_session_id}
+                        variant="default"
+                        padding="md"
+                        className="mb-3 border border-cream-200"
+                      >
+                        <Text className="text-charcoal-900 font-semibold">
+                          With {r.recipient_name}
+                        </Text>
+                        {r.your_session_date ? (
+                          <Text className="text-charcoal-700 text-sm mt-2">
+                            Your treatment session: {r.your_session_date}
+                            {r.your_session_start_time
+                              ? ` · ${String(r.your_session_start_time).slice(0, 5)}`
+                              : ""}
+                          </Text>
+                        ) : null}
+                        {r.reciprocal_booking_deadline ? (
+                          <Text className="text-charcoal-500 text-xs mt-2">
+                            They should book by:{" "}
+                            {new Date(
+                              r.reciprocal_booking_deadline,
+                            ).toLocaleString()}
+                          </Text>
+                        ) : null}
+                        {r.extension_requested_at &&
+                        !r.extension_approved_at ? (
+                          <Text className="text-amber-800 text-xs mt-2">
+                            Extension pending your approval
+                          </Text>
+                        ) : null}
+                        <TouchableOpacity
+                          onPress={() =>
+                            router.push(
+                              tabPath(
+                                tabRoot,
+                                `exchange/${r.exchange_request_id}`,
+                              ) as Href,
+                            )
+                          }
+                          className="mt-2 self-start"
+                        >
+                          <Text className="text-sage-600 text-sm font-medium">
+                            View request details
+                          </Text>
+                        </TouchableOpacity>
                       </Card>
                     ))}
                   </View>
@@ -573,7 +681,8 @@ export default function PractitionerExchangeScreen() {
                   Needs your response
                 </Text>
                 <Text className="text-charcoal-500 text-sm mb-3">
-                  Accept or decline swaps others have proposed to you.
+                  Accept or request a different time for swaps others have
+                  proposed.
                 </Text>
                 {rows.length === 0 ? (
                   <Text className="text-charcoal-500">
@@ -630,6 +739,7 @@ export default function PractitionerExchangeScreen() {
                         </Text>
                       </TouchableOpacity>
                       <Button
+                        testID="exchange-accept"
                         variant="primary"
                         className="mt-4"
                         disabled={busy === r.id}
@@ -639,13 +749,14 @@ export default function PractitionerExchangeScreen() {
                         Accept
                       </Button>
                       <Button
+                        testID="exchange-reschedule"
                         variant="destructive"
                         className="mt-3"
                         disabled={busy === r.id}
                         isLoading={busy === r.id}
-                        onPress={() => onDecline(r.id)}
+                        onPress={() => onReschedule(r.id)}
                       >
-                        Decline
+                        Request different time
                       </Button>
                     </Card>
                   ))
@@ -656,91 +767,17 @@ export default function PractitionerExchangeScreen() {
         )}
       </ScrollView>
 
-      <Modal
-        visible={slotModal != null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setSlotModal(null)}
-      >
-        <Pressable
-          className="flex-1 bg-black/40 justify-end"
-          onPress={() => setSlotModal(null)}
-        >
-          <Pressable
-            className="bg-cream-50 rounded-t-3xl max-h-[85%] px-4 pt-4 pb-8"
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View className="w-12 h-1 bg-cream-300 rounded-full self-center mb-4" />
-            <Text className="text-charcoal-900 text-lg font-semibold mb-1">
-              Available times
-            </Text>
-            <Text className="text-charcoal-500 text-sm mb-4">
-              {slotModal
-                ? `With ${slotModal.label} — slots follow their calendar and avoid conflicts.`
-                : ""}
-            </Text>
-            {slotsLoading ? (
-              <ActivityIndicator color={Colors.sage[500]} className="py-8" />
-            ) : slots.length === 0 ? (
-              <View className="py-4">
-                <Text className="text-charcoal-600 leading-6">
-                  No open slots in the next two weeks before your deadline.
-                  Check your weekly hours, ask the other practitioner to free a
-                  time, or extend availability if you can.
-                </Text>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  leftIcon={
-                    <CalendarClock size={18} color={Colors.sage[600]} />
-                  }
-                  onPress={() => {
-                    setSlotModal(null);
-                    router.push(tabPath(tabRoot, "availability") as never);
-                  }}
-                >
-                  Weekly hours
-                </Button>
-                <Button
-                  variant="outline"
-                  className="mt-3"
-                  leftIcon={
-                    <SlidersHorizontal size={18} color={Colors.sage[600]} />
-                  }
-                  onPress={() => {
-                    setSlotModal(null);
-                    router.push(tabPath(tabRoot, "schedule") as never);
-                  }}
-                >
-                  Open diary tools
-                </Button>
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 420 }}>
-                {slots.map((s, idx) => (
-                  <TouchableOpacity
-                    key={`${s.session_date}-${s.start_time}-${idx}`}
-                    className="py-3 border-b border-cream-200"
-                    disabled={busy === slotModal?.requestId}
-                    onPress={() => bookSlot(s.session_date, s.start_time)}
-                  >
-                    <Text className="text-charcoal-900 font-medium">
-                      {s.session_date} · {s.start_time}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-            <Button
-              variant="outline"
-              className="mt-4"
-              onPress={() => setSlotModal(null)}
-            >
-              Close
-            </Button>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {userId && slotModal ? (
+        <ExchangeReciprocalSlotModal
+          visible={slotModal != null}
+          requestId={slotModal.requestId}
+          peerLabel={slotModal.label}
+          durationMinutes={slotModal.durationMinutes}
+          recipientId={userId}
+          onClose={() => setSlotModal(null)}
+          onBooked={onReciprocalBooked}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

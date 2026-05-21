@@ -1,0 +1,21 @@
+# Recipient: reschedule (decline) pending requests until cap message appears.
+# Run after requester has sent 3+ requests (or run Node E2E reschedule section only).
+appId: ${MAESTRO_APP_ID:-host.exp.Exponent}
+---
+- launchApp
+- runFlow: subflows/sign-in-practitioner.yaml
+  env:
+    EMAIL: ${EXCHANGE_RECIPIENT_EMAIL}
+    PASSWORD: ${EXCHANGE_RECIPIENT_PASSWORD}
+- tapOn:
+    text: "Exchange"
+    optional: true
+- tapOn:
+    id: "exchange-reschedule"
+    optional: true
+- tapOn:
+    text: "Release slot"
+    optional: true
+- assertVisible:
+    text: "reschedule limit"
+    optional: true

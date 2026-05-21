@@ -20,10 +20,23 @@ alwaysApply: false
 
 - **`types/database.ts`** is **partial** vs production. Prefer verifying **tables, columns, RLS, and RPC names** against:
   - **Supabase MCP** (if enabled): list tables, run read-only checks, or inspect project metadata **before** assuming column names.
-  - Repo docs: **`docs/architecture/database-*.md`**, **`docs/product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md`**, and web usage in **`peer-care-connect`** for the same query.
+  - Repo docs: **`docs/architecture/database-*.md`**, **`docs/product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md`**, and the **web app under repo-root `src/`** (e.g. `src/lib/marketplacePractitioners.ts`) for the same query patterns.
 - **`lib/supabase.ts`** uses an **untyped** `createClient(...)` so inserts are not blocked by stale generated types; still **match** the live schema and **never** ship service-role keys in the app.
 
-## New native dependencies
+## Marketplace / practitioner roles
+
+- **`lib/api/marketplace.ts`** → **`THERAPIST_ROLES`** is the source of which disciplines appear in Explore; keep **`constants/config.ts` → `SPECIALIZATIONS`** in lockstep. Docs must not imply a generic `user_role = 'practitioner'` or filters for roles that are not in `THERAPIST_ROLES`.
+
+## Treatment exchange
+
+- **Leg 1 (requester’s treatment)** is created on **`accept_exchange_request`** as a peer **`client_sessions`** row; **leg 2 (return)** on **`book_exchange_reciprocal_session`**. Credits burn via **`process_peer_booking_credits`** only after leg 2 (see migration **`20260519120000_treatment_exchange_leg1_credits_slot_hold.sql`**).
+- **Slot conflicts:** **`assert_practitioner_slot_available`** runs on send (recipient + requester), accept, and reciprocal book; checks sessions, blocks, active **`slot_holds`**, pending exchange (`20260520140000_treatment_exchange_holds_requester_location.sql`). Map all **`CONFLICT_*`** via **`formatExchangeConflictMessage`**.
+- **Peer session location:** **`peer_exchange_delivery_for_therapist`** sets **`appointment_type`** / **`visit_address`** on leg-1 (recipient delivers) and leg-2 (requester delivers).
+- **Peer cancel:** mobile uses **`process_peer_booking_refund`** from booking detail; refunds credits only if **`session_payment`** exists (pre-reciprocal cancel must not mint credits).
+- UI copy: recipient action is **“Request different time”** (RPC **`decline_exchange_request`**); not “Decline”. Pending requests do **not** auto-expire (no “24 hours” in slot-held notification). Extension: **`request_exchange_extension`** / **`approve_exchange_extension`**.
+- **Inbox queues:** recipient **`fetchAcceptedExchangesNeedingReciprocal`** (book return); requester **`fetchAcceptedExchangesAwaitingReciprocalByRequester`** (waiting for their book). Screen map: **`docs/product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md`**.
+- **Reciprocal UI:** shared **`ExchangeReciprocalSlotModal`** on hub + detail; Maestro **`exchange-choose-reciprocal`** / “Choose date and time”. Empty slots = **requester’s calendar** — do not link recipient to their own weekly hours.
+- **Peer booking detail:** hide generic reschedule; link via **`fetchExchangeRequestIdForPeerSession`**; label **Message practitioner**.
 
 - Prefer **`expo install <package>`** for Expo-compatible versions.
 - If **`npm install`** at the root fails on peer deps, use **`npm install --legacy-peer-deps`** (document in PR if recurring).

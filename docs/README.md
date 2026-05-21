@@ -45,7 +45,8 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 - [Messaging System](./features/messaging.md) 🆕 - Practitioner–client messaging, guest email path
 - [Credit System](./features/credit-system.md)
 - [How Credits Work](./features/how-credits-work.md) 🆕 - Credit system explained
-- [How Treatment Exchange Works](./features/how-treatment-exchange-works.md) 🆕 - Exchange system explained
+- [How Treatment Exchange Works](./features/how-treatment-exchange-works.md) — Backend flow (two legs, RPCs)
+- [Treatment Exchange — Mobile screen flows](./product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md) — Native UI diagrams and QA
 - [Treatment Notes](./features/treatment-notes.md)
 - [Pre-Assessment Form: Practitioner View UX Plan](./features/pre-assessment-practitioner-ux-plan.md) 🆕 - UX placement and integration guide
 - [Feature-by-feature gaps index](./product/FEATURE_BY_FEATURE_GAPS_INDEX.md) 🆕 - Current missing items and parity gaps tracker
@@ -118,11 +119,10 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 
 ## 📖 Project-Specific Documentation
 
-### Peer Care Connect (Main Platform)
+### Web app (Theramate / Peer Care Connect)
 
-- Located in `peer-care-connect/README.md`
-- React + Vite + Supabase
-- Full documentation in `peer-care-connect/` directory
+- **Code:** repo-root **`src/`** (React + Vite) with **`supabase/`** at repo root — there is no separate `peer-care-connect/` app folder in this layout.
+- **Entry / setup:** see root [README.md](../README.md) and [docs/getting-started/](../getting-started/).
 
 ### AI UGC Creator
 
@@ -135,6 +135,10 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 - Located in `theramate-ios-client/README.md`
 - React Native / Expo
 - Mobile application
+
+### Legacy documentation paths (`peer-care-connect/`)
+
+Many older docs link to **`peer-care-connect/src/...`**. In this monorepo the **web app** lives at repo-root **`src/`**, the **Expo app** at **`theramate-ios-client/`**, and **Supabase** at **`supabase/`**. A **`peer-care-connect/`** directory may exist only as an **empty npm workspace** placeholder. When a doc link 404s, search the repo for the **file basename** (e.g. `BookingFlow.tsx` → `src/components/booking/BookingFlow.tsx`) or read [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md).
 
 ## 🔍 Finding Information
 

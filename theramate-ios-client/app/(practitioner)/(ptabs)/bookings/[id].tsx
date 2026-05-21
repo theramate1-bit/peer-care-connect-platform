@@ -44,6 +44,10 @@ import {
   fetchPractitionerSessionById,
   markSessionPaidInPerson,
 } from "@/lib/api/practitionerSessions";
+import {
+  cancelPeerExchangeSession,
+  fetchExchangeRequestIdForPeerSession,
+} from "@/lib/api/practitionerExchange";
 import { getOrCreateConversation } from "@/lib/api/messages";
 import { supabase } from "@/lib/supabase";
 import {
@@ -99,6 +103,7 @@ export default function PractitionerBookingDetailScreen() {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
   const [rescheduling, setRescheduling] = useState(false);
+  const [cancellingPeer, setCancellingPeer] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["practitioner_session_detail", userId, id],
@@ -112,6 +117,20 @@ export default function PractitionerBookingDetailScreen() {
       return row;
     },
     enabled: !!userId && !!id,
+  });
+
+  const isPeerBooking = data?.is_peer_booking === true;
+
+  const { data: peerExchangeRequestId } = useQuery({
+    queryKey: ["peer_exchange_request_id", id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { requestId, error } =
+        await fetchExchangeRequestIdForPeerSession(id);
+      if (error) throw error;
+      return requestId;
+    },
+    enabled: !!id && isPeerBooking,
   });
 
   const { data: planLinks = [] } = useQuery({
@@ -519,7 +538,8 @@ export default function PractitionerBookingDetailScreen() {
             ) : null}
           </Card>
 
-          {!["cancelled", "completed", "no_show"].includes(
+          {!isPeerBooking &&
+          !["cancelled", "completed", "no_show"].includes(
             (data.status || "").toLowerCase(),
           ) ? (
             <Card variant="default" padding="md" className="mb-3">
@@ -629,12 +649,103 @@ export default function PractitionerBookingDetailScreen() {
             </Text>
           </Card>
 
+          {data.is_peer_booking &&
+          !["cancelled", "completed", "no_show"].includes(
+            (data.status || "").toLowerCase(),
+          ) ? (
+            <Card
+              variant="default"
+              padding="md"
+              className="mb-3 border border-amber-200 bg-amber-50/40"
+            >
+              <Text className="text-charcoal-800 font-medium">
+                Treatment exchange session
+              </Text>
+              <Text className="text-charcoal-600 text-sm mt-2">
+                Cancelling releases the booking. Credits are refunded only if
+                both legs of the exchange were already confirmed and charged.
+              </Text>
+              {peerExchangeRequestId ? (
+                <Button
+                  variant="outline"
+                  className="mt-3"
+                  onPress={() =>
+                    router.push(
+                      tabPath(
+                        tabRoot,
+                        `exchange/${peerExchangeRequestId}`,
+                      ) as Href,
+                    )
+                  }
+                >
+                  View exchange request
+                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                className="mt-3 border-red-300"
+                onPress={() => {
+                  Alert.alert(
+                    "Cancel exchange session?",
+                    "The other practitioner will be notified. Refund rules depend on whether credits were already used.",
+                    [
+                      { text: "Keep session", style: "cancel" },
+                      {
+                        text: "Cancel session",
+                        style: "destructive",
+                        onPress: () =>
+                          void (async () => {
+                            if (!id) return;
+                            setCancellingPeer(true);
+                            try {
+                              const res = await cancelPeerExchangeSession({
+                                sessionId: id,
+                              });
+                              if (!res.ok) {
+                                Alert.alert(
+                                  "Could not cancel",
+                                  res.error?.message ?? "Try again.",
+                                );
+                                return;
+                              }
+                              await queryClient.invalidateQueries({
+                                queryKey: ["practitioner_session_detail"],
+                              });
+                              await queryClient.invalidateQueries({
+                                queryKey: ["practitioner_dashboard", userId],
+                              });
+                              await queryClient.invalidateQueries({
+                                queryKey: ["exchange_reciprocal_needed"],
+                              });
+                              void refetch();
+                              const refundNote =
+                                res.refundedCredits > 0
+                                  ? `${res.refundedCredits} credits were refunded.`
+                                  : "No credits were charged yet for this exchange.";
+                              Alert.alert("Session cancelled", refundNote);
+                            } finally {
+                              setCancellingPeer(false);
+                            }
+                          })(),
+                      },
+                    ],
+                  );
+                }}
+                disabled={cancellingPeer}
+              >
+                <Text className="text-red-700 font-semibold text-center">
+                  {cancellingPeer ? "Cancelling…" : "Cancel exchange session"}
+                </Text>
+              </Button>
+            </Card>
+          ) : null}
+
           <View className="mt-5">
             <Button variant="primary" onPress={() => void onMessageClient()}>
               <View className="flex-row items-center">
                 <MessageCircle size={18} color="#fff" />
                 <Text className="text-white font-semibold ml-2">
-                  Message client
+                  {isPeerBooking ? "Message practitioner" : "Message client"}
                 </Text>
               </View>
             </Button>
@@ -656,24 +767,26 @@ export default function PractitionerBookingDetailScreen() {
               </View>
             </Button>
 
-            <Button
-              variant="outline"
-              className="mt-3"
-              onPress={() => {
-                if (data.client_id) {
-                  router.push(
-                    tabPath(tabRoot, `clients/${data.client_id}`) as never,
-                  );
-                }
-              }}
-            >
-              <Text className="text-charcoal-700 font-medium">
-                View client record
-              </Text>
-            </Button>
+            {!isPeerBooking ? (
+              <Button
+                variant="outline"
+                className="mt-3"
+                onPress={() => {
+                  if (data.client_id) {
+                    router.push(
+                      tabPath(tabRoot, `clients/${data.client_id}`) as never,
+                    );
+                  }
+                }}
+              >
+                <Text className="text-charcoal-700 font-medium">
+                  View client record
+                </Text>
+              </Button>
+            ) : null}
           </View>
 
-          {clientId ? (
+          {!isPeerBooking && clientId ? (
             <Card variant="default" padding="md" className="mt-5">
               <View className="flex-row items-center mb-2">
                 <ClipboardList size={18} color={Colors.charcoal[500]} />
@@ -743,14 +856,14 @@ export default function PractitionerBookingDetailScreen() {
                 </Text>
               ) : null}
             </Card>
-          ) : (
+          ) : !isPeerBooking ? (
             <Card variant="default" padding="md" className="mt-5">
               <Text className="text-charcoal-600 text-sm">
                 Care plans can be linked once a client is attached to this
                 session.
               </Text>
             </Card>
-          )}
+          ) : null}
         </ScrollView>
       )}
 

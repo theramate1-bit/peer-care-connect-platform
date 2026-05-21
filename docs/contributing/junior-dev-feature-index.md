@@ -33,19 +33,19 @@
 
 ## Feature Overviews (What Does X Do?)
 
-| Feature                | Doc                                                                                  | Summary                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| **Diary**              | [diary-overview.md](../features/diary-overview.md)                                   | Practitioner schedule/calendar; BookingCalendar, sessions, blocks |
-| **Dashboard**          | [dashboard-overview.md](../features/dashboard-overview.md)                           | Practitioner home; Today's Schedule, New Bookings, metrics        |
-| **Client Management**  | [client-management-overview.md](../features/client-management-overview.md)           | Client list, sessions, treatment notes, goals                     |
-| **Services & Pricing** | [services-and-pricing-overview.md](../features/services-and-pricing-overview.md)     | Products, service types, marketplace eligibility                  |
-| **Payment System**     | [payment-system.md](../features/payment-system.md)                                   | Checkout, Connect, payouts, subscriptions, webhooks               |
-| **Credit System**      | [credit-system.md](../features/credit-system.md)                                     | Credits, balances, exchange economy entry point                   |
-| **Treatment Exchange** | [how-treatment-exchange-works.md](../features/how-treatment-exchange-works.md)       | Credits, request flow, accept/decline                             |
-| **Treatment Notes**    | [treatment-notes.md](../features/treatment-notes.md)                                 | Clinical notes, SOAP flows, attachments, care-plan context        |
-| **Notifications**      | [notifications-overview.md](../features/notifications-overview.md)                   | In-app notifications, read/dismiss, routing                       |
-| **Messaging**          | [messaging.md](../features/messaging.md)                                             | Practitioner–client messaging; guest email path                   |
-| **Profile**            | [profile-and-onboarding-overview.md](../features/profile-and-onboarding-overview.md) | Profile page, onboarding, therapist type validation               |
+| Feature                | Doc                                                                                  | Summary                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Diary**              | [diary-overview.md](../features/diary-overview.md)                                   | Practitioner schedule/calendar; BookingCalendar, sessions, blocks                                                                    |
+| **Dashboard**          | [dashboard-overview.md](../features/dashboard-overview.md)                           | Practitioner home; Today's Schedule, New Bookings, metrics                                                                           |
+| **Client Management**  | [client-management-overview.md](../features/client-management-overview.md)           | Client list, sessions, treatment notes, goals                                                                                        |
+| **Services & Pricing** | [services-and-pricing-overview.md](../features/services-and-pricing-overview.md)     | Products, service types, marketplace eligibility                                                                                     |
+| **Payment System**     | [payment-system.md](../features/payment-system.md)                                   | Checkout, Connect, payouts, subscriptions, webhooks                                                                                  |
+| **Credit System**      | [credit-system.md](../features/credit-system.md)                                     | Credits, balances, exchange economy entry point                                                                                      |
+| **Treatment Exchange** | [how-treatment-exchange-works.md](../features/how-treatment-exchange-works.md)       | Credits, two-leg flow, accept / request different time; mobile: [screen flows](../product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md) |
+| **Treatment Notes**    | [treatment-notes.md](../features/treatment-notes.md)                                 | Clinical notes, SOAP flows, attachments, care-plan context                                                                           |
+| **Notifications**      | [notifications-overview.md](../features/notifications-overview.md)                   | In-app notifications, read/dismiss, routing                                                                                          |
+| **Messaging**          | [messaging.md](../features/messaging.md)                                             | Practitioner–client messaging; guest email path                                                                                      |
+| **Profile**            | [profile-and-onboarding-overview.md](../features/profile-and-onboarding-overview.md) | Profile page, onboarding, therapist type validation                                                                                  |
 
 ---
 

@@ -9,6 +9,7 @@ import {
 import { fetchPractitionerMobileRequests } from "./practitionerMobileRequests";
 import {
   fetchAcceptedExchangesNeedingReciprocal,
+  fetchAcceptedExchangesAwaitingReciprocalByRequester,
   fetchPendingExchangeRequestsForRecipient,
 } from "./practitionerExchange";
 import { fetchUserNotifications } from "./notifications";
@@ -17,10 +18,14 @@ export type PractitionerDashboardData = {
   sessions: SessionWithClient[];
   todaySessions: SessionWithClient[];
   pendingMobileRequestsCount: number;
-  /** Incoming exchange requests needing accept/decline. */
+  /** Incoming exchange requests needing accept or different time. */
   pendingExchangeCount: number;
   /** Accepted exchanges where you still owe the reciprocal session (recipient = you). */
   exchangeReciprocalNeededCount: number;
+  /** Accepted swaps you sent where recipient still owes return book. */
+  exchangeAwaitingReciprocalCount: number;
+  /** Extension requests waiting for your approval (requester = you). */
+  exchangeExtensionPendingCount: number;
   unreadNotificationsCount: number;
   monthSessionCount: number;
   monthRevenuePence: number;
@@ -34,19 +39,27 @@ export async function fetchPractitionerDashboard(
   practitionerId: string,
 ): Promise<{ data: PractitionerDashboardData | null; error: Error | null }> {
   try {
-    const [sessionsRes, mobileRes, exchangeRes, reciprocalRes, notifRes] =
-      await Promise.all([
-        fetchPractitionerSessions(practitionerId),
-        fetchPractitionerMobileRequests(practitionerId, "pending"),
-        fetchPendingExchangeRequestsForRecipient(practitionerId),
-        fetchAcceptedExchangesNeedingReciprocal(practitionerId),
-        fetchUserNotifications(practitionerId),
-      ]);
+    const [
+      sessionsRes,
+      mobileRes,
+      exchangeRes,
+      reciprocalRes,
+      awaitingRes,
+      notifRes,
+    ] = await Promise.all([
+      fetchPractitionerSessions(practitionerId),
+      fetchPractitionerMobileRequests(practitionerId, "pending"),
+      fetchPendingExchangeRequestsForRecipient(practitionerId),
+      fetchAcceptedExchangesNeedingReciprocal(practitionerId),
+      fetchAcceptedExchangesAwaitingReciprocalByRequester(practitionerId),
+      fetchUserNotifications(practitionerId),
+    ]);
 
     if (sessionsRes.error) throw sessionsRes.error;
     if (mobileRes.error) throw mobileRes.error;
     if (exchangeRes.error) throw exchangeRes.error;
     if (reciprocalRes.error) throw reciprocalRes.error;
+    if (awaitingRes.error) throw awaitingRes.error;
     if (notifRes.error) throw notifRes.error;
 
     const sessions = sessionsRes.data;
@@ -74,6 +87,11 @@ export async function fetchPractitionerDashboard(
       (n) => n.is_read !== true,
     ).length;
 
+    const awaitingRows = awaitingRes.data;
+    const extensionPending = awaitingRows.filter(
+      (r) => r.extension_requested_at && !r.extension_approved_at,
+    ).length;
+
     const data: PractitionerDashboardData = {
       sessions,
       todaySessions: todaySessions.sort((a, b) =>
@@ -82,6 +100,8 @@ export async function fetchPractitionerDashboard(
       pendingMobileRequestsCount: mobileRes.data.length,
       pendingExchangeCount: exchangeRes.data.length,
       exchangeReciprocalNeededCount: reciprocalRes.data.length,
+      exchangeAwaitingReciprocalCount: awaitingRows.length,
+      exchangeExtensionPendingCount: extensionPending,
       unreadNotificationsCount: unread,
       monthSessionCount: monthSessions.filter((s) => {
         const st = (s.status || "").toLowerCase();

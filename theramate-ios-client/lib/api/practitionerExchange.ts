@@ -29,6 +29,9 @@ export type ExchangeRequestDetail = ExchangeRequestRow & {
   accepted_at: string | null;
   declined_at: string | null;
   reciprocal_booking_deadline: string | null;
+  extension_requested_at: string | null;
+  extension_approved_at: string | null;
+  extension_days: number | null;
   requester_name: string;
   recipient_name: string;
   viewerRole: "requester" | "recipient";
@@ -42,7 +45,7 @@ export async function fetchExchangeRequestByIdForParticipant(params: {
     const { data, error } = await supabase
       .from("treatment_exchange_requests")
       .select(
-        "id, requester_id, recipient_id, status, created_at, updated_at, requested_session_date, requested_start_time, requested_end_time, duration_minutes, session_type, requester_notes, recipient_notes, accepted_at, declined_at, reciprocal_booking_deadline",
+        "id, requester_id, recipient_id, status, created_at, updated_at, requested_session_date, requested_start_time, requested_end_time, duration_minutes, session_type, requester_notes, recipient_notes, accepted_at, declined_at, reciprocal_booking_deadline, extension_requested_at, extension_approved_at, extension_days",
       )
       .eq("id", params.requestId)
       .maybeSingle();
@@ -114,6 +117,20 @@ export async function fetchExchangeRequestByIdForParticipant(params: {
         row.reciprocal_booking_deadline != null
           ? String(row.reciprocal_booking_deadline)
           : null,
+      extension_requested_at:
+        row.extension_requested_at != null
+          ? String(row.extension_requested_at)
+          : null,
+      extension_approved_at:
+        row.extension_approved_at != null
+          ? String(row.extension_approved_at)
+          : null,
+      extension_days:
+        typeof row.extension_days === "number"
+          ? row.extension_days
+          : row.extension_days != null
+            ? Number(row.extension_days)
+            : null,
     };
     return { data: detail, error: null };
   } catch (e) {
@@ -244,6 +261,15 @@ export async function cancelExchangeRequestByRequester(params: {
   }
 }
 
+/** Recipient releases the slot and asks for a different time (backend: decline_exchange_request). */
+export async function rescheduleExchangeRequest(params: {
+  requestId: string;
+  recipientId: string;
+  reason?: string;
+}): Promise<{ ok: boolean; error: Error | null }> {
+  return declineExchangeRequest(params);
+}
+
 export async function declineExchangeRequest(params: {
   requestId: string;
   recipientId: string;
@@ -288,6 +314,46 @@ export async function acceptExchangeRequest(params: {
   }
 }
 
+export async function requestExchangeExtension(params: {
+  requestId: string;
+  recipientId: string;
+  extensionDays?: number;
+}): Promise<{ ok: boolean; error: Error | null }> {
+  try {
+    const { error } = await supabase.rpc("request_exchange_extension", {
+      p_request_id: params.requestId,
+      p_recipient_id: params.recipientId,
+      p_extension_days: params.extensionDays ?? 3,
+    });
+    if (error) throw error;
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+export async function approveExchangeExtension(params: {
+  requestId: string;
+  requesterId: string;
+}): Promise<{ ok: boolean; error: Error | null }> {
+  try {
+    const { error } = await supabase.rpc("approve_exchange_extension", {
+      p_request_id: params.requestId,
+      p_requester_id: params.requesterId,
+    });
+    if (error) throw error;
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
 export async function bookExchangeReciprocalSession(params: {
   requestId: string;
   recipientId: string;
@@ -324,6 +390,7 @@ export type ExchangeNeedingReciprocalRow = {
   requester_id: string;
   requester_name: string;
   reciprocal_booking_deadline: string | null;
+  extension_requested_at: string | null;
   duration_minutes: number | null;
   session_type: string | null;
   requester_notes: string | null;
@@ -331,6 +398,127 @@ export type ExchangeNeedingReciprocalRow = {
   their_session_date: string | null;
   their_start_time: string | null;
 };
+
+/** Accepted exchange where the other practitioner still owes the reciprocal session (requester = you). */
+export type ExchangeAwaitingReciprocalByRequesterRow = {
+  mutual_session_id: string;
+  exchange_request_id: string;
+  recipient_id: string;
+  recipient_name: string;
+  reciprocal_booking_deadline: string | null;
+  extension_requested_at: string | null;
+  extension_approved_at: string | null;
+  /** Leg 1 — your treatment session (they treat you at the agreed time). */
+  your_session_date: string | null;
+  your_session_start_time: string | null;
+  duration_minutes: number | null;
+};
+
+export async function fetchAcceptedExchangesAwaitingReciprocalByRequester(
+  requesterId: string,
+): Promise<{
+  data: ExchangeAwaitingReciprocalByRequesterRow[];
+  error: Error | null;
+}> {
+  try {
+    const { data: mes, error: e1 } = await supabase
+      .from("mutual_exchange_sessions")
+      .select(
+        "id, exchange_request_id, practitioner_b_id, session_date, start_time, duration_minutes",
+      )
+      .eq("practitioner_a_id", requesterId)
+      .eq("practitioner_b_booked", false)
+      .eq("status", "active");
+    if (e1) throw e1;
+    if (!mes?.length) return { data: [], error: null };
+
+    const reqIds = [...new Set(mes.map((m) => m.exchange_request_id))];
+    const { data: reqs, error: e2 } = await supabase
+      .from("treatment_exchange_requests")
+      .select(
+        "id, status, reciprocal_booking_deadline, extension_requested_at, extension_approved_at, duration_minutes, recipient_id",
+      )
+      .in("id", reqIds)
+      .eq("status", "accepted");
+    if (e2) throw e2;
+    const reqList = reqs ?? [];
+    type ReqRow = (typeof reqList)[number];
+    const reqById = new Map<string, ReqRow>(reqList.map((r) => [r.id, r]));
+
+    const recipientIds = [...new Set((reqs || []).map((r) => r.recipient_id))];
+    const { data: users, error: e3 } = await supabase
+      .from("users")
+      .select("id, first_name, last_name")
+      .in("id", recipientIds);
+    if (e3) throw e3;
+    const nameById = new Map<string, string>();
+    for (const u of users || []) {
+      const row = u as {
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+      };
+      const n = `${row.first_name || ""} ${row.last_name || ""}`.trim();
+      nameById.set(row.id, n || "Practitioner");
+    }
+
+    const out: ExchangeAwaitingReciprocalByRequesterRow[] = [];
+    for (const m of mes) {
+      const r = reqById.get(m.exchange_request_id);
+      if (!r) continue;
+      out.push({
+        mutual_session_id: m.id,
+        exchange_request_id: m.exchange_request_id,
+        recipient_id: r.recipient_id,
+        recipient_name: nameById.get(r.recipient_id) ?? "Practitioner",
+        reciprocal_booking_deadline: r.reciprocal_booking_deadline ?? null,
+        extension_requested_at: r.extension_requested_at ?? null,
+        extension_approved_at: r.extension_approved_at ?? null,
+        duration_minutes: r.duration_minutes ?? m.duration_minutes ?? null,
+        your_session_date: m.session_date ?? null,
+        your_session_start_time: m.start_time ?? null,
+      });
+    }
+    return { data: out, error: null };
+  } catch (e) {
+    return {
+      data: [],
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Resolve exchange request id from a peer session row (leg 1 or leg 2). */
+export async function fetchExchangeRequestIdForPeerSession(
+  sessionId: string,
+): Promise<{ requestId: string | null; error: Error | null }> {
+  if (!UUID_RE.test(sessionId)) {
+    return { requestId: null, error: null };
+  }
+  try {
+    const { data, error } = await supabase
+      .from("mutual_exchange_sessions")
+      .select("exchange_request_id")
+      .or(
+        `practitioner_a_session_id.eq.${sessionId},practitioner_b_session_id.eq.${sessionId}`,
+      )
+      .maybeSingle();
+    if (error) throw error;
+    const row = data as { exchange_request_id?: string } | null;
+    return {
+      requestId: row?.exchange_request_id ?? null,
+      error: null,
+    };
+  } catch (e) {
+    return {
+      requestId: null,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
 
 export async function fetchAcceptedExchangesNeedingReciprocal(
   recipientId: string,
@@ -351,7 +539,7 @@ export async function fetchAcceptedExchangesNeedingReciprocal(
     const { data: reqs, error: e2 } = await supabase
       .from("treatment_exchange_requests")
       .select(
-        "id, status, reciprocal_booking_deadline, duration_minutes, session_type, requester_notes, requester_id",
+        "id, status, reciprocal_booking_deadline, extension_requested_at, duration_minutes, session_type, requester_notes, requester_id",
       )
       .in("id", reqIds)
       .eq("status", "accepted");
@@ -387,6 +575,7 @@ export async function fetchAcceptedExchangesNeedingReciprocal(
         requester_id: r.requester_id,
         requester_name: nameById.get(r.requester_id) ?? "Practitioner",
         reciprocal_booking_deadline: r.reciprocal_booking_deadline ?? null,
+        extension_requested_at: r.extension_requested_at ?? null,
         duration_minutes: r.duration_minutes ?? m.duration_minutes ?? null,
         session_type: r.session_type ?? null,
         requester_notes: r.requester_notes ?? null,
@@ -449,4 +638,72 @@ function formatSlotTime(t: string | unknown): string {
   const parts = s.split(":");
   if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
   return s;
+}
+
+export type CancelPeerExchangeResult = {
+  ok: boolean;
+  refundedCredits: number;
+  creditsWereDeducted: boolean;
+  error: Error | null;
+};
+
+/** Cancel a peer exchange session; refunds credits only if they were already deducted. */
+export async function cancelPeerExchangeSession(params: {
+  sessionId: string;
+  reason?: string;
+}): Promise<CancelPeerExchangeResult> {
+  try {
+    const { data, error } = await supabase.rpc("process_peer_booking_refund", {
+      p_session_id: params.sessionId,
+      p_cancellation_reason:
+        params.reason?.trim() || "Cancelled by practitioner",
+    });
+    if (error) throw error;
+
+    const payload = data as {
+      success?: boolean;
+      error?: string;
+      refunded_credits?: number;
+      credits_were_deducted?: boolean;
+    } | null;
+
+    if (!payload?.success) {
+      return {
+        ok: false,
+        refundedCredits: 0,
+        creditsWereDeducted: false,
+        error: new Error(payload?.error || "Could not cancel exchange session"),
+      };
+    }
+
+    return {
+      ok: true,
+      refundedCredits: Number(payload.refunded_credits ?? 0),
+      creditsWereDeducted: payload.credits_were_deducted === true,
+      error: null,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      refundedCredits: 0,
+      creditsWereDeducted: false,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+export function formatExchangeConflictMessage(message: string): string {
+  if (message.includes("CONFLICT_BOOKING")) {
+    return "That time is already booked. Choose another slot.";
+  }
+  if (message.includes("CONFLICT_BLOCKED")) {
+    return "That time is blocked on the diary. Choose another slot.";
+  }
+  if (message.includes("CONFLICT_HOLD")) {
+    return "That time is temporarily held by another request. Try again shortly or pick another slot.";
+  }
+  if (message.includes("CONFLICT_EXCHANGE_PENDING")) {
+    return "Another exchange request is already pending for that slot.";
+  }
+  return message;
 }

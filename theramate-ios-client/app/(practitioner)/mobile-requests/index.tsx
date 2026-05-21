@@ -283,7 +283,7 @@ export default function PractitionerMobileRequestsListScreen() {
                   </Text>
                 ) : null}
                 <Text className="text-charcoal-500 text-xs mt-2">
-                  Accept or decline in Treatment exchange.
+                  Accept or request a different time in Treatment exchange.
                 </Text>
                 <Button
                   variant="outline"
