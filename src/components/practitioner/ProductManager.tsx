@@ -7,6 +7,7 @@ import {
   Plus, 
   Edit, 
   Trash2, 
+  Copy,
   Clock, 
   PoundSterling, 
   AlertCircle,
@@ -71,6 +72,7 @@ export const ProductManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<PractitionerProduct | undefined>();
+  const [duplicateFrom, setDuplicateFrom] = useState<PractitionerProduct | undefined>();
   const [preSelectServiceCategory, setPreSelectServiceCategory] = useState<string | undefined>();
   const [preSelectServiceType, setPreSelectServiceType] = useState<'clinic' | 'mobile' | 'both' | undefined>();
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -210,6 +212,7 @@ export const ProductManager: React.FC = () => {
   const handleFormSuccess = (product: PractitionerProduct) => {
     setShowForm(false);
     setEditingProduct(undefined);
+    setDuplicateFrom(undefined);
     setPreSelectServiceCategory(undefined);
     setPreSelectServiceType(undefined);
     loadProducts(); // Reload products
@@ -226,8 +229,17 @@ export const ProductManager: React.FC = () => {
   const handleFormCancel = () => {
     setShowForm(false);
     setEditingProduct(undefined);
+    setDuplicateFrom(undefined);
     setPreSelectServiceCategory(undefined);
     setPreSelectServiceType(undefined);
+  };
+
+  const handleDuplicateProduct = (product: PractitionerProduct) => {
+    setEditingProduct(undefined);
+    setDuplicateFrom(product);
+    setPreSelectServiceCategory(undefined);
+    setPreSelectServiceType(undefined);
+    setShowForm(true);
   };
 
   if (loading) {
@@ -265,6 +277,7 @@ export const ProductManager: React.FC = () => {
       <ProductForm
         practitionerId={user?.id || ''}
         product={editingProduct}
+        duplicateFrom={duplicateFrom}
         onSuccess={handleFormSuccess}
         onCancel={handleFormCancel}
         initialServiceCategory={preSelectServiceCategory}
@@ -333,6 +346,17 @@ export const ProductManager: React.FC = () => {
               <Badge variant={product.is_active ? 'default' : 'secondary'}>
                 {product.is_active ? 'Active' : 'Inactive'}
               </Badge>
+              {userProfile?.therapist_type === 'hybrid' && product.service_type && (
+                <Badge variant="outline" className="text-xs font-normal">
+                  {product.service_type === 'both' ? (
+                    <span className="flex items-center gap-1"><Building2 className="h-3 w-3" /> + <Car className="h-3 w-3" /> Clinic & Mobile</span>
+                  ) : product.service_type === 'mobile' ? (
+                    <span className="flex items-center gap-1"><Car className="h-3 w-3" /> Mobile</span>
+                  ) : (
+                    <span className="flex items-center gap-1"><Building2 className="h-3 w-3" /> Clinic</span>
+                  )}
+                </Badge>
+              )}
             </div>
             
             {product.description && (
@@ -357,6 +381,18 @@ export const ProductManager: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {userProfile?.therapist_type === 'hybrid' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDuplicateProduct(product)}
+                className="h-9"
+                aria-label={`Duplicate as ${product.service_type === 'clinic' ? 'mobile' : 'clinic'} service`}
+                title={`Duplicate as ${product.service_type === 'clinic' ? 'mobile' : 'clinic'} service`}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"

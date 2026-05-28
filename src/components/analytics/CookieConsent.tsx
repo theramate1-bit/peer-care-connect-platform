@@ -2,19 +2,20 @@ import React, { useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { enableGoogleAnalytics } from '@/lib/analytics/gtagLoader';
+import {
+  TM_COOKIE_CONSENT_KEY,
+  dispatchCookieConsentChanged,
+  type TmCookieConsentPrefs,
+} from '@/lib/analytics/cookieConsentStorage';
 
-type ConsentPrefs = {
-  analytics: boolean;
-  marketing: boolean;
-  functional: boolean; // non-essential functional
-};
-
-const COOKIE_KEY = 'tm_cookie_consent_v1';
+type ConsentPrefs = TmCookieConsentPrefs;
 
 const setGtmConsent = (prefs: ConsentPrefs) => {
   if (typeof window === 'undefined') return;
-  (window as any).dataLayer = (window as any).dataLayer || [];
-  (window as any).dataLayer.push({
+  (window as unknown as { dataLayer: unknown[] }).dataLayer =
+    (window as unknown as { dataLayer?: unknown[] }).dataLayer || [];
+  (window as unknown as { dataLayer: unknown[] }).dataLayer.push({
     event: 'consent_update',
     consent: {
       analytics_storage: prefs.analytics ? 'granted' : 'denied',
@@ -26,7 +27,7 @@ const setGtmConsent = (prefs: ConsentPrefs) => {
 
 const isTestEnvironment = () => {
   if (typeof window === 'undefined') return false;
-  
+
   return (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1' ||
@@ -40,33 +41,53 @@ const isTestEnvironment = () => {
   );
 };
 
+function persistConsent(next: ConsentPrefs, setVisible: (v: boolean) => void) {
+  try {
+    localStorage.setItem(TM_COOKIE_CONSENT_KEY, JSON.stringify(next));
+    setGtmConsent(next);
+    dispatchCookieConsentChanged(next);
+    if (next.analytics) {
+      void enableGoogleAnalytics();
+    }
+    setVisible(false);
+  } catch (error) {
+    console.error('🍪 Error saving consent:', error);
+  }
+}
+
 export const CookieConsent: React.FC = () => {
   const [visible, setVisible] = React.useState(false);
-  const [prefs, setPrefs] = React.useState<ConsentPrefs>({ analytics: false, marketing: false, functional: false });
+  const [prefs, setPrefs] = React.useState<ConsentPrefs>({
+    analytics: false,
+    marketing: false,
+    functional: false,
+  });
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   useEffect(() => {
     const checkConsent = () => {
       try {
-        // Completely skip cookie consent in test environments
         if (isTestEnvironment()) {
           setVisible(false);
           setIsInitialized(true);
           return;
         }
 
-        const raw = localStorage.getItem(COOKIE_KEY);
-        
+        const raw = localStorage.getItem(TM_COOKIE_CONSENT_KEY);
+
         if (!raw) {
           setVisible(true);
         } else {
           const saved = JSON.parse(raw) as ConsentPrefs;
           setGtmConsent(saved);
-          setVisible(false); // Hide banner if consent exists
+          setVisible(false);
+          if (saved.analytics) {
+            void enableGoogleAnalytics();
+          }
         }
       } catch (error) {
         console.error('🍪 Error checking consent:', error);
-        setVisible(true); // Show banner on error
+        setVisible(true);
       } finally {
         setIsInitialized(true);
       }
@@ -75,12 +96,10 @@ export const CookieConsent: React.FC = () => {
     checkConsent();
   }, []);
 
-  // Don't render anything in test environments
   if (isTestEnvironment()) {
     return null;
   }
 
-  // Don't render until initialization is complete
   if (!isInitialized || !visible) return null;
 
   return (
@@ -96,15 +115,30 @@ export const CookieConsent: React.FC = () => {
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="flex items-center justify-between border rounded-md p-2">
                   <span className="text-sm">Analytics</span>
-                  <Switch checked={prefs.analytics} onCheckedChange={(v) => setPrefs({ ...prefs, analytics: !!v })} />
+                  <Switch
+                    checked={prefs.analytics}
+                    onCheckedChange={(v) =>
+                      setPrefs({ ...prefs, analytics: !!v })
+                    }
+                  />
                 </div>
                 <div className="flex items-center justify-between border rounded-md p-2">
                   <span className="text-sm">Marketing</span>
-                  <Switch checked={prefs.marketing} onCheckedChange={(v) => setPrefs({ ...prefs, marketing: !!v })} />
+                  <Switch
+                    checked={prefs.marketing}
+                    onCheckedChange={(v) =>
+                      setPrefs({ ...prefs, marketing: !!v })
+                    }
+                  />
                 </div>
                 <div className="flex items-center justify-between border rounded-md p-2">
                   <span className="text-sm">Functional</span>
-                  <Switch checked={prefs.functional} onCheckedChange={(v) => setPrefs({ ...prefs, functional: !!v })} />
+                  <Switch
+                    checked={prefs.functional}
+                    onCheckedChange={(v) =>
+                      setPrefs({ ...prefs, functional: !!v })
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -112,30 +146,30 @@ export const CookieConsent: React.FC = () => {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    try {
-                      const deny = { analytics: false, marketing: false, functional: false };
-                      localStorage.setItem(COOKIE_KEY, JSON.stringify(deny));
-                      setGtmConsent(deny);
-                      setVisible(false);
-                    } catch (error) {
-                      console.error('🍪 Error saving consent:', error);
-                    }
-                  }}
+                  onClick={() =>
+                    persistConsent(
+                      {
+                        analytics: false,
+                        marketing: false,
+                        functional: false,
+                      },
+                      setVisible,
+                    )
+                  }
                 >
                   Reject non-essential
                 </Button>
                 <Button
-                  onClick={() => {
-                    try {
-                      const allowAll = { analytics: true, marketing: true, functional: true };
-                      localStorage.setItem(COOKIE_KEY, JSON.stringify(allowAll));
-                      setGtmConsent(allowAll);
-                      setVisible(false);
-                    } catch (error) {
-                      console.error('🍪 Error saving consent:', error);
-                    }
-                  }}
+                  onClick={() =>
+                    persistConsent(
+                      {
+                        analytics: true,
+                        marketing: true,
+                        functional: true,
+                      },
+                      setVisible,
+                    )
+                  }
                 >
                   Accept all
                 </Button>
@@ -143,15 +177,7 @@ export const CookieConsent: React.FC = () => {
               <Button
                 variant="ghost"
                 className="mt-2 text-sm"
-                onClick={() => {
-                  try {
-                    localStorage.setItem(COOKIE_KEY, JSON.stringify(prefs));
-                    setGtmConsent(prefs);
-                    setVisible(false);
-                  } catch (error) {
-                    console.error('🍪 Error saving preferences:', error);
-                  }
-                }}
+                onClick={() => persistConsent(prefs, setVisible)}
               >
                 Save preferences
               </Button>

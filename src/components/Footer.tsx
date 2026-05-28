@@ -60,6 +60,16 @@ export const Footer = () => {
                   Cookie Policy
                 </Link>
               </li>
+              <li>
+                <a href="/dpa" className="text-white hover:text-white/80 transition-colors duration-300">
+                  Data processing (DPA)
+                </a>
+              </li>
+              <li>
+                <a href="/subprocessors" className="text-white hover:text-white/80 transition-colors duration-300">
+                  Sub-processors
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -110,7 +120,7 @@ export const Footer = () => {
             </a>
           </div>
           <div className="text-xs sm:text-sm text-white">
-            © 2025 Theramate. All rights reserved.
+            © {new Date().getFullYear()} Theramate Limited. All rights reserved.
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
  * Handles push events and notification display
  */
 
-const CACHE_NAME = 'theramate-v10';
+const CACHE_NAME = 'theramate-v11';
 const urlsToCache = [
   '/'
   // Don't cache favicon - let browser fetch fresh version
@@ -80,8 +80,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || 'You have a new notification',
-    icon: data.icon || '/favicon.ico',
-    badge: data.badge || '/favicon.ico',
+    icon: data.icon || '/assets/theramatemascot-CfaqPola.png',
+    badge: data.badge || '/assets/theramatemascot-CfaqPola.png',
     image: data.image,
     data: data.data || {},
     actions: data.actions || [],

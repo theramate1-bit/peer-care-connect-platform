@@ -289,7 +289,10 @@ const MyBookings = () => {
           type: 'therapist' as const,
           therapist_id: session.therapist_id,
           client_id: session.client_id,
-          client_name: `${session.users?.first_name || ''} ${session.users?.last_name || ''}`.trim()
+          client_name:
+            session.client_name?.trim() ||
+            `${session.users?.first_name || ''} ${session.users?.last_name || ''}`.trim() ||
+            (session.is_guest_booking === true ? 'Guest' : 'Client'),
         }))
       ];
 

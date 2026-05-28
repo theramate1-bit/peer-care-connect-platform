@@ -65,6 +65,8 @@ const PLAN_DETAILS = {
 export const SettingsSubscription: React.FC = () => {
   const { userProfile, user } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [smsUsageCount, setSmsUsageCount] = useState(0);
+  const [smsUsageLoading, setSmsUsageLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
   const subscriptionChannelRef = useRef<any>(null);
@@ -135,6 +137,42 @@ export const SettingsSubscription: React.FC = () => {
 
     fetchSubscription();
   }, [userProfile?.id]);
+
+  useEffect(() => {
+    if (!userProfile?.id || !subscription?.current_period_start) return;
+    let mounted = true;
+
+    const fetchSmsUsage = async () => {
+      setSmsUsageLoading(true);
+      try {
+        const sb: any = supabase;
+        const { count, error } = await sb
+          .from("sms_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("practitioner_id", userProfile.id)
+          .eq("billable", true)
+          .gte("sent_at", subscription.current_period_start);
+
+        if (error) {
+          console.error("Failed to fetch SMS usage:", error);
+          return;
+        }
+
+        if (mounted) {
+          setSmsUsageCount(count || 0);
+        }
+      } finally {
+        if (mounted) {
+          setSmsUsageLoading(false);
+        }
+      }
+    };
+
+    fetchSmsUsage();
+    return () => {
+      mounted = false;
+    };
+  }, [userProfile?.id, subscription?.current_period_start]);
 
   // Subscribe to Supabase Realtime for subscription updates (webhook-driven)
   useEffect(() => {
@@ -395,6 +433,21 @@ export const SettingsSubscription: React.FC = () => {
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-semibold">SMS this period</p>
+                <p className="text-sm text-muted-foreground">
+                  {smsUsageLoading
+                    ? "Loading usage..."
+                    : `${smsUsageCount} texts · £${(smsUsageCount * 0.06).toFixed(2)} projected`}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs text-muted-foreground">Charged on next invoice</span>
           </div>
 
           {/* Manage Subscription Button */}

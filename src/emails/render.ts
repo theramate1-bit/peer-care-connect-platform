@@ -1,5 +1,5 @@
-import { render } from '@react-email/render';
 import * as React from 'react';
+import { render } from '@react-email/render';
 import { EmailData, EmailType } from './utils/types';
 import {
   ModernBookingConfirmationClient,
@@ -32,13 +32,13 @@ interface RenderEmailOptions {
   baseUrl?: string;
 }
 
-export function renderEmail({
+export async function renderEmail({
   emailType,
   recipientName,
   recipientEmail,
   data,
   baseUrl = 'https://theramate.co.uk',
-}: RenderEmailOptions): { subject: string; html: string } {
+}: RenderEmailOptions): Promise<{ subject: string; html: string }> {
   const props = {
     recipientName,
     recipientEmail,
@@ -134,7 +134,7 @@ export function renderEmail({
       throw new Error(`Unknown email type: ${emailType}`);
   }
 
-  const html = render(React.createElement(Component, props));
+  const html = await render(React.createElement(Component, props));
 
   return { subject, html };
 }

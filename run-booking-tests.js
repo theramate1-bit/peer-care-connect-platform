@@ -236,7 +236,7 @@ async function runBookingTests() {
             session_type: 'Sports Therapy Exchange',
             requester_notes: 'Test peer treatment exchange request',
             status: 'pending',
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+            expires_at: null
           })
           .select()
           .single();

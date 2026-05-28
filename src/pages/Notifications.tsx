@@ -26,7 +26,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { formatTimeHHMM, getFriendlyDateLabel } from '@/lib/date';
 import { useNavigate } from 'react-router-dom';
 import { FadeIn } from '@/components/ui/fade-in';
-import { cleanNotificationMessage, handleNotificationNavigation, normalizeNotification, parseNotificationRows, type Notification, type NormalizedNotification } from '@/lib/notification-utils';
+import { cleanNotificationMessage, dismissNotification, handleNotificationNavigation, markNotificationRead, markNotificationsRead, normalizeNotification, parseNotificationRows, type Notification, type NormalizedNotification } from '@/lib/notification-utils';
 
 type FilterType = 'all' | 'unread' | 'read';
 
@@ -46,12 +46,23 @@ const Notifications = () => {
     (payload) => {
       if (payload.eventType === 'INSERT') {
         const newNotif = normalizeNotification(payload.new as Notification);
+        if (newNotif.dismissed_at) return;
         setNotifications(prev => [newNotif, ...prev]);
         if (!newNotif.read) {
           setUnreadCount(prev => prev + 1);
         }
       } else if (payload.eventType === 'UPDATE') {
         const updatedNotif = normalizeNotification(payload.new as Notification);
+        if (updatedNotif.dismissed_at) {
+          setNotifications(prev => {
+            const existing = prev.find(notification => notification.id === updatedNotif.id);
+            if (existing && !existing.read) {
+              setUnreadCount(count => Math.max(0, count - 1));
+            }
+            return prev.filter(notification => notification.id !== updatedNotif.id);
+          });
+          return;
+        }
         setNotifications(prev => 
           prev.map(notification => 
             notification.id === updatedNotif.id ? updatedNotif : notification
@@ -90,6 +101,7 @@ const Notifications = () => {
         .from('notifications')
         .select('*')
         .eq('recipient_id', user.id)
+        .is('dismissed_at', null)
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(200);
@@ -114,12 +126,7 @@ const Notifications = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read_at: new Date().toISOString() })
-        .eq('id', notificationId);
-
-      if (error) throw error;
+      await markNotificationRead(notificationId, user?.id);
 
       setNotifications(prev => 
         prev.map(notif => 
@@ -129,6 +136,7 @@ const Notifications = () => {
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      void fetchNotifications();
     } catch (error) {
       console.error('Error marking notification as read:', error);
       toast.error('Failed to mark notification as read');
@@ -144,20 +152,7 @@ const Notifications = () => {
 
       const notificationIds = unreadNotifications.map(n => n.id);
       
-      // Try RPC function first, fallback to individual updates
-      const { error: rpcError } = await supabase.rpc('mark_notifications_read', {
-        p_ids: notificationIds
-      });
-
-      if (rpcError) {
-        // Fallback to individual updates
-        for (const id of notificationIds) {
-          await supabase
-            .from('notifications')
-            .update({ read_at: new Date().toISOString() })
-            .eq('id', id);
-        }
-      }
+      await markNotificationsRead(notificationIds, user.id);
 
       setNotifications(prev => 
         prev.map(notif => ({ 
@@ -167,6 +162,7 @@ const Notifications = () => {
       );
       setUnreadCount(0);
       toast.success('All notifications marked as read');
+      void fetchNotifications();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       toast.error('Failed to mark all notifications as read');
@@ -176,12 +172,7 @@ const Notifications = () => {
   const deleteNotification = async (notificationId: string) => {
     try {
       setDeletingId(notificationId);
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId);
-
-      if (error) throw error;
+      await dismissNotification(notificationId, user?.id);
 
       const notification = notifications.find(n => n.id === notificationId);
       if (notification && !notification.read) {
@@ -189,10 +180,11 @@ const Notifications = () => {
       }
 
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      toast.success('Notification deleted');
+      toast.success('Notification dismissed');
+      void fetchNotifications();
     } catch (error) {
       console.error('Error deleting notification:', error);
-      toast.error('Failed to delete notification');
+      toast.error('Failed to dismiss notification');
     } finally {
       setDeletingId(null);
     }

@@ -26,6 +26,10 @@ import { Slider } from '@/components/ui/slider';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { onboardingFadeVariants, onboardingSpring, onboardingStepVariants } from '@/components/onboarding/onboarding-motion';
 import { validateDetailedStreetAddress } from '@/lib/address-validation';
+import {
+  clearPendingPractitionerCheckout,
+  getPendingPractitionerCheckout,
+} from '@/lib/pricing-checkout-intent';
 
 const PaymentSetupStep = lazy(() => import('@/components/onboarding/PaymentSetupStep'));
 
@@ -84,10 +88,8 @@ const getActualStepFromFormData = (formData: any, savedStep: number): number => 
   if (formData.therapistType === 'mobile' && !validateDetailedStreetAddress(formData.baseAddress).isValid) {
     return PRACTITIONER_STEPS.LOCATION;
   }
-  if (formData.therapistType === 'hybrid' && (!formData.clinicAddress?.trim() || !formData.baseAddress?.trim())) {
-    return PRACTITIONER_STEPS.LOCATION;
-  }
-  if (formData.therapistType === 'hybrid' && !validateDetailedStreetAddress(formData.baseAddress).isValid) {
+  // Hybrid: base is derived from clinic — only clinic address required
+  if (formData.therapistType === 'hybrid' && !formData.clinicAddress?.trim()) {
     return PRACTITIONER_STEPS.LOCATION;
   }
   
@@ -101,7 +103,7 @@ const getActualStepFromFormData = (formData: any, savedStep: number): number => 
 };
 
 const Onboarding = () => {
-  const { user, userProfile, updateProfile, refreshProfile, signOut, loading: authLoading, profileLoading } = useAuth();
+  const { user, userProfile, updateProfile, refreshProfile, signOut, loading: authLoading } = useAuth();
   const { subscribed, subscriptionTier, checkSubscription } = useSubscription();
   const realtime = useRealtime();
   const navigate = useNavigate();
@@ -393,20 +395,30 @@ const Onboarding = () => {
   }, []);
 
   const handleClinicLocationSelect = useCallback((lat: number, lon: number, address: string) => {
-    setFormData(prev => ({
-      ...prev,
-      clinicAddress: address,
-      clinicLatitude: lat,
-      clinicLongitude: lon,
-      location: address,
-      latitude: lat,
-      longitude: lon,
-    }));
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        clinicAddress: address,
+        clinicLatitude: lat,
+        clinicLongitude: lon,
+        location: address,
+        latitude: lat,
+        longitude: lon,
+      };
+      // Hybrid: derive base from clinic so mobile radius uses clinic location
+      if (prev.therapistType === 'hybrid') {
+        next.baseAddress = address;
+        next.baseLatitude = lat;
+        next.baseLongitude = lon;
+      }
+      return next;
+    });
 
     setValidationErrors(prev => {
       const next = { ...prev };
       delete next.clinicAddress;
       delete next.location;
+      delete next.baseAddress; // hybrid: base synced from clinic, so clear any base error
       return next;
     });
   }, []);
@@ -546,18 +558,10 @@ const Onboarding = () => {
             }
           }
         } else if (formData.therapistType === 'hybrid') {
+          // Hybrid: only clinic required; base is derived from clinic
           const clinicAddr = formData.clinicAddress?.trim();
-          const baseAddr = formData.baseAddress?.trim();
           if (!clinicAddr || clinicAddr.length === 0) {
             currentStepErrors.clinicAddress = 'Clinic address is required';
-          }
-          if (!baseAddr || baseAddr.length === 0) {
-            currentStepErrors.baseAddress = 'Base address is required';
-          } else {
-            const detailedAddressValidation = validateDetailedStreetAddress(baseAddr);
-            if (!detailedAddressValidation.isValid) {
-              currentStepErrors.baseAddress = detailedAddressValidation.message || 'Please enter a full base address';
-            }
           }
         } else {
           // Fallback: if therapistType is not set, check location field
@@ -849,6 +853,11 @@ const Onboarding = () => {
         if (!formData.therapistType) {
           throw new Error('Please select your practitioner type to complete onboarding.');
         }
+        // Hybrid: base is derived from clinic (same as Profile save)
+        const isHybrid = formData.therapistType === 'hybrid';
+        const baseAddress = isHybrid ? (formData.clinicAddress || null) : (formData.baseAddress || null);
+        const baseLatitude = isHybrid ? (formData.clinicLatitude ?? null) : (formData.baseLatitude ?? null);
+        const baseLongitude = isHybrid ? (formData.clinicLongitude ?? null) : (formData.baseLongitude ?? null);
         const practitionerData = {
           phone: formData.phone,
           location: formData.location,
@@ -859,9 +868,9 @@ const Onboarding = () => {
           clinic_address: formData.clinicAddress || null,
           clinic_latitude: formData.clinicLatitude || null,
           clinic_longitude: formData.clinicLongitude || null,
-          base_address: formData.baseAddress || null,
-          base_latitude: formData.baseLatitude || null,
-          base_longitude: formData.baseLongitude || null,
+          base_address: baseAddress,
+          base_latitude: baseLatitude,
+          base_longitude: baseLongitude,
           mobile_service_radius_km:
             formData.therapistType === 'mobile' || formData.therapistType === 'hybrid'
               ? (formData.mobileServiceRadiusKm || null)
@@ -890,15 +899,34 @@ const Onboarding = () => {
 
       toast.success('Account setup completed!');
       await refreshProfile();
-      
+      await checkSubscription(true);
+
       const userRole = effectiveRole || 'client';
+      if (
+        ['sports_therapist', 'massage_therapist', 'osteopath'].includes(userRole) &&
+        getPendingPractitionerCheckout() &&
+        user?.id
+      ) {
+        const { data: activeSub } = await supabase
+          .from('subscriptions')
+          .select('id')
+          .eq('user_id', user.id)
+          .in('status', ['active', 'trialing', 'incomplete', 'past_due'])
+          .maybeSingle();
+        if (!activeSub) {
+          navigate('/pricing', { replace: true });
+          return;
+        }
+        clearPendingPractitionerCheckout();
+      }
+
       let dashboardRoute = '/client/dashboard';
       if (['sports_therapist', 'massage_therapist', 'osteopath'].includes(userRole)) {
         dashboardRoute = '/dashboard';
       } else if (userRole === 'admin') {
         dashboardRoute = '/admin/verification';
       }
-      
+
       navigate(dashboardRoute);
     } catch (error: any) {
       toast.error(error.message || 'Failed to complete onboarding');
@@ -1164,6 +1192,9 @@ const Onboarding = () => {
               
               {formData.therapistType === 'hybrid' && (
                 <div className="space-y-6">
+                  <p className="text-sm text-muted-foreground">
+                    Your clinic address is used as the base for your mobile service radius. No separate base address needed.
+                  </p>
                   <div>
                     <Label htmlFor="clinicAddress" className="text-base font-semibold">Clinic Address *</Label>
                     <p className="text-sm text-muted-foreground mb-2">
@@ -1176,21 +1207,6 @@ const Onboarding = () => {
                       onLocationSelect={handleClinicLocationSelect}
                       placeholder="Enter your clinic address (e.g., 123 Main St, London, UK)"
                       error={validationErrors.clinicAddress}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="baseAddress" className="text-base font-semibold">Base Address *</Label>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Your home or workspace address for mobile services. This will NOT be shown on the marketplace.
-                    </p>
-                    <SmartLocationPicker
-                      id="baseAddress"
-                      value={formData.baseAddress || ''}
-                      onChange={handleBaseAddressChange}
-                      onLocationSelect={handleBaseLocationSelect}
-                      placeholder="Enter your base address (e.g., 123 Main St, London, UK)"
-                      error={validationErrors.baseAddress}
                     />
                   </div>
                 </div>
@@ -1212,7 +1228,9 @@ const Onboarding = () => {
                     How far are you willing to travel? ({formData.mobileServiceRadiusKm} km)
                   </Label>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Clients within this radius will be able to see and book your mobile services
+                    {formData.therapistType === 'hybrid'
+                      ? 'Clients within this radius of your clinic will be able to see and book your mobile services.'
+                      : 'Clients within this radius will be able to see and book your mobile services'}
                   </p>
                   <Slider
                     value={[formData.mobileServiceRadiusKm]}

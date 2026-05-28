@@ -115,16 +115,23 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
   const [loading, setLoading] = useState(true);
   const [expandedDays, setExpandedDays] = useState<Set<DayKey>>(new Set());
   
-  // Practitioner preferences state
+  // Practitioner preferences state (same columns as mobile `practitioner_availability`)
   const [preferences, setPreferences] = useState({
     default_session_time: '10:00',
     default_duration_minutes: 60,
     default_session_type: 'Treatment Session'
   });
+  const [originalPreferences, setOriginalPreferences] = useState<typeof preferences | null>(null);
 
-  const hasChanges = originalAvailability !== null && originalAvailability !== undefined
-    ? JSON.stringify(availability) !== JSON.stringify(originalAvailability)
-    : true;
+  const availabilityDirty =
+    originalAvailability === null || originalAvailability === undefined
+      ? true
+      : JSON.stringify(availability) !== JSON.stringify(originalAvailability);
+  const preferencesDirty =
+    originalPreferences === null
+      ? true
+      : JSON.stringify(preferences) !== JSON.stringify(originalPreferences);
+  const hasChanges = availabilityDirty || preferencesDirty;
 
   // Real-time subscription for availability and preferences
   useRealtimeSubscription(
@@ -168,13 +175,13 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
       }
 
       // Load preferences
-      if (data) {
-        setPreferences({
-          default_session_time: data.default_session_time || '10:00',
-          default_duration_minutes: data.default_duration_minutes || 60,
-          default_session_type: data.default_session_type || 'Treatment Session'
-        });
-      }
+      const loadedPrefs = {
+        default_session_time: data?.default_session_time || '10:00',
+        default_duration_minutes: data?.default_duration_minutes ?? 60,
+        default_session_type: data?.default_session_type || 'Treatment Session'
+      };
+      setPreferences(loadedPrefs);
+      setOriginalPreferences(data ? loadedPrefs : null);
     } catch (error) {
       console.error('Error fetching availability:', error);
     } finally {
@@ -257,8 +264,7 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
       return;
     }
 
-    const shouldSave = originalAvailability === null || hasChanges;
-    if (!shouldSave) {
+    if (!hasChanges) {
       toast.info('No changes to save');
       return;
     }
@@ -269,6 +275,12 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
       // Validate availability before saving
       if (!hasValidAvailability(availability)) {
         toast.error('Please enable at least one day with valid working hours');
+        setSaving(false);
+        return;
+      }
+
+      if (!preferences.default_session_type.trim()) {
+        toast.error('Please enter a session type label');
         setSaving(false);
         return;
       }
@@ -292,7 +304,7 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
           timezone: existing?.timezone || 'Europe/London',
           default_session_time: preferences.default_session_time,
           default_duration_minutes: preferences.default_duration_minutes,
-          default_session_type: preferences.default_session_type,
+          default_session_type: preferences.default_session_type.trim(),
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
@@ -310,6 +322,7 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
       }
 
       setOriginalAvailability(availability);
+      setOriginalPreferences({ ...preferences });
       setSaved(true);
       toast.success('Availability saved successfully');
 
@@ -375,6 +388,67 @@ export const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
         </TabsList>
 
         <TabsContent value="working-hours" className="space-y-4 mt-4">
+          <Card className="border-2">
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-base font-semibold">Default session (new bookings)</CardTitle>
+              <CardDescription className="text-sm mt-1">
+                Applied when creating sessions from the diary or manual booking flow.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3 pb-4">
+              <div className="space-y-2">
+                <Label htmlFor="default_session_time">Default start time</Label>
+                <Input
+                  id="default_session_time"
+                  type="time"
+                  step={300}
+                  value={preferences.default_session_time}
+                  onChange={(e) =>
+                    setPreferences((p) => ({ ...p, default_session_time: e.target.value }))
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="default_duration">Duration</Label>
+                <Select
+                  value={String(preferences.default_duration_minutes)}
+                  onValueChange={(v) =>
+                    setPreferences((p) => ({ ...p, default_duration_minutes: Number(v) }))
+                  }
+                  disabled={saving}
+                >
+                  <SelectTrigger id="default_duration">
+                    <SelectValue placeholder="Minutes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(
+                      new Set([30, 45, 60, 90, 120, preferences.default_duration_minutes])
+                    )
+                      .sort((a, b) => a - b)
+                      .map((m) => (
+                        <SelectItem key={m} value={String(m)}>
+                          {m} minutes
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="default_session_type">Session type label</Label>
+                <Input
+                  id="default_session_type"
+                  value={preferences.default_session_type}
+                  onChange={(e) =>
+                    setPreferences((p) => ({ ...p, default_session_type: e.target.value }))
+                  }
+                  placeholder="Treatment Session"
+                  disabled={saving}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-2">
             <CardHeader className="pb-3 pt-4 bg-muted/30 rounded-t-lg">
               <div className="flex items-center justify-between flex-wrap gap-4">

@@ -6,6 +6,7 @@ import { Users, Activity, Heart, Bone, user, Stethoscope, Hand } from "lucide-re
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { clearPendingPractitionerCheckout } from "@/lib/pricing-checkout-intent";
 
 const RoleSelection = () => {
   const navigate = useNavigate();
@@ -18,6 +19,10 @@ const RoleSelection = () => {
       toast.error("Please log in first");
       navigate("/login");
       return;
+    }
+
+    if (role === "client") {
+      clearPendingPractitionerCheckout();
     }
 
     console.log('🎯 RoleSelection: Starting role selection', { userId: user.id, role });

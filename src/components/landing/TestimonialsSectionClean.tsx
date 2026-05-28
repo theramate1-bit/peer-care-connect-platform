@@ -56,7 +56,7 @@ export const TestimonialsSectionClean = () => {
   return (
     <section 
       ref={sectionRef}
-      className="py-28 px-6 bg-white dark:bg-slate-950"
+      className="py-28 px-6 bg-cream-50 dark:bg-slate-950"
     >
       <div className="max-w-7xl mx-auto">
         <motion.div
@@ -66,7 +66,7 @@ export const TestimonialsSectionClean = () => {
         >
           {/* Header */}
           <motion.div variants={itemVariants} className="text-center max-w-3xl mx-auto mb-16">
-            <span className="text-xs font-bold tracking-widest text-primary uppercase mb-3 block">
+            <span className="landing-eyebrow mb-3 block">
               Testimonials
             </span>
             <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white mb-4">
@@ -85,16 +85,16 @@ export const TestimonialsSectionClean = () => {
                 variants={itemVariants}
                 className="group"
               >
-                <div className="relative h-full p-8 rounded-3xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-primary/20 transition-[border-color,background-color] duration-200 ease-out">
+                <div className="relative h-full p-8 landing-card hover:border-primary/30 transition-[border-color,background-color] duration-200 ease-out">
                   {/* Quote */}
-                  <div className="absolute top-6 right-6 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Quote className="w-5 h-5 text-primary" />
+                  <div className="absolute top-6 right-6 w-10 h-10 rounded-full landing-icon-tile">
+                    <Quote className="w-5 h-5" />
                   </div>
 
                   {/* Stars */}
                   <div className="flex gap-1 mb-6">
                     {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
+                      <Star key={i} className="w-5 h-5 fill-primary-300 text-primary-300" />
                     ))}
                   </div>
 
@@ -105,8 +105,8 @@ export const TestimonialsSectionClean = () => {
 
                   {/* Author */}
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-wellness-500/20 flex items-center justify-center">
-                      <span className="text-sm font-bold text-primary">{testimonial.initials}</span>
+                    <div className="w-12 h-12 rounded-full landing-icon-tile">
+                      <span className="text-sm font-bold">{testimonial.initials}</span>
                     </div>
                     <div>
                       <div className="font-semibold text-slate-900 dark:text-white">

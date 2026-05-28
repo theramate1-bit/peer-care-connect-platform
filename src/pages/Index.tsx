@@ -2,7 +2,8 @@ import { FooterClean } from "@/components/FooterClean";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDashboardRoute } from "@/lib/dashboard-routing";
+import { getPostAuthRedirectPath } from "@/lib/access-policy";
+import type { AccessProfile } from "@/lib/access-policy";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import MetaTags from "@/components/SEO/MetaTags";
 import {
@@ -20,10 +21,8 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect authenticated users to their appropriate dashboard
     if (user && userProfile && !loading) {
-      const dashboardRoute = getDashboardRoute({ userProfile });
-      navigate(dashboardRoute, { replace: true });
+      navigate(getPostAuthRedirectPath(userProfile as AccessProfile), { replace: true });
     }
   }, [user, userProfile, loading, navigate]);
 
@@ -73,7 +72,7 @@ const Index = () => {
           }
         }}
       />
-      <div className="min-h-screen bg-white dark:bg-slate-950">
+      <div className="min-h-screen bg-cream-50 dark:bg-slate-950">
         <HeaderClean />
         <main id="main-content">
           <HeroSectionClean />

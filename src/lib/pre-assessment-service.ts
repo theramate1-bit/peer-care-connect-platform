@@ -161,22 +161,57 @@ export class PreAssessmentService {
   }
 
   /**
-   * Auto-populate form data from user profile
+   * Get the most recent completed pre-assessment form for a client.
+   * Used to pre-fill gp_name, gp_address, medical conditions, etc. for existing clients.
+   */
+  static async getMostRecentFormForClient(clientId: string): Promise<PreAssessmentForm | null> {
+    try {
+      const { data, error } = await supabase
+        .from('pre_assessment_forms')
+        .select('*')
+        .eq('client_id', clientId)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? this.mapToForm(data) : null;
+    } catch (error) {
+      logger.error('Error getting most recent form for client:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Auto-populate form data from user profile and prior pre-assessments.
+   * For existing clients, includes gp_name, gp_address, medical conditions, medical history.
    */
   static async autoPopulateFromProfile(clientId: string): Promise<Partial<PreAssessmentFormData>> {
     try {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('first_name, last_name, email, phone')
-        .eq('id', clientId)
-        .single();
+      const [userResult, priorForm] = await Promise.all([
+        supabase.from('users').select('first_name, last_name, email, phone').eq('id', clientId).single(),
+        this.getMostRecentFormForClient(clientId)
+      ]);
 
+      const { data: user, error } = userResult;
       if (error) throw error;
 
-      return {
+      const base = {
         name: `${user.first_name} ${user.last_name}`.trim(),
         contact_email: user.email,
         contact_phone: user.phone || undefined
+      };
+
+      if (!priorForm) return base;
+
+      return {
+        ...base,
+        gp_name: priorForm.gp_name,
+        gp_address: priorForm.gp_address,
+        current_medical_conditions: priorForm.current_medical_conditions,
+        past_medical_history: priorForm.past_medical_history,
+        date_of_birth: priorForm.date_of_birth
       };
     } catch (error) {
       logger.error('Error auto-populating from profile:', error);
@@ -185,7 +220,35 @@ export class PreAssessmentService {
   }
 
   /**
-   * Auto-populate form data from session (for guests)
+   * Get the most recent completed pre-assessment form by client email.
+   * Used for returning guests whose prior forms used client_email.
+   */
+  static async getMostRecentFormByEmail(email: string): Promise<PreAssessmentForm | null> {
+    try {
+      const normalized = email?.trim().toLowerCase();
+      if (!normalized) return null;
+
+      const { data, error } = await supabase
+        .from('pre_assessment_forms')
+        .select('*')
+        .is('client_id', null)
+        .ilike('client_email', normalized)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? this.mapToForm(data) : null;
+    } catch (error) {
+      logger.error('Error getting most recent form by email:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Auto-populate form data from session (for guests).
+   * For returning guests, includes gp_name, gp_address, medical conditions from prior forms.
    */
   static async autoPopulateFromSession(sessionId: string): Promise<Partial<PreAssessmentFormData>> {
     try {
@@ -197,10 +260,25 @@ export class PreAssessmentService {
 
       if (error) throw error;
 
-      return {
+      const base = {
         name: session.client_name,
         contact_email: session.client_email || undefined,
         contact_phone: session.client_phone || undefined
+      };
+
+      const priorForm = session.client_email
+        ? await this.getMostRecentFormByEmail(session.client_email)
+        : null;
+
+      if (!priorForm) return base;
+
+      return {
+        ...base,
+        gp_name: priorForm.gp_name,
+        gp_address: priorForm.gp_address,
+        current_medical_conditions: priorForm.current_medical_conditions,
+        past_medical_history: priorForm.past_medical_history,
+        date_of_birth: priorForm.date_of_birth
       };
     } catch (error) {
       logger.error('Error auto-populating from session:', error);

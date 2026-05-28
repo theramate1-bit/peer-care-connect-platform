@@ -14,6 +14,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const PLATFORM_FEE_PERCENT = 0.0195;
+const PLATFORM_FEE_FLAT_PENCE = 20;
+
+function calculatePlatformFeePence(amountPence: number): number {
+  const normalizedAmount = Math.round(Number(amountPence));
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    return 0;
+  }
+  return Math.round(normalizedAmount * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FLAT_PENCE;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -263,8 +274,8 @@ async function handleCreatePaymentIntent(req: Request, body: any, supabase: any)
         );
       }
 
-      // Calculate platform fee (0.5% of amount)
-      const platformFeeAmount = Math.round(amount * 0.005);
+      // Calculate platform fee (1.95% + 20p)
+      const platformFeeAmount = calculatePlatformFeePence(amount);
       const practitionerAmount = amount - platformFeeAmount;
 
       // Create Payment Intent with manual capture
@@ -1677,8 +1688,8 @@ async function handleCreateCheckoutSession(req: Request, body: any, supabase: an
       );
     }
 
-    // Calculate application fee (0.5% platform fee)
-    const applicationFeeAmount = Math.round(product.price_amount * 0.005);
+    // Calculate application fee (1.95% + 20p platform fee)
+    const applicationFeeAmount = calculatePlatformFeePence(product.price_amount);
     
     console.log('[CREATE-CHECKOUT-SESSION] Creating checkout session:', {
       price_id,
@@ -1871,7 +1882,7 @@ async function handleCreateMobileCheckoutSession(req: Request, body: any, supaba
     const cancelUrl = `${appUrl}/marketplace?mobile_checkout_canceled=1&mobile_request_id=${encodedRequestId}`;
     const platformFee = Number.isFinite(Number(mobileRequest.platform_fee_pence))
       ? Number(mobileRequest.platform_fee_pence)
-      : Math.round(Number(amount) * 0.005);
+      : calculatePlatformFeePence(Number(amount));
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',

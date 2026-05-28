@@ -1,1 +1,6 @@
-/*    /index.html   200
+# Netlify-style: serve static legal pages before SPA fallback
+/dpa    /dpa.html           200
+/dpa/   /dpa.html           200
+/subprocessors    /subprocessors.html    200
+/subprocessors/   /subprocessors.html    200
+/*      /index.html         200

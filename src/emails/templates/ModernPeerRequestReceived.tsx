@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -36,7 +36,7 @@ export const ModernPeerRequestReceived = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="New Request"
-      primaryColor="#059669"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
       <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
@@ -48,7 +48,7 @@ export const ModernPeerRequestReceived = ({
               </ModernButton>
             </td>
             <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={data.declineUrl || '#'} variant="secondary" color="#dc2626">
+              <ModernButton href={data.declineUrl || '#'} variant="secondary" color="#8e9b53">
                 Decline Request
               </ModernButton>
             </td>
@@ -65,33 +65,33 @@ export const ModernPeerRequestReceived = ({
         </table>
       </Section>
 
-      <ModernCard title="Request Details" accentColor="#059669">
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+      <ModernCard title="Request Details" accentColor="#8e9b53">
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>From</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.requesterName || 'A Practitioner'}</Text>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>From</Text>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>{data.requesterName || 'A Practitioner'}</Text>
               </td>
             </tr>
             {data.sessionType && (
               <tr>
                 <td style={{ paddingBottom: '16px' }}>
-                  <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Session Type</Text>
-                  <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.sessionType}</Text>
+                  <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Session Type</Text>
+                  <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>{data.sessionType}</Text>
                 </td>
               </tr>
             )}
             <tr>
               <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Date</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{formattedDate}</Text>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Date</Text>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>{formattedDate}</Text>
               </td>
             </tr>
             <tr>
               <td>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Time</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{formattedTime}</Text>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Time</Text>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>{formattedTime}</Text>
               </td>
             </tr>
           </table>
@@ -99,8 +99,8 @@ export const ModernPeerRequestReceived = ({
       </ModernCard>
 
       {data.expiresAt && (
-        <Section style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', borderLeft: '4px solid #d97706' }}>
-          <Text style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+        <Section style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f0f4ef', borderRadius: '8px', borderLeft: '4px solid #8e9b53' }}>
+          <Text style={{ margin: 0, fontSize: '14px', color: '#5a5a5a', lineHeight: '1.6' }}>
             <strong>Expires:</strong> {new Date(data.expiresAt).toLocaleString('en-GB')}
           </Text>
         </Section>
@@ -110,3 +110,4 @@ export const ModernPeerRequestReceived = ({
 };
 
 export default ModernPeerRequestReceived;
+

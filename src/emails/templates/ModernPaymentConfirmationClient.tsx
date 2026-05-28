@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -42,96 +42,46 @@ export const ModernPaymentConfirmationClient = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="Payment Confirmed"
-      primaryColor="#059669"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
-      {/* Hero Button */}
-      <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
-        <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', maxWidth: '500px' }}>
+      {/* 1. Unified payment overview — amount prominent, context inline */}
+      <ModernCard
+        title={`${data.sessionType || 'Session'} with ${data.practitionerName || 'your practitioner'}`}
+        badge={data.paymentAmount ? `£${data.paymentAmount} paid` : undefined}
+        accentColor="#8e9b53"
+      >
+        <table cellPadding="0" cellSpacing="0" width="100%">
           <tr>
             <td style={{ paddingBottom: '12px' }}>
-              <ModernButton href={paymentBookingUrl} variant="primary" fullWidth>
-                View Booking
-              </ModernButton>
+              <Text style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>When</Text>
+              <Text style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#3c4804' }}>
+                {formattedDate} at {formattedTime}
+              </Text>
             </td>
           </tr>
+          {data.paymentId && (
+            <tr>
+              <td style={{ paddingTop: '12px', borderTop: '1px solid #d9e2d2' }}>
+                <Text style={{ margin: '0 0 2px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 500 }}>Payment ID</Text>
+                <Text style={{ margin: 0, fontSize: '13px', color: '#5a5a5a' }}>{data.paymentId}</Text>
+              </td>
+            </tr>
+          )}
         </table>
-      </Section>
-
-      {/* Payment Details Card */}
-      <ModernCard
-        title="Payment Details"
-        badge={data.paymentAmount ? `£${data.paymentAmount}` : undefined}
-        accentColor="#059669"
-      >
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
-          <table cellPadding="0" cellSpacing="0" width="100%">
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
-                  Payment ID
-                </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                  {data.paymentId || 'N/A'}
-                </Text>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
-                  Session
-                </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                  {data.sessionType || 'N/A'}
-                </Text>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
-                  Date
-                </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                  {formattedDate}
-                </Text>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
-                  Time
-                </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                  {formattedTime}
-                </Text>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
-                  Practitioner
-                </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                  {data.practitionerName || 'N/A'}
-                </Text>
-              </td>
-            </tr>
-          </table>
-        </Section>
       </ModernCard>
 
-      {/* Info Message */}
-      <Section
-        style={{
-          marginTop: '24px',
-          padding: '16px',
-          backgroundColor: '#f8fafc',
-          borderRadius: '8px',
-          borderLeft: '4px solid #059669',
-        }}
-      >
-        <Text style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
-          Your session is confirmed and you should receive a separate booking confirmation email shortly.
+      {/* 2. Primary action */}
+      <Section style={{ textAlign: 'center', marginTop: '16px', marginBottom: '16px' }}>
+        <ModernButton href={paymentBookingUrl} variant="primary" fullWidth>
+          View Booking
+        </ModernButton>
+      </Section>
+
+      {/* 3. Info note */}
+      <Section style={{ padding: '12px 16px', backgroundColor: '#f0f4ef', borderRadius: '8px', borderLeft: '4px solid #8e9b53' }}>
+        <Text style={{ margin: 0, fontSize: '13px', color: '#5a5a5a', lineHeight: '1.5' }}>
+          You should also receive a booking confirmation email with full session details.
         </Text>
       </Section>
     </ModernEmailBase>

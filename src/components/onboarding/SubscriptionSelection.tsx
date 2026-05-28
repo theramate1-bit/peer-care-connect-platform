@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { PRACTITIONER_PLANS } from '@/config/pricing';
+import { clearPendingPractitionerCheckout } from '@/lib/pricing-checkout-intent';
 
 interface SubscriptionPlan {
   id: string;
@@ -135,6 +136,7 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
       // After payment, user will be redirected back to verify subscription
       console.log('🔵 Calling createCheckout...');
       await createCheckout(plan.id, billingCycle);
+      clearPendingPractitionerCheckout();
       console.log('✅ createCheckout completed (or redirect happened)');
       
       // NOTE: Do NOT call onSubscriptionSelected here
@@ -200,13 +202,13 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
       </div>
 
       {/* Subscription Plans */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto items-stretch">
         {subscriptionPlans.map((plan) => (
           <Card 
             key={plan.id} 
-            className={`relative cursor-pointer transition-[border-color,background-color] duration-200 ease-out ${
+            className={`relative flex h-full cursor-pointer flex-col transition-[border-color,background-color] duration-200 ease-out ${
               plan.popular 
-                ? 'ring-2 ring-primary shadow-lg scale-105' 
+                ? 'ring-2 ring-primary shadow-lg' 
                 : ''
             }`}
           >
@@ -240,8 +242,8 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
               </div>
             </CardHeader>
             
-            <CardContent className="space-y-4">
-              <ul className="space-y-2">
+            <CardContent className="flex flex-1 flex-col gap-4 pt-0">
+              <ul className="flex flex-1 flex-col gap-2">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-center text-sm">
                     <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
@@ -251,7 +253,7 @@ export const SubscriptionSelection: React.FC<SubscriptionSelectionProps> = ({
               </ul>
               
               <Button
-                className="w-full"
+                className="mt-auto w-full shrink-0"
                 variant={plan.popular ? 'default' : 'outline'}
                 onClick={() => handleSubscribe(plan)}
                 disabled={loading || selectedPlan === plan.id}

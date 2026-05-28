@@ -27,6 +27,8 @@ export interface TimeSlotWithStatus {
 
 const DEFAULT_BUFFER_MINUTES = 15;
 const HYBRID_MOBILE_TO_CLINIC_BUFFER_MINUTES = 30;
+/** Clinic→mobile: travel from clinic to client (hybrid). */
+const HYBRID_CLINIC_TO_MOBILE_BUFFER_MINUTES = 30;
 /** Mobile→mobile travel buffer: aligns with accept_mobile_booking_request (30 min) */
 const MOBILE_TO_MOBILE_BUFFER_MINUTES = 30;
 const SLOT_INTERVAL_MINUTES = 15;
@@ -69,6 +71,15 @@ function getDirectionalBufferMinutes(
     laterAppointmentType === 'clinic'
   ) {
     return HYBRID_MOBILE_TO_CLINIC_BUFFER_MINUTES;
+  }
+
+  // Hybrid: clinic→mobile needs 30 min travel from clinic to client
+  if (
+    therapistType === 'hybrid' &&
+    earlierAppointmentType === 'clinic' &&
+    laterAppointmentType === 'mobile'
+  ) {
+    return HYBRID_CLINIC_TO_MOBILE_BUFFER_MINUTES;
   }
 
   // Mobile/hybrid: mobile→mobile needs 30 min travel between client locations (aligns with accept_mobile_booking_request)

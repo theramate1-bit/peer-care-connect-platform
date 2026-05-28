@@ -113,18 +113,18 @@ test.describe('Treatment Exchange Flow', () => {
       await expect(page.locator('text=Please fill in all required fields')).toBeVisible();
     });
 
-    test('should decline request', async ({ page }) => {
-      // Navigate to dashboard as Practitioner B
+    test('should reschedule request (recipient releases slot; replaces Decline)', async ({ page }) => {
+      // Navigate to dashboard as Practitioner B (recipient)
       await page.goto('/practice/dashboard');
       
       // Find pending request
       const pendingRequest = page.locator('[data-testid="pending-exchange-request"]:first-child');
       await expect(pendingRequest).toBeVisible();
       
-      // Click Decline button
-      await pendingRequest.locator('button:has-text("Decline")').click();
+      // Click Reschedule button (replaces Decline for fraud prevention)
+      await pendingRequest.locator('button:has-text("Reschedule")').click();
       
-      // Confirm decline
+      // Confirm reschedule
       await page.click('button:has-text("Confirm")');
       
       // Verify request removed from dashboard
@@ -153,9 +153,9 @@ test.describe('Treatment Exchange Flow', () => {
       const pendingRequest = page.locator('[data-testid="pending-exchange-request"]');
       await expect(pendingRequest).toBeVisible();
       
-      // Verify Accept and Decline buttons are visible
+      // Verify Accept and Reschedule buttons are visible (Reschedule replaces Decline for fraud prevention)
       await expect(pendingRequest.locator('button:has-text("Accept")')).toBeVisible();
-      await expect(pendingRequest.locator('button:has-text("Decline")')).toBeVisible();
+      await expect(pendingRequest.locator('button:has-text("Reschedule")')).toBeVisible();
       
       // Verify Start Session button is NOT visible
       await expect(pendingRequest.locator('button:has-text("Start session")')).not.toBeVisible();

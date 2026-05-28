@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Link, unstable_usePrompt } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,11 @@ import { ProfileCompletionWidget } from "@/components/profile/ProfileCompletionW
 import { Slider } from "@/components/ui/slider";
 import { logger } from "@/lib/logger";
 import { validateDetailedStreetAddress } from "@/lib/address-validation";
+import {
+  buildNotificationPreferencesUpsert,
+  buildUsersPreferencesUpdate,
+  loadProfilePreferences,
+} from "@theramate/user-preferences";
 
 const Profile = () => {
   const { user, userProfile, updateProfile, refreshProfile } = useAuth();
@@ -39,7 +44,6 @@ const Profile = () => {
     const hash = window.location.hash.slice(1);
     const validTabs = ['personal', 'professional', 'services', 'credits', 'preferences', 'subscription', 'billing'];
     if (validTabs.includes(hash)) return hash;
-    // Default to 'professional' - will be adjusted in useEffect based on user role
     return 'professional';
   });
   const [loading, setLoading] = useState(false);
@@ -47,7 +51,7 @@ const Profile = () => {
   const [uploadingClinicImage, setUploadingClinicImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
+  // hasChanges is derived via useMemo (no state) to avoid effect-driven input lag
   const [initialData, setInitialData] = useState<any>(null);
   const [dataVersion, setDataVersion] = useState<number>(0);
   const [editingFields, setEditingFields] = useState<Set<string>>(new Set());
@@ -166,222 +170,11 @@ const Profile = () => {
     platformUpdates: false
   });
 
-  const mapPreferencesFromSources = (
-    userPrefs: any,
-    notificationPrefs?: {
-      email?: boolean | null;
-      sms?: boolean | null;
-      in_app?: boolean | null;
-      email_reminders?: boolean | null;
-    } | null
-  ) => ({
-    emailNotifications: notificationPrefs?.email ?? userPrefs?.emailNotifications ?? true,
-    smsNotifications: notificationPrefs?.sms ?? userPrefs?.smsNotifications ?? false,
-    calendarReminders: notificationPrefs?.email_reminders ?? userPrefs?.calendarReminders ?? true,
-    marketingEmails: userPrefs?.marketingEmails ?? false,
-    profileVisible: userPrefs?.profileVisible ?? true,
-    showContactInfo: userPrefs?.showContactInfo ?? false,
-    autoAcceptBookings: userPrefs?.autoAcceptBookings ?? false,
-    receiveInAppNotifications: notificationPrefs?.in_app ?? userPrefs?.receiveInAppNotifications ?? true,
-    platformUpdates: userPrefs?.platformUpdates ?? false,
-  });
-
-  // Warn before leaving when there are unsaved changes
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasChanges) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasChanges]);
-
-  // Block in-app navigation when there are unsaved changes (prevents accidental loss via Link/useNavigate)
-  unstable_usePrompt({
-    when: hasChanges,
-    message: "You have unsaved changes. Are you sure you want to leave?",
-  });
-
-  // Handle hash changes for tab navigation and set default tab
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
-      const validTabs = ['personal', 'professional', 'services', 'credits', 'preferences', 'subscription', 'billing'];
-      if (validTabs.includes(hash)) {
-        setActiveTab(hash);
-      } else {
-        // Default to 'professional' for practitioners, 'personal' for clients
-        const defaultTab = userProfile?.user_role && userProfile.user_role !== 'client' ? 'professional' : 'personal';
-        setActiveTab(defaultTab);
-        // Update hash to match default tab
-        if (!hash) {
-          window.location.hash = defaultTab;
-        }
-      }
-    };
-
-    // Listen for hash changes
-    window.addEventListener('hashchange', handleHashChange);
-    
-    // Also check on mount in case hash is already set
-    handleHashChange();
-
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-    };
-  }, [userProfile?.user_role]);
+  // Tab hash is set in Tabs onValueChange; initial tab comes from useState(() => hash) above.
 
   // Loading state for initial data fetch
   const [loadingProfileData, setLoadingProfileData] = useState(true);
   const [profileDataError, setProfileDataError] = useState<string | null>(null);
-
-  // Initialize form data - query database directly (no fallbacks)
-  useEffect(() => {
-    const loadProfileData = async () => {
-      if (!user?.id) {
-        setLoadingProfileData(false);
-        return;
-      }
-      
-      setLoadingProfileData(true);
-      setProfileDataError(null);
-      
-      try {
-        logger.debug('Loading profile data', { userId: user.id }, 'Profile');
-        
-        // Query database directly for current user data
-        // NOTE: Removed 'specializations' from SELECT - using practitioner_specializations junction table exclusively
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('first_name, last_name, email, phone, bio, location, clinic_address, clinic_latitude, clinic_longitude, clinic_image_url, latitude, longitude, therapist_type, base_address, base_latitude, base_longitude, mobile_service_radius_km, experience_years, professional_body, professional_body_other, registration_number, qualification_type, qualification_expiry, qualification_file_url, response_time_hours, services_offered, profile_photo_url, user_role, preferences, has_liability_insurance')
-          .eq('id', user.id)
-          .single();
-        
-        if (error) {
-          logger.error('Error loading profile data', error, 'Profile');
-          setProfileDataError(error.message);
-          setLoadingProfileData(false);
-          return;
-        }
-        
-        if (!userData) {
-          logger.warn('No user data returned from database', undefined, 'Profile');
-          setProfileDataError('No profile data found');
-          setLoadingProfileData(false);
-          return;
-        }
-        
-        // Load professional_statement and treatment_philosophy from therapist_profiles table
-        let therapistProfileData = null;
-        if (userData.user_role && userData.user_role !== 'client') {
-          const { data: therapistProfile } = await supabase
-            .from('therapist_profiles')
-            .select('professional_statement, treatment_philosophy')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          
-          therapistProfileData = therapistProfile;
-        }
-        
-          logger.debug('Loaded profile data from database', {
-            first_name: userData.first_name,
-            last_name: userData.last_name,
-            email: userData.email,
-            phone: userData.phone,
-            bio: userData.bio,
-            location: userData.location,
-            experience_years: userData.experience_years,
-            professional_body: userData.professional_body,
-            registration_number: userData.registration_number,
-            clinic_address: (userData as any).clinic_address,
-            qualification_type: userData.qualification_type,
-            profile_photo_url: userData.profile_photo_url
-          });
-          
-          console.log('✅ Setting personalData state:', {
-            first_name: userData.first_name ?? null,
-            last_name: userData.last_name ?? null,
-            email: userData.email ?? null,
-            phone: userData.phone ?? null
-          });
-          
-          if (userData.user_role && userData.user_role !== 'client') {
-            logger.debug('Setting professionalData state', {
-              bio: userData.bio ?? null,
-              location: userData.location ?? null,
-              experience_years: userData.experience_years ?? null,
-              clinic_address: (userData as any).clinic_address ?? null,
-            registration_number: userData.registration_number ?? null,
-            professional_body: userData.professional_body ?? null,
-            has_liability_insurance: userData.has_liability_insurance ?? false
-            });
-          }
-          
-        // Use database values only - no fallbacks
-          setPersonalData({
-          first_name: userData.first_name ?? null,
-          last_name: userData.last_name ?? null,
-          email: userData.email ?? null,
-          phone: userData.phone ?? null,
-          });
-
-          // Load professional data for practitioners
-          if (userData.user_role && userData.user_role !== 'client') {
-            setProfessionalData({
-            bio: userData.bio ?? null,
-            location: userData.location ?? null,
-            clinic_address: (userData as any).clinic_address ?? null,
-            clinic_latitude: (userData as any).clinic_latitude ?? null,
-            clinic_longitude: (userData as any).clinic_longitude ?? null,
-            clinic_image_url: (userData as any).clinic_image_url ?? null,
-            latitude: (userData as any).latitude ?? null,
-            longitude: (userData as any).longitude ?? null,
-            therapist_type: (userData as any).therapist_type ?? null,
-            base_address: (userData as any).base_address ?? null,
-            base_latitude: (userData as any).base_latitude ?? null,
-            base_longitude: (userData as any).base_longitude ?? null,
-            mobile_service_radius_km: (userData as any).mobile_service_radius_km ?? (userData as any).service_radius_km ?? null,
-            experience_years: userData.experience_years ?? null,
-            professional_body: userData.professional_body ?? null,
-            professional_body_other: (userData as any).professional_body_other ?? null,
-            registration_number: userData.registration_number ?? null,
-            qualification_type: userData.qualification_type ?? null,
-            qualification_expiry: userData.qualification_expiry ?? null,
-            qualification_file_url: userData.qualification_file_url ?? null,
-              // Load professional_statement and treatment_philosophy from therapist_profiles table
-            professional_statement: therapistProfileData?.professional_statement ?? null,
-            treatment_philosophy: therapistProfileData?.treatment_philosophy ?? null,
-            response_time_hours: userData.response_time_hours ?? null,
-            // services_offered is jsonb NOT NULL with default '[]'::jsonb - should always be array
-            services_offered: Array.isArray(userData.services_offered) ? userData.services_offered : [],
-            has_liability_insurance: userData.has_liability_insurance ?? false
-            });
-          }
-
-          // Initialize profile photo URL
-        setProfilePhotoUrl(userData.profile_photo_url ?? null);
-          
-          // Initialize preferences from users.preferences + notification_preferences (channel-level source).
-          const { data: notificationPrefs } = await supabase
-            .from('notification_preferences')
-            .select('email, sms, in_app, email_reminders')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          setPreferences(mapPreferencesFromSources(userData.preferences, notificationPrefs));
-        
-        setLoadingProfileData(false);
-      } catch (error: any) {
-        logger.error('Error loading profile data', error, 'Profile');
-        setProfileDataError(error?.message || 'Failed to load profile data');
-        setLoadingProfileData(false);
-      }
-    };
-    
-    loadProfileData();
-  }, [user?.id]);
-  
 
   // Real-time subscription for user profile updates with optimistic locking
   useRealtimeSubscription(
@@ -419,23 +212,32 @@ const Profile = () => {
           phone: payload.new.phone ?? null,
         };
         
-        const updatedPreferences = mapPreferencesFromSources(payload.new.preferences);
+        const updatedPreferences = loadProfilePreferences(payload.new.preferences);
         
         let updatedProfessionalData = professionalData;
         if (payload.new && userProfile?.user_role !== 'client') {
+          const p = payload.new as any;
+          const pt = p.therapist_type ?? null;
+          const cAddr = p.clinic_address ?? null;
+          const cLat = p.clinic_latitude ?? null;
+          const cLon = p.clinic_longitude ?? null;
+          const isHybrid = pt === 'hybrid';
+          const bAddr = isHybrid && cAddr ? (p.base_address ?? cAddr) : (p.base_address ?? null);
+          const bLat = isHybrid && cLat != null ? (p.base_latitude ?? cLat) : (p.base_latitude ?? null);
+          const bLon = isHybrid && cLon != null ? (p.base_longitude ?? cLon) : (p.base_longitude ?? null);
           updatedProfessionalData = {
             bio: payload.new.bio ?? null,
             location: payload.new.location ?? null,
-            clinic_address: (payload.new as any).clinic_address ?? null,
-            clinic_latitude: (payload.new as any).clinic_latitude ?? null,
-            clinic_longitude: (payload.new as any).clinic_longitude ?? null,
-            clinic_image_url: (payload.new as any).clinic_image_url ?? null,
+            clinic_address: cAddr,
+            clinic_latitude: cLat,
+            clinic_longitude: cLon,
+            clinic_image_url: p.clinic_image_url ?? null,
             latitude: (payload.new as any).latitude ?? null,
             longitude: (payload.new as any).longitude ?? null,
-            therapist_type: (payload.new as any).therapist_type ?? null,
-            base_address: (payload.new as any).base_address ?? null,
-            base_latitude: (payload.new as any).base_latitude ?? null,
-            base_longitude: (payload.new as any).base_longitude ?? null,
+            therapist_type: pt,
+            base_address: bAddr,
+            base_latitude: bLat,
+            base_longitude: bLon,
             mobile_service_radius_km: (payload.new as any).mobile_service_radius_km ?? (payload.new as any).service_radius_km ?? null,
             experience_years: payload.new.experience_years ?? null,
             professional_body: payload.new.professional_body ?? null,
@@ -602,86 +404,18 @@ const Profile = () => {
 
   // Real-time subscription for connect_accounts
 
-  // Track initial data for change detection - set after data loads
+  // Track initial data for change detection - set in load effect when profile loads
   const [initialQualifications, setInitialQualifications] = useState<any[]>([]);
-  
-  useEffect(() => {
-    // Only set initialData after personalData has been loaded (check for null/undefined, not empty string)
-    if (!initialData && !loadingProfileData && (personalData.email !== null || personalData.first_name !== null || personalData.last_name !== null)) {
-      setInitialData({
-        personal: { ...personalData },
-        professional: { ...professionalData },
-        preferences: { ...preferences }
-      });
-    }
-  }, [personalData, professionalData, preferences, initialData, loadingProfileData]);
-  
-  // Track initial qualifications when they're loaded
-  const hasInitializedQuals = useRef(false);
-  useEffect(() => {
-    // Only set initial state once when data is first loaded from database
-    if (!hasInitializedQuals.current) {
-      hasInitializedQuals.current = true;
-      setInitialQualifications([...qualifications]);
-      console.log('📝 Initial qualifications set:', qualifications.length);
-    }
-  }, [qualifications.length]); // Only depend on length to avoid resetting on every change
 
-  // Track changes with debouncing - wait for user to finish typing
-  const changeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Preserve scroll position during typing (Safari and cross-platform fix)
-  useEffect(() => {
-    if (isTypingRef.current) {
-      // Save current scroll position
-      scrollPositionRef.current = window.scrollY || document.documentElement.scrollTop;
-    }
-  }, [personalData, professionalData]);
-
-  // Restore scroll position after render if user was typing
-  useEffect(() => {
-    if (isTypingRef.current && scrollPositionRef.current > 0) {
-      // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: scrollPositionRef.current, behavior: 'auto' });
-      });
-    }
-  });
-
-  useEffect(() => {
-    if (!initialData) return;
-    
-    // Clear existing timeout
-    if (changeTimeoutRef.current) {
-      clearTimeout(changeTimeoutRef.current);
-    }
-    
-    // Mark as typing when data changes
-    isTypingRef.current = true;
-    setIsUserTyping(true);
-    
-    // Wait 1 second after user stops typing before checking for changes
-    changeTimeoutRef.current = setTimeout(() => {
-      const personalChanged = JSON.stringify(initialData.personal) !== JSON.stringify(personalData);
-      const professionalChanged = JSON.stringify(initialData.professional) !== JSON.stringify(professionalData);
-      const preferencesChanged = JSON.stringify(initialData.preferences) !== JSON.stringify(preferences);
-      const qualificationsChanged = JSON.stringify(initialQualifications) !== JSON.stringify(qualifications);
-      
-      const changed = personalChanged || professionalChanged || preferencesChanged || qualificationsChanged;
-      setHasChanges(changed);
-      
-      // User has stopped typing
-      isTypingRef.current = false;
-      setIsUserTyping(false);
-    }, 1000);
-    
-    // Cleanup timeout on unmount
-    return () => {
-      if (changeTimeoutRef.current) {
-        clearTimeout(changeTimeoutRef.current);
-      }
-    };
-  }, [personalData, professionalData, preferences, initialData, qualifications, initialQualifications]);
+  // Change detection: no effect, computed on render to avoid input lag
+  const hasChanges = useMemo(() => {
+    if (!initialData) return false;
+    const personalChanged = JSON.stringify(initialData.personal) !== JSON.stringify(personalData);
+    const professionalChanged = JSON.stringify(initialData.professional) !== JSON.stringify(professionalData);
+    const preferencesChanged = JSON.stringify(initialData.preferences) !== JSON.stringify(preferences);
+    const qualificationsChanged = JSON.stringify(initialQualifications) !== JSON.stringify(qualifications);
+    return personalChanged || professionalChanged || preferencesChanged || qualificationsChanged;
+  }, [initialData, personalData, professionalData, preferences, qualifications, initialQualifications]);
 
   // Load qualifications - query database directly for user_role (not stale userProfile)
   const loadQualifications = useCallback(async () => {
@@ -709,9 +443,9 @@ const Profile = () => {
       if (qualsError) {
         console.error('❌ Error loading qualifications:', qualsError);
       } else {
-        console.log('✅ Loaded qualifications:', { count: quals?.length, quals });
-        setQualifications(quals ?? []);
-        // setInitialQualifications will be handled by useEffect
+        const list = quals ?? [];
+        setQualifications(list);
+        setInitialQualifications([...list]);
       }
       
     } catch (error) {
@@ -725,10 +459,6 @@ const Profile = () => {
       }
     }
   }, [user?.id]);
-
-  useEffect(() => {
-    loadQualifications();
-  }, [loadQualifications]);
 
   const loadQualificationDocuments = useCallback(async () => {
     if (!user?.id) return;
@@ -750,10 +480,6 @@ const Profile = () => {
       console.error('Error loading qualification documents:', e);
     }
   }, [user?.id]);
-
-  useEffect(() => {
-    loadQualificationDocuments();
-  }, [loadQualificationDocuments]);
 
   // Load products count
   const loadProductsCount = useCallback(async () => {
@@ -792,48 +518,148 @@ const Profile = () => {
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    loadProductsCount();
-  }, [loadProductsCount]);
-
-
-  // Initial availability check - real-time subscription handles updates
-  useEffect(() => {
-    const checkAvailability = async () => {
-      if (!user?.id) {
-        setHasAvailability(false);
-        setLoadingAvailability(false);
-        return;
-      }
-
-      try {
-        const { data: availability, error } = await supabase
-          .from('practitioner_availability')
-          .select('working_hours')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error checking availability:', error);
-          setHasAvailability(false);
-        } else if (availability?.working_hours) {
-          // Use shared utility function for consistent checking
-          const hasEnabledDay = hasValidAvailability(availability.working_hours);
-          setHasAvailability(hasEnabledDay);
-        } else {
-          setHasAvailability(false);
-        }
-      } catch (error) {
+  // Availability check - called from main load effect
+  const checkAvailability = useCallback(async () => {
+    if (!user?.id) {
+      setHasAvailability(false);
+      setLoadingAvailability(false);
+      return;
+    }
+    try {
+      const { data: availability, error } = await supabase
+        .from('practitioner_availability')
+        .select('working_hours')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') {
         console.error('Error checking availability:', error);
         setHasAvailability(false);
-      } finally {
-        setLoadingAvailability(false);
+      } else if (availability?.working_hours) {
+        const hasEnabledDay = hasValidAvailability(availability.working_hours);
+        setHasAvailability(hasEnabledDay);
+      } else {
+        setHasAvailability(false);
       }
-    };
-
-    checkAvailability();
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      setHasAvailability(false);
+    } finally {
+      setLoadingAvailability(false);
+    }
   }, [user?.id]);
 
+  // Single load effect: runs once per user; no form state in deps to avoid input lag
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!user?.id) {
+        setLoadingProfileData(false);
+        return;
+      }
+      setLoadingProfileData(true);
+      setProfileDataError(null);
+      try {
+        logger.debug('Loading profile data', { userId: user.id }, 'Profile');
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('first_name, last_name, email, phone, bio, location, clinic_address, clinic_latitude, clinic_longitude, clinic_image_url, latitude, longitude, therapist_type, base_address, base_latitude, base_longitude, mobile_service_radius_km, experience_years, professional_body, professional_body_other, registration_number, qualification_type, qualification_expiry, qualification_file_url, response_time_hours, services_offered, profile_photo_url, user_role, preferences, has_liability_insurance')
+          .eq('id', user.id)
+          .single();
+        if (error) {
+          logger.error('Error loading profile data', error, 'Profile');
+          setProfileDataError(error.message);
+          setLoadingProfileData(false);
+          return;
+        }
+        if (!userData) {
+          logger.warn('No user data returned from database', undefined, 'Profile');
+          setProfileDataError('No profile data found');
+          setLoadingProfileData(false);
+          return;
+        }
+        let therapistProfileData = null;
+        if (userData.user_role && userData.user_role !== 'client') {
+          const { data: therapistProfile } = await supabase
+            .from('therapist_profiles')
+            .select('professional_statement, treatment_philosophy')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          therapistProfileData = therapistProfile;
+        }
+        const personal = {
+          first_name: userData.first_name ?? null,
+          last_name: userData.last_name ?? null,
+          email: userData.email ?? null,
+          phone: userData.phone ?? null,
+        };
+        setPersonalData(personal);
+        let professional: typeof professionalData | null = null;
+        if (userData.user_role && userData.user_role !== 'client') {
+          const ud = userData as any;
+          const therapistType = ud.therapist_type ?? null;
+          const clinicAddress = ud.clinic_address ?? null;
+          const clinicLat = ud.clinic_latitude ?? null;
+          const clinicLon = ud.clinic_longitude ?? null;
+          const isHybrid = therapistType === 'hybrid';
+          const baseAddress = isHybrid && clinicAddress ? (ud.base_address ?? clinicAddress) : (ud.base_address ?? null);
+          const baseLat = isHybrid && clinicLat != null ? (ud.base_latitude ?? clinicLat) : (ud.base_latitude ?? null);
+          const baseLon = isHybrid && clinicLon != null ? (ud.base_longitude ?? clinicLon) : (ud.base_longitude ?? null);
+          professional = {
+            bio: userData.bio ?? null,
+            location: userData.location ?? null,
+            clinic_address: clinicAddress,
+            clinic_latitude: clinicLat,
+            clinic_longitude: clinicLon,
+            clinic_image_url: ud.clinic_image_url ?? null,
+            latitude: ud.latitude ?? null,
+            longitude: ud.longitude ?? null,
+            therapist_type: therapistType,
+            base_address: baseAddress,
+            base_latitude: baseLat,
+            base_longitude: baseLon,
+            mobile_service_radius_km: ud.mobile_service_radius_km ?? ud.service_radius_km ?? null,
+            experience_years: userData.experience_years ?? null,
+            professional_body: userData.professional_body ?? null,
+            professional_body_other: ud.professional_body_other ?? null,
+            registration_number: userData.registration_number ?? null,
+            qualification_type: userData.qualification_type ?? null,
+            qualification_expiry: ud.qualification_expiry ?? null,
+            qualification_file_url: userData.qualification_file_url ?? null,
+            professional_statement: therapistProfileData?.professional_statement ?? null,
+            treatment_philosophy: therapistProfileData?.treatment_philosophy ?? null,
+            response_time_hours: userData.response_time_hours ?? null,
+            services_offered: Array.isArray(userData.services_offered) ? userData.services_offered : [],
+            has_liability_insurance: userData.has_liability_insurance ?? false
+          };
+          setProfessionalData(professional);
+        }
+        setProfilePhotoUrl(userData.profile_photo_url ?? null);
+        const { data: notificationPrefs } = await supabase
+          .from('notification_preferences')
+          .select('email, sms, in_app, email_reminders')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const prefs = loadProfilePreferences(userData.preferences, notificationPrefs);
+        setPreferences(prefs);
+        setInitialData({
+          personal,
+          professional: professional ?? {},
+          preferences: prefs
+        });
+        setLoadingProfileData(false);
+      } catch (error: any) {
+        logger.error('Error loading profile data', error, 'Profile');
+        setProfileDataError(error?.message || 'Failed to load profile data');
+        setLoadingProfileData(false);
+      }
+    };
+    (async () => {
+      await loadProfileData();
+      loadQualifications();
+      loadQualificationDocuments();
+      loadProductsCount();
+      checkAvailability();
+    })();
+  }, [user?.id, loadQualifications, loadQualificationDocuments, loadProductsCount, checkAvailability]);
 
   // Validation function
   const validateForm = (): { isValid: boolean; errors: Record<string, string> } => {
@@ -884,14 +710,7 @@ const Profile = () => {
         if (!professionalData.clinic_address?.trim()) {
           errors.clinic_address = 'Clinic address is required for hybrid practitioners';
         }
-        if (!professionalData.base_address?.trim()) {
-          errors.base_address = 'Base address is required for hybrid practitioners';
-        } else {
-          const detailedAddressValidation = validateDetailedStreetAddress(professionalData.base_address);
-          if (!detailedAddressValidation.isValid) {
-            errors.base_address = detailedAddressValidation.message || 'Please enter a full base address';
-          }
-        }
+        // Hybrid: base is derived from clinic (no separate base address required)
         if (
           professionalData.mobile_service_radius_km === null ||
           professionalData.mobile_service_radius_km <= 0
@@ -939,6 +758,11 @@ const Profile = () => {
       // Save professional data (practitioners only)
       if (userProfile?.user_role !== 'client' && 
           JSON.stringify(initialData?.professional) !== JSON.stringify(professionalData)) {
+        // Hybrid: base location is derived from clinic (Supabase/mobile RPCs expect base_* for distance)
+        const isHybrid = professionalData.therapist_type === 'hybrid';
+        const baseAddress = isHybrid ? (professionalData.clinic_address ?? null) : (professionalData.base_address ?? null);
+        const baseLatitude = isHybrid ? (professionalData.clinic_latitude ?? null) : (professionalData.base_latitude ?? null);
+        const baseLongitude = isHybrid ? (professionalData.clinic_longitude ?? null) : (professionalData.base_longitude ?? null);
         promises.push(
           updateProfile({
             bio: professionalData.bio ?? null,
@@ -950,9 +774,9 @@ const Profile = () => {
             latitude: professionalData.latitude ?? null,
             longitude: professionalData.longitude ?? null,
             therapist_type: professionalData.therapist_type ?? null,
-            base_address: professionalData.base_address ?? null,
-            base_latitude: professionalData.base_latitude ?? null,
-            base_longitude: professionalData.base_longitude ?? null,
+            base_address: baseAddress,
+            base_latitude: baseLatitude,
+            base_longitude: baseLongitude,
             mobile_service_radius_km: professionalData.mobile_service_radius_km ?? null,
             experience_years: professionalData.experience_years ?? null,
             professional_body: professionalData.professional_body ?? null,
@@ -1001,22 +825,25 @@ const Profile = () => {
       
       // Save preferences
       if (JSON.stringify(initialData?.preferences) !== JSON.stringify(preferences)) {
-        promises.push(updateProfile({ preferences }));
+        promises.push(
+          updateProfile({
+            preferences: buildUsersPreferencesUpdate(
+              preferences,
+              (userProfile as any)?.preferences,
+            ),
+          }),
+        );
         if (user?.id) {
           promises.push(
             supabase
               .from('notification_preferences')
               .upsert(
-                {
-                  user_id: user.id,
-                  email: preferences.emailNotifications,
-                  sms: preferences.smsNotifications,
-                  in_app: preferences.receiveInAppNotifications,
-                  email_reminders: preferences.calendarReminders,
-                  email_address: personalData.email || null,
-                  phone_number: personalData.phone || null,
-                  updated_at: new Date().toISOString(),
-                },
+                buildNotificationPreferencesUpsert({
+                  userId: user.id,
+                  preferences,
+                  email: personalData.email || null,
+                  phone: personalData.phone || null,
+                }),
                 { onConflict: 'user_id' }
               )
           );
@@ -1165,7 +992,7 @@ const Profile = () => {
           .select('email, sms, in_app, email_reminders')
           .eq('user_id', user.id)
           .maybeSingle();
-        const updatedPreferences = mapPreferencesFromSources(freshUserData.preferences, freshNotificationPrefs);
+        const updatedPreferences = loadProfilePreferences(freshUserData.preferences, freshNotificationPrefs);
         setPreferences(updatedPreferences);
         
         // Update initial data with fresh data
@@ -1198,7 +1025,13 @@ const Profile = () => {
         }
       }
       
-      setHasChanges(false);
+      // Update initial snapshot so hasChanges (useMemo) becomes false
+      setInitialData({
+        personal: { ...personalData },
+        professional: { ...professionalData },
+        preferences: { ...preferences }
+      });
+      setInitialQualifications([...qualifications]);
       
       toast.success("Success", {
         description: "All changes saved successfully",
@@ -2072,26 +1905,33 @@ const Profile = () => {
                       {(professionalData.therapist_type === 'mobile' || professionalData.therapist_type === 'hybrid') && (
                         <div className="space-y-4 pb-4 border-b">
                           <h3 className="text-sm font-semibold">Mobile service area</h3>
-                          <div className="space-y-2">
-                            <Label htmlFor="base_address">Base address (travel radius from here)</Label>
-                            <SmartLocationPicker
-                              id="base_address"
-                              value={professionalData.base_address ?? ''}
-                              onChange={(value) => setProfessionalData((prev) => ({ ...prev, base_address: value || null }))}
-                              onLocationSelect={(lat, lon, address) => {
-                                setProfessionalData((prev) => ({
-                                  ...prev,
-                                  base_address: address,
-                                  base_latitude: lat,
-                                  base_longitude: lon
-                                }));
-                              }}
-                              placeholder="Address you travel from (e.g. home or clinic)"
-                            />
-                            {validationErrors.base_address && (
-                              <p className="text-xs text-destructive mt-1">{validationErrors.base_address}</p>
-                            )}
-                          </div>
+                          {professionalData.therapist_type === 'hybrid' && (
+                            <p className="text-xs text-muted-foreground">
+                              Your clinic address is used as the base for your mobile service radius. No separate base address needed.
+                            </p>
+                          )}
+                          {professionalData.therapist_type === 'mobile' && (
+                            <div className="space-y-2">
+                              <Label htmlFor="base_address">Base address (travel radius from here)</Label>
+                              <SmartLocationPicker
+                                id="base_address"
+                                value={professionalData.base_address ?? ''}
+                                onChange={(value) => setProfessionalData((prev) => ({ ...prev, base_address: value || null }))}
+                                onLocationSelect={(lat, lon, address) => {
+                                  setProfessionalData((prev) => ({
+                                    ...prev,
+                                    base_address: address,
+                                    base_latitude: lat,
+                                    base_longitude: lon
+                                  }));
+                                }}
+                                placeholder="Address you travel from (e.g. home or clinic)"
+                              />
+                              {validationErrors.base_address && (
+                                <p className="text-xs text-destructive mt-1">{validationErrors.base_address}</p>
+                              )}
+                            </div>
+                          )}
                           <div className="space-y-2 max-w-xs">
                             <Label htmlFor="mobile_service_radius_km">Service radius (km)</Label>
                             <Input
@@ -2110,7 +1950,11 @@ const Profile = () => {
                               }}
                               placeholder="e.g. 25"
                             />
-                            <p className="text-xs text-muted-foreground">How far you travel from your base address</p>
+                            <p className="text-xs text-muted-foreground">
+                              {professionalData.therapist_type === 'hybrid'
+                                ? 'How far you travel from your clinic address'
+                                : 'How far you travel from your base address'}
+                            </p>
                             {validationErrors.mobile_service_radius_km && (
                               <p className="text-xs text-destructive mt-1">{validationErrors.mobile_service_radius_km}</p>
                             )}
@@ -2208,12 +2052,19 @@ const Profile = () => {
                           value={professionalData.clinic_address}
                           onChange={(value) => setProfessionalData((prev) => ({ ...prev, clinic_address: value }))}
                           onLocationSelect={(lat, lon, address) => {
-                            setProfessionalData({
+                            const next = {
                               ...professionalData,
                               clinic_address: address,
                               clinic_latitude: lat,
                               clinic_longitude: lon
-                            });
+                            };
+                            // Hybrid: derive base from clinic so mobile radius uses clinic location
+                            if (professionalData.therapist_type === 'hybrid') {
+                              next.base_address = address;
+                              next.base_latitude = lat;
+                              next.base_longitude = lon;
+                            }
+                            setProfessionalData(next);
                           }}
                           placeholder="Enter your clinic or practice address"
                         />

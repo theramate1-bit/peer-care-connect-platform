@@ -18,9 +18,16 @@ export const Header = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsSigningOut(false);
+    }
   };
 
   // Close mobile menu when route changes
@@ -212,8 +219,8 @@ export const Header = () => {
                     </Link>
                   )}
                   
-                  <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-sm">
-                    Sign Out
+                  <Button variant="ghost" size="sm" onClick={handleSignOut} disabled={isSigningOut} className="text-sm">
+                    {isSigningOut ? 'Signing out…' : 'Sign Out'}
                   </Button>
                 </div>
               </>
@@ -325,14 +332,15 @@ export const Header = () => {
                       <div className="pt-4 border-t border-border">
                         <Button 
                           variant="ghost" 
-                          onClick={() => {
-                            handleSignOut();
+                          onClick={async () => {
                             setIsMobileMenuOpen(false);
+                            await handleSignOut();
                           }} 
+                          disabled={isSigningOut}
                           className="w-full justify-start h-12 text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
                         >
-                          <LogOut className="w-5 h-5 mr-3" />
-                          Sign Out
+                          <LogOut className="w-5 h-5 mr-3 shrink-0" />
+                          {isSigningOut ? 'Signing out…' : 'Sign Out'}
                         </Button>
                       </div>
                     </div>

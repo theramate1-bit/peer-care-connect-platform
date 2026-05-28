@@ -31,7 +31,7 @@ export const CTASection = () => {
   return (
     <section 
       ref={sectionRef} 
-      className="py-32 px-6 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950"
+      className="py-32 px-6 landing-section-surface"
     >
       <motion.div
         variants={containerVariants}
@@ -41,7 +41,7 @@ export const CTASection = () => {
       >
         {/* Badge */}
         <motion.div variants={itemVariants}>
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full landing-icon-tile text-sm font-medium">
             <Sparkles className="w-4 h-4" />
             Start your wellness journey
           </span>
@@ -70,7 +70,7 @@ export const CTASection = () => {
         >
           <Link to="/marketplace">
             <motion.button
-              className="px-8 py-4 bg-primary text-white font-bold rounded-full tracking-wide hover:scale-105 transition-[background-color,transform] duration-200 ease-out flex items-center justify-center gap-2"
+              className="px-8 py-4 landing-cta font-bold rounded-full tracking-wide hover:scale-105 transition-[background-color,transform] duration-200 ease-out flex items-center justify-center gap-2"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => Analytics.trackEvent('cta_find_therapist_click')}

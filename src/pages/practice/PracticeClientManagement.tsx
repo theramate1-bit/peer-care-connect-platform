@@ -82,6 +82,38 @@ import { Printer } from 'lucide-react';
 import { PreAssessmentStatus } from '@/components/forms/PreAssessmentStatus';
 import { getSessionLocation } from '@/utils/sessionLocation';
 import { getDisplaySessionStatus, getDisplaySessionStatusLabel, isPractitionerSessionVisible } from '@/lib/session-display-status';
+
+/** Hub tabs under `/practice/clients` — keep URL `tab=` in sync (includes mobile-aligned names). */
+const PRACTICE_CLIENT_HUB_TABS = new Set([
+  'sessions',
+  'progress',
+  'goals',
+  'exercise-programs',
+  'history-requests',
+]);
+
+function normalizePracticeClientHubTab(raw: string | null): string {
+  if (!raw) return 'sessions';
+  if (raw === 'treatment-notes') return 'sessions';
+  if (PRACTICE_CLIENT_HUB_TABS.has(raw)) return raw;
+  return 'sessions';
+}
+
+/** Compare URL `tab` query to in-memory hub tab without treating `sessions` ↔ missing param as a mismatch loop. */
+function tabSearchParamMatchesActive(
+  searchParams: URLSearchParams,
+  activeTab: string,
+): boolean {
+  const raw = searchParams.get('tab');
+  if (activeTab === 'sessions') {
+    return (
+      raw == null ||
+      raw === '' ||
+      normalizePracticeClientHubTab(raw) === 'sessions'
+    );
+  }
+  return raw === activeTab;
+}
 import { CalendarTimeSelector } from '@/components/booking/CalendarTimeSelector';
 
 interface Client {
@@ -134,14 +166,12 @@ const PracticeClientManagement = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState(() => {
-    const tabFromUrl = searchParams.get('tab');
-    return tabFromUrl && ['sessions', 'progress', 'goals'].includes(tabFromUrl) ? tabFromUrl : 'sessions';
-  });
-  // Update URL when tab changes
+  const [activeTab, setActiveTab] = useState(() =>
+    normalizePracticeClientHubTab(searchParams.get('tab')),
+  );
+  // Keep URL `tab=` aligned with hub tab (browser back / deep links update `searchParams` below).
   useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
+    if (!tabSearchParamMatchesActive(searchParams, activeTab)) {
       const newParams = new URLSearchParams(searchParams);
       if (activeTab === 'sessions') {
         newParams.delete('tab');
@@ -152,13 +182,11 @@ const PracticeClientManagement = () => {
     }
   }, [activeTab, searchParams, setSearchParams]);
 
-  // Sync URL params to activeTab on mount
+  // URL → state (back button, shared links)
   useEffect(() => {
-    const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['sessions', 'progress', 'goals'].includes(tabFromUrl) && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, []);
+    const normalized = normalizePracticeClientHubTab(searchParams.get('tab'));
+    setActiveTab((prev) => (normalized !== prev ? normalized : prev));
+  }, [searchParams]);
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isClientSheetOpen, setIsClientSheetOpen] = useState(false);
@@ -518,12 +546,12 @@ const PracticeClientManagement = () => {
       }
       
       // Check treatment_notes - use status field for completion check
-      // This handles cases where practitioners use treatment_notes instead of session_recordings
+      // Handles SOAP and DAP (practitioners use treatment_notes instead of session_recordings)
       const { data: treatmentNotes, error: notesError } = await supabase
         .from('treatment_notes')
         .select('session_id, note_type, status, template_type')
         .eq('practitioner_id', userProfile.id)
-        .eq('template_type', 'SOAP')
+        .in('template_type', ['SOAP', 'DAP'])
         .in('session_id', sessionIds);
       
       if (notesError) {
@@ -1291,31 +1319,8 @@ const PracticeClientManagement = () => {
         }));
       }
       
-      // Update session status to "completed" after saving SOAP note (only if currently "in_progress")
-      if (sessionId && editingSession.status === 'in_progress') {
-        try {
-          const { error: statusError } = await supabase
-            .from('client_sessions')
-            .update({ 
-              status: 'completed',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', sessionId);
-          
-          if (statusError) {
-            // Don't fail the save if status update fails
-          } else {
-            // Update local state to reflect the status change
-            if (editingSession) {
-              setEditingSession(prev => prev ? { ...prev, status: 'completed' } : prev);
-            }
-            // Refresh data to show updated status in UI
-            debouncedLoadData();
-          }
-        } catch (statusUpdateError) {
-          // Don't fail the save if status update fails
-        }
-      }
+      // Save does NOT change session status – only "Complete Note" finalizes the session.
+      // Session stays in_progress so practitioner can continue editing until they explicitly complete.
       
       toast.success(`${templateType} note saved successfully`, { duration: 3000 });
       
@@ -1588,7 +1593,11 @@ const PracticeClientManagement = () => {
         const client = clients.find(c => c.client_email === session.client_email || c.client_email === clientEmail);
         if (client) {
           setSelectedClient(client);
-          setActiveTab(searchParams.get('tab') || (template ? 'treatment-notes' : 'sessions'));
+          setActiveTab(
+            normalizePracticeClientHubTab(
+              searchParams.get('tab') || (template ? 'treatment-notes' : null),
+            ),
+          );
           
           // Check completion status BEFORE opening modal (prevents editing loophole)
           const checkAndOpenModal = async () => {
@@ -2003,9 +2012,27 @@ const PracticeClientManagement = () => {
       }));
       
       setSessions(sessionsArray);
-      
+
       // Check completion status for all sessions
       const sessionIds = sessionsArray.map(s => s.id);
+      if (sessionIds.length > 0) {
+        const { data: anyNoteRows, error: batchNotesErr } = await supabase
+          .from('treatment_notes')
+          .select('session_id')
+          .eq('practitioner_id', userProfile.id)
+          .in('session_id', sessionIds);
+        if (batchNotesErr) {
+          logger.error('Error batch-loading note presence for session list', batchNotesErr, 'PracticeClientManagement');
+        } else {
+          const noteIds = new Set<string>();
+          anyNoteRows?.forEach((r: { session_id?: string }) => {
+            if (r.session_id) noteIds.add(r.session_id);
+          });
+          setSessionsWithNotes(noteIds);
+        }
+      } else {
+        setSessionsWithNotes(new Set());
+      }
       await checkCompletionStatusForSessions(sessionIds);
 
       // Load sessions with completed payments for client list
@@ -2444,10 +2471,11 @@ const PracticeClientManagement = () => {
   // Open structured notes modal for session
   const handleEditSessionNote = async (session: ClientSession) => {
     if (!userProfile?.id) return;
-    
+
+    let completionStatus: Awaited<ReturnType<typeof checkTreatmentNotesCompletion>> | null = null;
     // Use utility function for consistent completion check (prevents loophole)
     try {
-      const completionStatus = await checkTreatmentNotesCompletion(session.id, userProfile.id);
+      completionStatus = await checkTreatmentNotesCompletion(session.id, userProfile.id);
       setIsNoteCompleted(completionStatus.isCompleted);
       setRecordingProcessingOrError(completionStatus.recordingProcessingOrError ?? false);
 
@@ -2485,28 +2513,44 @@ const PracticeClientManagement = () => {
             chief_complaint: completedRecording.chief_complaint || ''
           };
         } else {
-          // Fallback to treatment_notes
+          // Fallback to treatment_notes (SOAP or DAP)
           const { data: treatmentNotes } = await supabase
             .from('treatment_notes')
             .select('*')
             .eq('session_id', session.id)
             .eq('practitioner_id', userProfile.id)
-            .eq('template_type', 'SOAP');
+            .in('template_type', ['SOAP', 'DAP']);
           
           if (treatmentNotes && treatmentNotes.length > 0) {
-            noteData = {
-              session_id: session.id,
-              client_name: session.client_name,
-              session_date: session.session_date,
-              therapy_type: session.session_type,
-              status: 'completed',
-              soap_subjective: treatmentNotes.find(n => n.note_type === 'subjective')?.content || '',
-              soap_objective: treatmentNotes.find(n => n.note_type === 'objective')?.content || '',
-              soap_assessment: treatmentNotes.find(n => n.note_type === 'assessment')?.content || '',
-              soap_plan: treatmentNotes.find(n => n.note_type === 'plan')?.content || '',
-              session_notes: '',
-              chief_complaint: ''
-            };
+            const isDAP = treatmentNotes.some((n: any) => n.template_type === 'DAP');
+            noteData = isDAP
+              ? {
+                  session_id: session.id,
+                  client_name: session.client_name,
+                  session_date: session.session_date,
+                  therapy_type: session.session_type,
+                  status: 'completed',
+                  template_type: 'DAP',
+                  soap_subjective: treatmentNotes.find((n: any) => n.note_type === 'data')?.content || '',
+                  soap_objective: '',
+                  soap_assessment: treatmentNotes.find((n: any) => n.note_type === 'assessment')?.content || '',
+                  soap_plan: treatmentNotes.find((n: any) => n.note_type === 'plan')?.content || '',
+                  session_notes: '',
+                  chief_complaint: ''
+                }
+              : {
+                  session_id: session.id,
+                  client_name: session.client_name,
+                  session_date: session.session_date,
+                  therapy_type: session.session_type,
+                  status: 'completed',
+                  soap_subjective: treatmentNotes.find((n: any) => n.note_type === 'subjective')?.content || '',
+                  soap_objective: treatmentNotes.find((n: any) => n.note_type === 'objective')?.content || '',
+                  soap_assessment: treatmentNotes.find((n: any) => n.note_type === 'assessment')?.content || '',
+                  soap_plan: treatmentNotes.find((n: any) => n.note_type === 'plan')?.content || '',
+                  session_notes: '',
+                  chief_complaint: ''
+                };
           }
         }
         
@@ -2535,14 +2579,14 @@ const PracticeClientManagement = () => {
       setViewingCompletedNote(false);
       setCompletedNoteData(null);
     }
-    
+
     // Set editing session AFTER completion check (prevents timing loophole)
     setEditingSession(session);
-    
+
     setIsSessionNoteModalOpen(true);
-    
+
     // Check for existing treatment notes (only if not completed)
-    if (!completionStatus.isCompleted) {
+    if (!completionStatus?.isCompleted) {
       setTimeout(() => checkTreatmentNotes(), 100);
     }
   };
@@ -3440,6 +3484,18 @@ const PracticeClientManagement = () => {
                         if ((session.client_name || '').toLowerCase().includes(searchLower)) return true;
                         const statusLabel = getDisplaySessionStatusLabel(session).toLowerCase();
                         if (statusLabel.includes(searchLower)) return true;
+                        const { sessionLocation, locationLabel } = getSessionLocation(
+                          session,
+                          userProfile ?? undefined,
+                        );
+                        if (sessionLocation.toLowerCase().includes(searchLower)) return true;
+                        if (locationLabel.toLowerCase().includes(searchLower)) return true;
+                        const paLabel = session.pre_assessment_completed
+                          ? 'form completed'
+                          : session.pre_assessment_required
+                            ? 'no form'
+                            : 'optional';
+                        if (paLabel.includes(searchLower)) return true;
                         try {
                           const d = new Date(session.session_date);
                           if (format(d, 'MMMM d, yyyy').toLowerCase().includes(searchLower)) return true;
@@ -3525,7 +3581,7 @@ const PracticeClientManagement = () => {
                               Swipe to see all session columns
                             </div>
                             <div className="w-full overflow-x-auto">
-                            <Table className="min-w-[960px]">
+                            <Table className="min-w-[1180px]">
                               <TableHeader>
                                 <TableRow className="h-14 border-b border-border bg-card hover:bg-transparent">
                                   <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground w-[100px] rounded-tl-[10px] border-r border-border">
@@ -3541,6 +3597,18 @@ const PracticeClientManagement = () => {
                                     </span>
                                   </TableHead>
                                   <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground border-r border-border">Type</TableHead>
+                                  <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground min-w-[100px] border-r border-border">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <Clock className="h-4 w-4" />
+                                      Status
+                                    </span>
+                                  </TableHead>
+                                  <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground min-w-[120px] border-r border-border">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <MapPin className="h-4 w-4" />
+                                      Location
+                                    </span>
+                                  </TableHead>
                                   <TableHead className="h-14 px-3.5 py-2.5 font-semibold text-foreground border-r border-border">
                                     <span className="inline-flex items-center gap-1.5">
                                       <CheckCircle className="h-4 w-4" />
@@ -3557,6 +3625,7 @@ const PracticeClientManagement = () => {
                                   const isCompleted = completedSessions.has(session.id);
                                   const sessionDate = new Date(session.session_date);
                                   const sessionNum = calculateSessionNumber(session, sessions);
+                                  const { sessionLocation, locationLabel } = getSessionLocation(session, userProfile ?? undefined);
                                   return (
                                     <TableRow key={session.id} className="h-14 border-b border-border bg-card hover:bg-muted/50 group">
                                       <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border">
@@ -3572,6 +3641,15 @@ const PracticeClientManagement = () => {
                                         {session.notes && <p className="text-sm line-clamp-2 max-w-[220px]">{session.notes}</p>}
                                       </TableCell>
                                       <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border">{session.session_type}</TableCell>
+                                      <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border text-sm">
+                                        {getDisplaySessionStatusLabel(session)}
+                                      </TableCell>
+                                      <TableCell className="h-14 px-3.5 py-2.5 align-middle text-muted-foreground font-normal border-r border-border max-w-[200px]">
+                                        <span className="text-xs text-muted-foreground block">{locationLabel}</span>
+                                        <span className="text-sm text-foreground line-clamp-2" title={sessionLocation}>
+                                          {sessionLocation || '—'}
+                                        </span>
+                                      </TableCell>
                                       <TableCell className="h-14 px-3.5 py-2.5 align-middle border-r border-border">
                                         {!hasNotes ? (
                                           <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30 font-normal">
@@ -3611,7 +3689,7 @@ const PracticeClientManagement = () => {
                                 })}
                                 {!hasRows && (
                                   <TableRow className="border-b border-border bg-card">
-                                    <TableCell colSpan={6} className="h-14 px-3.5 py-2.5 text-center text-muted-foreground text-sm">
+                                    <TableCell colSpan={8} className="h-14 px-3.5 py-2.5 text-center text-muted-foreground text-sm">
                                       No sessions in this view. Try another filter or search.
                                     </TableCell>
                                   </TableRow>
@@ -4056,22 +4134,38 @@ const PracticeClientManagement = () => {
                             .select('*')
                             .eq('session_id', previous.id)
                             .eq('practitioner_id', userProfile.id)
-                            .eq('template_type', 'SOAP');
+                            .in('template_type', ['SOAP', 'DAP']);
                           
                           if (treatmentNotes && treatmentNotes.length > 0) {
-                            noteData = {
-                              session_id: previous.id,
-                              client_name: previous.client_name,
-                              session_date: previous.session_date,
-                              therapy_type: previous.session_type,
-                              status: 'completed',
-                              soap_subjective: treatmentNotes.find(n => n.note_type === 'subjective')?.content || '',
-                              soap_objective: treatmentNotes.find(n => n.note_type === 'objective')?.content || '',
-                              soap_assessment: treatmentNotes.find(n => n.note_type === 'assessment')?.content || '',
-                              soap_plan: treatmentNotes.find(n => n.note_type === 'plan')?.content || '',
-                              session_notes: '',
-                              chief_complaint: ''
-                            };
+                            const isDAP = treatmentNotes.some((n: any) => n.template_type === 'DAP');
+                            noteData = isDAP
+                              ? {
+                                  session_id: previous.id,
+                                  client_name: previous.client_name,
+                                  session_date: previous.session_date,
+                                  therapy_type: previous.session_type,
+                                  status: 'completed',
+                                  template_type: 'DAP',
+                                  soap_subjective: treatmentNotes.find((n: any) => n.note_type === 'data')?.content || '',
+                                  soap_objective: '',
+                                  soap_assessment: treatmentNotes.find((n: any) => n.note_type === 'assessment')?.content || '',
+                                  soap_plan: treatmentNotes.find((n: any) => n.note_type === 'plan')?.content || '',
+                                  session_notes: '',
+                                  chief_complaint: ''
+                                }
+                              : {
+                                  session_id: previous.id,
+                                  client_name: previous.client_name,
+                                  session_date: previous.session_date,
+                                  therapy_type: previous.session_type,
+                                  status: 'completed',
+                                  soap_subjective: treatmentNotes.find((n: any) => n.note_type === 'subjective')?.content || '',
+                                  soap_objective: treatmentNotes.find((n: any) => n.note_type === 'objective')?.content || '',
+                                  soap_assessment: treatmentNotes.find((n: any) => n.note_type === 'assessment')?.content || '',
+                                  soap_plan: treatmentNotes.find((n: any) => n.note_type === 'plan')?.content || '',
+                                  session_notes: '',
+                                  chief_complaint: ''
+                                };
                           }
                         }
                         
@@ -4154,22 +4248,38 @@ const PracticeClientManagement = () => {
                             .select('*')
                             .eq('session_id', next.id)
                             .eq('practitioner_id', userProfile.id)
-                            .eq('template_type', 'SOAP');
+                            .in('template_type', ['SOAP', 'DAP']);
                           
                           if (treatmentNotes && treatmentNotes.length > 0) {
-                            noteData = {
-                              session_id: next.id,
-                              client_name: next.client_name,
-                              session_date: next.session_date,
-                              therapy_type: next.session_type,
-                              status: 'completed',
-                              soap_subjective: treatmentNotes.find(n => n.note_type === 'subjective')?.content || '',
-                              soap_objective: treatmentNotes.find(n => n.note_type === 'objective')?.content || '',
-                              soap_assessment: treatmentNotes.find(n => n.note_type === 'assessment')?.content || '',
-                              soap_plan: treatmentNotes.find(n => n.note_type === 'plan')?.content || '',
-                              session_notes: '',
-                              chief_complaint: ''
-                            };
+                            const isDAP = treatmentNotes.some((n: any) => n.template_type === 'DAP');
+                            noteData = isDAP
+                              ? {
+                                  session_id: next.id,
+                                  client_name: next.client_name,
+                                  session_date: next.session_date,
+                                  therapy_type: next.session_type,
+                                  status: 'completed',
+                                  template_type: 'DAP',
+                                  soap_subjective: treatmentNotes.find((n: any) => n.note_type === 'data')?.content || '',
+                                  soap_objective: '',
+                                  soap_assessment: treatmentNotes.find((n: any) => n.note_type === 'assessment')?.content || '',
+                                  soap_plan: treatmentNotes.find((n: any) => n.note_type === 'plan')?.content || '',
+                                  session_notes: '',
+                                  chief_complaint: ''
+                                }
+                              : {
+                                  session_id: next.id,
+                                  client_name: next.client_name,
+                                  session_date: next.session_date,
+                                  therapy_type: next.session_type,
+                                  status: 'completed',
+                                  soap_subjective: treatmentNotes.find((n: any) => n.note_type === 'subjective')?.content || '',
+                                  soap_objective: treatmentNotes.find((n: any) => n.note_type === 'objective')?.content || '',
+                                  soap_assessment: treatmentNotes.find((n: any) => n.note_type === 'assessment')?.content || '',
+                                  soap_plan: treatmentNotes.find((n: any) => n.note_type === 'plan')?.content || '',
+                                  session_notes: '',
+                                  chief_complaint: ''
+                                };
                           }
                         }
                         

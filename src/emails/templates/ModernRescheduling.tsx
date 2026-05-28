@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -47,19 +47,19 @@ export const ModernRescheduling = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="Rescheduled"
-      primaryColor="#d97706"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
       <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
         <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', maxWidth: '500px' }}>
           <tr>
             <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={bookingUrl} variant="primary" color="#d97706">
+              <ModernButton href={bookingUrl} variant="primary" color="#8e9b53">
                 Confirm New Time
               </ModernButton>
             </td>
             <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={calendarUrl} variant="secondary" color="#d97706">
+              <ModernButton href={calendarUrl} variant="secondary" color="#8e9b53">
                 Add to Calendar
               </ModernButton>
             </td>
@@ -67,39 +67,39 @@ export const ModernRescheduling = ({
         </table>
       </Section>
 
-      <ModernCard title="Updated Session Details" accentColor="#d97706">
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+      <ModernCard title="Updated Session Details" accentColor="#8e9b53">
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ paddingBottom: '24px' }}>
-                <Text style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#64748b', fontWeight: 700 }}>Session</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.sessionType || 'N/A'}</Text>
+                <Text style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600, fontWeight: 700 }}>Session</Text>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>{data.sessionType || 'N/A'}</Text>
               </td>
             </tr>
             <tr>
-              <td style={{ paddingBottom: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-                <Text style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#64748b', fontWeight: 700 }}>Original Date & Time</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#64748b' }}>{originalDate} at {originalTime}</Text>
+              <td style={{ paddingBottom: '24px', paddingTop: '24px', borderTop: '1px solid #d9e2d2' }}>
+                <Text style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600, fontWeight: 700 }}>Original Date & Time</Text>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#5a5a5a' }}>{originalDate} at {originalTime}</Text>
               </td>
             </tr>
             <tr>
-              <td style={{ paddingTop: '24px', borderTop: '2px solid #d97706' }}>
-                <Text style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#64748b', fontWeight: 700 }}>New Date & Time</Text>
-                <Text style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#d97706' }}>{newDate} at {newTime}</Text>
+              <td style={{ paddingTop: '24px', borderTop: '2px solid #8e9b53' }}>
+                <Text style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600, fontWeight: 700 }}>New Date & Time</Text>
+                <Text style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#8e9b53' }}>{newDate} at {newTime}</Text>
               </td>
             </tr>
             <tr>
-              <td style={{ paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Practitioner</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.practitionerName || 'N/A'}</Text>
+              <td style={{ paddingTop: '24px', borderTop: '1px solid #d9e2d2' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Practitioner</Text>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>{data.practitionerName || 'N/A'}</Text>
               </td>
             </tr>
           </table>
         </Section>
       </ModernCard>
 
-      <Section style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', borderLeft: '4px solid #d97706' }}>
-        <Text style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+      <Section style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f0f4ef', borderRadius: '8px', borderLeft: '4px solid #8e9b53' }}>
+        <Text style={{ margin: 0, fontSize: '14px', color: '#5a5a5a', lineHeight: '1.6' }}>
           Please make sure to update your calendar with the new time.
         </Text>
       </Section>
@@ -108,3 +108,4 @@ export const ModernRescheduling = ({
 };
 
 export default ModernRescheduling;
+

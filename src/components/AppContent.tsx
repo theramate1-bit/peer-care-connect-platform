@@ -1,268 +1,568 @@
-import React from "react";
-import RouteChangeTracker from "./analytics/RouteChangeTracker";
+import { lazy, Suspense } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 
-/** Redirects legacy /sessions/:id/notes to practice treatment notes (KAN-22). */
-function SessionNotesRedirect() {
-  const { sessionId } = useParams<{ sessionId: string }>();
-  return <Navigate to={`/practice/clients?session=${sessionId ?? ""}&tab=treatment-notes`} replace />;
-}
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { SimpleProtectedRoute } from "@/components/auth/SimpleProtectedRoute";
-import { Header } from "@/components/Header";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import Index from "../pages/Index";
-import NotFound from "../pages/NotFound";
-import HowItWorks from "../pages/HowItWorks";
-import ClientHowItWorks from "../pages/ClientHowItWorks";
-import Pricing from "../pages/Pricing";
-import About from "../pages/About";
-import Contact from "../pages/Contact";
-import HelpCentre from "../pages/HelpCentre";
-import TermsConditions from "../pages/TermsConditions";
-import PrivacyPolicy from "../pages/PrivacyPolicy";
-import Cookies from "@/pages/Cookies";
-import DesignSystem from "@/pages/DesignSystem";
-import Register from "../pages/auth/Register";
-import Login from "../pages/auth/Login";
-import ResetPassword from "../pages/auth/ResetPassword";
-import ResetPasswordConfirm from "../pages/auth/ResetPasswordConfirm";
-import EmailVerification from "../pages/auth/EmailVerification";
-import RegistrationSuccess from "../pages/auth/RegistrationSuccess";
-import Onboarding from "../pages/auth/Onboarding";
-import Dashboard from "../pages/Dashboard";
-import FindTherapists from "../pages/FindTherapists";
-import MyBookings from "../pages/MyBookings";
-import OfferServices from "../pages/OfferServices";
-import Credits from "../pages/Credits";
-import Profile from "../pages/Profile";
-import Reviews from "../pages/Reviews";
-import RealTimeMessaging from "../components/messaging/RealTimeMessaging";
-import CPDInfo from "../pages/cpd/CPDInfo";
-import { SettingsProfile } from "../pages/settings/SettingsProfile";
-import SettingsPrivacyTools from "../pages/settings/SettingsPrivacyTools";
-import { SettingsSubscription } from "../pages/settings/SettingsSubscription";
-import ClientManagement from "../pages/practice/ClientManagement";
-import PracticeClientManagement from "../pages/practice/PracticeClientManagement";
-import PracticeSchedule from "../pages/practice/PracticeSchedule";
-import ServicesManagement from "../pages/practice/ServicesManagement";
-import MobileRequests from "../pages/practice/MobileRequests";
-import TreatmentNotes from "../pages/practice/TreatmentNotes";
-import Billing from "../pages/practice/Billing";
-import BusinessAnalytics from "../pages/practice/BusinessAnalytics";
-import EnhancedTreatmentNotes from "../pages/practice/EnhancedTreatmentNotes";
-import CalendarSettings from "../pages/practice/CalendarSettings";
-import TreatmentExchange from "../pages/practice/TreatmentExchange";
-import ExchangeRequests from "../pages/practice/ExchangeRequests";
-import { SessionDetailView } from "../components/sessions/SessionDetailView";
-import CreateProfile from "../pages/profiles/CreateProfile";
-import EditProfile from "../pages/profiles/EditProfile";
-import ViewProfile from "../pages/profiles/ViewProfile";
-import AdminVerificationDashboard from "../pages/admin/VerificationDashboard";
-import SubmitReview from "../pages/reviews/SubmitReview";
-import GuestReview from "../pages/reviews/GuestReview";
-import Projects from "../pages/projects/Projects";
-import CreateProject from "../pages/projects/CreateProject";
-import Analytics from "../pages/analytics/Analytics";
-import AdvancedReports from "../pages/analytics/AdvancedReports";
-import TreatmentPlans from "../pages/practice/TreatmentPlans";
-import AnalyticsDashboard from "../pages/AnalyticsDashboard";
-import DashboardProjects from "../pages/DashboardProjects";
-import Marketplace from "../pages/Marketplace";
-import ClientDashboard from "../pages/client/ClientDashboard";
-import ClientBooking from "../pages/client/ClientBooking";
-import ClientProfile from "../pages/client/ClientProfile";
-import ClientSessions from "../pages/client/ClientSessions";
-import ClientNotes from "../pages/client/ClientNotes";
-import ClientProgress from "../pages/client/ClientProgress";
-import ClientGoals from "../pages/client/ClientGoals";
-import MySessions from "../pages/client/MySessions";
-import MyExercises from "../pages/client/MyExercises";
-import ClientMobileRequests from "../pages/client/ClientMobileRequests";
-import ClientFavorites from "../pages/client/ClientFavorites";
-import ClientTreatmentPlans from "../pages/client/ClientTreatmentPlans";
-import ConnectAccount from "../pages/payments/ConnectAccount";
-import BookingDashboard from "../pages/booking/BookingDashboard";
-import Notifications from "../pages/Notifications";
-import AuthCallback from "../components/auth/AuthCallback";
-import RoleSelection from "../pages/auth/RoleSelection";
-import OAuthCompletion from "../pages/auth/OAuthCompletion";
-import GoogleCalendarCallback from "../pages/auth/google-calendar-callback";
-import Unauthorized from "../pages/Unauthorized";
-import PublicTherapistProfile from "../pages/public/PublicTherapistProfile";
-import DirectBooking from "../pages/public/DirectBooking";
-import GuestMobileRequests from "../pages/public/GuestMobileRequests";
-import BookingSuccess from "../pages/BookingSuccess";
-import MobileBookingSuccess from "../pages/MobileBookingSuccess";
-import GuestBookingView from "../pages/booking/GuestBookingView";
-import FindMyBooking from "../pages/booking/FindMyBooking";
-import SubscriptionSuccess from "../pages/SubscriptionSuccess";
-import StripeReturn from "../pages/onboarding/StripeReturn";
-import ProfileRedirect from "./ProfileRedirect";
-// import { shouldRedirectToOnboarding } from "@/lib/dashboard-routing";
+import AuthRouter from "@/components/auth/AuthRouter";
+import { AppRoute } from "@/components/AppRoute";
+import { AuthLoadingShell } from "@/components/auth/AuthLoadingShell";
+import Index from "@/pages/Index";
+import Login from "@/pages/auth/Login";
+import ResetPasswordConfirm from "@/pages/auth/ResetPasswordConfirm";
+import GuestMobileRequests from "@/pages/guest/GuestMobileRequests";
+import FindBooking from "@/pages/booking/FindBooking";
+import GuestBookingView from "@/pages/booking/GuestBookingView";
+import MobileBookingSuccess from "@/pages/MobileBookingSuccess";
+import RoutePlaceholder from "@/pages/RoutePlaceholder";
+import PractitionerMobileRequests from "@/pages/practice/PractitionerMobileRequests";
+import ExchangeRequests from "@/pages/practice/ExchangeRequests";
+import ClientDashboard from "@/pages/client/ClientDashboard";
 
-// Layout wrapper for authenticated routes
-const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
+import TherapistSearch from "@web/pages/discovery/TherapistSearch";
+import ClientBooking from "@web/pages/client/ClientBooking";
+import DirectBooking from "@web/pages/booking/DirectBooking";
+import PublicTherapistProfile from "@web/pages/therapist/PublicTherapistProfile";
+import BookingSuccess from "@web/pages/BookingSuccess";
+import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
+import StripeReturn from "@/pages/onboarding/StripeReturn";
+
+/** Heavy / optional surfaces — lazy so booking core can ship if a dep is missing. */
+const MyBookings = lazy(() => import("@/pages/MyBookings"));
+const Messages = lazy(() => import("@web/pages/messages/Messages"));
+const Analytics = lazy(() => import("@web/pages/analytics/Analytics"));
+const Projects = lazy(() => import("@web/pages/projects/Projects"));
+const CreateProject = lazy(() => import("@web/pages/projects/CreateProject"));
+const Payments = lazy(() => import("@web/pages/payments/Payments"));
+const ConnectAccount = lazy(() => import("@web/pages/payments/ConnectAccount"));
+const PaymentHistory = lazy(() => import("@web/pages/payments/PaymentHistory"));
+const ManualBooking = lazy(() => import("@web/pages/practice/ManualBooking"));
+const UpcomingSessions = lazy(
+  () => import("@web/pages/practice/UpcomingSessions"),
+);
+const PracticeDashboard = lazy(
+  () => import("@web/pages/practice/PracticeDashboard"),
+);
+const CreditsPage = lazy(() => import("@web/pages/credits/CreditsPage"));
+const ClientSessions = lazy(() => import("@web/pages/client/ClientSessions"));
+const NotificationsPage = lazy(
+  () => import("@web/pages/NotificationsPage"),
+);
+const PricingPage = lazy(() => import("@web/pages/PricingPage"));
+const AdminVerification = lazy(
+  () => import("@web/pages/admin/AdminVerification"),
+);
+const ClientExercises = lazy(() => import("@web/pages/client/ClientExercises"));
+const ClientFavorites = lazy(() => import("@web/pages/client/ClientFavorites"));
+const ClientTreatmentPlans = lazy(
+  () => import("@web/pages/client/ClientTreatmentPlans"),
+);
+const ClientProgressGoals = lazy(
+  () => import("@web/pages/client/ClientProgressGoals"),
+);
+const PracticeClients = lazy(
+  () => import("@web/pages/practice/PracticeClients"),
+);
+const PracticeAvailability = lazy(
+  () => import("@web/pages/practice/PracticeAvailability"),
+);
+const PracticeTreatmentPlans = lazy(
+  () => import("@web/pages/practice/PracticeTreatmentPlans"),
+);
+const PracticeClinicalFiles = lazy(
+  () => import("@web/pages/practice/PracticeClinicalFiles"),
+);
+const ClinicalNotesEditor = lazy(
+  () => import("@web/pages/practice/ClinicalNotesEditor"),
+);
+const SubscriptionSettings = lazy(
+  () => import("@web/pages/settings/SubscriptionSettings"),
+);
+const PaymentPreferences = lazy(
+  () => import("@web/pages/practice/PaymentPreferences"),
+);
+const ClientOnboarding = lazy(
+  () => import("@web/pages/onboarding/ClientOnboarding"),
+);
+const Reviews = lazy(() => import("@web/pages/reviews/Reviews"));
+const SubmitReview = lazy(() => import("@web/pages/reviews/SubmitReview"));
+const Register = lazy(() => import("@/pages/auth/Register"));
+const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const RegistrationSuccess = lazy(
+  () => import("@/pages/auth/RegistrationSuccess"),
+);
+const AuthCallback = lazy(() => import("@/pages/auth/AuthCallback"));
+const HowItWorks = lazy(() => import("@web/pages/marketing/HowItWorks"));
+const About = lazy(() => import("@web/pages/marketing/About"));
+const Contact = lazy(() => import("@web/pages/marketing/Contact"));
+const HelpCentre = lazy(() => import("@web/pages/marketing/HelpCentre"));
+const TermsPage = lazy(() => import("@web/pages/legal/TermsPage"));
+const PrivacyPage = lazy(() => import("@web/pages/legal/PrivacyPage"));
+const CookiesPage = lazy(() => import("@web/pages/legal/CookiesPage"));
+
+function Lazy({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main id="main-content" className="w-full max-w-none px-6 py-8">
-        {children}
-      </main>
-    </div>
+    <Suspense fallback={<AuthLoadingShell message="Loading…" compact />}>
+      {children}
+    </Suspense>
   );
-};
-
-/** Single marketplace route: unified experience for all users (with or without login). */
-function MarketplaceRoute() {
-  return <Marketplace />;
 }
 
-const AppContent = () => {
-  const { user, userProfile } = useAuth();
-  
-  // Simplified: No automatic popups or modals
-  // Users go directly to their appropriate dashboard after authentication
-
+/**
+ * Web route table — booking + guest public paths are eager; practice/client
+ * extensions are lazy-loaded.
+ */
+export default function AppContent() {
   return (
-    <>
-      <RouteChangeTracker />
-      {/* Simplified: No automatic popups or modals */}
-      {/* Users go directly to their appropriate dashboard after authentication */}
-
+    <AuthRouter>
       <Routes>
-        {/* Public Pages */}
         <Route path="/" element={<Index />} />
-        <Route path="/how-it-works" element={<HowItWorks />} />
-        <Route path="/client/how-it-works" element={<ClientHowItWorks />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/help" element={<HelpCentre />} />
-        <Route path="/terms" element={<TermsConditions />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/cookies" element={<Cookies />} />
-        <Route path="/design-system" element={<DesignSystem />} />
-        
-        {/* Legacy /explore redirects to single marketplace URL */}
-        <Route path="/explore" element={<Navigate to="/marketplace" replace />} />
-        {/* Direct booking link - public route for practitioner booking slugs */}
-        <Route path="/book/:slug" element={<DirectBooking />} />
-        <Route path="/guest/mobile-requests" element={<GuestMobileRequests />} />
-        {/* IMPORTANT: Public therapist profile route MUST come before the protected /therapist/:therapistId route */}
-        <Route path="/therapist/:therapistId/public" element={<PublicTherapistProfile />} />
-        <Route path="/booking-success" element={<BookingSuccess />} />
-        <Route path="/mobile-booking/success" element={<MobileBookingSuccess />} />
-        <Route path="/booking/view/:sessionId" element={<GuestBookingView />} />
-        <Route path="/booking/find" element={<FindMyBooking />} />
-        <Route path="/review" element={<GuestReview />} />
-        
-        {/* Authentication */}
-        <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/auth/reset-password-confirm" element={<ResetPasswordConfirm />} />
-        <Route path="/auth/verify-email" element={<EmailVerification />} />
-        <Route path="/auth/registration-success" element={<RegistrationSuccess />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/auth/role-selection" element={<SimpleProtectedRoute><RoleSelection /></SimpleProtectedRoute>} />
-        <Route path="/auth/oauth-completion" element={<SimpleProtectedRoute><OAuthCompletion /></SimpleProtectedRoute>} />
-        <Route path="/onboarding" element={<SimpleProtectedRoute><Onboarding /></SimpleProtectedRoute>} />
-        <Route path="/subscription-success" element={<SimpleProtectedRoute><SubscriptionSuccess /></SimpleProtectedRoute>} />
-        <Route path="/onboarding/stripe-return" element={<SimpleProtectedRoute><StripeReturn /></SimpleProtectedRoute>} />
-        <Route path="/auth/google-calendar-callback" element={<GoogleCalendarCallback />} />
-        
-        {/* Practitioner Routes - AuthRouter handles role access */}
-        <Route path="/dashboard" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><Dashboard /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/find-therapists" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><FindTherapists /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/bookings" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><MyBookings /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/offer-services" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><OfferServices /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/credits" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><Credits /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/profile/create" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><CreateProfile /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/profile/edit" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><EditProfile /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        {/* Protected therapist profile route - must come AFTER the public route */}
-        <Route path="/therapist/:therapistId" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ViewProfile /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/reviews" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><Reviews /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/reviews/submit/:sessionId" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><SubmitReview /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/messages" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><RealTimeMessaging /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/settings" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><SettingsProfile /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/settings/privacy" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><SettingsPrivacyTools /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/settings/subscription" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><SettingsSubscription /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Client Routes - AuthRouter handles role access */}
-        <Route path="/client/dashboard" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientDashboard /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/booking" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientBooking /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/profile" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientProfile /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/sessions" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><MySessions /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/progress" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientProgress /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/goals" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientGoals /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/exercises" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><MyExercises /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/mobile-requests" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientMobileRequests /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/messages" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><RealTimeMessaging /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/notes" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><Navigate to="/client/sessions?tab=notes" replace /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/plans" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientTreatmentPlans /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/client/favorites" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ClientFavorites /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Universal Profile Route */}
-        <Route path="/profile" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ProfileRedirect /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Project Management Routes */}
-        <Route path="/projects" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><Projects /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/dashboard/projects" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><DashboardProjects /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/treatment-projects" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><DashboardProjects /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/dashboard/projects/create" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><CreateProject /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Analytics Routes */}
-        <Route path="/analytics" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><AnalyticsDashboard /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/analytics/reports" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><AdvancedReports /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Marketplace - public experience when not logged in, app experience when logged in */}
-        <Route path="/marketplace" element={<MarketplaceRoute />} />
-        
-        {/* Payment Routes */}
-        <Route path="/payments/connect" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ConnectAccount /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        {/** Demo route removed in production */}
-        
-        {/* Booking Routes */}
-        <Route path="/booking" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><BookingDashboard /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Professional Development Routes */}
-        <Route path="/cpd" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><CPDInfo /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Notifications Route - Available to all authenticated users */}
-        <Route path="/notifications" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><Notifications /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Practice Management Routes */}
-        <Route path="/practice" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><Dashboard /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/dashboard" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><Dashboard /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/schedule" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><PracticeSchedule /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/sessions/:sessionId/notes" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><SessionNotesRedirect /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/clients" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><PracticeClientManagement /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/scheduler" element={<SimpleProtectedRoute><AuthenticatedLayout><ErrorBoundary><ServicesManagement /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/mobile-requests" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><MobileRequests /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/notes" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><PracticeClientManagement /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/treatment-notes" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><PracticeClientManagement /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/sessions/:sessionId" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><SessionDetailView /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/clinical-files" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><EnhancedTreatmentNotes /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/treatment-plans" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><TreatmentPlans /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/peer-treatment" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><Navigate to="/credits#peer-treatment" replace /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/treatment-exchange" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><Navigate to="/credits" replace /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/exchange-requests" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><ExchangeRequests /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/billing" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><Billing /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/analytics" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><BusinessAnalytics /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        <Route path="/practice/calendar" element={<SimpleProtectedRoute requireSubscription={true}><AuthenticatedLayout><ErrorBoundary><CalendarSettings /></ErrorBoundary></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Admin Routes - AuthRouter handles role access */}
-        <Route path="/admin/verification" element={<SimpleProtectedRoute><AuthenticatedLayout><AdminVerificationDashboard /></AuthenticatedLayout></SimpleProtectedRoute>} />
-        
-        {/* Unauthorized Access Route */}
-        <Route path="/unauthorized" element={<Unauthorized />} />
-        
-        {/* Catch-all route */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </>
-  );
-};
+        <Route
+          path="/register"
+          element={
+            <Lazy>
+              <Register />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <Lazy>
+              <ResetPassword />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/auth/reset-password-confirm"
+          element={<ResetPasswordConfirm />}
+        />
+        <Route
+          path="/auth/registration-success"
+          element={
+            <Lazy>
+              <RegistrationSuccess />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/auth/callback"
+          element={
+            <Lazy>
+              <AuthCallback />
+            </Lazy>
+          }
+        />
 
-export default AppContent;
+        <Route
+          path="/how-it-works"
+          element={
+            <Lazy>
+              <HowItWorks />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/about"
+          element={
+            <Lazy>
+              <About />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/contact"
+          element={
+            <Lazy>
+              <Contact />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/help"
+          element={
+            <Lazy>
+              <HelpCentre />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <Lazy>
+              <TermsPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <Lazy>
+              <PrivacyPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/cookies"
+          element={
+            <Lazy>
+              <CookiesPage />
+            </Lazy>
+          }
+        />
+
+        <Route path="/marketplace" element={<TherapistSearch />} />
+        <Route path="/explore" element={<Navigate to="/marketplace" replace />} />
+
+        <Route path="/client/booking" element={<ClientBooking />} />
+        <Route
+          path="/client/ClientBooking"
+          element={<Navigate to="/client/booking" replace />}
+        />
+
+        <Route path="/book/:slug" element={<DirectBooking />} />
+        <Route
+          path="/therapist/:therapistId/public"
+          element={<PublicTherapistProfile />}
+        />
+
+        <Route path="/booking/find" element={<FindBooking />} />
+        <Route
+          path="/booking/view/:sessionId"
+          element={<GuestBookingView />}
+        />
+        <Route
+          path="/mobile-booking/success"
+          element={<MobileBookingSuccess />}
+        />
+        <Route path="/booking-success" element={<BookingSuccess />} />
+        <Route path="/subscription-success" element={<SubscriptionSuccess />} />
+        <Route path="/onboarding/stripe-return" element={<StripeReturn />} />
+        <Route path="/stripe-return" element={<StripeReturn />} />
+        <Route
+          path="/guest/mobile-requests"
+          element={<GuestMobileRequests />}
+        />
+
+        <Route
+          path="/client/dashboard"
+          element={
+            <AppRoute>
+              <ClientDashboard />
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/sessions"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientSessions />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/mobile-requests"
+          element={
+            <AppRoute>
+              <GuestMobileRequests />
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/messages"
+          element={
+            <AppRoute>
+              <Lazy>
+                <Messages />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <PracticeDashboard />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/bookings"
+          element={
+            <AppRoute>
+              <Lazy>
+                <MyBookings />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/my-bookings"
+          element={<Navigate to="/bookings" replace />}
+        />
+        <Route
+          path="/practice/upcoming-sessions"
+          element={
+            <AppRoute>
+              <Lazy>
+                <UpcomingSessions />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/manual-booking"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ManualBooking />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/payment-preferences"
+          element={
+            <AppRoute>
+              <Lazy>
+                <PaymentPreferences />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/billing"
+          element={
+            <AppRoute>
+              <Lazy>
+                <Payments />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/mobile-requests"
+          element={
+            <AppRoute>
+              <PractitionerMobileRequests />
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/exchange-requests"
+          element={
+            <AppRoute>
+              <ExchangeRequests />
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/clients"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <PracticeClients />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/scheduler"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <PracticeAvailability />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/treatment-plans"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <PracticeTreatmentPlans />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/clinical-files"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <PracticeClinicalFiles />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/clinical-notes/:sessionId"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <ClinicalNotesEditor />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/analytics"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <Analytics />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+
+        <Route
+          path="/messages"
+          element={
+            <AppRoute>
+              <Lazy>
+                <Messages />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <Analytics />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <AppRoute>
+              <Lazy>
+                <Projects />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/projects/new"
+          element={
+            <AppRoute>
+              <Lazy>
+                <CreateProject />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/payments"
+          element={
+            <AppRoute>
+              <Lazy>
+                <Payments />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/payments/connect"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ConnectAccount />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/payments/history"
+          element={
+            <AppRoute>
+              <Lazy>
+                <PaymentHistory />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/credits"
+          element={
+            <AppRoute>
+              <Lazy>
+                <CreditsPage />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientOnboarding />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/review"
+          element={
+            <Lazy>
+              <SubmitReview />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/reviews"
+          element={
+            <AppRoute>
+              <Lazy>
+                <Reviews />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <AppRoute>
+              <Lazy>
+                <NotificationsPage />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/pricing"
+          element={
+            <Lazy>
+              <PricingPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/admin/verification"
+          element={
+            <AppRoute>
+              <Lazy>
+                <AdminVerification />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/unauthorized"
+          element={<RoutePlaceholder title="Unauthorized" />}
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthRouter>
+  );
+}

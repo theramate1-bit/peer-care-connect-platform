@@ -30,7 +30,7 @@ const ResetPasswordConfirm = () => {
         return;
       }
 
-      // Check for token_hash from route state (from RouteGuard)
+      // Check for token_hash from route state (from AuthRouter OAuth/recovery redirect)
       const token_hash = location.state?.token_hash;
       const type = location.state?.type;
       

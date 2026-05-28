@@ -1,11 +1,62 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import fs from "fs";
 import path from "path";
+import { assertStripeEnvSafe } from "../scripts/stripe-env-guard.mjs";
+
+const SHELL_SRC = path.resolve(__dirname, "./src");
+const WEB_SRC = path.resolve(__dirname, "../src");
+const WEB_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js", ".json"];
+
+/**
+ * Files under repo-root `src/` import `@/…`; map those to `@web` while shell
+ * `peer-care-connect/src/` keeps using `@` → shell.
+ */
+function webAwareAtAlias() {
+  return {
+    name: "web-aware-at-alias",
+    enforce: "pre" as const,
+    resolveId(source: string, importer: string | undefined) {
+      if (!source.startsWith("@/") || !importer) return null;
+      const norm = importer.replace(/\\/g, "/");
+      const inWebTree =
+        norm.includes("/src/") && !norm.includes("/peer-care-connect/");
+      const rel = source.slice(2);
+      const roots = inWebTree ? [WEB_SRC, SHELL_SRC] : [SHELL_SRC, WEB_SRC];
+      for (const root of roots) {
+        const base = path.join(root, rel);
+        for (const ext of WEB_EXTENSIONS) {
+          const candidate = base + ext;
+          if (fs.existsSync(candidate)) return candidate;
+        }
+        if (fs.existsSync(base) && fs.statSync(base).isDirectory()) {
+          for (const ext of WEB_EXTENSIONS) {
+            const indexFile = path.join(base, "index" + ext);
+            if (fs.existsSync(indexFile)) return indexFile;
+          }
+        }
+      }
+      return path.join(roots[0], rel);
+    },
+  };
+}
+
+/** Block shipping Stripe sk_* / whsec_* into the client bundle via VITE_* vars. */
+function stripeEnvGuardPlugin() {
+  return {
+    name: "stripe-env-guard",
+    config() {
+      assertStripeEnvSafe(process.env);
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
   mode: 'development',
   plugins: [
+    stripeEnvGuardPlugin(),
+    webAwareAtAlias(),
     react({
       jsxRuntime: 'automatic',
     }),
@@ -14,7 +65,12 @@ export default defineConfig({
     // Force a single React runtime (see docs/troubleshooting/react-runtime-duplication-fix.md)
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      // Do NOT set "@" here — webAwareAtAlias routes @/ to shell vs ../src by importer.
+      "@web": path.resolve(__dirname, "../src"),
+      "@theramate/user-preferences": path.resolve(
+        __dirname,
+        "../packages/user-preferences/index.js",
+      ),
     },
   },
   define: {

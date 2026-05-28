@@ -13,6 +13,17 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-SESSION-PAYMENT] ${step}${detailsStr}`);
 };
 
+const PLATFORM_FEE_PERCENT = 0.0195;
+const PLATFORM_FEE_FLAT_PENCE = 20;
+
+function calculatePlatformFeePenceFromPounds(amountPounds: number): number {
+  const grossPence = Math.round(Number(amountPounds) * 100);
+  if (!Number.isFinite(grossPence) || grossPence <= 0) {
+    return 0;
+  }
+  return Math.round(grossPence * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FLAT_PENCE;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -123,9 +134,10 @@ serve(async (req) => {
       }
     }
 
-    // Platform commission (0.5%)
-    const platformFee = Math.round(amount * 0.005);
-    const practitionerAmount = amount - platformFee;
+    // Platform commission = 1.95% + 20p
+    const grossAmountPence = Math.round(Number(amount) * 100);
+    const platformFeePence = calculatePlatformFeePenceFromPounds(amount);
+    const practitionerAmountPence = Math.max(grossAmountPence - platformFeePence, 0);
 
     // Create payment session for marketplace transaction
     // CRITICAL: Always use customer parameter (never customer_email) to prevent auto-creation
@@ -152,11 +164,11 @@ serve(async (req) => {
         session_id: sessionId,
         practitioner_id: practitionerId,
         client_id: user.id,
-        platform_fee: platformFee.toString(),
-        practitioner_amount: practitionerAmount.toString()
+        platform_fee: platformFeePence.toString(),
+        practitioner_amount: practitionerAmountPence.toString()
       },
       payment_intent_data: practitioner.stripe_account_id ? {
-        application_fee_amount: platformFee * 100, // Platform commission in pence
+        application_fee_amount: platformFeePence, // Platform commission in pence
         transfer_data: {
           destination: practitioner.stripe_account_id,
         },

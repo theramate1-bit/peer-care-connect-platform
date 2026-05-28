@@ -26,7 +26,7 @@ const mockAuthContext = {
     }
   },
   loading: false,
-  profileLoading: false,
+  profileSyncing: false,
   signOut: jest.fn(),
   refreshUserProfile: jest.fn()
 };

@@ -2,9 +2,15 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "routes": [
+    { "src": "/sitemap.xml", "dest": "/sitemap.xml" },
+    { "src": "/sitemap_index.xml", "dest": "/sitemap_index.xml" },
+    { "src": "/sitemapindex.xml", "dest": "/sitemap_index.xml" },
+    { "src": "/sitemap-1.xml", "dest": "/sitemap-1.xml" }
+  ],
   "rewrites": [
     {
-      "source": "/:path((?!api).*)",
+      "source": "/:path((?!api|sitemap\\.xml|sitemap_index\\.xml|sitemapindex\\.xml|sitemap-1\\.xml|robots\\.txt).*)",
       "destination": "/index.html"
     }
   ],

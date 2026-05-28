@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Handshake, CreditCard, Heart, Coins, Play, CheckCircle, AlertCircle, XCircle, CheckCircle2, X, Settings } from "lucide-react";
+import { Calendar, Clock, Handshake, CreditCard, Heart, Coins, Play, CheckCircle, AlertCircle, XCircle, CheckCircle2, X, Settings, CalendarClock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,14 +16,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { getFriendlyDateLabel, formatTimeWithoutSeconds } from "@/lib/date";
 import { TreatmentExchangeService, ExchangeRequest } from "@/lib/treatment-exchange";
 import { ExchangeAcceptanceModal } from "@/components/treatment-exchange/ExchangeAcceptanceModal";
-import { format, isToday, isTomorrow, formatDistanceToNow } from "date-fns";
-import { TrendingUp, MessageSquare, Edit, AlertTriangle, Check } from "lucide-react";
-import { cleanNotificationMessage, handleNotificationNavigation, parseNotificationRows, type Notification, type NormalizedNotification } from "@/lib/notification-utils";
+import { format, isToday, isTomorrow } from "date-fns";
+import { TrendingUp, MessageSquare, Edit, AlertTriangle, Check, Loader2 } from "lucide-react";
+import { cleanNotificationMessage, dismissNotification, formatBookingNotificationPreview, handleNotificationNavigation, markNotificationRead, parseNotificationRows, type Notification, type NormalizedNotification } from "@/lib/notification-utils";
 import { EarningsWidget } from "@/components/dashboards/EarningsWidget";
 import { SameDayBookingApproval } from "@/components/practitioner/SameDayBookingApproval";
 import { CompleteProfileCta } from "@/components/dashboard/CompleteProfileCta";
 import { calculateProfileActivationStatus, hasValidAvailability } from "@/lib/profile-completion";
 import { getDisplaySessionStatus, isPractitionerSessionVisible } from "@/lib/session-display-status";
+import { getSessionLocation } from "@/utils/sessionLocation";
+import { NotificationSystem } from "@/lib/notification-system";
+import { StatsSkeleton, SessionCardSkeleton, MessageSkeleton } from "@/components/ui/skeleton-loaders";
 
 interface DashboardStats {
   totalSessions: number;
@@ -55,6 +58,9 @@ interface SessionData {
   is_guest?: boolean;
   /** True when this is a pending mobile booking request (not yet a session). */
   is_mobile_request?: boolean;
+  /** For hybrid/mobile: show "Clinic" vs "Mobile" and location. */
+  appointment_type?: 'clinic' | 'mobile' | null;
+  visit_address?: string | null;
 }
 
 type MetricCard = {
@@ -87,6 +93,76 @@ const sessionStatusStyles: Record<string, string> = {
   accepted_exchange: "border-primary/20 bg-primary/10 text-primary",
   pending_payment: "border-warning/25 bg-warning/10 text-warning"
 };
+
+const TERMINAL_NOTIFICATION_TYPES = new Set<string>([
+  "session_reminder",
+  "session_cancelled",
+  "booking_declined",
+  "booking_declined_practitioner",
+  "booking_expired",
+  "booking_expired_practitioner",
+  "exchange_request_declined",
+  "exchange_request_expired",
+  "exchange_slot_released",
+]);
+
+const ACTION_REQUIRED_NOTIFICATION_TYPES = new Set<string>([
+  "booking_request",
+  "exchange_request",
+  "exchange_request_received",
+  "treatment_exchange_request",
+  "exchange_slot_held",
+]);
+
+const EXCHANGE_SOURCE_TYPES = new Set<string>([
+  "treatment_exchange_request",
+  "slot_hold",
+  "mutual_exchange_session",
+]);
+
+const EXCHANGE_BOOKING_TITLE_PATTERN = /treatment exchange|slot reserved for exchange|exchange session confirmed/i;
+
+const isNewBookingNotification = (notification: NormalizedNotification): boolean => {
+  const text = `${notification.title} ${notification.message}`.toLowerCase();
+
+  if (notification.family === "message" || (notification.source_type ?? "").toLowerCase() === "message") {
+    return false;
+  }
+  if (TERMINAL_NOTIFICATION_TYPES.has(notification.type)) return false;
+  if (/new message|declined|expired|cancelled|canceled|released|reminder/.test(text)) return false;
+
+  if (notification.source_type === "mobile_booking_request") return true;
+  if (notification.source_type && EXCHANGE_SOURCE_TYPES.has(notification.source_type)) return true;
+  if (notification.type === "booking_confirmed" || notification.type === "booking_request") return true;
+  if (notification.family === "mobile_request") return true;
+  if (notification.family === "exchange") return true;
+  return EXCHANGE_BOOKING_TITLE_PATTERN.test(notification.title);
+};
+
+const requiresReviewAction = (notification: NormalizedNotification): boolean => {
+  if (ACTION_REQUIRED_NOTIFICATION_TYPES.has(notification.type)) return true;
+  return (
+    notification.source_type === "treatment_exchange_request" ||
+    notification.source_type === "slot_hold" ||
+    notification.source_type === "mobile_booking_request" ||
+    notification.family === "mobile_request"
+  );
+};
+
+/** True only for exchange requests (practitioner-to-practitioner). Excludes client bookings (clinic, mobile). */
+const isExchangeRequest = (notification: NormalizedNotification): boolean =>
+  notification.source_type === "treatment_exchange_request" ||
+  notification.source_type === "slot_hold" ||
+  notification.family === "exchange" ||
+  EXCHANGE_SOURCE_TYPES.has(notification.source_type ?? "");
+
+function getMobileRequestId(n: NormalizedNotification): string | null {
+  const data = n.data && typeof n.data === "object" ? n.data : {};
+  const rid = (data as { request_id?: string; requestId?: string }).request_id ?? (data as { request_id?: string; requestId?: string }).requestId;
+  if (typeof rid === "string" && rid.trim()) return rid;
+  if (n.source_type === "mobile_booking_request" && n.source_id) return n.source_id;
+  return null;
+}
 
 export const TherapistDashboard = () => {
   const { user, userProfile, signOut } = useAuth();
@@ -141,14 +217,58 @@ export const TherapistDashboard = () => {
   // Notifications and client progress state
   const [notifications, setNotifications] = useState<NormalizedNotification[]>([]);
   const [clientProgressUpdates, setClientProgressUpdates] = useState<any[]>([]);
+  const [mobileRequestProcessingId, setMobileRequestProcessingId] = useState<string | null>(null);
   // Store statuses of exchange requests found in notifications
   const [exchangeRequestStatuses, setExchangeRequestStatuses] = useState<Record<string, string>>({});
+  // Store statuses of mobile booking requests (pending vs expired/accepted/declined)
+  const [mobileRequestStatuses, setMobileRequestStatuses] = useState<Record<string, string>>({});
+  // Store payment_status so we can hide Decline when already captured (per Stripe: some methods auto-capture)
+  const [mobileRequestPaymentStatuses, setMobileRequestPaymentStatuses] = useState<Record<string, string>>({});
 
   // Track which exchange requests have reciprocal bookings
   const [reciprocalBookings, setReciprocalBookings] = useState<Record<string, boolean>>({});
 
   // Pending same-day bookings (surfaced above the fold for approval)
   const [pendingSameDayBookings, setPendingSameDayBookings] = useState<any[]>([]);
+
+  // Confirmed mobile sessions for New Bookings augment (fetch separately for reliability)
+  const [confirmedMobileSessionsList, setConfirmedMobileSessionsList] = useState<SessionData[]>([]);
+  // Pending exchange requests for New Bookings (source of truth: treatment_exchange_requests, not notifications)
+  const [pendingExchangeRequestsForSidebar, setPendingExchangeRequestsForSidebar] = useState<Array<{
+    id: string;
+    requester_id?: string;
+    requester_name: string;
+    requested_session_date: string;
+    requested_start_time: string;
+    duration_minutes: number;
+    created_at: string | null;
+  }>>([]);
+  // Accepted exchange requests needing reciprocal booking (recipient must book return session)
+  const [acceptedExchangeNeedingReciprocalForSidebar, setAcceptedExchangeNeedingReciprocalForSidebar] = useState<Array<{
+    id: string;
+    requester_id?: string;
+    requester_name: string;
+    requested_session_date: string;
+    requested_start_time: string;
+    duration_minutes: number;
+    created_at: string | null;
+    extension_requested_at?: string | null;
+    extension_approved_at?: string | null;
+    reciprocal_booking_deadline?: string | null;
+  }>>([]);
+  // Accepted exchange requests where user is requester (recipient accepted; requester sees "Your request was accepted")
+  const [acceptedExchangeForRequesterSidebar, setAcceptedExchangeForRequesterSidebar] = useState<Array<{
+    id: string;
+    recipient_id?: string;
+    recipient_name: string;
+    requested_session_date: string;
+    requested_start_time: string;
+    duration_minutes: number;
+    created_at: string | null;
+    extension_requested_at?: string | null;
+    extension_approved_at?: string | null;
+    extension_days?: number | null;
+  }>>([]);
 
   // Always use schedule view (Overview layout was removed)
   const dashboardView = "schedule" as const;
@@ -208,6 +328,36 @@ export const TherapistDashboard = () => {
     };
 
     fetchExchangeStatuses();
+  }, [notifications, user?.id]);
+
+  // Fetch statuses and payment_status of mobile booking requests (to hide Accept/Decline when expired; hide Decline when captured)
+  useEffect(() => {
+    const fetchMobileRequestStatuses = async () => {
+      if (!notifications.length || !user?.id) return;
+      const ids = notifications
+        .filter(n => n.family === 'mobile_request' || n.source_type === 'mobile_booking_request')
+        .map(n => getMobileRequestId(n))
+        .filter((id): id is string => Boolean(id));
+      const uniqueIds = [...new Set(ids)];
+      if (uniqueIds.length === 0) return;
+      try {
+        const { data, error } = await supabase
+          .from('mobile_booking_requests')
+          .select('id, status, payment_status')
+          .in('id', uniqueIds)
+          .eq('practitioner_id', user.id);
+        if (error) return;
+        const statusMap: Record<string, string> = {};
+        const paymentMap: Record<string, string> = {};
+        (data || []).forEach((r: { id: string; status: string; payment_status?: string }) => {
+          statusMap[r.id] = r.status;
+          paymentMap[r.id] = r.payment_status ?? 'pending';
+        });
+        setMobileRequestStatuses(statusMap);
+        setMobileRequestPaymentStatuses(paymentMap);
+      } catch { /* non-blocking */ }
+    };
+    fetchMobileRequestStatuses();
   }, [notifications, user?.id]);
 
   // Check if reciprocal bookings exist for accepted exchange requests
@@ -524,12 +674,134 @@ export const TherapistDashboard = () => {
         }
       }
 
+      // Pending received exchange requests for New Bookings sidebar (dedicated query, no date limit)
+      const { data: pendingSidebarRaw } = await supabase
+        .from('treatment_exchange_requests')
+        .select(`
+          id,
+          requester_id,
+          requested_session_date,
+          requested_start_time,
+          duration_minutes,
+          created_at,
+          requester:users!treatment_exchange_requests_requester_id_fkey(
+            first_name,
+            last_name
+          )
+        `)
+        .eq('recipient_id', user!.id)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      const pendingForSidebar = (pendingSidebarRaw || []).map((req: any) => ({
+        id: req.id,
+        requester_id: req.requester_id,
+        requester_name: req.requester ? `${req.requester.first_name || ''} ${req.requester.last_name || ''}`.trim() || 'Practitioner' : 'Practitioner',
+        requested_session_date: req.requested_session_date,
+        requested_start_time: req.requested_start_time,
+        duration_minutes: req.duration_minutes,
+        created_at: req.created_at ?? null,
+      }));
+      setPendingExchangeRequestsForSidebar(pendingForSidebar);
+
+      // Accepted exchange requests needing reciprocal booking (recipient must book return session)
+      const { data: acceptedSidebarRaw } = await supabase
+        .from('treatment_exchange_requests')
+        .select(`
+          id,
+          requester_id,
+          requested_session_date,
+          requested_start_time,
+          duration_minutes,
+          created_at,
+          extension_requested_at,
+          extension_approved_at,
+          reciprocal_booking_deadline,
+          requester:users!treatment_exchange_requests_requester_id_fkey(
+            first_name,
+            last_name
+          )
+        `)
+        .eq('recipient_id', user!.id)
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (acceptedSidebarRaw && acceptedSidebarRaw.length > 0) {
+        const { data: mutualSessions } = await supabase
+          .from('mutual_exchange_sessions')
+          .select('exchange_request_id, practitioner_b_id, practitioner_b_booked')
+          .in('exchange_request_id', acceptedSidebarRaw.map((r: any) => r.id));
+
+        const needsReciprocal = new Set<string>();
+        (mutualSessions || []).forEach((ms: any) => {
+          if (ms.practitioner_b_id === user!.id && ms.practitioner_b_booked !== true) {
+            needsReciprocal.add(ms.exchange_request_id);
+          }
+        });
+
+        const acceptedForSidebar = (acceptedSidebarRaw || [])
+          .filter((req: any) => needsReciprocal.has(req.id))
+          .map((req: any) => ({
+            id: req.id,
+            requester_id: req.requester_id,
+            requester_name: req.requester ? `${req.requester.first_name || ''} ${req.requester.last_name || ''}`.trim() || 'Practitioner' : 'Practitioner',
+            requested_session_date: req.requested_session_date,
+            requested_start_time: req.requested_start_time,
+            duration_minutes: req.duration_minutes,
+            created_at: req.created_at ?? null,
+            extension_requested_at: req.extension_requested_at ?? null,
+            extension_approved_at: req.extension_approved_at ?? null,
+            reciprocal_booking_deadline: req.reciprocal_booking_deadline ?? null,
+          }));
+        setAcceptedExchangeNeedingReciprocalForSidebar(acceptedForSidebar);
+      } else {
+        setAcceptedExchangeNeedingReciprocalForSidebar([]);
+      }
+
+      // Accepted requests where user is requester (recipient accepted; requester sees "Your request was accepted")
+      const { data: acceptedAsRequesterRaw } = await supabase
+        .from('treatment_exchange_requests')
+        .select(`
+          id,
+          recipient_id,
+          requested_session_date,
+          requested_start_time,
+          duration_minutes,
+          created_at,
+          extension_requested_at,
+          extension_approved_at,
+          extension_days,
+          recipient:users!treatment_exchange_requests_recipient_id_fkey(
+            first_name,
+            last_name
+          )
+        `)
+        .eq('requester_id', user!.id)
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setAcceptedExchangeForRequesterSidebar((acceptedAsRequesterRaw || []).map((req: any) => ({
+        id: req.id,
+        recipient_id: req.recipient_id,
+        recipient_name: req.recipient ? `${req.recipient.first_name || ''} ${req.recipient.last_name || ''}`.trim() || 'Practitioner' : 'Practitioner',
+        requested_session_date: req.requested_session_date,
+        requested_start_time: req.requested_start_time,
+        duration_minutes: req.duration_minutes,
+        created_at: req.created_at ?? null,
+        extension_requested_at: req.extension_requested_at ?? null,
+        extension_approved_at: req.extension_approved_at ?? null,
+        extension_days: req.extension_days ?? null,
+      })));
+
       // Convert received exchange requests to SessionData format
       const receivedExchangeRequestSessions: SessionData[] = (receivedExchangeRequests || [])
         .filter((req: any) => {
-          // Only show pending requests, or accepted requests that haven't expired
           if (req.status === 'pending') {
-            return req.expires_at && new Date(req.expires_at) > new Date();
+            return !req.expires_at || new Date(req.expires_at) > new Date();
           }
           // For accepted requests, only show them if NO corresponding client_sessions exists
           if (req.status === 'accepted') {
@@ -674,7 +946,7 @@ export const TherapistDashboard = () => {
         }))
       ];
 
-      // Map raw sessions to SessionData (include is_guest for diary labeling)
+      // Map raw sessions to SessionData (include is_guest, appointment_type, visit_address for hybrid visibility)
       const regularSessionsFallback: SessionData[] = (sessions || []).map((s: any) => ({
         id: s.id,
         session_type: s.session_type || 'Client session',
@@ -687,14 +959,40 @@ export const TherapistDashboard = () => {
         status: getDisplaySessionStatus(s),
         payment_status: s.payment_status ?? null,
         is_peer_booking: false,
-        is_guest: s.is_guest_booking === true
+        is_guest: s.is_guest_booking === true,
+        appointment_type: s.appointment_type ?? null,
+        visit_address: s.visit_address ?? null
       }));
-      // Combine regular sessions and exchange requests, sort by date/time
-      const allSessions = [...regularSessionsFallback, ...exchangeRequestSessions, ...peerBookingSessions].sort((a, b) => {
+      // Pending mobile booking requests (mobile + hybrid practitioners)
+      let mobileRequestSessionsFallback: SessionData[] = [];
+      try {
+        const { data: mobileRequests } = await supabase.rpc('get_practitioner_mobile_requests', {
+          p_practitioner_id: user!.id,
+          p_status: 'pending'
+        });
+        mobileRequestSessionsFallback = (mobileRequests || []).map((r: { id: string; requested_date: string; requested_start_time: string; client_name: string; product_name: string; duration_minutes: number }) => ({
+          id: r.id,
+          session_type: r.product_name || 'Mobile request',
+          client_name: r.client_name || 'Client',
+          client_email: '',
+          session_date: r.requested_date,
+          start_time: typeof r.requested_start_time === 'string' ? r.requested_start_time.slice(0, 5) : String(r.requested_start_time).slice(0, 5),
+          duration_minutes: r.duration_minutes || 60,
+          price: 0,
+          status: 'pending',
+          payment_status: null,
+          is_peer_booking: false,
+          is_mobile_request: true
+        }));
+      } catch {
+        mobileRequestSessionsFallback = [];
+      }
+      // Combine regular sessions, exchange requests, peer bookings, and pending mobile requests
+      const allSessions = [...regularSessionsFallback, ...exchangeRequestSessions, ...peerBookingSessions, ...mobileRequestSessionsFallback].sort((a, b) => {
         const dateCompare = a.session_date.localeCompare(b.session_date);
         if (dateCompare !== 0) return dateCompare;
         return a.start_time.localeCompare(b.start_time);
-      }).slice(0, 10); // Increased limit to accommodate more sessions
+      }).slice(0, 20);
 
       // Fetch total sessions (exclude cancelled/no_show and peer bookings - only actual client sessions)
       const { data: totalSessions } = await supabase
@@ -746,6 +1044,43 @@ export const TherapistDashboard = () => {
         setPendingSameDayBookings(pending || []);
       } catch {
         setPendingSameDayBookings([]);
+      }
+
+      // Dedicated fetch for confirmed mobile sessions (New Bookings augment)
+      try {
+        const next60 = new Date();
+        next60.setDate(next60.getDate() + 60);
+        const next60Str = next60.toISOString().split('T')[0];
+        const { data: mobileSessions } = await supabase
+          .from('client_sessions')
+          .select('id, client_name, session_date, start_time, status')
+          .eq('therapist_id', user!.id)
+          .eq('appointment_type', 'mobile')
+          .eq('is_peer_booking', false)
+          .in('status', ['confirmed', 'scheduled'])
+          .gte('session_date', today)
+          .lte('session_date', next60Str)
+          .order('session_date', { ascending: true })
+          .order('start_time', { ascending: true })
+          .limit(50);
+        const mapped: SessionData[] = (mobileSessions || []).map((s: any) => ({
+          id: s.id,
+          session_type: 'Client session',
+          client_name: s.client_name?.trim() || 'Client',
+          client_email: '',
+          session_date: s.session_date,
+          start_time: s.start_time,
+          duration_minutes: 60,
+          price: 0,
+          status: s.status || 'confirmed',
+          payment_status: null,
+          is_peer_booking: false,
+          is_reciprocal_booking: false,
+          appointment_type: 'mobile'
+        }));
+        setConfirmedMobileSessionsList(mapped);
+      } catch {
+        setConfirmedMobileSessionsList([]);
       }
     } catch (error) {
       console.error('Error in fallback fetch:', error);
@@ -807,6 +1142,7 @@ export const TherapistDashboard = () => {
             requester_notes,
             status,
             expires_at,
+            created_at,
             requester:users!treatment_exchange_requests_requester_id_fkey(
               first_name,
               last_name
@@ -917,12 +1253,135 @@ export const TherapistDashboard = () => {
           }
         }
 
+        // Pending received exchange requests for New Bookings sidebar (dedicated query, no date limit)
+        // Main receivedExchangeRequests is date-scoped (next 7 days) for Upcoming Sessions; sidebar needs ALL pending
+        const { data: pendingSidebarRaw } = await supabase
+          .from('treatment_exchange_requests')
+          .select(`
+            id,
+            requester_id,
+            requested_session_date,
+            requested_start_time,
+            duration_minutes,
+            created_at,
+            requester:users!treatment_exchange_requests_requester_id_fkey(
+              first_name,
+              last_name
+            )
+          `)
+          .eq('recipient_id', user.id)
+          .eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        const pendingForSidebar = (pendingSidebarRaw || []).map((req: any) => ({
+          id: req.id,
+          requester_id: req.requester_id,
+          requester_name: req.requester ? `${req.requester.first_name || ''} ${req.requester.last_name || ''}`.trim() || 'Practitioner' : 'Practitioner',
+          requested_session_date: req.requested_session_date,
+          requested_start_time: req.requested_start_time,
+          duration_minutes: req.duration_minutes,
+          created_at: req.created_at ?? null,
+        }));
+        setPendingExchangeRequestsForSidebar(pendingForSidebar);
+
+        // Accepted exchange requests needing reciprocal booking (recipient must book return session)
+        const { data: acceptedSidebarRaw } = await supabase
+          .from('treatment_exchange_requests')
+          .select(`
+            id,
+            requester_id,
+            requested_session_date,
+            requested_start_time,
+            duration_minutes,
+            created_at,
+            extension_requested_at,
+            extension_approved_at,
+            reciprocal_booking_deadline,
+            requester:users!treatment_exchange_requests_requester_id_fkey(
+              first_name,
+              last_name
+            )
+          `)
+          .eq('recipient_id', user.id)
+          .eq('status', 'accepted')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (acceptedSidebarRaw && acceptedSidebarRaw.length > 0) {
+          const { data: mutualSessions } = await supabase
+            .from('mutual_exchange_sessions')
+            .select('exchange_request_id, practitioner_b_id, practitioner_b_booked')
+            .in('exchange_request_id', acceptedSidebarRaw.map((r: any) => r.id));
+
+          const needsReciprocal = new Set<string>();
+          (mutualSessions || []).forEach((ms: any) => {
+            if (ms.practitioner_b_id === user.id && ms.practitioner_b_booked !== true) {
+              needsReciprocal.add(ms.exchange_request_id);
+            }
+          });
+
+          const acceptedForSidebar = (acceptedSidebarRaw || [])
+            .filter((req: any) => needsReciprocal.has(req.id))
+            .map((req: any) => ({
+              id: req.id,
+              requester_id: req.requester_id,
+              requester_name: req.requester ? `${req.requester.first_name || ''} ${req.requester.last_name || ''}`.trim() || 'Practitioner' : 'Practitioner',
+              requested_session_date: req.requested_session_date,
+              requested_start_time: req.requested_start_time,
+              duration_minutes: req.duration_minutes,
+              created_at: req.created_at ?? null,
+              extension_requested_at: req.extension_requested_at ?? null,
+              extension_approved_at: req.extension_approved_at ?? null,
+              reciprocal_booking_deadline: req.reciprocal_booking_deadline ?? null,
+            }));
+          setAcceptedExchangeNeedingReciprocalForSidebar(acceptedForSidebar);
+        } else {
+          setAcceptedExchangeNeedingReciprocalForSidebar([]);
+        }
+
+        // Accepted requests where user is requester (recipient accepted; requester sees "Your request was accepted")
+        const { data: acceptedAsRequesterRaw } = await supabase
+          .from('treatment_exchange_requests')
+          .select(`
+            id,
+            recipient_id,
+            requested_session_date,
+            requested_start_time,
+            duration_minutes,
+            created_at,
+            extension_requested_at,
+            extension_approved_at,
+            extension_days,
+            recipient:users!treatment_exchange_requests_recipient_id_fkey(
+              first_name,
+              last_name
+            )
+          `)
+          .eq('requester_id', user.id)
+          .eq('status', 'accepted')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        setAcceptedExchangeForRequesterSidebar((acceptedAsRequesterRaw || []).map((req: any) => ({
+          id: req.id,
+          recipient_id: req.recipient_id,
+          recipient_name: req.recipient ? `${req.recipient.first_name || ''} ${req.recipient.last_name || ''}`.trim() || 'Practitioner' : 'Practitioner',
+          requested_session_date: req.requested_session_date,
+          requested_start_time: req.requested_start_time,
+          duration_minutes: req.duration_minutes,
+          created_at: req.created_at ?? null,
+          extension_requested_at: req.extension_requested_at ?? null,
+          extension_approved_at: req.extension_approved_at ?? null,
+          extension_days: req.extension_days ?? null,
+        })));
+
         // Convert received exchange requests to SessionData format
         const receivedExchangeRequestSessions: SessionData[] = (receivedExchangeRequests || [])
           .filter((req: any) => {
-            // Only show pending requests, or accepted requests that haven't expired
             if (req.status === 'pending') {
-              return req.expires_at && new Date(req.expires_at) > new Date();
+              return !req.expires_at || new Date(req.expires_at) > new Date();
             }
             // For accepted requests, only show them if NO corresponding client_sessions exists
             if (req.status === 'accepted') {
@@ -1017,7 +1476,9 @@ export const TherapistDashboard = () => {
             status: getDisplaySessionStatus(s),
             payment_status: s.payment_status ?? null,
             is_peer_booking: false,
-            is_guest: s.is_guest_booking === true
+            is_guest: s.is_guest_booking === true,
+            appointment_type: s.appointment_type ?? null,
+            visit_address: s.visit_address ?? null
           }));
 
         // Fetch actual treatment exchange bookings (peer bookings) where user is therapist
@@ -1091,11 +1552,36 @@ export const TherapistDashboard = () => {
           }))
         ];
 
-        const allSessions = [...regularSessions, ...exchangeRequestSessions, ...peerBookingSessions].sort((a, b) => {
+        // Pending mobile booking requests (for mobile + hybrid practitioners) – accept/decline on /practice/mobile-requests
+        let mobileRequestSessions: SessionData[] = [];
+        try {
+          const { data: mobileRequests } = await supabase.rpc('get_practitioner_mobile_requests', {
+            p_practitioner_id: user.id,
+            p_status: 'pending'
+          });
+          mobileRequestSessions = (mobileRequests || []).map((r: { id: string; requested_date: string; requested_start_time: string; client_name: string; product_name: string; duration_minutes: number }) => ({
+            id: r.id,
+            session_type: r.product_name || 'Mobile request',
+            client_name: r.client_name || 'Client',
+            client_email: '',
+            session_date: r.requested_date,
+            start_time: typeof r.requested_start_time === 'string' ? r.requested_start_time.slice(0, 5) : String(r.requested_start_time).slice(0, 5),
+            duration_minutes: r.duration_minutes || 60,
+            price: 0,
+            status: 'pending',
+            payment_status: null,
+            is_peer_booking: false,
+            is_mobile_request: true
+          }));
+        } catch {
+          mobileRequestSessions = [];
+        }
+
+        const allSessions = [...regularSessions, ...exchangeRequestSessions, ...peerBookingSessions, ...mobileRequestSessions].sort((a, b) => {
           const dateCompare = a.session_date.localeCompare(b.session_date);
           if (dateCompare !== 0) return dateCompare;
           return a.start_time.localeCompare(b.start_time);
-        }).slice(0, 10); // Increased limit to accommodate more sessions
+        }).slice(0, 20); // Increased to accommodate sessions + mobile requests
 
         setUpcomingSessions(allSessions);
         setOptimisticSessions(allSessions);
@@ -1112,6 +1598,43 @@ export const TherapistDashboard = () => {
           setPendingSameDayBookings(pending || []);
         } catch {
           setPendingSameDayBookings([]);
+        }
+
+        // Dedicated fetch for confirmed mobile sessions (New Bookings augment - not reliant on RPC structure)
+        try {
+          const next60 = new Date();
+          next60.setDate(next60.getDate() + 60);
+          const next60Str = next60.toISOString().split('T')[0];
+          const { data: mobileSessions } = await supabase
+            .from('client_sessions')
+            .select('id, client_name, session_date, start_time, status')
+            .eq('therapist_id', user.id)
+            .eq('appointment_type', 'mobile')
+            .eq('is_peer_booking', false)
+            .in('status', ['confirmed', 'scheduled'])
+            .gte('session_date', today)
+            .lte('session_date', next60Str)
+            .order('session_date', { ascending: true })
+            .order('start_time', { ascending: true })
+            .limit(50);
+          const mapped: SessionData[] = (mobileSessions || []).map((s: any) => ({
+            id: s.id,
+            session_type: 'Client session',
+            client_name: s.client_name?.trim() || 'Client',
+            client_email: '',
+            session_date: s.session_date,
+            start_time: s.start_time,
+            duration_minutes: 60,
+            price: 0,
+            status: s.status || 'confirmed',
+            payment_status: null,
+            is_peer_booking: false,
+            is_reciprocal_booking: false,
+            appointment_type: 'mobile'
+          }));
+          setConfirmedMobileSessionsList(mapped);
+        } catch {
+          setConfirmedMobileSessionsList([]);
         }
       }
     } catch (error) {
@@ -1161,6 +1684,31 @@ export const TherapistDashboard = () => {
         },
         (payload) => {
           // Refresh dashboard data when exchange requests change
+          fetchDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchDashboardData]);
+
+  // Real-time subscription for mobile booking requests (mobile + hybrid practitioners)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('mobile_booking_requests_dashboard')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mobile_booking_requests',
+          filter: `practitioner_id=eq.${user.id}`
+        },
+        () => {
           fetchDashboardData();
         }
       )
@@ -1244,6 +1792,36 @@ export const TherapistDashboard = () => {
       toast.error(error instanceof Error ? error.message : 'Failed to decline request');
     } finally {
       setRespondingToRequest(null);
+    }
+  }, [user?.id, fetchDashboardData]);
+
+  const [extendingRequestId, setExtendingRequestId] = useState<string | null>(null);
+
+  const handleRequestExtension = useCallback(async (requestId: string) => {
+    if (!user?.id) return;
+    try {
+      setExtendingRequestId(requestId);
+      await TreatmentExchangeService.requestExchangeExtension(requestId, user.id, 3);
+      toast.success('Extension requested. Waiting for requester to approve.');
+      await fetchDashboardData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to request extension');
+    } finally {
+      setExtendingRequestId(null);
+    }
+  }, [user?.id, fetchDashboardData]);
+
+  const handleApproveExtension = useCallback(async (requestId: string) => {
+    if (!user?.id) return;
+    try {
+      setExtendingRequestId(requestId);
+      await TreatmentExchangeService.approveExchangeExtension(requestId, user.id);
+      toast.success('Extension approved. Recipient has more time to book.');
+      await fetchDashboardData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to approve extension');
+    } finally {
+      setExtendingRequestId(null);
     }
   }, [user?.id, fetchDashboardData]);
 
@@ -1429,17 +2007,9 @@ export const TherapistDashboard = () => {
         .from('notifications')
         .select('*')
         .eq('recipient_id', user.id)
-        .in('type', [
-          'booking_confirmed',
-          'booking_confirmation',
-          'payment_confirmed',
-          'booking_approved',
-          'booking_approved_practitioner',
-          'booking_request',
-          'exchange_session_confirmed',
-        ])
+        .is('dismissed_at', null)
         .order('created_at', { ascending: false })
-        .limit(30);
+        .limit(50);
 
       if (error) throw error;
 
@@ -1473,12 +2043,7 @@ export const TherapistDashboard = () => {
     if (!user?.id || !notificationId) return;
     
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read_at: new Date().toISOString() })
-        .eq('id', notificationId);
-
-      if (error) throw error;
+      await markNotificationRead(notificationId, user.id);
 
       // Update local state immediately
       setNotifications(prev => 
@@ -1495,6 +2060,122 @@ export const TherapistDashboard = () => {
       toast.error('Failed to mark notification as read');
     }
   }, [user?.id]);
+
+  const handleAcceptMobileRequest = useCallback(async (requestId: string, notificationId: string) => {
+    if (!user?.id) return;
+    setMobileRequestProcessingId(requestId);
+    try {
+      const { data: req, error: fetchErr } = await supabase
+        .from('mobile_booking_requests')
+        .select('status, stripe_payment_intent_id, payment_status')
+        .eq('id', requestId)
+        .eq('practitioner_id', user.id)
+        .single();
+      if (fetchErr || !req) throw new Error('Request not found');
+      if (req.status !== 'pending') {
+        throw new Error('Request not found or not pending');
+      }
+      // Per Stripe: some payment methods (e.g. wallets) auto-capture; RPC accepts both 'held' and 'captured'
+      if ((req.payment_status !== 'held' && req.payment_status !== 'captured') || !req.stripe_payment_intent_id) {
+        throw new Error('Request not found or payment not ready');
+      }
+      // Only capture when held; skip when already captured (e.g. auto-capture payment methods)
+      if (req.payment_status === 'held') {
+        const { error: captureError } = await supabase.functions.invoke('mobile-payment', {
+          body: { action: 'capture-mobile-payment', payment_intent_id: req.stripe_payment_intent_id },
+        });
+        if (captureError) throw captureError;
+      }
+      const { data, error } = await supabase.rpc('accept_mobile_booking_request', {
+        p_request_id: requestId,
+        p_stripe_payment_intent_id: req.stripe_payment_intent_id,
+      });
+      if (error) throw error;
+      if (!data?.success && data?.error) throw new Error(data.error);
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      toast.success('Request accepted! Payment captured and session created.');
+      try { await dismissNotification(notificationId, user.id); } catch { /* non-blocking */ }
+      await Promise.all([fetchDashboardData(), fetchNotifications()]);
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to accept request';
+      const isStale = /not found|not pending|payment hold not ready|expired|already processed/i.test(msg);
+      toast.error(isStale ? 'This request is no longer available.' : msg);
+      if (isStale) {
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+        try { await dismissNotification(notificationId, user.id); } catch { /* non-blocking */ }
+      }
+    } finally {
+      setMobileRequestProcessingId(null);
+    }
+  }, [user?.id, fetchDashboardData, fetchNotifications]);
+
+  const handleDeclineMobileRequest = useCallback(async (requestId: string, notificationId: string) => {
+    if (!user?.id) return;
+    setMobileRequestProcessingId(requestId);
+    try {
+      const { data: req, error: fetchErr } = await supabase
+        .from('mobile_booking_requests')
+        .select('status, stripe_payment_intent_id, payment_status, client_id, requested_date, requested_start_time')
+        .eq('id', requestId)
+        .eq('practitioner_id', user.id)
+        .single();
+      if (fetchErr || !req) throw new Error('Request not found');
+      if (req.status !== 'pending') {
+        throw new Error('Request not found or not pending');
+      }
+      if (req.payment_status === 'captured') {
+        // Refetch so UI hides Decline button on next render
+        const { data: refresh } = await supabase
+          .from('mobile_booking_requests')
+          .select('id, payment_status')
+          .eq('id', requestId)
+          .single();
+        if (refresh) {
+          setMobileRequestPaymentStatuses((prev) => ({ ...prev, [requestId]: refresh.payment_status ?? 'captured' }));
+        }
+        throw new Error('Payment already captured. Please accept the request or contact support for a refund.');
+      }
+      if (req.payment_status === 'held' && req.stripe_payment_intent_id) {
+        const { error: releaseError } = await supabase.functions.invoke('mobile-payment', {
+          body: { action: 'release-mobile-payment', payment_intent_id: req.stripe_payment_intent_id },
+        });
+        if (releaseError) throw releaseError;
+      }
+      const { data, error } = await supabase.rpc('decline_mobile_booking_request', {
+        p_request_id: requestId,
+        p_decline_reason: null,
+      });
+      if (error) throw error;
+      if (!data?.success && data?.error) throw new Error(data.error);
+      if (req.client_id) {
+        const practitionerName = [userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(' ').trim() || 'Your practitioner';
+        NotificationSystem.sendMobileBookingDeclinedNotification(req.client_id, {
+          requestId,
+          practitionerName,
+          serviceType: 'Mobile service',
+          requestedDate: req.requested_date,
+          requestedTime: req.requested_start_time,
+          declineReason: null,
+          alternateDate: null,
+          alternateTime: null,
+        }).catch((e) => console.error('Failed to send decline email:', e));
+      }
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      toast.success('Request declined. Payment released.');
+      try { await dismissNotification(notificationId, user.id); } catch { /* non-blocking */ }
+      await Promise.all([fetchDashboardData(), fetchNotifications()]);
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to decline request';
+      const isStale = /not found|not pending|payment hold not ready|expired|already processed/i.test(msg);
+      toast.error(isStale ? 'This request is no longer available.' : msg);
+      if (isStale) {
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+        try { await dismissNotification(notificationId, user.id); } catch { /* non-blocking */ }
+      }
+    } finally {
+      setMobileRequestProcessingId(null);
+    }
+  }, [user?.id, userProfile, fetchDashboardData, fetchNotifications]);
 
   // Fetch client progress updates
   const fetchClientProgress = useCallback(async () => {
@@ -1834,22 +2515,189 @@ export const TherapistDashboard = () => {
     );
   }, [userProfile, profileActivationData]);
 
-  // New-booking notifications only: confirmed/approved bookings and incoming mobile requests.
-  // Excludes cancellations, reminders, declines, and expirations.
-  const NEW_BOOKING_TYPES = new Set([
-    'booking_confirmed',
-    'booking_confirmation',
-    'payment_confirmed',
-    'booking_approved',
-    'booking_approved_practitioner',
-    'booking_request',
-    'exchange_session_confirmed',
-  ]);
-  const bookingNotifications = notifications.filter((n) => NEW_BOOKING_TYPES.has(n.type));
-  const unreadBookingCount = bookingNotifications.filter((n) => !n.read).length;
+  // New-booking notifications only: incoming booking confirmations/requests plus actionable
+  // treatment-exchange notifications. Filter client-side to avoid enum mismatches during rollout.
+  const bookingNotifications = notifications.filter(isNewBookingNotification);
+
+  // Augment with confirmed mobile sessions (dedicated fetch - not reliant on RPC/slice limits)
+  const notificationSessionIds = new Set(
+    bookingNotifications
+      .map((n) => (n.data?.session_id ?? n.data?.sessionId) as string)
+      .filter(Boolean)
+  );
+  const confirmedMobileSessions = (confirmedMobileSessionsList || [])
+    .filter((s) => !notificationSessionIds.has(s.id))
+    .map(
+      (s): NormalizedNotification =>
+        ({
+          id: `session-${s.id}`,
+          type: "booking_confirmed",
+          family: "booking",
+          title: "Mobile Session Confirmed",
+          message: `Session with ${s.client_name || "Client"} on ${s.session_date} at ${s.start_time?.slice(0, 5) || ""} is confirmed.`,
+          data: {
+            session_id: s.id,
+            sessionId: s.id,
+            client_name: s.client_name,
+            clientName: s.client_name,
+            session_date: s.session_date,
+            sessionDate: s.session_date,
+            session_time: s.start_time,
+            sessionTime: s.start_time
+          },
+          source_type: "mobile_booking_request",
+          source_id: null,
+          user_id: user?.id ?? null,
+          read: true,
+          dismissed_at: null,
+          created_at: null
+        })
+    )
+    .sort((a, b) => {
+      const aDate = a.data?.session_date ?? "";
+      const bDate = b.data?.session_date ?? "";
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return (a.data?.session_time ?? "").localeCompare(b.data?.session_time ?? "");
+    });
+
+  // Exchange items: use treatment_exchange_requests (DB source of truth), NOT notifications (stale)
+  const pendingExchangeItems: NormalizedNotification[] = pendingExchangeRequestsForSidebar.map((req) => ({
+    id: `exchange-${req.id}`,
+    type: "treatment_exchange_request",
+    family: "exchange" as const,
+    title: "New Treatment Exchange Request",
+    message: `${req.requester_name} has requested a ${req.duration_minutes}-minute treatment exchange`,
+    data: {
+      requestId: req.id,
+      request_id: req.id,
+      requester_id: req.requester_id,
+      requesterId: req.requester_id,
+      practitionerName: req.requester_name,
+      sessionDate: req.requested_session_date,
+      session_date: req.requested_session_date,
+      startTime: req.requested_start_time,
+      requested_start_time: req.requested_start_time,
+      duration: req.duration_minutes,
+      duration_minutes: req.duration_minutes,
+    },
+    source_type: "treatment_exchange_request",
+    source_id: req.id,
+    user_id: user?.id ?? null,
+    read: false,
+    dismissed_at: null,
+    created_at: req.created_at,
+  }));
+
+  const acceptedNeedingReciprocalItems: NormalizedNotification[] = acceptedExchangeNeedingReciprocalForSidebar.map((req) => ({
+    id: `exchange-reciprocal-${req.id}`,
+    type: "exchange_reciprocal_booking_reminder",
+    family: "exchange" as const,
+    title: "Book your return session",
+    message: `You accepted an exchange with ${req.requester_name}. Book your return session to complete the exchange.`,
+    data: {
+      requestId: req.id,
+      request_id: req.id,
+      requester_id: req.requester_id,
+      requesterId: req.requester_id,
+      practitionerName: req.requester_name,
+      sessionDate: req.requested_session_date,
+      session_date: req.requested_session_date,
+      startTime: req.requested_start_time,
+      requested_start_time: req.requested_start_time,
+      duration: req.duration_minutes,
+      duration_minutes: req.duration_minutes,
+      extension_requested_at: req.extension_requested_at,
+      extension_approved_at: req.extension_approved_at,
+      reciprocal_booking_deadline: req.reciprocal_booking_deadline,
+    },
+    source_type: "treatment_exchange_request",
+    source_id: req.id,
+    user_id: user?.id ?? null,
+    read: false,
+    dismissed_at: null,
+    created_at: req.created_at,
+  }));
+
+  const acceptedForRequesterItems: NormalizedNotification[] = acceptedExchangeForRequesterSidebar.map((req) => ({
+    id: `exchange-accepted-requester-${req.id}`,
+    type: "exchange_request_accepted",
+    family: "exchange" as const,
+    title: "Request accepted",
+    message: `${req.recipient_name} accepted your treatment exchange request. They will book their return session to complete the exchange.`,
+    data: {
+      requestId: req.id,
+      request_id: req.id,
+      recipient_id: req.recipient_id,
+      practitionerName: req.recipient_name,
+      sessionDate: req.requested_session_date,
+      session_date: req.requested_session_date,
+      startTime: req.requested_start_time,
+      requested_start_time: req.requested_start_time,
+      duration: req.duration_minutes,
+      duration_minutes: req.duration_minutes,
+      extension_requested_at: req.extension_requested_at,
+      extension_approved_at: req.extension_approved_at,
+      extension_days: req.extension_days,
+    },
+    source_type: "treatment_exchange_request",
+    source_id: req.id,
+    user_id: user?.id ?? null,
+    read: false,
+    dismissed_at: null,
+    created_at: req.created_at,
+  }));
+
+  const exchangeItemsFromDb: NormalizedNotification[] = [
+    ...pendingExchangeItems,
+    ...acceptedNeedingReciprocalItems,
+    ...acceptedForRequesterItems,
+  ];
+
+  // Exclude exchange notifications (we use DB instead); keep mobile, clinic, etc.
+  // exchange_request_accepted for requester comes from acceptedForRequesterItems (DB)
+  const nonExchangeNotifications = bookingNotifications.filter(
+    (n) => n.source_type !== "treatment_exchange_request" && n.source_type !== "slot_hold"
+  );
+
+  const allBookingItems: NormalizedNotification[] = [
+    ...nonExchangeNotifications,
+    ...exchangeItemsFromDb,
+    ...confirmedMobileSessions,
+  ].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bTime - aTime;
+  });
+  const unreadBookingCount = allBookingItems.filter((n) => !n.read).length;
 
   if (loading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-background">
+        <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <StatsSkeleton count={4} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="h-10 w-48 rounded-md bg-muted animate-pulse" />
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <SessionCardSkeleton key={i} />
+                ))}
+              </div>
+            </div>
+            <aside className="space-y-6">
+              <div className="h-8 w-36 rounded-md bg-muted animate-pulse mb-4" />
+              <MessageSkeleton count={4} />
+              <div className="h-8 w-28 rounded-md bg-muted animate-pulse mt-6 mb-4" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
+                ))}
+              </div>
+            </aside>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -2064,8 +2912,23 @@ export const TherapistDashboard = () => {
                                     <p className="text-sm text-muted-foreground">Request {knownStatus === 'accepted' ? 'accepted' : 'declined'}</p>
                                   ) : (
                                     <div className="flex flex-wrap gap-2">
-                                      <Button size="sm" variant="outline" disabled={isDisabled} onClick={() => { if (window.confirm(`Decline request from ${(s as SessionData).requester_name || (s as SessionData).client_name}?`)) handleDeclineExchangeRequest(s as SessionData); }}>Decline</Button>
-                                      <Button size="sm" disabled={isDisabled} onClick={() => handleAcceptExchangeRequest(s as SessionData)}>Accept</Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={isDisabled}
+                                        title={isDisabled ? (knownStatus === 'accepted' ? 'Request already accepted' : knownStatus === 'declined' ? 'Request already declined' : 'Processing…') : undefined}
+                                        onClick={() => { if (window.confirm(`Release slot so ${(s as SessionData).requester_name || (s as SessionData).client_name} can request a different time?`)) handleDeclineExchangeRequest(s as SessionData); }}
+                                      >
+                                        Reschedule
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        disabled={isDisabled}
+                                        title={isDisabled ? (knownStatus === 'accepted' ? 'Request already accepted' : knownStatus === 'declined' ? 'Request already declined' : 'Processing…') : undefined}
+                                        onClick={() => handleAcceptExchangeRequest(s as SessionData)}
+                                      >
+                                        Accept
+                                      </Button>
                                     </div>
                                   )}
                                 </div>
@@ -2078,6 +2941,22 @@ export const TherapistDashboard = () => {
                                 {(s as SessionData).is_guest && <span className="text-muted-foreground font-normal"> (Guest)</span>}
                               </p>
                               <p className="text-sm text-muted-foreground">{(s as SessionData).session_type || "Session"} · {(s as SessionData).duration_minutes} mins</p>
+                              {!(s as SessionData).is_peer_booking && (userProfile?.therapist_type === 'hybrid' || userProfile?.therapist_type === 'mobile') && (
+                                (() => {
+                                  const sd = s as SessionData;
+                                  const appType = sd.appointment_type ?? 'clinic';
+                                  const loc = getSessionLocation(
+                                    { appointment_type: appType, visit_address: sd.visit_address },
+                                    { clinic_address: userProfile?.clinic_address ?? undefined, location: userProfile?.location ?? undefined }
+                                  );
+                                  return (
+                                    <p className="text-xs text-muted-foreground">
+                                      {appType === 'mobile' ? 'Mobile' : 'Clinic'}
+                                      {loc.sessionLocation && ` · ${loc.sessionLocation.length > 40 ? loc.sessionLocation.slice(0, 40) + '…' : loc.sessionLocation}`}
+                                    </p>
+                                  );
+                                })()
+                              )}
                               {!(s as SessionData).is_peer_booking && (
                                 <div className="flex flex-wrap gap-2">
                                   {((s as SessionData).status === "scheduled" || (s as SessionData).status === "confirmed") && (
@@ -2103,36 +2982,255 @@ export const TherapistDashboard = () => {
 
           {/* Sidebar: New Bookings (top), Profile, This Week */}
           <aside className="lg:col-span-4 space-y-6">
-            {/* New Bookings - shows booking & mobile request notifications only */}
-            <Card className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+            {/* New Bookings - modern cozy layout with inline Accept/Decline for mobile requests */}
+            <Card className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm bg-card/95 backdrop-blur transition-shadow hover:shadow-[var(--shadow-soft)]">
               <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-bold text-slate-800 dark:text-white">New Bookings</h2>
-                  {unreadBookingCount > 0 && <span className="text-xs font-semibold text-primary">{unreadBookingCount} new</span>}
+                  {unreadBookingCount > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary">{unreadBookingCount} new</span>
+                  )}
                 </div>
               </div>
-              <div className="divide-y divide-slate-50 dark:divide-slate-800">
-                {bookingNotifications.length === 0 ? (
-                  <div className="p-6 flex items-center justify-center text-slate-400 dark:text-slate-500 italic text-sm">No new bookings</div>
+              <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-50 dark:divide-slate-800">
+                {allBookingItems.length === 0 ? (
+                  <div className="p-8 flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+                      <Calendar className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No new bookings</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">New clinic and mobile requests will appear here.</p>
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => navigate("/practice/schedule")}>
+                      View schedule
+                    </Button>
+                  </div>
                 ) : (
-                  bookingNotifications.slice(0, 10).map((n) => (
-                    <button
-                      key={n.id}
-                      type="button"
-                      className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                      onClick={() => handleNotificationNavigation(n, navigate, markNotificationAsRead, userProfile?.user_role)}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium text-slate-800 dark:text-slate-200 text-sm leading-snug">{n.title || "Booking"}</span>
-                        {n.created_at && (
-                          <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 mt-0.5">
-                            {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-                          </span>
+                  allBookingItems.slice(0, 10).map((n) => {
+                    const requiresReview = requiresReviewAction(n);
+                    const isMobileRequest = n.family === "mobile_request" || n.source_type === "mobile_booking_request";
+                    const mobileRequestId = isMobileRequest ? getMobileRequestId(n) : null;
+                    const mobileStatus = mobileRequestId ? mobileRequestStatuses[mobileRequestId] : null;
+                    const mobilePaymentStatus = mobileRequestId ? mobileRequestPaymentStatuses[mobileRequestId] : null;
+                    const isMobileExpired = mobileRequestId && mobileStatus && mobileStatus !== "pending";
+                    const canDecline = mobilePaymentStatus === "held"; // Decline only when held; captured needs refund
+                    const isProcessing = mobileRequestId && mobileRequestProcessingId === mobileRequestId;
+                    const preview = formatBookingNotificationPreview(n);
+
+                    return (
+                      <div
+                        key={n.id}
+                        className="p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors rounded-xl mx-2 my-1"
+                      >
+                        <button
+                          type="button"
+                          className="w-full text-left"
+                          onClick={() => {
+                            if (isMobileRequest && mobileRequestId && n.type !== 'booking_confirmed') {
+                              navigate(`/practice/mobile-requests?requestId=${mobileRequestId}`);
+                            } else {
+                              // Synthetic exchange items (id starts with 'exchange-') have no DB notification; skip markAsRead
+                              const markAsReadForNav = typeof n.id === 'string' && n.id.startsWith('exchange-')
+                                ? undefined
+                                : markNotificationAsRead;
+                              handleNotificationNavigation(n, navigate, markAsReadForNav, userProfile?.user_role);
+                            }
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-900 dark:text-white text-[15px] leading-tight">
+                                  {preview.who}
+                                </span>
+                                {preview.badge && (
+                                  <span
+                                    className={
+                                      preview.badge === "Mobile"
+                                        ? "text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200"
+                                        : preview.badge === "Exchange"
+                                        ? "text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
+                                        : "text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300"
+                                    }
+                                  >
+                                    {preview.badge}
+                                  </span>
+                                )}
+                              </div>
+                              {preview.when && (
+                                <p className="text-sm text-slate-500 dark:text-slate-400 leading-snug">
+                                  {preview.when}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                        {isMobileRequest && mobileRequestId && n.type !== 'booking_confirmed' && (
+                          <div className="flex gap-2 mt-3 items-center" onClick={(e) => e.stopPropagation()}>
+                            {isMobileExpired ? (
+                              <>
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  Expired
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="rounded-full h-8 px-3 text-xs"
+                                  onClick={async () => {
+                                    setNotifications((prev) => prev.filter((n2) => n2.id !== n.id));
+                                    try { await dismissNotification(n.id, user?.id ?? ""); } catch { /* non-blocking */ }
+                                  }}
+                                >
+                                  Dismiss
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="rounded-full h-8 px-4 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  onClick={() => handleAcceptMobileRequest(mobileRequestId, n.id)}
+                                  disabled={isProcessing}
+                                >
+                                  {isProcessing ? (
+                                    <span className="flex items-center gap-1.5">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...
+                                    </span>
+                                  ) : mobilePaymentStatus === "captured" ? (
+                                    <>
+                                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Confirm
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Accept
+                                    </>
+                                  )}
+                                </Button>
+                                {canDecline ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-full h-8 px-4 text-xs font-medium border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                    onClick={() => handleDeclineMobileRequest(mobileRequestId, n.id)}
+                                    disabled={isProcessing}
+                                  >
+                                    <XCircle className="h-3.5 w-3.5 mr-1.5" /> Decline
+                                  </Button>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {n.type === "exchange_reciprocal_booking_reminder" && n.source_id && (
+                          <div className="flex gap-2 mt-3 items-center" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              className="rounded-full h-8 px-4 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={() => navigate(`/practice/exchange-requests?request=${n.source_id}`)}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Book return
+                            </Button>
+                            {(n.data as Record<string, unknown>)?.extension_requested_at == null && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full h-8 px-4 text-xs font-medium border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                onClick={() => handleRequestExtension(n.source_id as string)}
+                                disabled={extendingRequestId === n.source_id}
+                              >
+                                {extendingRequestId === n.source_id ? (
+                                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                ) : (
+                                  <>
+                                    <CalendarClock className="h-3.5 w-3.5 mr-1.5" /> Request extension
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            {(n.data as Record<string, unknown>)?.extension_requested_at && !(n.data as Record<string, unknown>)?.extension_approved_at && (
+                              <span className="text-xs text-slate-500 dark:text-slate-400">Extension requested</span>
+                            )}
+                          </div>
+                        )}
+                        {n.type === "exchange_request_accepted" && n.source_id && (n.data as Record<string, unknown>)?.extension_requested_at && !(n.data as Record<string, unknown>)?.extension_approved_at && (
+                          <div className="flex gap-2 mt-3 items-center" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              className="rounded-full h-8 px-4 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={() => handleApproveExtension(n.source_id as string)}
+                              disabled={extendingRequestId === n.source_id}
+                            >
+                              {extendingRequestId === n.source_id ? (
+                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Approve +{(n.data as Record<string, unknown>)?.extension_days ?? 3} days
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        )}
+                        {isExchangeRequest(n) && n.source_id && requiresReview && !isMobileRequest && n.type !== "exchange_reciprocal_booking_reminder" && n.type !== "exchange_request_accepted" && (
+                          <div className="flex gap-2 mt-3 items-center" onClick={(e) => e.stopPropagation()}>
+                            {(() => {
+                              const reqId = n.source_id as string;
+                              const knownStatus = exchangeRequestStatuses[reqId];
+                              const isNoLongerPending = knownStatus === "accepted" || knownStatus === "declined";
+                              const isDisabled = respondingToRequest === reqId || isNoLongerPending;
+                              const d = n.data && typeof n.data === "object" ? n.data as Record<string, unknown> : {};
+                              const sessionLike = {
+                                exchange_request_id: reqId,
+                                requester_name: (d.practitionerName as string) ?? preview.who,
+                                requester_id: (d.requester_id ?? d.requesterId) as string | undefined,
+                                session_date: (d.session_date ?? d.sessionDate) as string | undefined,
+                                start_time: (d.startTime ?? d.requested_start_time) as string | undefined,
+                                duration_minutes: (d.duration ?? d.duration_minutes ?? 60) as number,
+                              } as SessionData;
+                              if (isNoLongerPending) {
+                                return (
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    Request {knownStatus === "accepted" ? "accepted" : "declined"}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-full h-8 px-4 text-xs font-medium border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                    onClick={() => {
+                                      if (window.confirm(`Release slot so ${sessionLike.requester_name} can request a different time?`)) {
+                                        handleDeclineExchangeRequest(sessionLike);
+                                      }
+                                    }}
+                                    disabled={isDisabled}
+                                  >
+                                    <CalendarClock className="h-3.5 w-3.5 mr-1.5" /> Reschedule
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="rounded-full h-8 px-4 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    onClick={() => handleAcceptExchangeRequest(sessionLike)}
+                                    disabled={isDisabled}
+                                  >
+                                    {respondingToRequest === reqId ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Accept
+                                      </>
+                                    )}
+                                  </Button>
+                                </>
+                              );
+                            })()}
+                          </div>
                         )}
                       </div>
-                      <span className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1 block mt-0.5">{cleanNotificationMessage(n)}</span>
-                    </button>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </Card>
@@ -2178,7 +3276,11 @@ export const TherapistDashboard = () => {
                 {(optimisticSessions?.length ?? 0) === 0 ? (
                   <div className="bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 text-center">
                     <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">No upcoming sessions this week.</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No upcoming sessions this week</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-3">Your schedule is open for new bookings.</p>
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => navigate("/practice/schedule")}>
+                      View full schedule
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -2188,12 +3290,25 @@ export const TherapistDashboard = () => {
                           <div className="min-w-0">
                             <p className="font-medium text-slate-800 dark:text-slate-200 truncate">{(s as SessionData).session_type || "Session"}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{getFriendlyDateLabel(s.session_date)} · {formatTimeWithoutSeconds(s.start_time)}</p>
+                            {(userProfile?.therapist_type === 'hybrid' || userProfile?.therapist_type === 'mobile') && !(s as SessionData).is_mobile_request && !(s as SessionData).is_exchange_request && (
+                              (() => {
+                                const sd = s as SessionData;
+                                const appType = sd.appointment_type ?? 'clinic';
+                                const loc = getSessionLocation(
+                                  { appointment_type: appType, visit_address: sd.visit_address },
+                                  { clinic_address: userProfile?.clinic_address ?? undefined, location: userProfile?.location ?? undefined }
+                                );
+                                return (
+                                  <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{appType === 'mobile' ? 'Mobile' : 'Clinic'}{loc.sessionLocation ? ` · ${loc.sessionLocation}` : ''}</p>
+                                );
+                              })()
+                            )}
                           </div>
                           <Button
                             variant="outline"
                             size="sm"
                             className="h-7 px-2 text-xs"
-                            onClick={() => navigate(`/practice/clients?session=${(s as SessionData).id}&tab=sessions`)}
+                            onClick={() => navigate(`/practice/sessions/${(s as SessionData).id}`)}
                           >
                             View
                           </Button>
@@ -2210,24 +3325,24 @@ export const TherapistDashboard = () => {
 
       {/* Treatment Notes Prompt - Removed until TreatmentNotesPrompt component exists */}
 
-      {/* Treatment Exchange Response Modal */}
+      {/* Treatment Exchange Response Modal - Reschedule only (no Decline to prevent credits fraud) */}
       <Dialog open={showResponseModal} onOpenChange={setShowResponseModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Respond to Treatment Exchange Request</DialogTitle>
+            <DialogTitle>Request Different Time</DialogTitle>
             <DialogDescription>
               {selectedExchangeRequest && (
                 <>
-                  Request from {selectedExchangeRequest.requester_name || selectedExchangeRequest.client_name} for {getFriendlyDateLabel(selectedExchangeRequest.session_date)} at {formatTimeWithoutSeconds(selectedExchangeRequest.start_time)}
+                  Genuinely busy at this time? Release the slot and suggest when you&apos;re available. {selectedExchangeRequest.requester_name || selectedExchangeRequest.client_name} can then send a new request.
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Response Notes (Optional)</label>
+              <label className="text-sm font-medium">When are you available? (Optional but helpful)</label>
               <Textarea
-                placeholder="Add any notes about your response..."
+                placeholder="e.g. I'm available Tuesdays after 2pm, or next week"
                 value={responseNotes}
                 onChange={(e) => setResponseNotes(e.target.value)}
                 className="mt-2"
@@ -2245,8 +3360,8 @@ export const TherapistDashboard = () => {
                 disabled={respondingToRequest !== null}
                 className="flex-1"
               >
-                <X className="h-4 w-4 mr-2" />
-                Decline
+                <CalendarClock className="h-4 w-4 mr-2" />
+                Reschedule
               </Button>
               <Button
                 onClick={() => {

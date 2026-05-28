@@ -526,32 +526,11 @@ const Credits = () => {
         console.error('Error fetching credits:', creditsError);
       }
 
-      // If no credits record exists, create one with 0 balance
-      if (!creditsData && creditsError?.code === 'PGRST116') {
-        console.log('Creating initial credits record for user');
-        const { data: newCredits, error: createError } = await supabase
-          .from('credits')
-          .insert({
-            user_id: userProfile?.id,
-            balance: 0,
-            current_balance: 0,
-            total_earned: 0,
-            total_spent: 0
-          })
-          .select('balance, current_balance, total_earned, total_spent')
-          .single();
-
-        if (createError) {
-          console.error('Error creating credits record:', createError);
-          // Even if creation fails, set to 0 so UI doesn't break
-          setCurrentBalance(0);
-          setTotalEarned(0);
-          setTotalSpent(0);
-        } else if (newCredits) {
-          setCurrentBalance(newCredits.current_balance || newCredits.balance || 0);
-          setTotalEarned(newCredits.total_earned || 0);
-          setTotalSpent(newCredits.total_spent || 0);
-        }
+      // Missing rows should be created by backend credit flows, not direct client writes.
+      if (!creditsData) {
+        setCurrentBalance(0);
+        setTotalEarned(0);
+        setTotalSpent(0);
       } else {
         // Set balance and totals from database (single source of truth)
         setCurrentBalance(creditsData?.current_balance || creditsData?.balance || 0);
@@ -627,8 +606,7 @@ const Credits = () => {
       const { data: mutualExchangeSession } = await supabase
         .from('mutual_exchange_sessions')
         .select('conversation_id')
-        .or(`requester_id.eq.${userProfile.id},recipient_id.eq.${userProfile.id}`)
-        .or(`requester_id.eq.${otherUserId},recipient_id.eq.${otherUserId}`)
+        .or(`and(practitioner_a_id.eq.${userProfile.id},practitioner_b_id.eq.${otherUserId}),and(practitioner_a_id.eq.${otherUserId},practitioner_b_id.eq.${userProfile.id})`)
         .not('conversation_id', 'is', null)
         .limit(1)
         .maybeSingle();

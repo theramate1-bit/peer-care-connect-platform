@@ -106,6 +106,11 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   initialRebookingData
 }) => {
   const { user, userProfile } = useAuth();
+  const clinicLocation = (practitioner.clinic_address || practitioner.location || 'Clinic address').trim();
+  const handleRedirectToMobile = () => {
+    onOpenChange(false);
+    onRedirectToMobile?.();
+  };
 
   // Enforce correct booking path: mobile-only must use MobileBookingRequestFlow, not clinic flow.
   useEffect(() => {
@@ -134,7 +139,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
             .eq('is_active', true),
           supabase
             .from('users')
-            .select('therapist_type, mobile_service_radius_km, base_latitude, base_longitude')
+            .select('therapist_type, mobile_service_radius_km, base_latitude, base_longitude, clinic_latitude, clinic_longitude')
             .eq('id', practitioner.user_id)
             .maybeSingle(),
         ]);
@@ -144,6 +149,8 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
           mobile_service_radius_km: userData?.mobile_service_radius_km ?? practitioner.mobile_service_radius_km ?? null,
           base_latitude: userData?.base_latitude ?? practitioner.base_latitude ?? null,
           base_longitude: userData?.base_longitude ?? practitioner.base_longitude ?? null,
+          clinic_latitude: userData?.clinic_latitude ?? (practitioner as { clinic_latitude?: number | null }).clinic_latitude ?? null,
+          clinic_longitude: userData?.clinic_longitude ?? (practitioner as { clinic_longitude?: number | null }).clinic_longitude ?? null,
           products: (productsData as Array<{ is_active: boolean; service_type?: 'clinic' | 'mobile' | 'both' | null }> | null) ?? practitioner.products ?? [],
         };
 
@@ -864,21 +871,64 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
         {/* Step 1: Service & Date/Time Selection (Combined) - same style as guest for clients */}
         {step === 1 && (
           <div className="space-y-6">
-            {/* Service Selection - guest-style cards for clients, ServiceRecommendationCard for practitioners */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-2">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Select Service</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {services.length > 0 ? (
-                    <div className={cn('grid gap-3', isClient ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')}>
-                      {services.map((svc, index) => {
-                        if (isClient) {
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Service Selection - guest-style cards for clients, ServiceRecommendationCard for practitioners */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-2 h-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Select Service</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {services.length > 0 ? (
+                      <div className={cn('grid gap-3', isClient ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')}>
+                        {services.map((svc, index) => {
+                          if (isClient) {
+                            return (
+                              <motion.div
+                                key={svc.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.3, delay: index * 0.05 }}
+                              >
+                                <Card
+                                  className={cn(
+                                    'cursor-pointer transition-[border-color,background-color] duration-200 ease-out h-full',
+                                    selectedServiceId === svc.id
+                                      ? 'border-primary bg-primary/5 shadow-md scale-[1.02]'
+                                      : 'border-border hover:border-primary/50'
+                                  )}
+                                  onClick={() => setSelectedServiceId(svc.id)}
+                                >
+                                  <CardContent className="p-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <h4 className="font-semibold text-sm">{svc.name}</h4>
+                                          {selectedServiceId === svc.id && (
+                                            <CheckCircle className="h-4 w-4 text-primary" />
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                          <span className="flex items-center gap-1">
+                                            <Timer className="h-3 w-3" />
+                                            {(svc.duration_minutes ?? 60)}m
+                                          </span>
+                                          <span className="font-semibold text-primary">
+                                            £{((svc.price_amount ?? 0) / 100).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </motion.div>
+                            );
+                          }
+                          const isRecommended = index === 0 && (svc.popularity_score || 0) > 0;
                           return (
                             <motion.div
                               key={svc.id}
@@ -886,92 +936,96 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ duration: 0.3, delay: index * 0.05 }}
                             >
-                              <Card
-                                className={cn(
-                                  'cursor-pointer transition-[border-color,background-color] duration-200 ease-out h-full',
-                                  selectedServiceId === svc.id
-                                    ? 'border-primary bg-primary/5 shadow-md scale-[1.02]'
-                                    : 'border-border hover:border-primary/50'
-                                )}
+                              <ServiceRecommendationCard
+                                service={svc}
+                                isRecommended={isRecommended}
+                                allServices={services}
                                 onClick={() => setSelectedServiceId(svc.id)}
-                              >
-                                <CardContent className="p-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h4 className="font-semibold text-sm">{svc.name}</h4>
-                                        {selectedServiceId === svc.id && (
-                                          <CheckCircle className="h-4 w-4 text-primary" />
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1">
-                                          <Timer className="h-3 w-3" />
-                                          {(svc.duration_minutes ?? 60)}m
-                                        </span>
-                                        <span className="font-semibold text-primary">
-                                          £{((svc.price_amount ?? 0) / 100).toFixed(2)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
+                                className={selectedServiceId === svc.id ? 'ring-2 ring-primary' : ''}
+                              />
                             </motion.div>
                           );
-                        }
-                        const isRecommended = index === 0 && (svc.popularity_score || 0) > 0;
-                        return (
-                          <motion.div
-                            key={svc.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.05 }}
-                          >
-                            <ServiceRecommendationCard
-                              service={svc}
-                              isRecommended={isRecommended}
-                              allServices={services}
-                              onClick={() => setSelectedServiceId(svc.id)}
-                              className={selectedServiceId === svc.id ? 'ring-2 ring-primary' : ''}
-                            />
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
-                      <p className="text-sm text-muted-foreground">
-                        No clinic booking services are currently available for this practitioner.
-                      </p>
-                      {canRequestMobile(practitioner) ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => {
-                              onOpenChange(false);
-                              onRedirectToMobile?.();
-                            }}
-                          >
-                            Request Visit to My Location
-                          </Button>
-                          {!onRedirectToMobile && (
-                            <p className="text-xs text-muted-foreground">
-                              Mobile request is available from the practitioner profile.
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Please contact the practitioner directly or check back later.
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          No clinic booking services are currently available for this practitioner.
                         </p>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
+                        {canRequestMobile(practitioner) ? (
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleRedirectToMobile}
+                            >
+                              Request Visit to My Location
+                            </Button>
+                            {!onRedirectToMobile && (
+                              <p className="text-xs text-muted-foreground">
+                                Mobile request is available from the practitioner profile.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Please contact the practitioner directly or check back later.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+              >
+                <Card className="border-2 h-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">
+                      {practitioner.therapist_type === 'mobile'
+                        ? 'Travels to you'
+                        : practitioner.therapist_type === 'hybrid'
+                          ? 'Session at clinic'
+                          : 'Location'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {practitioner.therapist_type === 'mobile' ? (
+                      <div className="rounded-lg bg-muted/20 p-4 text-sm text-muted-foreground">
+                        This practitioner travels to your location. You&apos;ll be asked for your address when you request a mobile session.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="rounded-lg border bg-muted/20 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-full border bg-background p-2">
+                              <MapPin className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="space-y-1">
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clinicLocation)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                              >
+                                {clinicLocation}
+                              </a>
+                              <p className="text-xs text-muted-foreground">
+                                Your session will take place at the practitioner clinic.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
 
             {/* Inline message when returned to step 1 due to slot no longer available (NNG error recovery) */}
             {slotUnavailableReturned && (

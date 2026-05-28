@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { BookingCalendar } from "@/components/BookingCalendar";
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Copy, Check, Link as LinkIcon } from 'lucide-react';
+import { Copy, Check, Link as LinkIcon, SlidersHorizontal, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PracticeSchedule = () => {
@@ -14,6 +15,10 @@ const PracticeSchedule = () => {
   const [bookingSlug, setBookingSlug] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     if (user?.id) {
@@ -66,9 +71,39 @@ const PracticeSchedule = () => {
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900 font-sans text-slate-800 dark:text-slate-200 transition-colors duration-200 p-4 md:p-8 min-h-screen">
-      {/* Booking Link Card */}
+      {/* Calendar at top so "View all" opens with schedule visible */}
+      <BookingCalendar userType="therapist" />
+
+      {/* Matches native diary: services/scheduler + calendar settings are separate stack routes */}
+      <Card className="mt-6">
+        <CardContent className="pt-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+            More scheduling tools
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Same flows as the mobile app: full services & scheduler editor, then calendar
+            sync and external calendar settings.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button variant="outline" className="flex-1 justify-start gap-2" asChild>
+              <Link to="/practice/scheduler">
+                <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                Services & scheduler
+              </Link>
+            </Button>
+            <Button variant="outline" className="flex-1 justify-start gap-2" asChild>
+              <Link to="/practice/calendar">
+                <CalendarClock className="h-4 w-4 shrink-0" />
+                Calendar & sync
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Booking Link Card below calendar */}
       {!loading && bookingSlug && (
-        <Card className="mb-6">
+        <Card className="mt-6">
           <CardContent className="pt-6">
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
@@ -107,8 +142,6 @@ const PracticeSchedule = () => {
           </CardContent>
         </Card>
       )}
-
-      <BookingCalendar userType="therapist" />
     </div>
   );
 };

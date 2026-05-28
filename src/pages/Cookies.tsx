@@ -2,15 +2,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StandardPage from '@/components/layouts/StandardPage';
-
-const COOKIE_CONSENT_KEY = 'tm_cookie_consent_v1';
+import {
+  LEGAL_LAST_UPDATED,
+  COMPANY_LEGAL_NAME,
+  getCompanyRegistrationDisplay,
+  getPlaceOfRegistrationDisplay,
+  getRegisteredOfficeDisplay,
+} from '@/config/uk-legal';
+import { TM_COOKIE_CONSENT_KEY } from '@/lib/analytics/cookieConsentStorage';
 
 const Cookies = () => {
   return (
     <StandardPage title="Cookie Policy" badgeText="Cookies" subtitle="How we use cookies and how you can control your preferences.">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="text-center mb-6">
-          <Badge variant="secondary">Last updated: February 2026</Badge>
+          <Badge variant="secondary">Last updated: {LEGAL_LAST_UPDATED}</Badge>
         </div>
 
         <Card>
@@ -24,6 +30,13 @@ const Cookies = () => {
             <p>
               We use cookies to make the Platform work, to remember your choices, and to understand how the Platform is used. Where we use non-essential cookies (such as analytics or marketing), we ask for your consent via the cookie banner when you first visit. You can change your preferences at any time using the options on this page or your browser settings.
             </p>
+            <div className="rounded-md bg-muted/50 p-3 mt-4 text-xs sm:text-sm space-y-1">
+              <p className="font-medium text-foreground">Company details</p>
+              <p className="text-muted-foreground">{COMPANY_LEGAL_NAME}</p>
+              <p className="text-muted-foreground">{getPlaceOfRegistrationDisplay()}</p>
+              <p className="text-muted-foreground">{getCompanyRegistrationDisplay()}</p>
+              <p className="text-muted-foreground">{getRegisteredOfficeDisplay()}</p>
+            </div>
           </CardContent>
         </Card>
 
@@ -47,7 +60,7 @@ const Cookies = () => {
                 </thead>
                 <tbody className="text-muted-foreground">
                   <tr>
-                    <td className="border border-border px-3 py-2">{COOKIE_CONSENT_KEY}</td>
+                    <td className="border border-border px-3 py-2">{TM_COOKIE_CONSENT_KEY}</td>
                     <td className="border border-border px-3 py-2">Stores your cookie consent choices (essential, analytics, marketing) so we do not ask again on every visit.</td>
                     <td className="border border-border px-3 py-2">12 months</td>
                     <td className="border border-border px-3 py-2">Strictly necessary (consent record)</td>
@@ -115,7 +128,7 @@ const Cookies = () => {
                 variant="outline"
                 onClick={() => {
                   try {
-                    localStorage.removeItem(COOKIE_CONSENT_KEY);
+                    localStorage.removeItem(TM_COOKIE_CONSENT_KEY);
                   } catch {}
                   window.location.reload();
                 }}

@@ -19,7 +19,7 @@ export const HeroSectionClean = () => {
   };
 
   return (
-    <header className="relative pt-28 pb-16 px-6 overflow-hidden bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950">
+    <header className="relative pt-28 pb-16 px-6 overflow-hidden landing-section-surface">
       <div className="max-w-7xl mx-auto">
         <div className="max-w-4xl">
           {/* Main headline with stagger animation */}
@@ -30,7 +30,7 @@ export const HeroSectionClean = () => {
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
             Book practitioners.{" "}
-            <span className="bg-gradient-to-r from-wellness-500 to-primary bg-clip-text text-transparent">
+            <span className="text-primary">
               Feel better.
             </span>
           </motion.h1>
@@ -64,7 +64,7 @@ export const HeroSectionClean = () => {
               />
               <button
                 type="submit"
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-xl bg-primary text-white hover:bg-primary/90 transition-[background-color,transform] duration-200 ease-out hover:scale-105"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-xl landing-cta transition-[background-color,transform] duration-200 ease-out hover:scale-105"
               >
                 <ArrowRight className="h-5 w-5" />
               </button>
@@ -97,8 +97,8 @@ export const HeroSectionClean = () => {
           transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
         >
           <div className="flex items-start gap-4 group">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-              <Heart className="h-6 w-6 text-primary" />
+            <div className="landing-icon-tile-lg flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+              <Heart className="h-6 w-6" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white mb-1 text-lg">Trusted Practitioners</h3>
@@ -109,8 +109,8 @@ export const HeroSectionClean = () => {
           </div>
 
           <div className="flex items-start gap-4 group">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-              <Clock className="h-6 w-6 text-primary" />
+            <div className="landing-icon-tile-lg flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+              <Clock className="h-6 w-6" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white mb-1 text-lg">Book Instantly</h3>
@@ -121,8 +121,8 @@ export const HeroSectionClean = () => {
           </div>
 
           <div className="flex items-start gap-4 group">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-              <Shield className="h-6 w-6 text-primary" />
+            <div className="landing-icon-tile-lg flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+              <Shield className="h-6 w-6" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white mb-1 text-lg">Secure Payments</h3>

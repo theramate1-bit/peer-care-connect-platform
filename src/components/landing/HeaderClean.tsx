@@ -21,7 +21,7 @@ export const HeaderClean = () => {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-cream-50/90 dark:bg-slate-950/80 backdrop-blur-md border-b border-cream-150 dark:border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -34,7 +34,7 @@ export const HeaderClean = () => {
               />
             </div>
             <span className="text-xl font-bold text-slate-900 dark:text-white">
-              Theramate
+              TheraMate.
             </span>
           </Link>
 

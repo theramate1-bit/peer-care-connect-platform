@@ -1,11 +1,24 @@
-import { filterSessions } from '@/lib/my-sessions-filters';
+import {
+  filterSessions,
+  getUniquePractitioners,
+  type SessionForFilter,
+  type SessionFilters,
+} from '../my-sessions-filters';
 
-const baseFilters = {
+const baseFilters: SessionFilters = {
   practitionerId: '',
-  date: 'all_time' as const,
+  date: 'all_time',
+  status: 'all',
 };
 
-describe('my sessions filters', () => {
+const baseSession: SessionForFilter = {
+  id: 's1',
+  therapist_id: 't1',
+  session_date: '2025-02-15',
+  status: 'completed',
+};
+
+describe('my sessions filters (scheduled display status)', () => {
   test('scheduled bucket uses normalized display status for paid pending_payment rows', () => {
     const sessions = [
       {
@@ -33,30 +46,12 @@ describe('my sessions filters', () => {
 
     const scheduled = filterSessions(sessions, {
       ...baseFilters,
-      status: 'scheduled',
+      status: 'scheduled' as const,
     });
 
     expect(scheduled.map((s) => s.id)).toEqual(['s-1', 's-2', 's-3']);
   });
 });
-/**
- * Unit tests for My Sessions filter logic (KAN-76)
- */
-
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import {
-  filterSessions,
-  getUniquePractitioners,
-  type SessionForFilter,
-  type SessionFilters,
-} from '../my-sessions-filters';
-
-const baseSession: SessionForFilter = {
-  id: 's1',
-  therapist_id: 't1',
-  session_date: '2025-02-15',
-  status: 'completed',
-};
 
 describe('filterSessions', () => {
   const fixedDate = new Date('2025-02-20');
@@ -174,5 +169,25 @@ describe('getUniquePractitioners', () => {
     const result = getUniquePractitioners(sessions);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('Unknown');
+  });
+
+  it('skips sessions with null therapist_id', () => {
+    const sessions = [
+      { therapist_id: null as any, therapist: { first_name: 'A', last_name: 'B' } },
+    ];
+    const result = getUniquePractitioners(sessions);
+    expect(result).toHaveLength(0);
+  });
+
+  it('uses first_name only when last_name missing', () => {
+    const sessions = [{ therapist_id: 't1', therapist: { first_name: 'Jane', last_name: undefined } }];
+    const result = getUniquePractitioners(sessions);
+    expect(result[0].name).toBe('Jane');
+  });
+
+  it('uses last_name only when first_name missing', () => {
+    const sessions = [{ therapist_id: 't1', therapist: { first_name: undefined, last_name: 'Doe' } }];
+    const result = getUniquePractitioners(sessions);
+    expect(result[0].name).toBe('Doe');
   });
 });

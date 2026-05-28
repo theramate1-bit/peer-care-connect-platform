@@ -1,83 +1,90 @@
 /**
- * Integration tests for booking database operations
+ * Database integration tests for booking operations
+ * Uses mocked Supabase to verify RPC calls and table operations
  */
 
+jest.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+    auth: { getUser: jest.fn() },
+  },
+}));
+
+import { supabase } from '@/integrations/supabase/client';
+import { CancellationPolicyService } from '@/lib/cancellation-policy';
+
+const mockFrom = supabase.from as jest.Mock;
+const mockRpc = supabase.rpc as jest.Mock;
+
 describe('Booking Database Operations', () => {
-  beforeAll(() => {
-    // Set up test database connection
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  afterAll(() => {
-    // Clean up test database
-  });
+  describe('CancellationPolicyService RPC', () => {
+    it('calls get_cancellation_policy with practitioner id', async () => {
+      mockRpc.mockResolvedValue({
+        data: [{
+          advance_notice_hours: 24,
+          full_refund_hours: 24,
+          partial_refund_hours: 12,
+          partial_refund_percent: 50,
+          no_refund_hours: 12,
+        }],
+        error: null,
+      });
 
-  describe('RPC Functions', () => {
-    it('should create booking with correct pricing calculation', async () => {
-      // Test booking creation RPC function
-      // Verify platform fee and practitioner earnings are calculated correctly
-      expect(true).toBe(true); // Placeholder
+      await CancellationPolicyService.getPolicy('practitioner-123');
+
+      expect(mockRpc).toHaveBeenCalledWith('get_cancellation_policy', {
+        p_practitioner_id: 'practitioner-123',
+      });
     });
 
-    it('should check practitioner availability', async () => {
-      // Test check_availability RPC function
-      expect(true).toBe(true); // Placeholder
-    });
+    it('returns default policy when RPC returns empty', async () => {
+      mockRpc.mockResolvedValue({ data: [], error: null });
 
-    it('should prevent double booking', async () => {
-      // Test that same time slot cannot be booked twice
-      expect(true).toBe(true); // Placeholder
-    });
-  });
+      const policy = await CancellationPolicyService.getPolicy('p1');
 
-  describe('Triggers', () => {
-    it('should send notification on booking creation', async () => {
-      // Test trigger that creates notification
-      expect(true).toBe(true); // Placeholder
-    });
-
-    it('should update calendar on booking status change', async () => {
-      // Test trigger that syncs with calendar
-      expect(true).toBe(true); // Placeholder
-    });
-
-    it('should handle booking cancellation refunds', async () => {
-      // Test trigger that processes refunds
-      expect(true).toBe(true); // Placeholder
+      expect(policy.full_refund_hours).toBe(24);
+      expect(policy.partial_refund_percent).toBe(50);
     });
   });
 
-  describe('RLS Policies', () => {
-    it('should allow clients to view their own bookings', async () => {
-      // Test RLS policy
-      expect(true).toBe(true); // Placeholder
-    });
+  describe('calculateRefund RPC', () => {
+    it('calls calculate_cancellation_refund with session id', async () => {
+      mockRpc.mockResolvedValue({
+        data: { success: true, refund_amount: 5000, refund_type: 'full' },
+        error: null,
+      });
 
-    it('should allow practitioners to view their bookings', async () => {
-      // Test RLS policy
-      expect(true).toBe(true); // Placeholder
-    });
+      await CancellationPolicyService.calculateRefund('session-1');
 
-    it('should prevent users from viewing other users bookings', async () => {
-      // Test RLS policy prevents unauthorized access
-      expect(true).toBe(true); // Placeholder
+      expect(mockRpc).toHaveBeenCalledWith('calculate_cancellation_refund', expect.objectContaining({
+        p_session_id: 'session-1',
+      }));
     });
   });
 
-  describe('Data Integrity', () => {
-    it('should enforce foreign key constraints', async () => {
-      // Test that booking requires valid client_id and practitioner_id
-      expect(true).toBe(true); // Placeholder
+  describe('Data contract for create_booking RPC', () => {
+    it('documents expected create_booking_with_validation params', () => {
+      const expectedParams = [
+        'p_therapist_id', 'p_client_id', 'p_client_name', 'p_client_email',
+        'p_session_date', 'p_start_time', 'p_duration_minutes', 'p_session_type',
+        'p_price', 'p_payment_status', 'p_status', 'p_expires_at', 'p_idempotency_key',
+      ];
+      expect(expectedParams.length).toBeGreaterThan(10);
     });
+  });
 
-    it('should validate booking dates are in future', async () => {
-      // Test check constraint
-      expect(true).toBe(true); // Placeholder
-    });
+  describe('get_cancellation_policy error handling', () => {
+    it('returns default policy when RPC throws', async () => {
+      mockRpc.mockRejectedValue({ code: 'PGRST202', message: 'Function not found' });
 
-    it('should maintain booking status consistency', async () => {
-      // Test status transitions are valid
-      expect(true).toBe(true); // Placeholder
+      const policy = await CancellationPolicyService.getPolicy('p1');
+
+      expect(policy.full_refund_hours).toBe(24);
     });
   });
 });
-

@@ -32,16 +32,15 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Info, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
-import { PricingCalculator } from '@/components/pricing/PricingCalculator';
-import { PricingTips } from '@/components/pricing/PricingTips';
-
 interface ProductFormProps {
   practitionerId: string;
   product?: PractitionerProduct;
   onSuccess: (product: PractitionerProduct) => void;
   onCancel: () => void;
-  initialServiceCategory?: string; // Pre-select service category when creating from a service section
-  initialServiceType?: 'clinic' | 'mobile' | 'both'; // Pre-select service type when creating from a tab
+  initialServiceCategory?: string;
+  initialServiceType?: 'clinic' | 'mobile' | 'both';
+  /** When set, pre-fill form from this product with service_type flipped (for hybrid duplicate) */
+  duplicateFrom?: PractitionerProduct;
 }
 
 // Service code to display name mapping
@@ -86,28 +85,33 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   onCancel,
   initialServiceCategory,
   initialServiceType,
+  duplicateFrom,
 }) => {
   const { user, userProfile } = useAuth();
   const [availableServices, setAvailableServices] = useState<string[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
-  
+  const sourceProduct = product ?? duplicateFrom;
+
   // Get default duration based on service category if provided
   const getInitialDuration = () => {
-    if (product?.duration_minutes) return product.duration_minutes;
+    if (sourceProduct?.duration_minutes) return sourceProduct.duration_minutes;
     if (initialServiceCategory && typeof initialServiceCategory === 'string') {
       return getServiceDefaultDuration(initialServiceCategory);
     }
-    if (product?.service_category && typeof product.service_category === 'string') {
-      return getServiceDefaultDuration(product.service_category);
+    if (sourceProduct?.service_category && typeof sourceProduct.service_category === 'string') {
+      return getServiceDefaultDuration(sourceProduct.service_category);
     }
     return 60; // Default fallback
   };
 
   const getInitialName = () => {
     if (product?.name) return product.name;
-    // Safely get service category - ensure it's a string
+    if (duplicateFrom?.name) {
+      const suffix = duplicateFrom.service_type === 'clinic' ? ' (Mobile)' : duplicateFrom.service_type === 'mobile' ? ' (Clinic)' : ' (Mobile)';
+      return duplicateFrom.name.replace(/\s*\((Mobile|Clinic)\)\s*$/i, '').trim() + suffix;
+    }
     const serviceCategory = (typeof initialServiceCategory === 'string' ? initialServiceCategory : null) 
-      || (typeof product?.service_category === 'string' ? product.service_category : null);
+      || (typeof sourceProduct?.service_category === 'string' ? sourceProduct.service_category : null);
     if (serviceCategory && serviceCategory.trim()) {
       return generateDefaultPackageName(serviceCategory, getInitialDuration());
     }
@@ -115,10 +119,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   };
 
   const getInitialDescription = () => {
-    if (product?.description) return product.description;
-    // Safely get service category - ensure it's a string
+    if (sourceProduct?.description) return sourceProduct.description;
     const serviceCategory = (typeof initialServiceCategory === 'string' ? initialServiceCategory : null) 
-      || (typeof product?.service_category === 'string' ? product.service_category : null);
+      || (typeof sourceProduct?.service_category === 'string' ? sourceProduct.service_category : null);
     if (serviceCategory && serviceCategory.trim()) {
       return getServiceDefaultDescription(serviceCategory);
     }
@@ -126,38 +129,39 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   };
 
   const getInitialPrice = () => {
-    if (product?.price_amount) return product.price_amount;
+    if (sourceProduct?.price_amount) return sourceProduct.price_amount;
     // Will be calculated after hourly rate is loaded
     return 0;
   };
 
   // Helper to safely get service category as string
   const getSafeServiceCategory = (): string | undefined => {
-    // Check product.service_category first (if product exists)
-    if (product?.service_category) {
-      if (typeof product.service_category === 'string' && product.service_category.trim()) {
-        return product.service_category;
-      }
-      // If it's not a string, ignore it
-      return undefined;
+    if (sourceProduct?.service_category && typeof sourceProduct.service_category === 'string' && sourceProduct.service_category.trim()) {
+      return sourceProduct.service_category;
     }
-    // Then check initialServiceCategory
-    if (initialServiceCategory) {
-      if (typeof initialServiceCategory === 'string' && initialServiceCategory.trim()) {
-        return initialServiceCategory;
-      }
+    if (initialServiceCategory && typeof initialServiceCategory === 'string' && initialServiceCategory.trim()) {
+      return initialServiceCategory;
     }
     return undefined;
   };
 
-  // Get initial service_type based on product, initialServiceType prop, or therapist type
+  // Get initial service_type. Hybrid: clinic or mobile only. When duplicating, flip to opposite.
   const getInitialServiceType = (): 'clinic' | 'mobile' | 'both' => {
-    if (product?.service_type) return product.service_type;
-    if (initialServiceType) return initialServiceType;
-    // Default based on therapist type
+    if (duplicateFrom) {
+      const from = duplicateFrom.service_type;
+      if (from === 'clinic') return 'mobile';
+      if (from === 'mobile') return 'clinic';
+      return 'mobile';
+    }
+    if (product?.service_type) {
+      if (userProfile?.therapist_type === 'hybrid' && product.service_type === 'both') return 'clinic';
+      return product.service_type;
+    }
+    if (initialServiceType && initialServiceType !== 'both') return initialServiceType;
+    if (initialServiceType === 'both') return 'clinic';
     if (userProfile?.therapist_type === 'mobile') return 'mobile';
-    if (userProfile?.therapist_type === 'hybrid') return 'both';
-    return 'clinic'; // Default for clinic_based or null
+    if (userProfile?.therapist_type === 'hybrid') return 'clinic';
+    return 'clinic';
   };
 
   const [formData, setFormData] = useState<CreateProductData>({
@@ -579,8 +583,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             <div className="space-y-2">
               <Label htmlFor="serviceType">Service Delivery Type *</Label>
               <Select
-                value={formData.service_type || 'clinic'}
-                onValueChange={(value: 'clinic' | 'mobile' | 'both') => {
+                value={formData.service_type === 'both' ? 'clinic' : (formData.service_type || 'clinic')}
+                onValueChange={(value: 'clinic' | 'mobile') => {
                   setFormData(prev => ({ ...prev, service_type: value }));
                 }}
                 required
@@ -593,7 +597,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     <>
                       <SelectItem value="clinic">Clinic-Based Only</SelectItem>
                       <SelectItem value="mobile">Mobile Only</SelectItem>
-                      <SelectItem value="both">Both (Clinic & Mobile)</SelectItem>
                     </>
                   )}
                   {userProfile?.therapist_type === 'mobile' && (
@@ -602,18 +605,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {formData.service_type === 'clinic' && 'Service will be provided at your clinic location'}
-                {formData.service_type === 'mobile' && 'Service will be provided at the client\'s location'}
-                {formData.service_type === 'both' && 'Service can be provided at either your clinic or client\'s location'}
+                {formData.service_type === 'clinic' && 'Service will be provided at your clinic location.'}
+                {formData.service_type === 'mobile' && 'Service will be provided at the client\'s location.'}
+                {userProfile?.therapist_type === 'hybrid' && ' Need both? Create one, then duplicate it for the other type.'}
               </p>
             </div>
           )}
-
-          {/* KAN-72: Revenue calculator */}
-          <PricingCalculator priceAmountPence={formData.price_amount} />
-
-          {/* KAN-73: Pricing tips */}
-          <PricingTips experienceYears={userProfile?.experience_years ?? undefined} />
 
           {/* Fee breakdown */}
           {formData.price_amount > 0 && (

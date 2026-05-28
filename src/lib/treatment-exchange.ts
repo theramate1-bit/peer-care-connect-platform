@@ -12,6 +12,8 @@ import { SlotHoldingService } from './slot-holding';
 import { ExchangeNotificationService, ExchangeNotificationType } from './exchange-notifications';
 import { NotificationSystem } from './notification-system';
 import { getOverlappingBlocks } from './block-time-utils';
+import { getStarRatingTier, calculateDistance } from './treatment-exchange/matching';
+import { calculateRequiredCredits as calcCredits } from './treatment-exchange/credits';
 
 // Re-export types for backward compatibility
 export type {
@@ -86,8 +88,6 @@ export class TreatmentExchangeService {
    * @internal Use getStarRatingTier from matching module
    */
   private static getStarRatingTier(averageRating: number | string | null | undefined): number {
-    // Import and use from matching module
-    const { getStarRatingTier } = require('./treatment-exchange/matching');
     return getStarRatingTier(averageRating);
   }
 
@@ -100,9 +100,7 @@ export class TreatmentExchangeService {
    * @internal Use calculateRequiredCredits from credits module
    */
   private static calculateRequiredCredits(durationMinutes: number): number {
-    // Import and use from credits module
-    const { calculateRequiredCredits } = require('./treatment-exchange/credits');
-    return calculateRequiredCredits(durationMinutes);
+    return calcCredits(durationMinutes);
   }
 
   /**
@@ -390,8 +388,7 @@ export class TreatmentExchangeService {
         average_rating: recipientRating,
       };
 
-      // Check for existing pending requests
-      // Use maybeSingle() instead of single() to avoid 406 errors when no rows exist
+      // Check for existing pending requests (no expiry – consistent with mobile booking)
       const { data: existingRequest, error: existingRequestError } = await supabase
         .from('treatment_exchange_requests')
         .select('id')
@@ -410,7 +407,8 @@ export class TreatmentExchangeService {
         throw new Error('You already have a pending request with this practitioner. Please wait for a response or cancel the existing request before sending a new one.');
       }
 
-      // Hold the slot first
+      // Hold the slot (30 days - consistent with mobile; released on accept/decline)
+      const holdMinutes = 30 * 24 * 60; // 30 days
       const slotHold = await SlotHoldingService.holdSlot(
         recipientId,
         '', // Will be updated after request creation
@@ -418,10 +416,10 @@ export class TreatmentExchangeService {
         requestData.start_time,
         requestData.end_time,
         requestData.duration_minutes,
-        10 // 10 minutes hold duration
+        holdMinutes
       );
 
-      // Create the request
+      // Create the request (no expiration - consistent with mobile booking)
       const { data, error } = await supabase
         .from('treatment_exchange_requests')
         .insert({
@@ -433,7 +431,7 @@ export class TreatmentExchangeService {
           duration_minutes: requestData.duration_minutes,
           session_type: requestData.session_type,
           requester_notes: requestData.notes,
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+          expires_at: null
         })
         .select()
         .single();
@@ -444,11 +442,23 @@ export class TreatmentExchangeService {
         throw error;
       }
 
-      // Update slot hold with request ID
-      await supabase
-        .from('slot_holds')
-        .update({ request_id: data.id })
-        .eq('id', slotHold.id);
+      // Link the hold through a privileged RPC because the requester cannot
+      // reliably update a practitioner-owned slot_holds row via normal RLS.
+      const { error: linkHoldError } = await supabase.rpc('link_slot_hold_to_request', {
+        p_hold_id: slotHold.id,
+        p_request_id: data.id,
+      });
+
+      if (linkHoldError) {
+        await SlotHoldingService.releaseSlot(slotHold.id).catch((releaseError) => {
+          console.warn('Failed to release slot hold after link failure:', releaseError);
+        });
+        await supabase
+          .from('treatment_exchange_requests')
+          .delete()
+          .eq('id', data.id);
+        throw linkHoldError;
+      }
 
       // Get requester details for notification
       const { data: requesterData } = await supabase
@@ -540,11 +550,6 @@ export class TreatmentExchangeService {
         throw new Error('Request not found or status changed. Please refresh the page and try again.');
       }
 
-      // Check if request has expired
-      if (new Date(request.expires_at) < new Date()) {
-        throw new Error('Request has expired');
-      }
-
       // Get slot hold for this request
       // First try by request_id
       let slotHold = await SlotHoldingService.getSlotHoldByRequest(requestId);
@@ -579,9 +584,8 @@ export class TreatmentExchangeService {
           });
           
           if (matchingSlotHold) {
-            // Check if it's expired
             const isExpired = matchingSlotHold.expires_at && new Date(matchingSlotHold.expires_at) < new Date();
-            
+
             if (!isExpired && matchingSlotHold.status === 'active') {
               // Update it with the request_id for future queries
               await supabase
@@ -596,8 +600,6 @@ export class TreatmentExchangeService {
         }
       }
       
-      // If slot hold doesn't exist or has expired, check for blocked time and conflicts first, then recreate it
-      // This can happen if the hold expired but the request is still valid
       if (!slotHold || (slotHold.expires_at && new Date(slotHold.expires_at) < new Date()) || slotHold.status !== 'active') {
         console.log('Slot hold not found or expired, checking availability before recreating for request:', requestId);
         
@@ -647,18 +649,23 @@ export class TreatmentExchangeService {
           startTime,
           endTime,
           request.duration_minutes,
-          60 // Longer hold duration when accepting (1 hour)
+          30 * 24 * 60 // 30 days - consistent with mobile
         );
         
         slotHold = newSlotHold;
       }
 
-      // Update request status
+      // Update request status + reciprocal_booking_deadline (configurable days; prevents accept-then-never-book fraud)
+      const acceptedAt = new Date();
+      const deadlineDays = await this.getReciprocalDeadlineDays();
+      const reciprocalDeadline = new Date(acceptedAt);
+      reciprocalDeadline.setDate(reciprocalDeadline.getDate() + deadlineDays);
       const { error: updateError } = await supabase
         .from('treatment_exchange_requests')
         .update({
           status: 'accepted',
-          accepted_at: new Date().toISOString(),
+          accepted_at: acceptedAt.toISOString(),
+          reciprocal_booking_deadline: reciprocalDeadline.toISOString(),
           recipient_notes: recipientNotes
         })
         .eq('id', requestId);
@@ -910,95 +917,75 @@ export class TreatmentExchangeService {
   }
 
   /**
-   * Decline a treatment exchange request
+   * Cancel a treatment exchange request (requester only, pending only)
+   * Releases slot hold, dismisses recipient notifications, notifies recipient.
+   */
+  static async cancelExchangeRequest(requestId: string, requesterId: string): Promise<void> {
+    const { error } = await supabase.rpc('cancel_exchange_request_by_requester', {
+      p_request_id: requestId,
+      p_requester_id: requesterId
+    });
+    if (error) throw error;
+  }
+
+  /**
+   * Get configured reciprocal deadline days from app_config (default 7)
+   */
+  static async getReciprocalDeadlineDays(): Promise<number> {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'exchange_reciprocal_deadline_days')
+      .maybeSingle();
+    if (error || !data?.value) return 7;
+    const n = parseInt(String(data.value).trim(), 10);
+    return [5, 7, 14].includes(n) ? n : 7;
+  }
+
+  /**
+   * Request deadline extension (recipient; +1 to 7 days, default 3)
+   */
+  static async requestExchangeExtension(
+    requestId: string,
+    recipientId: string,
+    extensionDays: number = 3
+  ): Promise<void> {
+    const { error } = await supabase.rpc('request_exchange_extension', {
+      p_request_id: requestId,
+      p_recipient_id: recipientId,
+      p_extension_days: extensionDays
+    });
+    if (error) throw error;
+  }
+
+  /**
+   * Approve deadline extension (requester)
+   */
+  static async approveExchangeExtension(requestId: string, requesterId: string): Promise<void> {
+    const { error } = await supabase.rpc('approve_exchange_extension', {
+      p_request_id: requestId,
+      p_requester_id: requesterId
+    });
+    if (error) throw error;
+  }
+
+  /**
+   * Decline a treatment exchange request (server-side RPC: releases hold, updates status, notifies requester)
    */
   static async declineExchangeRequest(
     requestId: string,
     recipientId: string,
     reason?: string
   ): Promise<void> {
-    try {
-      // Get the request first
-      const { data: request, error: requestError } = await supabase
-        .from('treatment_exchange_requests')
-        .select('*')
-        .eq('id', requestId)
-        .eq('recipient_id', recipientId)
-        .eq('status', 'pending')
-        .single();
-
-      if (requestError || !request) {
-        throw new Error('Request not found or already processed');
-      }
-
-      // Update request status and get slot hold in parallel
-      const [slotHoldResult, updateResult] = await Promise.all([
-        SlotHoldingService.getSlotHoldByRequest(requestId),
-        supabase
-        .from('treatment_exchange_requests')
-        .update({
-          status: 'declined',
-          declined_at: new Date().toISOString(),
-          recipient_notes: reason
-        })
-        .eq('id', requestId)
-        .eq('recipient_id', recipientId)
-          .eq('status', 'pending')
-      ]);
-
-      if (updateResult.error) throw updateResult.error;
-
-      // Release slot hold if it exists (non-blocking)
-      if (slotHoldResult) {
-        SlotHoldingService.releaseSlot(slotHoldResult.id).catch(err => 
-          console.warn('Failed to release slot hold:', err)
-        );
-      }
-
-      // Get recipient details and send notifications asynchronously (non-blocking)
-      Promise.all([
-        supabase
-        .from('users')
-        .select('first_name, last_name')
-        .eq('id', recipientId)
-          .single()
-          .then(({ data: recipientData }) => {
-      const recipientName = recipientData ? `${recipientData.first_name} ${recipientData.last_name}` : 'A practitioner';
-
-            // Send notifications in parallel
-            return Promise.all([
-              // Mark old notifications as read (Slot Reserved, New Request) - clean up UI
-              ExchangeNotificationService.markRequestNotificationsAsRead(requestId, recipientId)
-                .catch(err => console.warn('Failed to mark old notifications as read:', err)),
-
-              ExchangeNotificationService.sendExchangeResponseNotification(request.requester_id, {
-        type: ExchangeNotificationType.EXCHANGE_REQUEST_DECLINED,
-        requestId: requestId,
-        practitionerId: recipientId,
-        practitionerName: recipientName,
-        sessionDate: request.requested_session_date,
-        startTime: request.requested_start_time,
-        duration: request.duration_minutes,
-        actionRequired: false
-              }, 'declined').catch(err => console.warn('Failed to send decline notification:', err)),
-
-              ExchangeNotificationService.sendSlotReleasedNotification(recipientId, {
-        type: ExchangeNotificationType.EXCHANGE_SLOT_RELEASED,
-        requestId: requestId,
-        practitionerId: recipientId,
-        practitionerName: recipientName,
-        sessionDate: request.requested_session_date,
-        startTime: request.requested_start_time,
-        duration: request.duration_minutes,
-        actionRequired: false
-              }).catch(err => console.warn('Failed to send slot released notification:', err))
-            ]);
-          })
-      ]).catch(err => console.warn('Error in async decline notification tasks:', err));
-
-    } catch (error) {
-      console.error('Error declining exchange request:', error);
-      throw error;
+    const { error } = await supabase.rpc('decline_exchange_request', {
+      p_request_id: requestId,
+      p_recipient_id: recipientId,
+      p_reason: reason ?? null
+    });
+    if (error) {
+      const raw = error.message ?? '';
+      const capMatch = raw.match(/RESCHEDULE_CAP_EXCEEDED:\s*(.+)/i);
+      throw new Error(capMatch ? capMatch[1].trim() : raw);
     }
   }
 
@@ -1091,8 +1078,6 @@ export class TreatmentExchangeService {
     lat2: number,
     lon2: number
   ): number {
-    // Import and use from matching module
-    const { calculateDistance } = require('./treatment-exchange/matching');
     return calculateDistance(lat1, lon1, lat2, lon2);
   }
 
@@ -1225,7 +1210,7 @@ export class TreatmentExchangeService {
           session_type: bookingData.session_type || request.session_type,
           requester_notes: bookingData.notes,
           status: 'accepted', // Auto-accept since original was accepted
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          expires_at: null // No time-based expiry - consistent with mobile
         })
         .select()
         .single();
@@ -1650,22 +1635,19 @@ export class TreatmentExchangeService {
         })
         .eq('id', sessionId);
 
-      // Process refund if applicable
+      // Process refund if applicable (restore credits to canceller only; no transfer — credits were burned on booking)
       if (refundAmount > 0 && session.credits_deducted) {
-        // Determine who gets refunded based on who cancelled
         const isPractitionerA = cancelledBy === session.practitioner_a_id;
         const refundRecipient = isPractitionerA ? session.practitioner_a_id : session.practitioner_b_id;
-        const refundFrom = isPractitionerA ? session.practitioner_b_id : session.practitioner_a_id;
 
-        // Refund credits
-        await supabase.rpc('credits_transfer', {
-          p_from_user_id: refundFrom,
-          p_to_user_id: refundRecipient,
+        const { error: refundError } = await supabase.rpc('credits_refund', {
+          p_user_id: refundRecipient,
           p_amount: refundAmount,
           p_reference_id: sessionId,
-          p_reference_type: 'refund',
           p_description: `Cancellation refund (${refundPercent}%)`
         });
+
+        if (refundError) throw refundError;
 
         await supabase
           .from('mutual_exchange_sessions')

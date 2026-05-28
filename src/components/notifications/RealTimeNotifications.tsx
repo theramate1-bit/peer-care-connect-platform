@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Clock,
   X,
+  XCircle,
   Check,
   Trash2
 } from 'lucide-react';
@@ -23,7 +24,7 @@ import { useRealtimeSubscription } from '@/hooks/use-realtime';
 import { formatDistanceToNow } from 'date-fns';
 import { formatTimeHHMM } from '@/lib/date';
 import { useNavigate } from 'react-router-dom';
-import { cleanNotificationMessage, handleNotificationNavigation, normalizeNotification, parseNotificationRows, type Notification, type NormalizedNotification } from '@/lib/notification-utils';
+import { formatNotificationPreview, dismissNotification, handleNotificationNavigation, markNotificationRead, markNotificationsRead, normalizeNotification, parseNotificationRows, type Notification, type NormalizedNotification } from '@/lib/notification-utils';
 
 interface RealTimeNotificationsProps {
   className?: string;
@@ -48,6 +49,7 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
       
       if (payload.eventType === 'INSERT') {
         const newNotif = normalizeNotification(payload.new as Notification);
+        if (newNotif.dismissed_at) return;
         setNotifications(prev => [newNotif, ...prev]);
         if (!newNotif.read) {
           setUnreadCount(prev => prev + 1);
@@ -59,6 +61,16 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
         }
       } else if (payload.eventType === 'UPDATE') {
         const updatedNotif = normalizeNotification(payload.new as Notification);
+        if (updatedNotif.dismissed_at) {
+          setNotifications(prev => {
+            const existing = prev.find(notification => notification.id === updatedNotif.id);
+            if (existing && !existing.read) {
+              setUnreadCount(count => Math.max(0, count - 1));
+            }
+            return prev.filter(notification => notification.id !== updatedNotif.id);
+          });
+          return;
+        }
         setNotifications(prev => 
           prev.map(notification => 
             notification.id === updatedNotif.id ? updatedNotif : notification
@@ -94,6 +106,7 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
         .from('notifications')
         .select('*')
         .eq('recipient_id', user.id)
+        .is('dismissed_at', null)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -135,21 +148,8 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
     setUnreadCount((prev) => Math.max(0, prev - 1));
 
     try {
-      // Preferred path: shared RPC used elsewhere for consistency.
-      const { error: rpcError } = await supabase.rpc('mark_notifications_read', {
-        p_ids: [notificationId],
-      });
-
-      if (!rpcError) return;
-
-      // Fallback path: direct update scoped to recipient.
-      const { error: updateError } = await supabase
-        .from('notifications')
-        .update({ read_at: new Date().toISOString() })
-        .eq('id', notificationId)
-        .eq('recipient_id', user.id);
-
-      if (updateError) throw updateError;
+      await markNotificationRead(notificationId, user.id);
+      void fetchNotifications();
     } catch (error) {
       console.error('Error marking notification as read:', error);
       // Re-sync local state if server update failed.
@@ -178,21 +178,8 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
     setUnreadCount(0);
 
     try {
-      // Preferred path: shared RPC.
-      const { error: rpcError } = await supabase.rpc('mark_notifications_read', {
-        p_ids: unreadIds
-      });
-
-      if (!rpcError) return;
-
-      // Fallback: direct update scoped to current recipient.
-      const { error: updateError } = await supabase
-        .from('notifications')
-        .update({ read_at: new Date().toISOString() })
-        .eq('recipient_id', user.id)
-        .in('id', unreadIds);
-
-      if (updateError) throw updateError;
+      await markNotificationsRead(unreadIds, user.id);
+      void fetchNotifications();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       toast.error('Could not mark all notifications as read');
@@ -211,21 +198,23 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
     }
 
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId)
-        .eq('recipient_id', user?.id);
-
-      if (error) throw error;
+      await dismissNotification(notificationId, user?.id);
+      void fetchNotifications();
     } catch (error) {
       console.error('Error deleting notification:', error);
-      toast.error('Could not delete notification');
+      toast.error('Could not dismiss notification');
       void fetchNotifications();
     }
   };
 
-  const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = (notification: NormalizedNotification) => {
+    const type = notification.type;
+    const isExchange = notification.family === "exchange" || (notification.source_type ?? "").toLowerCase().includes("exchange");
+    if (isExchange) {
+      if (type === "exchange_request_declined") return <XCircle className="h-4 w-4 text-amber-600" />;
+      if (type === "exchange_request_accepted" || type === "exchange_session_confirmed") return <CheckCircle className="h-4 w-4 text-emerald-600" />;
+      return <Calendar className="h-4 w-4 text-blue-600" />;
+    }
     switch (type) {
       case 'client_check_in': return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'session_reminder': return <Calendar className="h-4 w-4 text-blue-600" />;
@@ -278,11 +267,11 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
         )}
       </Button>
 
-      {/* Notifications Dropdown */}
+      {/* Notifications Dropdown - rounded, cozy design */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50">
+        <div className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/80">
             <h3 className="font-semibold text-slate-900 dark:text-white">Notifications</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
@@ -290,7 +279,7 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={markAllAsRead}
-                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-full"
                 >
                   <Check className="h-3 w-3 mr-1" />
                   Mark all read
@@ -300,7 +289,7 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsOpen(false)}
-                className="h-7 w-7 p-0"
+                className="h-7 w-7 p-0 rounded-full"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -320,37 +309,42 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
                 <p className="text-sm text-slate-500 dark:text-slate-400">No notifications</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                {processedNotifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group ${
-                      !notification.read ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''
-                    }`}
-                    onClick={() => handleNotificationClick(notification)}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`flex-shrink-0 mt-0.5 p-2 rounded-lg ${
-                        !notification.read 
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30' 
-                          : 'bg-slate-100 dark:bg-slate-700'
+              <div className="p-2 space-y-1">
+                {processedNotifications.map((notification) => {
+                  const preview = formatNotificationPreview(notification);
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`flex items-start gap-3 p-3 rounded-2xl transition-colors cursor-pointer group ${
+                        !notification.read
+                          ? 'bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50/80 dark:hover:bg-emerald-900/20'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
+                      }`}
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className={`flex-shrink-0 mt-0.5 p-2.5 rounded-xl ${
+                        !notification.read
+                          ? 'bg-emerald-100/80 dark:bg-emerald-900/40'
+                          : 'bg-slate-100 dark:bg-slate-700/80'
                       }`}>
-                        {getNotificationIcon(notification.type)}
+                        {getNotificationIcon(notification)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium mb-1 ${
-                              !notification.read 
-                                ? 'text-slate-900 dark:text-white' 
-                                : 'text-slate-600 dark:text-slate-400'
+                            <p className={`text-sm font-semibold leading-tight ${
+                              !notification.read
+                                ? 'text-slate-900 dark:text-white'
+                                : 'text-slate-700 dark:text-slate-300'
                             }`}>
-                              {notification.title}
+                              {preview.title}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-500 mb-2 leading-relaxed">
-                              {cleanNotificationMessage(notification)}
-                            </p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                            {preview.subtitle && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug line-clamp-2">
+                                {preview.subtitle}
+                              </p>
+                            )}
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
                               {formatDistanceToNow(new Date(notification.created_at || 0), { addSuffix: true })}
                             </p>
                           </div>
@@ -361,7 +355,7 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0"
+                              className="h-6 w-6 p-0 rounded-full"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteNotification(notification.id);
@@ -373,8 +367,8 @@ export const RealTimeNotifications: React.FC<RealTimeNotificationsProps> = ({
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

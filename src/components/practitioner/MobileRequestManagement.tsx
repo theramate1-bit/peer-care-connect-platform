@@ -7,14 +7,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Clock, Calendar, User, CheckCircle, XCircle, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
+import { MapPin, Clock, Calendar, User, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { NotificationSystem } from '@/lib/notification-system';
 import { generateMapsUrl } from '@/emails/utils/maps';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 interface MobileRequest {
   id: string;
@@ -34,6 +34,7 @@ interface MobileRequest {
   total_price_pence: number;
   payment_status: string;
   status: string;
+  session_id?: string | null;
   stripe_payment_intent_id?: string;
   decline_reason?: string;
   alternate_date?: string;
@@ -71,14 +72,15 @@ const dedupeMobileRequests = (rows: MobileRequest[]): MobileRequest[] => {
   }
 
   return Array.from(bySignature.values()).sort((a, b) => {
-    const dateCompare = new Date(a.requested_date).getTime() - new Date(b.requested_date).getTime();
-    if (dateCompare !== 0) return dateCompare;
-    return a.requested_start_time.localeCompare(b.requested_start_time);
+    const createdA = new Date(a.created_at).getTime();
+    const createdB = new Date(b.created_at).getTime();
+    return createdB - createdA;
   });
 };
 
 export const MobileRequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [requests, setRequests] = useState<MobileRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,6 @@ export const MobileRequestManagement: React.FC = () => {
   const [alternateDate, setAlternateDate] = useState('');
   const [alternateTime, setAlternateTime] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [resendLoadingId, setResendLoadingId] = useState<string | null>(null);
   const focusedRequestId = searchParams.get('requestId');
 
   useEffect(() => {
@@ -131,22 +132,25 @@ export const MobileRequestManagement: React.FC = () => {
 
   const handleAccept = async () => {
     if (!selectedRequest) return;
-    if (!selectedRequest.stripe_payment_intent_id || selectedRequest.payment_status !== 'held') {
+    const paymentReady = selectedRequest.payment_status === 'held' || selectedRequest.payment_status === 'captured';
+    if (!selectedRequest.stripe_payment_intent_id || !paymentReady) {
       toast.error('Cannot accept this request yet. Payment authorization hold is not completed.');
       return;
     }
 
     setProcessing(true);
     try {
-      // Capture payment
-      const { error: captureError } = await supabase.functions.invoke('mobile-payment', {
-        body: {
-          action: 'capture-mobile-payment',
-          payment_intent_id: selectedRequest.stripe_payment_intent_id
-        }
-      });
+      // Capture payment only when held; some methods (e.g. wallets) auto-capture per Stripe docs
+      if (selectedRequest.payment_status === 'held') {
+        const { error: captureError } = await supabase.functions.invoke('mobile-payment', {
+          body: {
+            action: 'capture-mobile-payment',
+            payment_intent_id: selectedRequest.stripe_payment_intent_id
+          }
+        });
 
-      if (captureError) throw captureError;
+        if (captureError) throw captureError;
+      }
 
       // Accept request
       const { data, error } = await supabase.rpc('accept_mobile_booking_request', {
@@ -190,6 +194,10 @@ export const MobileRequestManagement: React.FC = () => {
 
   const handleDecline = async () => {
     if (!selectedRequest) return;
+    if (selectedRequest.payment_status === 'captured') {
+      toast.error('Payment already captured. Please accept the request or contact support for a refund.');
+      return;
+    }
     if (!selectedRequest.stripe_payment_intent_id || selectedRequest.payment_status !== 'held') {
       toast.error('Cannot decline this request yet. Payment authorization hold is not completed.');
       return;
@@ -258,29 +266,6 @@ export const MobileRequestManagement: React.FC = () => {
     }
   };
 
-  const handleResendRequestNotification = async (request: MobileRequest) => {
-    if (!user?.id) return;
-    setResendLoadingId(request.id);
-    try {
-      await NotificationSystem.sendMobileBookingRequestNotification(user.id, {
-        requestId: request.id,
-        clientName: request.client_name,
-        serviceType: request.product_name,
-        requestedDate: request.requested_date,
-        requestedTime: request.requested_start_time,
-        clientAddress: request.client_address,
-        distanceKm: request.distance_from_base_km,
-        price: request.total_price_pence,
-      });
-      toast.success('Email resent');
-    } catch (error: any) {
-      console.error('Error resending request notification:', error);
-      toast.error('Failed to resend email');
-    } finally {
-      setResendLoadingId(null);
-    }
-  };
-
   const isExpiredPending = (request: MobileRequest) => {
     if (request.status !== 'pending' || !request.expires_at) return false;
     const expiryMs = new Date(request.expires_at).getTime();
@@ -314,7 +299,38 @@ export const MobileRequestManagement: React.FC = () => {
   };
 
   if (loading) {
-    return <div>Loading mobile requests...</div>;
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-48 rounded-md bg-muted animate-pulse" />
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <div className="h-5 w-32 rounded-md bg-muted animate-pulse" />
+                    <div className="h-4 w-48 rounded-md bg-muted animate-pulse" />
+                  </div>
+                  <div className="h-6 w-20 rounded-md bg-muted animate-pulse" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {[1, 2, 3, 4].map((j) => (
+                    <div key={j} className="space-y-1">
+                      <div className="h-3 w-16 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-9 w-24 rounded-md bg-muted animate-pulse" />
+                  <div className="h-9 w-24 rounded-md bg-muted animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   // Only show pending (actionable) and accepted (completed/confirmed bookings); hide declined, cancelled, expired
@@ -331,8 +347,17 @@ export const MobileRequestManagement: React.FC = () => {
 
       {visibleRequests.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No mobile booking requests yet.
+          <CardContent className="py-12 px-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+              <MapPin className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-2">No mobile booking requests yet</h3>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-6">
+              Mobile requests appear when clients book home visits. Add mobile or hybrid services to your products and set your service area to start receiving requests.
+            </p>
+            <Button variant="outline" onClick={() => window.location.assign('/practice/products')}>
+              Manage products & availability
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -370,11 +395,6 @@ export const MobileRequestManagement: React.FC = () => {
                     <p className="font-medium">
                       {new Date(request.requested_date).toLocaleDateString()} at {request.requested_start_time.slice(0, 5)}
                     </p>
-                    {effectiveStatus === 'pending' && request.expires_at && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Expires {new Date(request.expires_at).toLocaleString()}
-                      </p>
-                    )}
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Duration</Label>
@@ -410,13 +430,24 @@ export const MobileRequestManagement: React.FC = () => {
                   )}
                 </div>
 
+                {effectiveStatus === 'accepted' && request.session_id && (
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="default"
+                      onClick={() => navigate(`/practice/clients?session=${request.session_id}&tab=sessions`)}
+                    >
+                      View session
+                    </Button>
+                  </div>
+                )}
+
                 {effectiveStatus === 'pending' && (
                   <div className="flex flex-col gap-2 pt-4 border-t">
                     {request.payment_status === 'payment_failed' ? (
                       <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                         Payment failed (card declined or 3DS failed). Ask the client to retry with a different card or payment method.
                       </div>
-                    ) : request.payment_status !== 'held' ? (
+                    ) : (request.payment_status !== 'held' && request.payment_status !== 'captured') ? (
                       <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                         Waiting for client payment authorization before you can accept or decline.
                       </div>
@@ -432,6 +463,8 @@ export const MobileRequestManagement: React.FC = () => {
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Accept
                     </Button>
+                    {/* Decline only when held; captured payments require refund, not release */}
+                    {request.payment_status === 'held' && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -443,31 +476,8 @@ export const MobileRequestManagement: React.FC = () => {
                       <XCircle className="h-4 w-4 mr-2" />
                       Decline
                     </Button>
-                      </div>
                     )}
-                    {request.payment_status !== 'payment_failed' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground"
-                      disabled={
-                        resendLoadingId === request.id ||
-                        (request.expires_at && new Date(request.expires_at).getTime() - Date.now() < 60 * 60 * 1000)
-                      }
-                      onClick={() => handleResendRequestNotification(request)}
-                      title={
-                        request.expires_at && new Date(request.expires_at).getTime() - Date.now() < 60 * 60 * 1000
-                          ? 'Request expires in less than 1 hour - resending notification is disabled'
-                          : 'Resend request notification email'
-                      }
-                    >
-                      {resendLoadingId === request.id ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                      )}
-                      Resend request notification
-                    </Button>
+                      </div>
                     )}
                   </div>
                 )}

@@ -3,10 +3,8 @@ import type { Config } from "tailwindcss";
 export default {
 	darkMode: ["class"],
 	content: [
-		"./pages/**/*.{ts,tsx}",
-		"./components/**/*.{ts,tsx}",
-		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
+		"../src/**/*.{ts,tsx}",
 	],
 	prefix: "",
 	theme: {
@@ -166,18 +164,33 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// Healthcare-specific colors
+				// Brand cream (mobile app parity — theramate-ios-client/constants/colors.ts)
+				cream: {
+					50: '#FFFDF8',
+					100: '#FFF9EB',
+					150: '#F7F2E8',
+					200: '#FFF3D6',
+					300: '#FFE9B8',
+					400: '#FFD98C',
+				},
+				// Sage green — alias of primary / mobile brand
+				sage: {
+					400: '#9BC19F',
+					500: '#7A9E7E',
+					600: '#5C7F61',
+					700: '#446349',
+				},
 				wellness: {
-					50: '#f0fdf4',
-					100: '#dcfce7',
-					200: '#bbf7d0',
-					300: '#86efac',
-					400: '#4ade80',
-					500: '#22c55e',
-					600: '#16a34a',
-					700: '#15803d',
-					800: '#166534',
-					900: '#14532d',
+					50: '#f4f8f5',
+					100: '#e8f0ea',
+					200: '#d4e4d6',
+					300: '#b8d4bc',
+					400: '#9BC19F',
+					500: '#7A9E7E',
+					600: '#5C7F61',
+					700: '#446349',
+					800: '#355035',
+					900: '#283f2c',
 				},
 				// Semantic color tokens - WCAG AA compliant
 				success: {
@@ -225,9 +238,9 @@ export default {
 				'3xl': 'calc(var(--radius) + 8px)',
 			},
 			boxShadow: {
-				'wellness': '0 4px 6px -1px rgba(34, 197, 94, 0.1), 0 2px 4px -1px rgba(34, 197, 94, 0.06)',
-				'wellness-medium': '0 10px 15px -3px rgba(34, 197, 94, 0.1), 0 4px 6px -2px rgba(34, 197, 94, 0.05)',
-				'wellness-large': '0 20px 25px -5px rgba(34, 197, 94, 0.1), 0 10px 10px -5px rgba(34, 197, 94, 0.04)',
+				'wellness': '0 4px 6px -1px rgba(122, 158, 126, 0.1), 0 2px 4px -1px rgba(122, 158, 126, 0.06)',
+				'wellness-medium': '0 10px 15px -3px rgba(122, 158, 126, 0.1), 0 4px 6px -2px rgba(122, 158, 126, 0.05)',
+				'wellness-large': '0 20px 25px -5px rgba(122, 158, 126, 0.1), 0 10px 10px -5px rgba(122, 158, 126, 0.04)',
 				// Enhanced 3-layer shadow system (inspired by onghost.com)
 				'depth-1': '0 0.6px 1.6px -1px rgba(0, 0, 0, 0.15), 0 2.3px 6px -2px rgba(0, 0, 0, 0.14), 0 10px 26px -3px rgba(0, 0, 0, 0.1)',
 				'depth-2': '0 1.2px 3.2px -1px rgba(0, 0, 0, 0.18), 0 4.6px 12px -2px rgba(0, 0, 0, 0.16), 0 20px 52px -3px rgba(0, 0, 0, 0.12)',
@@ -363,13 +376,13 @@ export default {
 					transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
 				},
 				'.shadow-wellness': {
-					boxShadow: '0 4px 6px -1px rgba(34, 197, 94, 0.1), 0 2px 4px -1px rgba(34, 197, 94, 0.06)',
+					boxShadow: '0 4px 6px -1px rgba(122, 158, 126, 0.1), 0 2px 4px -1px rgba(122, 158, 126, 0.06)',
 				},
 				'.shadow-wellness-medium': {
-					boxShadow: '0 10px 15px -3px rgba(34, 197, 94, 0.1), 0 4px 6px -2px rgba(34, 197, 94, 0.05)',
+					boxShadow: '0 10px 15px -3px rgba(122, 158, 126, 0.1), 0 4px 6px -2px rgba(122, 158, 126, 0.05)',
 				},
 				'.shadow-wellness-large': {
-					boxShadow: '0 20px 25px -5px rgba(34, 197, 94, 0.1), 0 10px 10px -5px rgba(34, 197, 94, 0.04)',
+					boxShadow: '0 20px 25px -5px rgba(122, 158, 126, 0.1), 0 10px 10px -5px rgba(122, 158, 126, 0.04)',
 				},
 				// Mobile-optimized utilities
 				'.mobile-text-responsive': {

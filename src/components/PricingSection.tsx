@@ -156,7 +156,7 @@ export const PricingSection = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+        <div className="mb-16 grid grid-cols-1 items-stretch gap-8 md:grid-cols-3">
           {availablePlans.map((plan, index) => {
             const currentPrice = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
             const isCurrentPlan = subscribed && subscriptionTier === plan.id;
@@ -164,8 +164,8 @@ export const PricingSection = () => {
             return (
               <Card 
                 key={index}
-                className={`shadow-wellness hover:shadow-wellness-medium transition-wellness relative ${
-                  plan.popular ? 'ring-2 ring-primary shadow-wellness-strong scale-105' : ''
+                className={`relative flex h-full flex-col shadow-wellness transition-wellness hover:shadow-wellness-medium ${
+                  plan.popular ? 'ring-2 ring-primary shadow-wellness-strong' : ''
                 } ${isCurrentPlan ? 'ring-2 ring-green-500 bg-green-50/50' : ''}`}
               >
                 {plan.badge && !isCurrentPlan && (
@@ -200,8 +200,8 @@ export const PricingSection = () => {
                   </p>
                 </CardHeader>
                 
-                <CardContent className="space-y-6">
-                  <ul className="space-y-3">
+                <CardContent className="flex flex-1 flex-col gap-6 pt-0">
+                  <ul className="flex flex-1 flex-col gap-3">
                     {plan.features.map((feature, featureIndex) => (
                       <li key={featureIndex} className="flex items-start gap-3">
                         <Check className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
@@ -212,7 +212,7 @@ export const PricingSection = () => {
                    
                   <Button 
                     variant={isCurrentPlan ? "outline" : plan.buttonVariant} 
-                    className="w-full" 
+                    className="mt-auto w-full shrink-0" 
                     size="lg"
                     onClick={() => handlePlanSelect(plan.id)}
                     disabled={isCurrentPlan}

@@ -364,9 +364,17 @@ export const BookingCalendar = ({ userType }: BookingCalendarProps) => {
 
 
   const getBookingsForDate = (date: Date) => {
-    return bookings.filter(booking => 
-      isSameDay(booking.date, date) && categoryFilter.includes(booking.type)
-    );
+    const q = categorySearch.trim().toLowerCase();
+    return bookings.filter((booking) => {
+      if (!isSameDay(booking.date, date) || !categoryFilter.includes(booking.type)) {
+        return false;
+      }
+      if (!q) return true;
+      const name = (booking.clientName || booking.therapistName || "").toLowerCase();
+      const st = (booking.sessionType || "").toLowerCase();
+      const loc = (booking.location || "").toLowerCase();
+      return name.includes(q) || st.includes(q) || loc.includes(q);
+    });
   };
 
   const getBlockedTimesForDate = (date: Date): BlockedTime[] => {

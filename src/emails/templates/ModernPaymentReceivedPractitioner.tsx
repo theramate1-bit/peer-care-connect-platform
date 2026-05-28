@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -36,7 +36,7 @@ export const ModernPaymentReceivedPractitioner = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="Payment Received"
-      primaryColor="#059669"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
       {/* Hero Buttons */}
@@ -60,36 +60,36 @@ export const ModernPaymentReceivedPractitioner = ({
       {/* Payment Breakdown Card */}
       <ModernCard
         title="Payment Breakdown"
-        accentColor="#059669"
+        accentColor="#8e9b53"
       >
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Total Session Price
                 </Text>
-                <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>
                   £{data.paymentAmount || 0}
                 </Text>
               </td>
             </tr>
             <tr>
-              <td style={{ paddingBottom: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+              <td style={{ paddingBottom: '16px', paddingTop: '16px', borderTop: '1px solid #d9e2d2' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Platform Fee (0.5%)
                 </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#64748b' }}>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#5a5a5a' }}>
                   £{data.platformFee || 0}
                 </Text>
               </td>
             </tr>
             <tr>
-              <td style={{ paddingTop: '16px', borderTop: '2px solid #059669' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+              <td style={{ paddingTop: '16px', borderTop: '2px solid #8e9b53' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Your Earnings
                 </Text>
-                <Text style={{ margin: 0, fontSize: '24px', fontWeight: 900, color: '#059669' }}>
+                <Text style={{ margin: 0, fontSize: '24px', fontWeight: 900, color: '#8e9b53' }}>
                   £{data.practitionerAmount || 0}
                 </Text>
               </td>
@@ -101,46 +101,46 @@ export const ModernPaymentReceivedPractitioner = ({
       {/* Session Details Card */}
       <ModernCard
         title="Session Details"
-        accentColor="#059669"
+        accentColor="#8e9b53"
       >
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ paddingBottom: '12px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Client
                 </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>
                   {data.clientName || 'N/A'}
                 </Text>
               </td>
             </tr>
             <tr>
               <td style={{ paddingBottom: '12px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Session Type
                 </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>
                   {data.sessionType || 'N/A'}
                 </Text>
               </td>
             </tr>
             <tr>
               <td style={{ paddingBottom: '12px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Date
                 </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>
                   {formattedDate}
                 </Text>
               </td>
             </tr>
             <tr>
               <td>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>
                   Payment ID
                 </Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>
                   {data.paymentId || 'N/A'}
                 </Text>
               </td>
@@ -154,12 +154,12 @@ export const ModernPaymentReceivedPractitioner = ({
         style={{
           marginTop: '24px',
           padding: '16px',
-          backgroundColor: '#f8fafc',
+          backgroundColor: '#f0f4ef',
           borderRadius: '8px',
-          borderLeft: '4px solid #059669',
+          borderLeft: '4px solid #8e9b53',
         }}
       >
-        <Text style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+        <Text style={{ margin: 0, fontSize: '14px', color: '#5a5a5a', lineHeight: '1.6' }}>
           <strong>Payout Schedule:</strong> Funds will be transferred to your bank account within 2-7 business days.
         </Text>
       </Section>
@@ -168,3 +168,4 @@ export const ModernPaymentReceivedPractitioner = ({
 };
 
 export default ModernPaymentReceivedPractitioner;
+

@@ -13,6 +13,11 @@ import { toast } from 'sonner';
 import { useRealtimeSubscription } from '@/hooks/use-realtime';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { FileUploadService } from '@/lib/file-upload';
+import {
+  buildNotificationPreferencesUpsert,
+  buildUsersPreferencesUpdate,
+  loadProfilePreferences,
+} from '@theramate/user-preferences';
 
 interface ClientProfile {
   id: string;
@@ -24,12 +29,6 @@ interface ClientProfile {
   bio: string;
   profile_photo_url?: string | null;
   preferences?: Record<string, unknown>;
-  notification_preferences: {
-    email_notifications: boolean;
-    sms_notifications: boolean;
-    session_reminders: boolean;
-    marketing_emails: boolean;
-  };
 }
 
 const ClientProfile = () => {
@@ -84,25 +83,18 @@ const ClientProfile = () => {
               }
               return;
             }
-            const notificationPrefs = payload.new.preferences?.notification_preferences;
-            if (notificationPrefs) {
-              setFormData(prev => ({
-                ...prev,
-                email_notifications: notificationPrefs.email_notifications ?? true,
-                sms_notifications: notificationPrefs.sms_notifications ?? false,
-                session_reminders: notificationPrefs.session_reminders ?? true,
-                marketing_emails: notificationPrefs.marketing_emails ?? false
-              }));
-            }
+            const mergedPrefs = loadProfilePreferences(payload.new.preferences ?? null);
+            setFormData(prev => ({
+              ...prev,
+              email_notifications: mergedPrefs.emailNotifications,
+              sms_notifications: mergedPrefs.smsNotifications,
+              session_reminders: mergedPrefs.calendarReminders,
+              marketing_emails: mergedPrefs.marketingEmails,
+              profile_visible: mergedPrefs.profileVisible,
+              show_contact_info: mergedPrefs.showContactInfo,
+            }));
             if (payload.new.profile_photo_url !== undefined) {
               setProfilePhotoUrl(payload.new.profile_photo_url ?? null);
-            }
-            const prefs = payload.new.preferences;
-            if (prefs && typeof prefs === 'object') {
-              const pv = (prefs as Record<string, unknown>).profileVisible ?? (prefs as Record<string, unknown>).profile_visible;
-              const sci = (prefs as Record<string, unknown>).showContactInfo ?? (prefs as Record<string, unknown>).show_contact_info;
-              if (pv !== undefined) setFormData(prev => ({ ...prev, profile_visible: !!pv }));
-              if (sci !== undefined) setFormData(prev => ({ ...prev, show_contact_info: !!sci }));
             }
           }
         }
@@ -120,19 +112,16 @@ const ClientProfile = () => {
 
       if (error) throw error;
 
-      // Extract notification preferences from preferences JSONB column
-      const notificationPrefs = data.preferences?.notification_preferences || {
-        email_notifications: true,
-        sms_notifications: false,
-        session_reminders: true,
-        marketing_emails: false
-      };
-      const privacyVisible = data.preferences?.profileVisible ?? data.preferences?.profile_visible ?? true;
-      const privacyContact = data.preferences?.showContactInfo ?? data.preferences?.show_contact_info ?? true;
+      const { data: notificationPrefs } = await supabase
+        .from('notification_preferences')
+        .select('email, sms, in_app, email_reminders')
+        .eq('user_id', userProfile?.id)
+        .maybeSingle();
+
+      const mergedPrefs = loadProfilePreferences(data.preferences, notificationPrefs);
 
       const profileData = {
         ...data,
-        notification_preferences: notificationPrefs
       };
 
       setProfile(profileData);
@@ -143,12 +132,12 @@ const ClientProfile = () => {
         phone: profileData.phone || '',
         location: profileData.location || '',
         bio: profileData.bio || '',
-        email_notifications: profileData.notification_preferences?.email_notifications ?? true,
-        sms_notifications: profileData.notification_preferences?.sms_notifications ?? false,
-        session_reminders: profileData.notification_preferences?.session_reminders ?? true,
-        marketing_emails: profileData.notification_preferences?.marketing_emails ?? false,
-        profile_visible: privacyVisible,
-        show_contact_info: privacyContact
+        email_notifications: mergedPrefs.emailNotifications,
+        sms_notifications: mergedPrefs.smsNotifications,
+        session_reminders: mergedPrefs.calendarReminders,
+        marketing_emails: mergedPrefs.marketingEmails,
+        profile_visible: mergedPrefs.profileVisible,
+        show_contact_info: mergedPrefs.showContactInfo,
       });
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -171,27 +160,29 @@ const ClientProfile = () => {
         throw new Error('User profile not loaded. Please refresh the page.');
       }
 
+      const canonicalPreferences = loadProfilePreferences({
+        emailNotifications: formData.email_notifications,
+        smsNotifications: formData.sms_notifications,
+        calendarReminders: formData.session_reminders,
+        marketingEmails: formData.marketing_emails,
+        profileVisible: formData.profile_visible,
+        showContactInfo: formData.show_contact_info,
+      });
+
       const updateData = {
         first_name: formData.first_name,
         last_name: formData.last_name,
         phone: formData.phone,
         location: formData.location,
         bio: formData.bio,
-        preferences: {
-          ...(profile?.preferences && typeof profile.preferences === 'object' ? profile.preferences : {}),
-          notification_preferences: {
-            email_notifications: formData.email_notifications,
-            sms_notifications: formData.sms_notifications,
-            session_reminders: formData.session_reminders,
-            marketing_emails: formData.marketing_emails
-          },
-          profileVisible: formData.profile_visible,
-          showContactInfo: formData.show_contact_info
-        },
+        preferences: buildUsersPreferencesUpdate(
+          canonicalPreferences,
+          profile?.preferences ?? {},
+        ),
         updated_at: new Date().toISOString()
       };
 
-      const { error, data } = await supabase
+      const { error } = await supabase
         .from('users')
         .update(updateData)
         .eq('id', userProfile.id)
@@ -205,6 +196,22 @@ const ClientProfile = () => {
           code: error.code
         });
         throw error;
+      }
+
+      const { error: notificationError } = await supabase
+        .from('notification_preferences')
+        .upsert(
+          buildNotificationPreferencesUpsert({
+            userId: userProfile.id,
+            preferences: canonicalPreferences,
+            email: user.email ?? null,
+            phone: formData.phone || null,
+          }),
+          { onConflict: 'user_id' },
+        );
+
+      if (notificationError) {
+        throw notificationError;
       }
 
       toast.success('Profile updated successfully');

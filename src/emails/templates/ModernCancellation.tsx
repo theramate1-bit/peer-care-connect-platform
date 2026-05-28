@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -36,74 +36,57 @@ export const ModernCancellation = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="Cancelled"
-      primaryColor="#dc2626"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
-      <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
-        <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', maxWidth: '500px' }}>
+      {/* 1. Unified cancellation details */}
+      <ModernCard
+        title={`${data.sessionType || 'Session'} cancelled`}
+        badge={data.refundAmount ? `£${data.refundAmount} refund` : undefined}
+        accentColor="#8e9b53"
+      >
+        <table cellPadding="0" cellSpacing="0" width="100%">
           <tr>
-            <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={`${baseUrl}/marketplace`} variant="primary" color="#dc2626">
+            <td style={{ paddingBottom: '12px' }}>
+              <Text style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Was scheduled for</Text>
+              <Text style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#3c4804' }}>
+                {formattedDate} at {formattedTime} with {data.practitionerName || 'N/A'}
+              </Text>
+            </td>
+          </tr>
+          {data.cancellationReason && (
+            <tr>
+              <td style={{ paddingTop: '12px', borderTop: '1px solid #d9e2d2' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reason</Text>
+                <Text style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#3c4804' }}>{data.cancellationReason}</Text>
+              </td>
+            </tr>
+          )}
+        </table>
+        {data.refundAmount && (
+          <Text style={{ margin: '16px 0 0 0', fontSize: '13px', color: '#5a5a5a', lineHeight: '1.5' }}>
+            Refund of £{data.refundAmount} will be processed within 5-10 business days.
+          </Text>
+        )}
+      </ModernCard>
+
+      {/* 2. Actions */}
+      <Section style={{ textAlign: 'center', marginTop: '16px', marginBottom: '16px' }}>
+        <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', maxWidth: '400px' }}>
+          <tr>
+            <td style={{ padding: '0 6px', width: '50%' }}>
+              <ModernButton href={`${baseUrl}/marketplace`} variant="primary" color="#8e9b53">
                 Book Another Session
               </ModernButton>
             </td>
-            <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={`${baseUrl}/help`} variant="secondary" color="#dc2626">
-                View Help Center
+            <td style={{ padding: '0 6px', width: '50%' }}>
+              <ModernButton href={`${baseUrl}/help`} variant="secondary" color="#8e9b53">
+                Help Center
               </ModernButton>
             </td>
           </tr>
         </table>
       </Section>
-
-      <ModernCard title="Cancellation Details" accentColor="#dc2626">
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
-          <table cellPadding="0" cellSpacing="0" width="100%">
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Session</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.sessionType || 'N/A'}</Text>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Date</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{formattedDate}</Text>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Time</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{formattedTime}</Text>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '16px' }}>
-                <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Practitioner</Text>
-                <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.practitionerName || 'N/A'}</Text>
-              </td>
-            </tr>
-            {data.cancellationReason && (
-              <tr>
-                <td>
-                  <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Reason</Text>
-                  <Text style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{data.cancellationReason}</Text>
-                </td>
-              </tr>
-            )}
-          </table>
-        </Section>
-      </ModernCard>
-
-      {data.refundAmount && (
-        <Section style={{ marginTop: '24px', padding: '24px', backgroundColor: 'rgba(5, 150, 105, 0.05)', borderRadius: '16px', border: '1px solid rgba(5, 150, 105, 0.1)' }}>
-          <Text style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#64748b' }}>Refund Amount</Text>
-          <Text style={{ margin: '0 0 16px 0', fontSize: '24px', fontWeight: 900, color: '#059669' }}>£{data.refundAmount}</Text>
-          <Text style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
-            Your refund will be processed within 5-10 business days.
-          </Text>
-        </Section>
-      )}
     </ModernEmailBase>
   );
 };

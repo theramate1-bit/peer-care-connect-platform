@@ -322,6 +322,27 @@ async function upsertSubscription(subscriptionData: any, eventType: string): Pro
   }
 }
 
+const smsMeteredEnabled = (Deno.env.get("SMS_METERED_ENABLED") || "false").toLowerCase() === "true";
+const smsMeteredPriceId = Deno.env.get("STRIPE_SMS_METERED_PRICE_ID") || "";
+
+async function ensureSmsMeteredItemAttached(stripeSubscriptionId: string): Promise<void> {
+  if (!smsMeteredEnabled || !smsMeteredPriceId.startsWith("price_")) return;
+
+  const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+  const alreadyAttached = subscription.items.data.some((item) => item.price?.id === smsMeteredPriceId);
+  if (alreadyAttached) return;
+
+  const existingItems = subscription.items.data.map((item) => ({
+    id: item.id,
+    quantity: item.quantity ?? undefined,
+  }));
+
+  await stripe.subscriptions.update(stripeSubscriptionId, {
+    items: [...existingItems, { price: smsMeteredPriceId }],
+    proration_behavior: "none",
+  });
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests FIRST - this must be before any auth checks
   if (req.method === "OPTIONS") {
@@ -653,9 +674,9 @@ serve(async (req) => {
                     paymentData = paymentDataResult;
                     
                     if (paymentData) {
-                      platformFee = session.payment_intent_data?.application_fee_amount 
-                        ? (session.payment_intent_data.application_fee_amount / 100) 
-                        : (session.amount_total ? (session.amount_total / 100) * 0.005 : 0);
+                      platformFee = session.payment_intent_data?.application_fee_amount
+                        ? (session.payment_intent_data.application_fee_amount / 100)
+                        : (session.amount_total ? ((Math.round(session.amount_total * 0.0195) + 20) / 100) : 0);
                       practitionerAmount = session.amount_total 
                         ? ((session.amount_total / 100) - platformFee) 
                         : (paymentData.amount ? (paymentData.amount / 100) - platformFee : 0);
@@ -692,7 +713,7 @@ serve(async (req) => {
                           // Include payment details in combined email
                           paymentAmount: paymentData ? (paymentData.amount / 100) : (session.amount_total / 100),
                           paymentId: paymentId || '',
-                          cancellationPolicySummary: data.cancellationPolicySummary
+                          cancellationPolicySummary: (sessionData as any)?.cancellation_policy || undefined
                         }
                       }
                       });
@@ -903,7 +924,7 @@ serve(async (req) => {
           console.log("Subscription status:", subscription.status);
           
           // Use robust user_id retrieval with multiple fallback methods
-          const userId = await retrieveUserId("checkout.session.completed", session);
+          let userId = await retrieveUserId("checkout.session.completed", session);
           
           if (!userId) {
             console.error("❌ CRITICAL: Could not retrieve user_id after all fallback methods");
@@ -1111,6 +1132,12 @@ serve(async (req) => {
 
         // Upsert subscription (handles duplicates gracefully)
         const subscriptionSuccess = await upsertSubscription(subscriptionData, "customer.subscription.created");
+        try {
+          await ensureSmsMeteredItemAttached(subscription.id);
+          console.log(`✅ Ensured SMS metered item attached on create for ${subscription.id}`);
+        } catch (attachError) {
+          console.error(`❌ Failed to attach SMS metered item on create for ${subscription.id}:`, attachError);
+        }
         
         // ALLOCATE CREDITS IMMEDIATELY after subscription is created
         if (subscriptionSuccess && userId) {
@@ -1215,6 +1242,12 @@ serve(async (req) => {
         } else {
           console.log(`✅ Subscription ${subscription.id} updated to ${subscription.status}`);
         }
+        try {
+          await ensureSmsMeteredItemAttached(subscription.id);
+          console.log(`✅ Ensured SMS metered item attached on update for ${subscription.id}`);
+        } catch (attachError) {
+          console.error(`❌ Failed to attach SMS metered item on update for ${subscription.id}:`, attachError);
+        }
         break;
       }
 
@@ -1236,6 +1269,43 @@ serve(async (req) => {
           console.error("❌ Error canceling subscription:", error);
         } else {
           console.log(`✅ Subscription ${subscription.id} marked as canceled`);
+        }
+        break;
+      }
+
+      case "invoice.finalized": {
+        console.log("🧾 Processing invoice.finalized");
+        const invoice = event.data.object as Stripe.Invoice;
+        const smsLine = invoice.lines?.data?.find((line) => line.price?.id === smsMeteredPriceId);
+
+        if (invoice.subscription && smsLine && smsMeteredPriceId) {
+          const periodStart = smsLine.period?.start ? new Date(smsLine.period.start * 1000).toISOString() : null;
+          const periodEnd = smsLine.period?.end ? new Date(smsLine.period.end * 1000).toISOString() : null;
+
+          const { data: subRow } = await supabase
+            .from("subscriptions")
+            .select("user_id")
+            .eq("stripe_subscription_id", invoice.subscription as string)
+            .maybeSingle();
+
+          if (subRow?.user_id && periodStart && periodEnd) {
+            const { error: billedError } = await supabase
+              .from("sms_logs")
+              .update({
+                billed_at: new Date(invoice.created * 1000).toISOString(),
+                stripe_invoice_id: invoice.id,
+              })
+              .eq("practitioner_id", subRow.user_id)
+              .gte("sent_at", periodStart)
+              .lt("sent_at", periodEnd)
+              .eq("billable", true);
+
+            if (billedError) {
+              console.error("❌ Failed to stamp billed sms_logs rows:", billedError);
+            } else {
+              console.log(`✅ Stamped billed sms_logs rows for invoice ${invoice.id}`);
+            }
+          }
         }
         break;
       }
@@ -1365,6 +1435,43 @@ serve(async (req) => {
             console.error("❌ Error updating subscription status:", error);
           } else {
             console.log(`✅ Subscription ${invoice.subscription} status updated to past_due`);
+          }
+
+          const { data: subRow } = await supabase
+            .from("subscriptions")
+            .select("user_id")
+            .eq("stripe_subscription_id", invoice.subscription as string)
+            .maybeSingle();
+
+          if (subRow?.user_id) {
+            const { data: userRow } = await supabase
+              .from("users")
+              .select("email,first_name,last_name")
+              .eq("id", subRow.user_id)
+              .maybeSingle();
+
+            if (userRow?.email) {
+              try {
+                await supabase.functions.invoke("send-email", {
+                  headers: {
+                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: {
+                    emailType: "subscription_payment_failed",
+                    recipientEmail: userRow.email,
+                    recipientName: `${userRow.first_name || ""} ${userRow.last_name || ""}`.trim() || "Practitioner",
+                    data: {
+                      invoiceId: invoice.id,
+                      amountDue: (invoice.amount_due || 0) / 100,
+                      currency: invoice.currency,
+                      hostedInvoiceUrl: invoice.hosted_invoice_url,
+                    },
+                  },
+                });
+              } catch (emailError) {
+                console.error("❌ Failed to send invoice.payment_failed email:", emailError);
+              }
+            }
           }
         }
         break;

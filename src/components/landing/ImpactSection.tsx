@@ -77,7 +77,7 @@ export const ImpactSection = () => {
   };
 
   return (
-    <section ref={sectionRef} className="py-24 px-6 bg-slate-50 dark:bg-slate-900/50">
+    <section ref={sectionRef} className="py-24 px-6 bg-cream-50 dark:bg-slate-900/50">
       <div className="max-w-7xl mx-auto">
         <motion.div
           variants={containerVariants}
@@ -88,7 +88,7 @@ export const ImpactSection = () => {
           {/* Left side - Stats */}
           <div className="space-y-12">
             <motion.div variants={itemVariants}>
-              <span className="text-xs font-bold tracking-widest text-primary uppercase">The Problem</span>
+              <span className="landing-eyebrow">The Problem</span>
               <h2 className="text-4xl md:text-5xl font-black tracking-tight mt-3 text-slate-900 dark:text-white">
                 Pain is everywhere.
               </h2>
@@ -141,23 +141,23 @@ export const ImpactSection = () => {
             variants={itemVariants}
             className="relative"
           >
-            <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 md:p-10 shadow-xl border border-slate-200 dark:border-slate-700">
+            <div className="relative landing-card p-8 md:p-10 shadow-xl">
               {/* Problem cards */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-8">
-                  <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                    <AlertTriangle className="w-6 h-6 text-red-500" />
+                  <div className="landing-icon-tile-lg">
+                    <AlertTriangle className="w-6 h-6" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold tracking-widest text-red-500 uppercase">Why This Matters</span>
+                    <span className="landing-eyebrow">Why This Matters</span>
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">The Hidden Cost of Pain</h3>
                   </div>
                 </div>
 
                 <div className="space-y-5">
-                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-700/50">
-                    <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                      <Clock className="w-5 h-5 text-amber-600" />
+                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/80 dark:bg-slate-800/80">
+                    <div className="landing-icon-tile w-10 h-10 rounded-lg flex-shrink-0">
+                      <Clock className="w-5 h-5" />
                     </div>
                     <div>
                       <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Long NHS Wait Times</h4>
@@ -167,9 +167,9 @@ export const ImpactSection = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-700/50">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                      <TrendingDown className="w-5 h-5 text-blue-600" />
+                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/80 dark:bg-slate-800/80">
+                    <div className="landing-icon-tile w-10 h-10 rounded-lg flex-shrink-0">
+                      <TrendingDown className="w-5 h-5" />
                     </div>
                     <div>
                       <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Impacts Daily Life</h4>
@@ -179,9 +179,9 @@ export const ImpactSection = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-700/50">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-5 h-5 text-emerald-600" />
+                  <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/80 dark:bg-slate-800/80">
+                    <div className="landing-icon-tile w-10 h-10 rounded-lg flex-shrink-0">
+                      <Users className="w-5 h-5" />
                     </div>
                     <div>
                       <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Hard to Find Help</h4>

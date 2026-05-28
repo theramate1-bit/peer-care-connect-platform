@@ -50,40 +50,4 @@
     <priority>0.6</priority>
   </url>
   
-  <!-- Authentication Pages -->
-  <url>
-    <loc>https://theramate.co.uk/login</loc>
-    <lastmod>2025-01-20</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://theramate.co.uk/register</loc>
-    <lastmod>2025-01-20</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://theramate.co.uk/portals</loc>
-    <lastmod>2025-01-20</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <!-- User Portals (Lower Priority) -->
-  <url>
-    <loc>https://theramate.co.uk/client/dashboard</loc>
-    <lastmod>2025-01-20</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.3</priority>
-  </url>
-  
-  <url>
-    <loc>https://theramate.co.uk/dashboard</loc>
-    <lastmod>2025-01-20</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.3</priority>
-  </url>
 </urlset>

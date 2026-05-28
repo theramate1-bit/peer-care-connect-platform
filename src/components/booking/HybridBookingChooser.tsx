@@ -1,5 +1,4 @@
 import React from 'react';
-import { Calendar, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -20,8 +19,8 @@ export const HybridBookingChooser: React.FC<HybridBookingChooserProps> = ({
   className,
   buttonSize = 'sm',
   fullWidth = false,
-  clinicLabel = 'Book at Clinic',
-  mobileLabel = 'Request Visit to My Location',
+  clinicLabel = 'Clinic',
+  mobileLabel = 'Mobile',
   practitionerName,
 }) => {
   const clinicAria = practitionerName
@@ -32,24 +31,27 @@ export const HybridBookingChooser: React.FC<HybridBookingChooserProps> = ({
     : 'Request visit to my location';
 
   return (
-    <div className={cn('flex flex-wrap gap-2', className)}>
+    <div className={cn('flex flex-wrap gap-2 min-w-0', className)}>
       <Button
-        onClick={onBookClinic}
+        onClick={(e) => {
+          e.stopPropagation();
+          onBookClinic();
+        }}
         size={buttonSize}
         aria-label={clinicAria}
-        className={cn(fullWidth && 'flex-1')}
+        className={cn(fullWidth && 'flex-1 min-w-0 text-xs sm:text-sm')}
       >
-        <Calendar className="h-4 w-4 mr-2" />
         {clinicLabel}
       </Button>
       <Button
-        variant="outline"
-        onClick={onRequestMobile}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRequestMobile();
+        }}
         size={buttonSize}
         aria-label={mobileAria}
-        className={cn(fullWidth && 'flex-1')}
+        className={cn(fullWidth && 'flex-1 min-w-0 text-xs sm:text-sm')}
       >
-        <MapPin className="h-4 w-4 mr-2" />
         {mobileLabel}
       </Button>
     </div>

@@ -16,7 +16,6 @@ const services = [
     title: "Osteopathy",
     description: "Holistic treatment for back pain, posture issues, and musculoskeletal conditions.",
     features: ["Back & neck pain relief", "Posture correction", "Joint mobility", "Injury recovery"],
-    color: "from-violet-500 to-purple-600",
     href: "/marketplace?specialty=osteopath",
   },
   {
@@ -25,7 +24,6 @@ const services = [
     title: "Sports Massage",
     description: "Deep tissue and therapeutic massage for muscle recovery and tension relief.",
     features: ["Muscle tension release", "Pre/post workout care", "Injury prevention", "Relaxation"],
-    color: "from-emerald-500 to-teal-600",
     href: "/marketplace?specialty=sports_massage",
   },
   {
@@ -34,7 +32,6 @@ const services = [
     title: "Sports Therapy",
     description: "Specialized treatment for sports injuries, rehabilitation and performance.",
     features: ["Sports injuries", "Rehabilitation", "Performance optimization", "Movement analysis"],
-    color: "from-orange-500 to-red-500",
     href: "/marketplace?specialty=sports_therapist",
   },
 ];
@@ -64,7 +61,7 @@ export const ServicesSection = () => {
   };
 
   return (
-    <section ref={sectionRef} className="py-28 px-6 overflow-hidden bg-white dark:bg-slate-950">
+    <section ref={sectionRef} className="py-28 px-6 overflow-hidden bg-cream-50 dark:bg-slate-950">
       <div className="max-w-7xl mx-auto">
         <motion.div
           variants={containerVariants}
@@ -73,7 +70,7 @@ export const ServicesSection = () => {
         >
           {/* Header */}
           <motion.div variants={itemVariants} className="mb-16">
-            <span className="text-xs font-bold tracking-widest text-primary uppercase mb-3 block">
+            <span className="landing-eyebrow mb-3 block">
               Our Services
             </span>
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -106,13 +103,13 @@ export const ServicesSection = () => {
                   className="group"
                 >
                   <Link to={service.href}>
-                    <div className="relative h-full p-8 rounded-3xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-primary/20 transition-[border-color,background-color] duration-200 ease-out overflow-hidden">
+                    <div className="relative h-full p-8 landing-card hover:border-primary/30 transition-[border-color,background-color] duration-200 ease-out overflow-hidden">
                       {/* Background gradient on hover */}
-                      <div className={`absolute inset-0 bg-gradient-to-br ${service.color} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
+                      <div className="absolute inset-0 landing-brand-gradient opacity-0 group-hover:opacity-5 transition-opacity duration-500" />
                       
                       {/* Icon */}
                       <div className="relative mb-6">
-                        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-4 shadow-lg`}>
+                        <div className="w-16 h-16 rounded-2xl landing-brand-gradient flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
                           <Icon className="w-8 h-8 text-white" />
                         </div>
                       </div>
@@ -136,7 +133,7 @@ export const ServicesSection = () => {
                       </ul>
 
                       {/* Arrow indicator */}
-                      <div className="absolute bottom-6 right-6 w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-[background-color] duration-200 ease-out">
+                      <div className="absolute bottom-6 right-6 w-10 h-10 rounded-full bg-cream-100 dark:bg-slate-800 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-[background-color,color] duration-200 ease-out">
                         <ArrowRight className="w-5 h-5" />
                       </div>
                     </div>

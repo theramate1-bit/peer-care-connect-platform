@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -36,7 +36,7 @@ export const ModernPeerRequestAccepted = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="Request Accepted"
-      primaryColor="#059669"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
       <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
@@ -63,29 +63,29 @@ export const ModernPeerRequestAccepted = ({
         </table>
       </Section>
 
-      <ModernCard title="Session Details" accentColor="#059669">
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+      <ModernCard title="Session Details" accentColor="#8e9b53">
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>📅</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Date</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedDate}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Date</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{formattedDate}</Text>
                   </div>
                 </div>
               </td>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>🕐</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Time</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedTime}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Time</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{formattedTime}</Text>
                   </div>
                 </div>
               </td>
@@ -93,23 +93,23 @@ export const ModernPeerRequestAccepted = ({
             <tr>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>💬</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Session Type</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.sessionType || 'N/A'}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Session Type</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{data.sessionType || 'N/A'}</Text>
                   </div>
                 </div>
               </td>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>👤</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Practitioner</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.recipientName || 'N/A'}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Practitioner</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{data.recipientName || 'N/A'}</Text>
                   </div>
                 </div>
               </td>
@@ -122,3 +122,4 @@ export const ModernPeerRequestAccepted = ({
 };
 
 export default ModernPeerRequestAccepted;
+

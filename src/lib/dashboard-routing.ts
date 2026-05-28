@@ -62,7 +62,7 @@ export function getDashboardRoute(options: DashboardRouteOptions): string {
       return '/dashboard';
     
     case 'admin':
-      return '/admin/dashboard';
+      return '/admin/verification';
     
     default:
       // Fallback to intended role or default
@@ -150,57 +150,3 @@ export function getOnboardingRoute(userProfile: UserProfile | null): string {
   }
 }
 
-/**
- * Validates if a user has access to a specific route
- */
-export function canAccessRoute(userProfile: UserProfile | null, route: string): boolean {
-  if (!userProfile) return false;
-  
-  // SECURITY: Do not use localStorage as role fallback - it's a security risk
-  // Roles must come from the database (userProfile.user_role) only
-  const effectiveRole = userProfile.user_role;
-  
-  // If user has no role, they can only access public and auth routes
-  if (!effectiveRole) {
-    const publicRoutes = ['/', '/marketplace', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy', '/cookies'];
-    if (publicRoutes.includes(route)) return true;
-    if (route.startsWith('/auth/') || route === '/login' || route === '/register' || route === '/reset-password') {
-      return true;
-    }
-    if (route === '/onboarding') {
-      return true;
-    }
-    return false;
-  }
-  
-  // Public routes that don't require authentication
-  const publicRoutes = ['/', '/marketplace', '/how-it-works', '/pricing', '/about', '/contact', '/terms', '/privacy', '/cookies'];
-  if (publicRoutes.includes(route)) return true;
-  
-  // Auth routes
-  if (route.startsWith('/auth/') || route === '/login' || route === '/register' || route === '/reset-password') {
-    return true;
-  }
-  
-  // Client routes
-  if (route.startsWith('/client/')) {
-    return effectiveRole === 'client';
-  }
-  
-  // Practitioner routes
-  if (route === '/dashboard' || route.startsWith('/practice/') || route.startsWith('/cpd/')) {
-    return ['sports_therapist', 'massage_therapist', 'osteopath'].includes(effectiveRole);
-  }
-  
-  // Admin routes
-  if (route.startsWith('/admin/')) {
-    return effectiveRole === 'admin';
-  }
-  
-  // Onboarding route - accessible to all authenticated users
-  if (route === '/onboarding') {
-    return true;
-  }
-  
-  return false;
-}

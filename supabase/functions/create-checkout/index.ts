@@ -179,10 +179,17 @@ serve(async (req) => {
       });
     }
 
+    const smsMeteredEnabled = (Deno.env.get("SMS_METERED_ENABLED") || "false").toLowerCase() === "true";
+    const smsMeteredPriceId = Deno.env.get("STRIPE_SMS_METERED_PRICE_ID") || "";
+    const lineItems: Array<{ price: string; quantity?: number }> = [{ price: priceId, quantity: 1 }];
+    if (smsMeteredEnabled && smsMeteredPriceId.startsWith("price_")) {
+      lineItems.push({ price: smsMeteredPriceId });
+    }
+
     // Create Stripe checkout session
     const sessionConfig: any = {
       customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: lineItems,
       mode: "subscription",
       success_url: `${req.headers.get("origin")}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/pricing`,

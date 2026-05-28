@@ -71,14 +71,26 @@ export interface ExchangeRequest {
   /** Current status of the request */
   status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
   
-  /** When the request expires (ISO timestamp) */
-  expires_at: string;
+  /** When the request expires (ISO timestamp); null = no expiration */
+  expires_at: string | null;
   
   /** When the request was accepted (ISO timestamp) */
   accepted_at?: string;
   
   /** When the request was declined (ISO timestamp) */
   declined_at?: string;
+  
+  /** Reciprocal booking deadline (ISO timestamp) */
+  reciprocal_booking_deadline?: string;
+  
+  /** When extension was requested (ISO timestamp) */
+  extension_requested_at?: string;
+  
+  /** When extension was approved (ISO timestamp) */
+  extension_approved_at?: string;
+  
+  /** Requested extension days */
+  extension_days?: number;
   
   /** When the request was created (ISO timestamp) */
   created_at: string;

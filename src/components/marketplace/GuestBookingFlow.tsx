@@ -17,7 +17,8 @@ import {
   Clock,
   Timer,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  MapPin
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,6 +92,11 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
   onRedirectToMobile,
   initialServiceId
 }) => {
+  const clinicLocation = (practitioner.clinic_address || practitioner.location || 'Clinic address').trim();
+  const handleRedirectToMobile = () => {
+    onOpenChange(false);
+    onRedirectToMobile?.();
+  };
   const [loading, setLoading] = useState(false);
 
   // Enforce correct booking path: mobile-only must use MobileBookingRequestFlow, not clinic flow.
@@ -118,7 +124,7 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
             .eq('is_active', true),
           supabase
             .from('users')
-            .select('therapist_type, mobile_service_radius_km, base_latitude, base_longitude')
+            .select('therapist_type, mobile_service_radius_km, base_latitude, base_longitude, clinic_latitude, clinic_longitude')
             .eq('id', practitioner.user_id)
             .maybeSingle(),
         ]);
@@ -128,6 +134,8 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
           mobile_service_radius_km: userData?.mobile_service_radius_km ?? practitioner.mobile_service_radius_km ?? null,
           base_latitude: userData?.base_latitude ?? practitioner.base_latitude ?? null,
           base_longitude: userData?.base_longitude ?? practitioner.base_longitude ?? null,
+          clinic_latitude: userData?.clinic_latitude ?? (practitioner as { clinic_latitude?: number | null }).clinic_latitude ?? null,
+          clinic_longitude: userData?.clinic_longitude ?? (practitioner as { clinic_longitude?: number | null }).clinic_longitude ?? null,
           products: (productsData as Array<{ is_active: boolean; service_type?: 'clinic' | 'mobile' | 'both' | null }> | null) ?? practitioner.products ?? [],
         };
 
@@ -807,10 +815,7 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
                             <Button
                               type="button"
                               size="sm"
-                              onClick={() => {
-                                onOpenChange(false);
-                                onRedirectToMobile?.();
-                              }}
+                              onClick={handleRedirectToMobile}
                             >
                               Request Visit to My Location
                             </Button>
@@ -848,26 +853,35 @@ export const GuestBookingFlow: React.FC<GuestBookingFlowProps> = ({
                           : 'Location'}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="w-full h-64 bg-muted/20 rounded-lg flex items-center justify-center">
-                      <div className="text-center text-muted-foreground">
-                        <Calendar className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                        {practitioner.therapist_type === 'mobile' ? (
-                          <p className="text-sm px-2">
-                            This practitioner travels to your location. You&apos;ll be asked for your address when you request a mobile session.
-                          </p>
-                        ) : (
-                          <>
-                            <p className="text-sm">
-                              {(practitioner.clinic_address || practitioner.location || 'Location information').trim()}
-                            </p>
-                            {practitioner.therapist_type === 'hybrid' && (
-                              <p className="text-xs mt-1">Book at clinic or request a visit to your location.</p>
-                            )}
-                          </>
-                        )}
+                  <CardContent className="space-y-4">
+                    {practitioner.therapist_type === 'mobile' ? (
+                      <div className="rounded-lg bg-muted/20 p-4 text-sm text-muted-foreground">
+                        This practitioner travels to your location. You&apos;ll be asked for your address when you request a mobile session.
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="rounded-lg border bg-muted/20 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-full border bg-background p-2">
+                              <MapPin className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="space-y-1">
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clinicLocation)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                              >
+                                {clinicLocation}
+                              </a>
+                              <p className="text-xs text-muted-foreground">
+                                Your session will take place at the practitioner clinic.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>

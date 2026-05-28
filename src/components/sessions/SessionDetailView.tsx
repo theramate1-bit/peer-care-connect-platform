@@ -17,7 +17,6 @@ import {
   ArrowLeft,
   RefreshCw,
   X,
-  Pencil,
   Heart,
   Activity,
   Bone,
@@ -38,7 +37,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from '@/components/ui/textarea';
 import { CancellationPolicyService } from '@/lib/cancellation-policy';
 import { RefundService } from '@/lib/refund-service';
-import { parseISO, isPast, isBefore, addMinutes, subHours } from 'date-fns';
+import { parseISO, isPast, isBefore, addMinutes } from 'date-fns';
 import { PreAssessmentStatus } from '@/components/forms/PreAssessmentStatus';
 import { getDisplaySessionStatus, getDisplaySessionStatusLabel, isPractitionerSessionVisible } from '@/lib/session-display-status';
 import { createInAppNotification } from '@/lib/notification-utils';
@@ -142,9 +141,6 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
   const [processingCancellation, setProcessingCancellation] = useState(false);
   const [mutualExchangeSession, setMutualExchangeSession] = useState<MutualExchangeSession | null>(null);
   const [updatingAttendance, setUpdatingAttendance] = useState(false);
-  const [isEditingVisitAddress, setIsEditingVisitAddress] = useState(false);
-  const [editVisitAddressValue, setEditVisitAddressValue] = useState('');
-  const [updatingVisitAddress, setUpdatingVisitAddress] = useState(false);
 
   useEffect(() => {
     if (sessionId && user?.id) {
@@ -1211,87 +1207,13 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isEditingVisitAddress ? (
-                  <div className="space-y-3">
-                    <Textarea
-                      placeholder="Enter visit address"
-                      value={editVisitAddressValue}
-                      onChange={(e) => setEditVisitAddressValue(e.target.value)}
-                      rows={3}
-                      disabled={updatingVisitAddress}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          const trimmed = editVisitAddressValue?.trim();
-                          if (!trimmed) {
-                            toast({ title: 'Address required', variant: 'destructive' });
-                            return;
-                          }
-                          setUpdatingVisitAddress(true);
-                          try {
-                            const { data, error } = await supabase.rpc('update_session_visit_address', {
-                              p_session_id: session.id,
-                              p_new_address: trimmed
-                            });
-                            const result = data as { success?: boolean; error?: string } | null;
-                            if (error || !result?.success) {
-                              toast({
-                                title: 'Could not update address',
-                                description: (result?.error as string) || error?.message || 'Unknown error',
-                                variant: 'destructive'
-                              });
-                              return;
-                            }
-                            toast({ title: 'Address updated' });
-                            setIsEditingVisitAddress(false);
-                            fetchSessionDetails();
-                          } finally {
-                            setUpdatingVisitAddress(false);
-                          }
-                        }}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setIsEditingVisitAddress(false);
-                          setEditVisitAddressValue(session.location ?? '');
-                        }}
-                        disabled={updatingVisitAddress}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm mb-3">{session.location}</p>
+                <>
+                  <p className="text-sm mb-3">{session.location}</p>
                     <div className="flex flex-wrap gap-2">
-                      {(() => {
-                        const isMobile = session.appointment_type === 'mobile';
-                        const statusOk = ['confirmed', 'scheduled'].includes(session.status ?? '');
-                        const sessionStart = parseISO(`${session.session_date}T${session.session_time}`);
-                        const cutoff = subHours(sessionStart, 24);
-                        const canEdit = isMobile && statusOk && isBefore(new Date(), cutoff) && !isPast(sessionStart);
-                        return canEdit ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditVisitAddressValue(session.location ?? '');
-                              setIsEditingVisitAddress(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit visit address
-                          </Button>
-                        ) : null;
-                      })()}
-                      {session.directionsUrl && (
+                      {session.directionsUrl && (() => {
+                        const isPractitioner = ['sports_therapist', 'massage_therapist', 'osteopath', 'practitioner'].includes(userProfile?.user_role ?? '');
+                        return session.appointment_type === 'mobile' ? isPractitioner : !isPractitioner;
+                      })() && (
                         <Button variant="outline" size="sm" asChild>
                           <a href={session.directionsUrl} target="_blank" rel="noopener noreferrer">
                             <MapPin className="h-4 w-4 mr-2" />
@@ -1301,7 +1223,6 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                       )}
                     </div>
                   </>
-                )}
               </CardContent>
             </Card>
           )}
@@ -1325,7 +1246,7 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                   </div>
                   {!mutualExchangeSession.credits_deducted && (
                     <p className="text-xs text-muted-foreground">
-                      Credits will be deducted when both practitioners have booked their sessions.
+                      The exchange is not confirmed until both practitioners book their sessions. Credits will be deducted automatically once both have booked.
                     </p>
                   )}
                 </div>
@@ -1363,14 +1284,14 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                   {!mutualExchangeSession.practitioner_a_booked || !mutualExchangeSession.practitioner_b_booked ? (
                     <p className="text-xs text-muted-foreground mt-2">
                       {!mutualExchangeSession.practitioner_a_booked && !mutualExchangeSession.practitioner_b_booked
-                        ? "Waiting for both practitioners to book their sessions."
+                        ? "Exchange accepted. Both practitioners still need to book their sessions to confirm—you'll be notified when complete."
                         : `Waiting for ${!mutualExchangeSession.practitioner_a_booked 
                             ? (mutualExchangeSession.practitioner_a_id === session.therapist_id 
                                 ? session.therapist.first_name + " " + session.therapist.last_name 
                                 : session.client_name || "Practitioner A")
                             : (mutualExchangeSession.practitioner_b_id === session.therapist_id 
                                 ? session.therapist.first_name + " " + session.therapist.last_name 
-                                : session.client_name || "Practitioner B")} to book their session.`}
+                                : session.client_name || "Practitioner B")} to book their session. The exchange will complete once both have booked.`}
                     </p>
                   ) : (
                     <p className="text-xs text-green-600 mt-2">
@@ -1463,7 +1384,8 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                   </CardContent>
                 </Card>
 
-                {/* Attendance Tracking - Only for practitioners */}
+                {/* Attendance Tracking - Only for practitioners and clinic sessions (not mobile) */}
+                {session.appointment_type !== 'mobile' && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -1514,6 +1436,7 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                     </p>
                   </CardContent>
                 </Card>
+                )}
               </>
             ) : null
           ) : (
@@ -1681,7 +1604,7 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({
                     </Link>
                   </Button>
                   
-                  {displayStatus === 'scheduled' && (
+                  {(displayStatus === 'scheduled' || displayStatus === 'confirmed') && (
                 <>
                   <Button 
                     onClick={handleCancel} 

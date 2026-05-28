@@ -6,11 +6,14 @@
  * or: npx tsx scripts/render-emails.ts
  */
 
-import { render } from '@react-email/render';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { EmailData } from '../src/emails/utils/types';
 import { renderEmail } from '../src/emails/render';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Sample data for testing
 const sampleData: EmailData = {
@@ -70,7 +73,7 @@ async function buildEmails() {
 
   for (const emailType of emailTypes) {
     try {
-      const result = renderEmail({
+      const result = await renderEmail({
         emailType,
         recipientName: 'Test User',
         recipientEmail: 'test@example.com',

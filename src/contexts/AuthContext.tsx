@@ -12,9 +12,22 @@ import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AuthErrorHandler } from '@/lib/auth-error-handler';
+import {
+  clearCachedProfile,
+  PROFILE_FETCH_TIMEOUT_MS,
+  PROFILE_FULL_SELECT,
+  PROFILE_ROUTING_SELECT,
+  readCachedProfile,
+  writeCachedProfile,
+  isCacheStaleForProfile,
+} from '@/lib/auth-profile-cache';
+import {
+  isSessionOnlyAuthEvent,
+  shouldInvalidateProfileCache,
+  shouldSkipProfileSyncOnAuthEvent,
+} from '@/lib/auth-bootstrap';
 
 interface UserProfile {
-  // Basic fields
   id: string;
   email: string;
   first_name: string;
@@ -23,8 +36,6 @@ interface UserProfile {
   onboarding_status: 'pending' | 'role_selected' | 'in_progress' | 'completed';
   phone?: string;
   profile_completed: boolean;
-
-  // Professional fields (for practitioners)
   bio?: string;
   location?: string;
   clinic_address?: string;
@@ -47,18 +58,10 @@ interface UserProfile {
   services_offered?: string[];
   treatment_exchange_opt_in?: boolean;
   has_liability_insurance?: boolean;
-
-  // Profile photo
   avatar_url?: string;
-  profile_photo_url?: string; // Legacy field name for backward compatibility
-
-  // Stripe Connect
+  profile_photo_url?: string;
   stripe_connect_account_id?: string;
-
-  // Dashboard goals (KAN-69). Reserved for future pricing/insights feature; not used in current UI (no session-estimate or revenue calculator).
   monthly_earnings_goal?: number | null;
-
-  // Preferences (stored as JSONB)
   preferences?: {
     emailNotifications?: boolean;
     smsNotifications?: boolean;
@@ -67,13 +70,9 @@ interface UserProfile {
     profileVisible?: boolean;
     showContactInfo?: boolean;
     autoAcceptBookings?: boolean;
-    /** In-app / in-platform message notifications (booking, reminders, etc.) */
     receiveInAppNotifications?: boolean;
-    /** Platform updates and product news */
     platformUpdates?: boolean;
   };
-
-  // Timestamps
   created_at?: string;
   updated_at?: string;
 }
@@ -82,140 +81,276 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   userProfile: UserProfile | null;
-  /** True when userProfile.profile_completed is true; used for dashboard CTAs */
   isProfileComplete: boolean;
+  /** True until first Supabase session read completes (local storage / refresh). */
   loading: boolean;
-  profileLoading: boolean; // Separate state for profile fetches after auth state changes
+  /** True while a background profile revalidation is in flight (never blocks the shell). */
+  profileSyncing: boolean;
   intendedRole: string | null;
   setIntendedRole: (role: string | null) => void;
   signUp: (email: string, password: string, userData: { first_name: string; last_name: string; user_role: string }) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>;
-  refreshProfile: () => Promise<{ error: any }>;
+  refreshProfile: () => Promise<{ error: any; profile: UserProfile | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('TIMEOUT')), ms);
+    promise
+      .then((v) => {
+        clearTimeout(timer);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+  });
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false); // Track profile fetches separately
+  const [profileSyncing, setProfileSyncing] = useState(false);
   const [intendedRole, setIntendedRole] = useState<string | null>(null);
-  const isFetchingProfile = useRef(false);
+
+  const profileSyncRef = useRef<Promise<UserProfile | null> | null>(null);
+  const lastSyncedUserId = useRef<string | null>(null);
+  const lastProfileRef = useRef<UserProfile | null>(null);
+
+  const applyProfile = useCallback((userId: string, profile: UserProfile) => {
+    lastProfileRef.current = profile;
+    setUserProfile(profile);
+    writeCachedProfile(userId, profile as unknown as Record<string, unknown>);
+  }, []);
 
   const performSilentLogout = async () => {
-    // Clear state IMMEDIATELY to stop any pending operations
     setUser(null);
     setSession(null);
     setUserProfile(null);
-
-    // Then perform the actual logout
+    clearCachedProfile();
+    lastSyncedUserId.current = null;
     await AuthErrorHandler.performSilentLogout();
   };
 
-  const handleAuthError = async (error: any): Promise<boolean> => {
-    return await AuthErrorHandler.handleAuthError(error);
+  const handleAuthError = async (error: unknown): Promise<boolean> => {
+    return AuthErrorHandler.handleAuthError(error);
   };
 
-  const fetchUserProfile = async (userId: string, retryCount = 0, isAuthStateChange = false) => {
-    // Prevent duplicate fetches
-    if (isFetchingProfile.current) {
-      return;
-    }
+  const fetchProfileRow = async (userId: string, select: string) => {
+    return withTimeout(
+      supabase.from('users').select(select).eq('id', userId).single(),
+      PROFILE_FETCH_TIMEOUT_MS
+    );
+  };
 
-    isFetchingProfile.current = true;
-    // Set profileLoading only for auth state changes (not initial load) to prevent UI flash
-    if (isAuthStateChange) {
-      setProfileLoading(true);
-    }
+  const ensureProfileRow = async (userId: string): Promise<UserProfile | null> => {
+    const { data: { session: liveSession } } = await supabase.auth.getSession();
+    if (liveSession?.user?.id !== userId) return null;
+    const u = liveSession.user;
+    const { error: rpcError } = await supabase.rpc('convert_guest_to_client_or_create_profile', {
+      p_new_id: userId,
+      p_email: u.email ?? '',
+      p_first_name: u.user_metadata?.first_name || 'User',
+      p_last_name: u.user_metadata?.last_name || 'User',
+      p_user_role: u.user_metadata?.user_role || 'client',
+    });
+    if (rpcError) return null;
+    const { data } = await fetchProfileRow(userId, PROFILE_FULL_SELECT);
+    return (data as UserProfile) ?? null;
+  };
 
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
+  const syncUserProfile = useCallback(
+    async (userId: string, retryCount = 0): Promise<UserProfile | null> => {
+      if (profileSyncRef.current) {
+        return profileSyncRef.current;
+      }
 
-      if (error) {
-        AuthErrorHandler.logErrorDetails(error, 'Profile fetch');
-
-        // No profile row (e.g. guest-to-client account): create/merge profile then refetch
-        if (error.code === 'PGRST116') {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id === userId) {
-            const u = session.user;
-            const { error: rpcError } = await supabase.rpc('convert_guest_to_client_or_create_profile', {
-              p_new_id: userId,
-              p_email: u.email ?? '',
-              p_first_name: u.user_metadata?.first_name || 'User',
-              p_last_name: u.user_metadata?.last_name || 'User',
-              p_user_role: u.user_metadata?.user_role || 'client',
-            });
-            if (!rpcError) {
-              const { data: retryData, error: retryErr } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single();
-              if (!retryErr && retryData) {
-                setUserProfile(retryData as UserProfile);
-                return;
+      const run = async (): Promise<UserProfile | null> => {
+        setProfileSyncing(true);
+        let resolved: UserProfile | null = lastProfileRef.current;
+        try {
+          let routing: UserProfile | null = null;
+          let routingError: { code?: string; message?: string } | null = null;
+          try {
+            const result = await fetchProfileRow(userId, PROFILE_ROUTING_SELECT);
+            routing = result.data as UserProfile | null;
+            routingError = result.error;
+          } catch (e) {
+            if (e instanceof Error && e.message === 'TIMEOUT') {
+              if (import.meta.env.DEV) {
+                console.warn('Profile routing fetch timed out; using cache if present');
               }
+              return resolved;
             }
+            throw e;
           }
-          setUserProfile(null);
-          return;
-        }
 
-        // Handle other authentication errors
-        if (AuthErrorHandler.isAuthenticationError(error)) {
+          if (routingError) {
 
-          // Try to refresh session (only once)
-          if (retryCount === 0) {
-            const canRetry = await handleAuthError(error);
-            if (canRetry) {
-              isFetchingProfile.current = false;
-              return fetchUserProfile(userId, retryCount + 1, isAuthStateChange);
+            if (routingError.code === 'PGRST116') {
+              const created = await ensureProfileRow(userId);
+              if (created) {
+                applyProfile(userId, created);
+                resolved = created;
+              } else {
+                setUserProfile(null);
+                lastProfileRef.current = null;
+                resolved = null;
+              }
+              return resolved;
             }
-          } else {
-            // Retry failed, perform silent logout
-            await performSilentLogout();
-          }
-          if (isAuthStateChange) {
-            setProfileLoading(false);
-          }
-          return;
-        }
 
+            if (AuthErrorHandler.isAuthenticationError(routingError)) {
+              if (retryCount === 0 && (await handleAuthError(routingError))) {
+                profileSyncRef.current = null;
+                return syncUserProfile(userId, retryCount + 1);
+              }
+              await performSilentLogout();
+              return null;
+            }
+
+            setUserProfile(null);
+            lastProfileRef.current = null;
+            return null;
+          }
+
+          const cached = readCachedProfile(userId);
+          if (cached && routing && isCacheStaleForProfile(cached, routing as Record<string, unknown>)) {
+            clearCachedProfile();
+          }
+
+          if (routing) {
+            setUserProfile((prev) => ({ ...prev, ...(routing as UserProfile) } as UserProfile));
+          }
+
+          try {
+            const { data: full, error: fullError } = await fetchProfileRow(userId, PROFILE_FULL_SELECT);
+            if (!fullError && full) {
+              const fullRow = full as UserProfile;
+              if (cached && isCacheStaleForProfile(cached, fullRow as unknown as Record<string, unknown>)) {
+                clearCachedProfile();
+              }
+              applyProfile(userId, fullRow);
+              resolved = fullRow;
+            } else if (routing) {
+              applyProfile(userId, routing);
+              resolved = routing;
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message === 'TIMEOUT' && routing) {
+              applyProfile(userId, routing);
+              return routing;
+            }
+            throw e;
+          }
+          return lastProfileRef.current;
+        } catch (err) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Profile sync error:', err);
+          }
+          return lastProfileRef.current;
+        } finally {
+          setProfileSyncing(false);
+          profileSyncRef.current = null;
+        }
+      };
+
+      profileSyncRef.current = run();
+      return profileSyncRef.current;
+    },
+    [applyProfile]
+  );
+
+  // Session bootstrap — one listener + initial getSession (Supabase recommended pattern)
+  useEffect(() => {
+    let mounted = true;
+
+    const applySession = (next: Session | null) => {
+      setSession(next);
+      setUser(next?.user ?? null);
+      if (!next?.user) {
         setUserProfile(null);
+        clearCachedProfile();
+        lastSyncedUserId.current = null;
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session: initial } }) => {
+      if (!mounted) return;
+      applySession(initial);
+      if (initial?.user) {
+        const cached = readCachedProfile(initial.user.id);
+        if (cached) {
+          setUserProfile(cached as UserProfile);
+        }
+      }
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!mounted) return;
+      if (isSessionOnlyAuthEvent(event)) return;
+
+      applySession(nextSession);
+      setLoading(false);
+
+      if (!nextSession?.user) {
         return;
       }
-      setUserProfile(data as UserProfile);
-    } catch (err) {
-      // Only log critical profile fetch errors in development
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ Profile fetch error:', err);
-      }
-      setUserProfile(null);
-    } finally {
-      isFetchingProfile.current = false;
-      if (isAuthStateChange) {
-        setProfileLoading(false);
-      }
-    }
-  };
 
-  const createUserProfile = async (user: User) => {
+      if (shouldInvalidateProfileCache(event)) {
+        clearCachedProfile();
+        lastSyncedUserId.current = null;
+      }
+
+      if (shouldSkipProfileSyncOnAuthEvent(event)) {
+        const cached = readCachedProfile(nextSession.user.id);
+        if (cached) setUserProfile(cached as UserProfile);
+        return;
+      }
+
+      lastSyncedUserId.current = null;
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Profile sync when user id changes — decoupled from auth events (no duplicate INITIAL_SESSION fetch)
+  useEffect(() => {
+    const userId = user?.id ?? null;
+    if (!userId) return;
+
+    if (lastSyncedUserId.current === userId) return;
+    lastSyncedUserId.current = userId;
+
+    const cached = readCachedProfile(userId);
+    if (cached) {
+      setUserProfile(cached as UserProfile);
+    }
+
+    void syncUserProfile(userId);
+  }, [user?.id, syncUserProfile]);
+
+  const createUserProfile = async (authUser: User) => {
     try {
       const profileData = {
-        id: user.id,
-        email: user.email || '',
-        first_name: user.user_metadata?.first_name || 'User',
-        last_name: user.user_metadata?.last_name || 'User',
-        user_role: user.user_metadata?.user_role || null,
+        id: authUser.id,
+        email: authUser.email || '',
+        first_name: authUser.user_metadata?.first_name || 'User',
+        last_name: authUser.user_metadata?.last_name || 'User',
+        user_role: authUser.user_metadata?.user_role || null,
         onboarding_status: 'pending' as const,
         profile_completed: false,
         phone: null,
@@ -236,81 +371,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      setUserProfile(data as UserProfile);
+      applyProfile(authUser.id, data as UserProfile);
     } catch (err) {
       console.error('Unexpected error creating profile:', err);
     }
   };
 
-  useEffect(() => {
-    let mounted = true;
-
-    // Get initial session - optimized for speed
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        // Fetch profile in background (non-blocking)
-        if (session?.user) {
-          fetchUserProfile(session.user.id, 0, false); // Initial load, not auth state change
-        } else {
-          setUserProfile(null);
-        }
-
-        // Set loading false immediately - don't wait for profile
-        setLoading(false);
-      } catch (error) {
-        console.error('Auth init error:', error);
-        if (mounted) setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      // DON'T set loading to true - prevents UI flash
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      // Skip profile fetch for TOKEN_REFRESHED - profile unchanged, avoids unmounting app on tab return
-      if (event === 'TOKEN_REFRESHED') {
-        return;
-      }
-
-      // Fetch profile in background - track loading separately to prevent UI flash
-      if (session?.user) {
-        // Set profileLoading to track this fetch (separate from initial loading)
-        setProfileLoading(true);
-        // Non-blocking: fetch profile but don't wait for it
-        fetchUserProfile(session.user.id, 0, true).catch(error => {
-          console.error('❌ Error fetching profile in auth state change:', error);
-          setProfileLoading(false);
-          // Don't set null here - let existing profile remain if fetch fails
-        });
-      } else {
-        setUserProfile(null);
-        setProfileLoading(false);
-      }
-      // Don't set loading false here - it's already false from init
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const signUp = async (email: string, password: string, userData: { first_name: string; last_name: string; user_role: string }) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    userData: { first_name: string; last_name: string; user_role: string }
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -341,45 +412,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast.error(rpcError.message || 'Account created but profile setup failed. Please try signing in.');
         await createUserProfile(data.user);
       } else if (profileRow) {
-        setUserProfile(profileRow as UserProfile);
+        applyProfile(data.user.id, profileRow as UserProfile);
       } else {
         await createUserProfile(data.user);
       }
+      lastSyncedUserId.current = data.user.id;
     }
 
     return { data, error };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
   const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error signing out from Supabase:', error);
-        // We continue to clear local state even if server logout fails
-      }
-    } catch (error) {
-      console.error('Unexpected error during sign out:', error);
-    }
-
-    // Clear state
     setUser(null);
     setSession(null);
     setUserProfile(null);
+    clearCachedProfile();
+    lastSyncedUserId.current = null;
 
-    // Note: supabase.auth.signOut() already clears the session from localStorage
-    // The prompt: 'select_account' parameter in OAuth options will force Google
-    // to show account selection instead of using cached account
+    try {
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sign out timed out')), 3000)),
+      ]);
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Sign out:', error);
+      }
+    }
 
-    // Redirect to landing page
     window.location.href = '/';
   };
 
@@ -388,25 +453,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: { message: 'No user logged in' } };
     }
 
-    console.log('📝 AuthContext: updateProfile called with:', updates);
-
     const { error } = await supabase
       .from('users')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', user.id);
 
     if (!error) {
-      // Optimistically update userProfile
-      setUserProfile(prev => prev ? { ...prev, ...updates } : null);
-      console.log('✅ AuthContext: userProfile updated optimistically:', updates);
-    } else {
-      // Only log critical update errors in development
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ AuthContext: updateProfile error:', error);
-      }
+      setUserProfile((prev) => {
+        const next = prev ? { ...prev, ...updates } : null;
+        if (next) writeCachedProfile(user.id, next as unknown as Record<string, unknown>);
+        return next;
+      });
     }
 
     return { error };
@@ -414,47 +471,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshProfile = async () => {
     if (!user) {
-      return { error: { message: 'No user logged in' } };
+      return { error: { message: 'No user logged in' }, profile: null };
     }
-
-    console.log('🔄 AuthProvider: Refreshing profile for user:', user.id);
-    // Force refresh by clearing the fetching flag if set
-    isFetchingProfile.current = false;
-    await fetchUserProfile(user.id);
-
-    // Verify the refresh worked by checking what was actually fetched
-    const { data: verifyData } = await supabase
-      .from('users')
-      .select('first_name, last_name, email')
-      .eq('id', user.id)
-      .single();
-
-    if (verifyData) {
-      console.log('✅ RefreshProfile: Verified fresh data from DB:', {
-        first_name: verifyData.first_name,
-        last_name: verifyData.last_name,
-        email: verifyData.email
-      });
-    }
-
-    return { error: null };
+    lastSyncedUserId.current = null;
+    profileSyncRef.current = null;
+    const profile = await syncUserProfile(user.id);
+    return { error: null, profile: profile ?? lastProfileRef.current };
   };
 
-  const value = useMemo(() => ({
-    user,
-    session,
-    userProfile,
-    isProfileComplete: !!userProfile?.profile_completed,
-    loading,
-    profileLoading,
-    intendedRole,
-    setIntendedRole,
-    signUp,
-    signIn,
-    signOut,
-    updateProfile,
-    refreshProfile,
-  }), [user, session, userProfile, loading, profileLoading, intendedRole]);
+  const value = useMemo(
+    () => ({
+      user,
+      session,
+      userProfile,
+      isProfileComplete: !!userProfile?.profile_completed,
+      loading,
+      profileSyncing,
+      intendedRole,
+      setIntendedRole,
+      signUp,
+      signIn,
+      signOut,
+      updateProfile,
+      refreshProfile,
+    }),
+    [user, session, userProfile, loading, profileSyncing, intendedRole, syncUserProfile]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

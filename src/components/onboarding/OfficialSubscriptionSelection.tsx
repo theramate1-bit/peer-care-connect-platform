@@ -132,9 +132,9 @@ export const OfficialSubscriptionSelection: React.FC<OfficialSubscriptionSelecti
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid items-stretch gap-6 md:grid-cols-2">
         {pricingPlans.map((plan) => (
-          <Card key={plan.id} className="relative">
+          <Card key={plan.id} className="relative flex h-full flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
@@ -146,8 +146,8 @@ export const OfficialSubscriptionSelection: React.FC<OfficialSubscriptionSelecti
                 <span className="text-lg font-normal text-muted-foreground">/month</span>
               </div>
             </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 mb-6">
+            <CardContent className="flex flex-1 flex-col gap-6 pt-0">
+              <ul className="flex flex-1 flex-col gap-2">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
@@ -158,7 +158,7 @@ export const OfficialSubscriptionSelection: React.FC<OfficialSubscriptionSelecti
               <Button
                 onClick={() => handleSubscribe(plan)}
                 disabled={loading === plan.id}
-                className="w-full"
+                className="mt-auto w-full shrink-0"
                 size="lg"
               >
                 {loading === plan.id ? 'Processing...' : 'Subscribe Now'}

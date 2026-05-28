@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrencyFromPence } from '@/lib/utils';
 import { MobileBookingRequestFlow } from '@/components/marketplace/MobileBookingRequestFlow';
 import { NotificationSystem } from '@/lib/notification-system';
 
@@ -35,9 +35,10 @@ interface MobileRequest {
   alternate_suggestions?: any;
   client_notes?: string;
   created_at: string;
-  expires_at: string;
+  expires_at: string | null;
   stripe_payment_intent_id?: string | null;
   session_id?: string | null;
+  guest_view_token?: string | null;
 }
 
 export const MobileRequestStatus: React.FC = () => {
@@ -341,7 +342,7 @@ export const MobileRequestStatus: React.FC = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Amount</Label>
-                    <p className="font-medium">{formatCurrency(request.total_price_pence / 100)}</p>
+                    <p className="font-medium">{formatCurrencyFromPence(request.total_price_pence)}</p>
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs text-muted-foreground">Your Address</Label>
@@ -382,13 +383,22 @@ export const MobileRequestStatus: React.FC = () => {
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() =>
-                          navigate(
-                            user
-                              ? `/client/sessions?sessionId=${request.session_id}`
-                              : `/booking/view/${request.session_id}`
-                          )
-                        }
+                        onClick={() => {
+                          const token = request.guest_view_token?.trim();
+                          if (token) {
+                            navigate(
+                              `/booking/view/${request.session_id}?token=${encodeURIComponent(token)}`,
+                            );
+                            return;
+                          }
+                          if (user) {
+                            navigate(`/client/sessions?sessionId=${request.session_id}`);
+                            return;
+                          }
+                          toast.error(
+                            'Open the secure link from your confirmation email to view this session, or contact support.',
+                          );
+                        }}
                       >
                         <Calendar className="h-4 w-4 mr-2" />
                         View session

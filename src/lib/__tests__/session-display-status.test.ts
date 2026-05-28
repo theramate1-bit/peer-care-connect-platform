@@ -1,6 +1,9 @@
 import {
   getDisplaySessionStatus,
+  getDisplaySessionStatusLabel,
   isSuccessfulSessionPayment,
+  isPractitionerSessionVisible,
+  isClientSessionVisible,
 } from '@/lib/session-display-status';
 
 describe('session display status normalization', () => {
@@ -41,5 +44,30 @@ describe('session display status normalization', () => {
     expect(isSuccessfulSessionPayment('completed')).toBe(true);
     expect(isSuccessfulSessionPayment('succeeded')).toBe(true);
     expect(isSuccessfulSessionPayment('pending')).toBe(false);
+  });
+});
+
+describe('getDisplaySessionStatusLabel', () => {
+  it('formats status as Title Case', () => {
+    expect(getDisplaySessionStatusLabel({ status: 'pending_payment' })).toBe('Pending Payment');
+    expect(getDisplaySessionStatusLabel({ status: 'in_progress' })).toBe('In Progress');
+  });
+});
+
+describe('isPractitionerSessionVisible', () => {
+  it('returns false for released payment', () => {
+    expect(isPractitionerSessionVisible({ status: 'completed', payment_status: 'released' })).toBe(false);
+  });
+  it('returns true for visible statuses', () => {
+    expect(isPractitionerSessionVisible({ status: 'scheduled', payment_status: 'paid' })).toBe(true);
+  });
+});
+
+describe('isClientSessionVisible', () => {
+  it('returns false for released payment', () => {
+    expect(isClientSessionVisible({ status: 'completed', payment_status: 'released' })).toBe(false);
+  });
+  it('returns false for expired', () => {
+    expect(isClientSessionVisible({ status: 'expired' })).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -30,7 +30,7 @@ export const ModernMessageReceivedGuest = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="New Message"
-      primaryColor="#059669"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
       <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
@@ -45,20 +45,20 @@ export const ModernMessageReceivedGuest = ({
         </table>
       </Section>
 
-      <ModernCard title="Message Preview" accentColor="#059669">
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
-          <Text style={{ margin: 0, fontSize: '16px', fontStyle: 'italic', color: '#64748b', lineHeight: '1.6' }}>
+      <ModernCard title="Message Preview" accentColor="#8e9b53">
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
+          <Text style={{ margin: 0, fontSize: '16px', fontStyle: 'italic', color: '#5a5a5a', lineHeight: '1.6' }}>
             "{data.messagePreview || 'You have a new message. Create an account to view and reply.'}"
           </Text>
         </Section>
       </ModernCard>
 
-      <Section style={{ marginTop: '24px', padding: '24px', backgroundColor: 'rgba(5, 150, 105, 0.05)', borderRadius: '16px', border: '1px solid rgba(5, 150, 105, 0.1)' }}>
-        <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>🔐 Create Your Account</Text>
-        <Text style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+      <Section style={{ marginTop: '24px', padding: '24px', backgroundColor: 'rgba(142, 155, 83, 0.08)', borderRadius: '16px', border: '1px solid rgba(142, 155, 83, 0.12)' }}>
+        <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: '#3c4804' }}>🔐 Create Your Account</Text>
+        <Text style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#5a5a5a', lineHeight: '1.6' }}>
           To view the full message and reply, you'll need to create a free account. It only takes a minute!
         </Text>
-        <Text style={{ margin: 0, fontSize: '14px', color: '#64748b', lineHeight: '1.6' }}>
+        <Text style={{ margin: 0, fontSize: '14px', color: '#5a5a5a', lineHeight: '1.6' }}>
           <strong>Why create an account?</strong><br />
           • View and reply to messages from your practitioner<br />
           • Access your session history and booking details<br />
@@ -71,3 +71,4 @@ export const ModernMessageReceivedGuest = ({
 };
 
 export default ModernMessageReceivedGuest;
+

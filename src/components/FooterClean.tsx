@@ -19,7 +19,7 @@ export const FooterClean = () => {
                 />
               </div>
               <div>
-                <h3 className="text-xl font-bold">Theramate</h3>
+                <h3 className="text-xl font-bold text-white">TheraMate.</h3>
                 <p className="text-sm text-slate-400">Connect • Heal • Grow</p>
               </div>
             </div>
@@ -106,6 +106,16 @@ export const FooterClean = () => {
                   Cookie Policy
                 </Link>
               </li>
+              <li>
+                <a href="/dpa" className="text-slate-400 hover:text-white transition-colors">
+                  Data processing (DPA)
+                </a>
+              </li>
+              <li>
+                <a href="/subprocessors" className="text-slate-400 hover:text-white transition-colors">
+                  Sub-processors
+                </a>
+              </li>
             </ul>
           </div>
         </div>
@@ -113,7 +123,7 @@ export const FooterClean = () => {
         {/* Bottom bar */}
         <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-slate-400">
-            © {currentYear} Theramate. All rights reserved.
+            © {currentYear} Theramate Limited. All rights reserved.
           </p>
           
           {/* Social Links */}

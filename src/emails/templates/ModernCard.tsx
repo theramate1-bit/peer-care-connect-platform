@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Section, Text } from '@react-email/components';
+import { Section, Text } from '../primitives';
+import { emailTheme } from '../theme';
 
 interface ModernCardProps {
   children: React.ReactNode;
@@ -10,99 +11,39 @@ interface ModernCardProps {
   accentColor?: string;
 }
 
-export const ModernCard = ({
-  children,
-  title,
-  imageUrl,
-  imageAlt,
-  badge,
-  accentColor = '#059669',
-}: ModernCardProps) => {
+export const ModernCard = ({ children, title, badge, accentColor = emailTheme.brand }: ModernCardProps) => {
   return (
     <Section
       style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderRadius: '16px',
-        overflow: 'hidden',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        border: '1px solid rgba(255, 255, 255, 0.5)',
-        marginBottom: '24px',
+        border: `1px solid ${emailTheme.border}`,
+        borderLeft: title ? `3px solid ${accentColor}` : `1px solid ${emailTheme.border}`,
+        borderRadius: '6px',
+        backgroundColor: emailTheme.surface,
+        marginBottom: '12px',
       }}
     >
-      {imageUrl && (
-        <div
-          style={{
-            position: 'relative',
-            height: '256px',
-            width: '100%',
-            backgroundImage: `url(${imageUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
-          {badge && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                backgroundColor: accentColor,
-                color: '#ffffff',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: 700,
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-              }}
-            >
-              {badge}
-            </div>
-          )}
-        </div>
-      )}
-      
-      <Section style={{ padding: '32px' }}>
+      <Section style={{ padding: '16px' }}>
         {title && (
-          <div style={{ marginBottom: '24px' }}>
-            <table width="100%" cellPadding="0" cellSpacing="0">
+          <div style={{ marginBottom: '12px' }}>
+            <table width="100%" cellPadding="0" cellSpacing="0" role="presentation">
               <tr>
                 <td>
-                  <Text
-                    style={{
-                      margin: '0 0 4px 0',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.1em',
-                      color: accentColor,
-                    }}
-                  >
-                    {title.split(' - ')[0]}
-                  </Text>
-                  <Text
-                    style={{
-                      margin: 0,
-                      fontSize: '24px',
-                      fontWeight: 800,
-                      color: '#0f172a',
-                      lineHeight: '1.2',
-                    }}
-                  >
-                    {title.split(' - ')[1] || title}
+                  <Text style={{ margin: 0, fontSize: '14px', lineHeight: '20px', fontWeight: 600, color: emailTheme.ink }}>
+                    {title}
                   </Text>
                 </td>
-                {badge && !imageUrl && (
+                {badge && (
                   <td style={{ textAlign: 'right', verticalAlign: 'top' }}>
                     <div
                       style={{
                         display: 'inline-block',
-                        backgroundColor: accentColor,
-                        color: '#ffffff',
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                        backgroundColor: emailTheme.surfaceMuted,
+                        color: emailTheme.ink,
+                        padding: '4px 8px',
+                        borderRadius: '999px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        border: `1px solid ${emailTheme.border}`,
                       }}
                     >
                       {badge}
@@ -113,7 +54,7 @@ export const ModernCard = ({
             </table>
           </div>
         )}
-        
+
         {children}
       </Section>
     </Section>

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +13,8 @@ import { calculateRequiredCredits } from '@/lib/treatment-exchange/credits';
 import { createInAppNotification } from '@/lib/notification-utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { getBlocksForDate, isTimeSlotBlocked, getOverlappingBlocks } from '@/lib/block-time-utils';
+import { getOverlappingBlocks } from '@/lib/block-time-utils';
+import { CalendarTimeSelector } from '@/components/booking/CalendarTimeSelector';
 
 interface ExchangeAcceptanceModalProps {
   open: boolean;
@@ -51,11 +51,10 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
   const [creditCost, setCreditCost] = useState<number | null>(null);
   const [checkingCredits, setCheckingCredits] = useState(false);
   
-  // Reciprocal booking date/time selection
+  // Reciprocal booking date/time selection (uses CalendarTimeSelector - same data source and UI as rest of app)
   const [reciprocalBookingDate, setReciprocalBookingDate] = useState<string>('');
   const [reciprocalBookingTime, setReciprocalBookingTime] = useState<string>('');
-  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
-  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const [requesterTherapistType, setRequesterTherapistType] = useState<'clinic_based' | 'mobile' | 'hybrid' | null>(null);
   const [requestStatus, setRequestStatus] = useState<string | null>(null);
   const [checkingRequestStatus, setCheckingRequestStatus] = useState(false);
   const [hasReciprocalBooking, setHasReciprocalBooking] = useState<boolean | null>(null);
@@ -124,6 +123,18 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
       setHasReciprocalBooking(null);
     }
   }, [open, requestId, recipientId, isAlreadyAccepted]);
+
+  // Fetch requester's therapist_type for CalendarTimeSelector (buffer context)
+  useEffect(() => {
+    if (open && requesterId) {
+      supabase
+        .from('users')
+        .select('therapist_type')
+        .eq('id', requesterId)
+        .maybeSingle()
+        .then(({ data }) => setRequesterTherapistType((data?.therapist_type as 'clinic_based' | 'mobile' | 'hybrid') ?? null));
+    }
+  }, [open, requesterId]);
 
   const checkReciprocalBooking = async () => {
     if (!requestId || !recipientId) return;
@@ -236,7 +247,6 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
         return;
       }
 
-      // Check if request has expired
       if (request.status === 'pending' && request.expires_at && new Date(request.expires_at) < new Date()) {
         setRequestStatus('expired');
         toast.error('This request has expired');
@@ -275,95 +285,6 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
       setCreditCost(null);
     }
   }, [selectedService]);
-
-  // Fetch available time slots when date or service changes
-  useEffect(() => {
-    if (reciprocalBookingDate && selectedService) {
-      fetchAvailableTimeSlots();
-    } else {
-      setAvailableTimeSlots([]);
-      setReciprocalBookingTime('');
-    }
-  }, [reciprocalBookingDate, selectedService]);
-
-  // Real-time subscription for availability changes
-  useEffect(() => {
-    if (!requesterId || !reciprocalBookingDate || !open) return;
-
-    const channel = supabase
-      .channel(`availability-acceptance-${requesterId}-${reciprocalBookingDate}`)
-      // Listen to postgres_changes for calendar_events (blocked time)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'calendar_events',
-          filter: `user_id=eq.${requesterId}`
-        },
-        (payload: any) => {
-          const newEventType = payload.new?.event_type;
-          const oldEventType = payload.old?.event_type;
-          if (newEventType === 'block' || newEventType === 'unavailable' || 
-              oldEventType === 'block' || oldEventType === 'unavailable') {
-            const eventDate = payload.new?.start_time || payload.old?.start_time;
-            // Check if the event date matches the selected date (handle both ISO format and date string)
-            const eventDateStr = eventDate ? new Date(eventDate).toISOString().split('T')[0] : '';
-            const isRelevantDate = eventDateStr === reciprocalBookingDate || 
-                                   (typeof eventDate === 'string' && eventDate.startsWith(reciprocalBookingDate));
-            
-            console.log('🔄 Real-time blocked time update:', {
-              eventType: newEventType || oldEventType,
-              eventDate,
-              eventDateStr,
-              reciprocalBookingDate,
-              isRelevantDate,
-              willRefresh: isRelevantDate
-            });
-            
-            if (isRelevantDate) {
-              console.log('🔄 Refreshing available time slots due to blocked time change');
-              fetchAvailableTimeSlots();
-            }
-          }
-        }
-      )
-      // Listen to postgres_changes for client_sessions (bookings)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'client_sessions',
-          filter: `therapist_id=eq.${requesterId}`
-        },
-        (payload: any) => {
-          const sessionDate = payload.new?.session_date || payload.old?.session_date;
-          if (sessionDate === reciprocalBookingDate) {
-            fetchAvailableTimeSlots();
-          }
-        }
-      )
-      // Listen to postgres_changes for practitioner_availability
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'practitioner_availability',
-          filter: `user_id=eq.${requesterId}`
-        },
-        () => {
-          // Always refresh if availability changes
-          fetchAvailableTimeSlots();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [requesterId, reciprocalBookingDate, open]);
 
   const loadServices = async () => {
     try {
@@ -424,132 +345,6 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
     }
   };
 
-  const fetchAvailableTimeSlots = async () => {
-    if (!reciprocalBookingDate || !selectedService) {
-      setAvailableTimeSlots([]);
-      return;
-    }
-
-    setLoadingTimeSlots(true);
-    try {
-      const serviceDuration = selectedService.duration_minutes || 60;
-      const serviceDurationHours = serviceDuration / 60;
-
-      // Get requester's availability (they're providing the service)
-      const { data: availability, error: availabilityError } = await supabase
-        .from('practitioner_availability')
-        .select('working_hours, timezone')
-        .eq('user_id', requesterId)
-        .maybeSingle();
-
-      if (availabilityError) {
-        console.error('Error fetching practitioner availability:', availabilityError);
-        await generateDefaultTimeSlots(serviceDuration);
-        return;
-      }
-
-      // If no availability data, use default hours
-      if (!availability) {
-        await generateDefaultTimeSlots(serviceDuration);
-        return;
-      }
-
-      // Get existing bookings for the selected date
-      // IMPORTANT: Only check therapist_id (requester providing service), not client_id
-      // This ensures we're checking the correct practitioner's calendar
-      const { data: existingBookings, error: bookingsError } = await supabase
-        .from('client_sessions')
-        .select('start_time, duration_minutes, status, expires_at')
-        .eq('therapist_id', requesterId) // Requester is providing the service
-        .eq('session_date', reciprocalBookingDate)
-        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
-
-      if (bookingsError) throw bookingsError;
-
-      // Get blocked/unavailable time for this date
-      // CRITICAL: Must fetch blocks before filtering slots
-      let blocks = await getBlocksForDate(requesterId, reciprocalBookingDate);
-      
-      // Validate blocks were fetched correctly - fallback to empty array
-      if (!Array.isArray(blocks)) {
-        console.error('[BLOCKED TIME ERROR] Blocks is not an array!', typeof blocks, blocks);
-        blocks = []; // Fallback to empty array to prevent errors
-      }
-      
-      // Log blocks found for debugging
-      if (blocks.length > 0) {
-        console.error('[BLOCKED TIME] *** FOUND', blocks.length, 'BLOCKS FOR', reciprocalBookingDate, '***');
-      }
-
-      // Get day of week for the selected date
-      const selectedDate = new Date(reciprocalBookingDate);
-      const dayOfWeek = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      
-      // Get working hours for this day
-      const daySchedule = availability.working_hours[dayOfWeek];
-      
-      if (!daySchedule || !daySchedule.enabled || !daySchedule.hours || daySchedule.hours.length === 0) {
-        setAvailableTimeSlots([]);
-        return;
-      }
-
-      // Generate time slots with 15-minute intervals
-      const { generate15MinuteSlots } = await import('@/lib/slot-generation-utils');
-      const timeSlots: string[] = [];
-      
-      for (const timeBlock of daySchedule.hours) {
-        const slots = generate15MinuteSlots(
-          timeBlock.start,
-          timeBlock.end,
-          serviceDuration,
-          existingBookings || [],
-          blocks,
-          reciprocalBookingDate
-        );
-        timeSlots.push(...slots);
-      }
-
-      setAvailableTimeSlots(timeSlots);
-    } catch (error) {
-      console.error('Error fetching available time slots:', error);
-      toast.error('Failed to load available times');
-      setAvailableTimeSlots([]);
-    } finally {
-      setLoadingTimeSlots(false);
-    }
-  };
-
-  const generateDefaultTimeSlots = async (serviceDuration: number = 60) => {
-    try {
-      // Get existing bookings for the selected date
-      const { data: existingBookings, error } = await supabase
-        .from('client_sessions')
-        .select('start_time, duration_minutes, status, expires_at')
-        .eq('therapist_id', requesterId)
-        .eq('session_date', reciprocalBookingDate)
-        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment']);
-
-      if (error) throw error;
-
-      // Get blocked/unavailable time for this date
-      const blocks = await getBlocksForDate(requesterId, reciprocalBookingDate);
-
-      // Use 15-minute interval slot generation with buffer enforcement
-      const { generateDefault15MinuteSlots } = await import('@/lib/slot-generation-utils');
-      const timeSlots = generateDefault15MinuteSlots(
-        serviceDuration,
-        existingBookings || [],
-        blocks,
-        reciprocalBookingDate
-      );
-
-      setAvailableTimeSlots(timeSlots);
-    } catch (error) {
-      console.error('Error generating default time slots:', error);
-      setAvailableTimeSlots([]);
-    }
-  };
-
   const handleAccept = async () => {
     // First, verify request is still pending (unless we're just booking return session)
     if (!isAlreadyAccepted && requestStatus !== 'pending') {
@@ -601,12 +396,6 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
         toast.error('Please select a future date and time for your treatment');
         return;
       }
-    }
-
-    // Validate that selected time slot is still available (skip when accept-only)
-    if (!acceptOnlyNoService && !availableTimeSlots.includes(reciprocalBookingTime || '')) {
-      toast.error('The selected time slot is no longer available. Please select another time.');
-      return;
     }
 
     try {
@@ -927,57 +716,29 @@ export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = (
             )}
           </div>
 
-          {/* Reciprocal Booking Date/Time Selection */}
+          {/* Reciprocal Booking Date/Time Selection - same UI as rest of app */}
           {selectedService && (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="reciprocal-date">Select Date for Your Treatment *</Label>
-                <Input
-                  id="reciprocal-date"
-                  type="date"
-                  value={reciprocalBookingDate}
-                  onChange={(e) => setReciprocalBookingDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
+                <Label>Select Date & Time for Your Treatment *</Label>
+                <p className="text-xs text-muted-foreground mt-1 mb-2">
                   {isAlreadyAccepted 
-                    ? `Choose any date that works for you. This is when you'll receive your treatment from ${requesterName}.`
+                    ? `Choose any date and time that works for you. This is when you'll receive your treatment from ${requesterName}.`
                     : `Select when you'd like to receive your treatment from ${requesterName}`}
                 </p>
+                <CalendarTimeSelector
+                  therapistId={requesterId}
+                  duration={selectedService.duration_minutes || 60}
+                  requestedAppointmentType="clinic"
+                  therapistType={requesterTherapistType ?? undefined}
+                  selectedDate={reciprocalBookingDate || undefined}
+                  selectedTime={reciprocalBookingTime}
+                  onDateTimeSelect={(dateStr, timeStr) => {
+                    setReciprocalBookingDate(dateStr);
+                    setReciprocalBookingTime(timeStr);
+                  }}
+                />
               </div>
-
-              {reciprocalBookingDate && (
-                <div>
-                  <Label htmlFor="reciprocal-time">Select Time *</Label>
-                  {loadingTimeSlots ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span className="text-sm text-muted-foreground">Loading available times...</span>
-                    </div>
-                  ) : availableTimeSlots.length === 0 ? (
-                    <div className="text-sm text-muted-foreground py-4">
-                      No available times for this date. Please select another date.
-                    </div>
-                  ) : (
-                    <Select
-                      value={reciprocalBookingTime}
-                      onValueChange={setReciprocalBookingTime}
-                    >
-                      <SelectTrigger id="reciprocal-time" className="mt-1">
-                        <SelectValue placeholder="Select a time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTimeSlots.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {format(new Date(`2000-01-01T${time}`), 'h:mm a')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
             </div>
           )}
 

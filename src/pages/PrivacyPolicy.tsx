@@ -1,8 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Lock, Eye, Database, Users, FileText } from "lucide-react";
+import { Shield, Lock, Eye, Database, FileText } from "lucide-react";
 import StandardPage from "@/components/layouts/StandardPage";
+import {
+  LEGAL_LAST_UPDATED,
+  getCompanyRegistrationDisplay,
+  getIcoRegistrationDisplay,
+  getPlaceOfRegistrationDisplay,
+  getRegisteredOfficeDisplay,
+} from "@/config/uk-legal";
 
 const PrivacyPolicy = () => {
   const privacyHighlights = [
@@ -18,8 +25,8 @@ const PrivacyPolicy = () => {
     },
     {
       icon: Eye,
-      title: "No Data Selling",
-      description: "We never sell or share your personal information"
+      title: "No Selling Your Data",
+      description: "We never sell your personal data (we only share where needed to run the Platform—see below)"
     },
     {
       icon: Database,
@@ -29,15 +36,18 @@ const PrivacyPolicy = () => {
   ];
 
   return (
-    <StandardPage title="Privacy Policy" badgeText="Privacy" subtitle="Your privacy is fundamental to our mission. This policy explains how we collect, use, and protect your information in compliance with UK GDPR and the Data Protection Act 2018.">
+    <StandardPage title="Privacy Policy" badgeText="Privacy" subtitle="Your privacy is fundamental to our mission. This policy explains how we collect, use, and protect your information under UK data protection law (UK GDPR as it forms part of the law of the United Kingdom) and the Data Protection Act 2018, as amended from time to time (including changes made by the Data Protection and Digital Information Act 2023 where applicable).">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <Badge>Last Updated: December 15, 2025</Badge>
-            <Badge variant="outline">UK GDPR Compliant</Badge>
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-4">
+            <Badge>Last updated: {LEGAL_LAST_UPDATED}</Badge>
+            <Badge variant="outline">UK GDPR &amp; DPA 2018</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            This Privacy Policy is governed by UK GDPR and the Data Protection Act 2018
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
+            This page is the public web version of our Privacy Policy. If we provide you with a separately signed or countersigned copy (for example for enterprise or regulatory purposes), any conflict will be resolved as stated in that document; otherwise this online version applies.
+          </p>
+          <p className="text-sm text-muted-foreground mt-3">
+            Jurisdiction: United Kingdom (England and Wales).
           </p>
         </div>
 
@@ -69,12 +79,16 @@ const PrivacyPolicy = () => {
                   <p className="text-muted-foreground leading-relaxed mb-4">
                     Theramate Limited ("we", "us", "our") is the data controller for the personal data we collect and process through the Theramate platform (theramate.co.uk). We are committed to protecting your privacy and handling your personal data in accordance with UK GDPR and the Data Protection Act 2018.
                   </p>
-                  <div className="bg-muted/50 p-4 rounded-lg mb-4">
-                    <p className="text-sm mb-2"><strong>Data Controller:</strong></p>
-                    <p className="text-sm">Theramate Limited</p>
-                    <p className="text-sm">[Company Registration Number: To be provided]</p>
-                    <p className="text-sm">Registered in England and Wales</p>
-                    <p className="text-sm mt-2"><strong>ICO Registration:</strong> [Registration number to be provided]</p>
+                  <div className="bg-muted/50 p-4 rounded-lg mb-4 space-y-2 text-sm">
+                    <p className="font-medium text-foreground">Data controller</p>
+                    <p>Theramate Limited</p>
+                    <p className="text-muted-foreground">{getPlaceOfRegistrationDisplay()}</p>
+                    <p className="text-muted-foreground">{getCompanyRegistrationDisplay()}</p>
+                    <p className="text-muted-foreground">{getRegisteredOfficeDisplay()}</p>
+                    <p className="text-muted-foreground pt-1">{getIcoRegistrationDisplay()}</p>
+                    <p className="text-muted-foreground pt-2">
+                      <strong className="text-foreground">Data protection contact:</strong> privacy@theramate.co.uk (for rights requests and privacy questions). We are not required to appoint a statutory Data Protection Officer (DPO) in all cases; if we do appoint one, we will publish their details here.
+                    </p>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
                     This Privacy Policy explains how we collect, use, store, and protect your personal information when you use our healthcare marketplace platform. Please read this policy carefully to understand our practices regarding your personal data.
@@ -86,6 +100,13 @@ const PrivacyPolicy = () => {
                   <p className="text-muted-foreground leading-relaxed mb-4">
                     We collect information you provide directly to us and information we gather through your use of our services. The types of information we collect depend on how you use the Platform.
                   </p>
+
+                  <h3 className="text-lg font-medium mb-3">2.0 How we collect your data</h3>
+                  <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4 mb-6">
+                    <li><strong>Directly from you</strong> — for example when you register, complete forms, book a session, pay, message another user, or contact support.</li>
+                    <li><strong>Automatically</strong> — for example server logs, device/browser data, security signals, cookies and similar technologies (see our Cookie Policy), and (where you consent) analytics.</li>
+                    <li><strong>From third parties</strong> — for example our payment provider (Stripe) about payment status; our authentication/hosting providers about session security; email delivery providers about delivery events; and professional verification or identity checks we carry out with regulators or professional bodies where applicable. Other users also submit information that relates to you (for example a practitioner enters clinical notes; a client submits a review).</li>
+                  </ul>
                   
                   <h3 className="text-lg font-medium mb-3">2.1 Personal Information (Clients)</h3>
                   <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4 mb-4">
@@ -238,7 +259,7 @@ const PrivacyPolicy = () => {
                     As a healthcare technology platform processing special category health data, we are committed to full compliance with UK GDPR and the Data Protection Act 2018:
                   </p>
                   <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4 mb-4">
-                    <li>Registration with the Information Commissioner's Office (ICO) as a data controller</li>
+                    <li>Paying the ICO data protection fee and maintaining registration on the ICO register where we are required to do so (you can verify the public register at ico.org.uk or ask privacy@theramate.co.uk for our fee reference)</li>
                     <li>Data Protection Impact Assessments (DPIAs) for high-risk processing activities</li>
                     <li>Strict access controls, authentication, and audit logging</li>
                     <li>Regular security risk assessments and updates</li>
@@ -288,12 +309,17 @@ const PrivacyPolicy = () => {
                   </ul>
 
                   <h3 className="text-lg font-medium mb-3">6.4 Staff and Organisational Security</h3>
-                  <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
+                  <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4 mb-4">
                     <li>Background checks for staff with access to personal data</li>
                     <li>Regular UK GDPR and data protection training</li>
                     <li>Confidentiality agreements and data protection policies</li>
                     <li>Limited access to personal data on a need-to-know basis</li>
                   </ul>
+
+                  <h3 className="text-lg font-medium mb-3">6.5 No method is perfectly secure</h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    While we work hard to protect your personal data, no method of transmission over the Internet or method of electronic storage is 100% secure. We cannot guarantee absolute security; you use the Platform understanding that some residual risk always exists online. If we become aware of a personal data breach that affects you, we will follow our incident process and notify regulators or individuals where UK law requires us to.
+                  </p>
                 </section>
 
                 <section>
@@ -375,7 +401,7 @@ const PrivacyPolicy = () => {
 
                   <h3 className="text-lg font-medium mb-3">9.6 Right to Object (Article 21)</h3>
                   <p className="text-muted-foreground leading-relaxed mb-4">
-                    You have the right to object to processing based on legitimate interests or for direct marketing purposes. We will stop processing unless we can demonstrate compelling legitimate grounds.
+                    You have the right to object to processing based on legitimate interests (including profiling, where applicable) or for direct marketing purposes. We will stop processing unless we can demonstrate compelling legitimate grounds.
                   </p>
 
                   <h3 className="text-lg font-medium mb-3">9.7 Rights Related to Automated Decision-Making (Article 22)</h3>
@@ -498,21 +524,16 @@ const PrivacyPolicy = () => {
                   <p className="text-muted-foreground leading-relaxed mb-4">
                     If you have questions about this Privacy Policy, wish to exercise your data subject rights, or have concerns about our data practices, please contact us:
                   </p>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm mb-2"><strong>Data Protection Officer</strong></p>
-                    <p className="text-sm">Theramate Limited</p>
-                    <p className="text-sm">Email: privacy@theramate.co.uk</p>
-                    <p className="text-sm">Support: support@theramate.co.uk</p>
-                    <p className="text-sm">Website: https://theramate.co.uk</p>
-                    <p className="text-sm mt-2">
-                      <strong>Registered Address:</strong><br />
-                      Theramate Limited<br />
-                      [Company Registration Number: To be provided]<br />
-                      England and Wales
-                    </p>
-                    <p className="text-sm mt-2">
-                      <strong>ICO Registration Number:</strong> [To be provided]
-                    </p>
+                  <div className="bg-muted/50 p-4 rounded-lg space-y-2 text-sm">
+                    <p className="font-medium text-foreground">Data protection contact</p>
+                    <p>Theramate Limited</p>
+                    <p>Email: privacy@theramate.co.uk</p>
+                    <p>Support: support@theramate.co.uk</p>
+                    <p>Website: https://theramate.co.uk</p>
+                    <p className="text-muted-foreground pt-2">{getPlaceOfRegistrationDisplay()}</p>
+                    <p className="text-muted-foreground">{getCompanyRegistrationDisplay()}</p>
+                    <p className="text-muted-foreground">{getRegisteredOfficeDisplay()}</p>
+                    <p className="text-muted-foreground">{getIcoRegistrationDisplay()}</p>
                   </div>
                 </section>
               </div>

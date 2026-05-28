@@ -1,3 +1,8 @@
+/**
+ * Same Day Booking Approval – for CLINIC bookings only.
+ * Mobile bookings (including hybrid mobile) use the mobile request flow (Accept/Decline in New Bookings).
+ * See docs/product/HYBRID_CLINIC_AND_MOBILE_BOOKING_RULES.md
+ */
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +55,10 @@ export const SameDayBookingApproval: React.FC<SameDayBookingApprovalProps> = ({
   const [declineReason, setDeclineReason] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (!practitionerId || practitionerId === '') {
+      setLoading(false);
+      return;
+    }
     fetchPendingBookings();
     
     // Set up real-time subscription for pending bookings
@@ -75,6 +84,10 @@ export const SameDayBookingApproval: React.FC<SameDayBookingApprovalProps> = ({
   }, [practitionerId]);
 
   const fetchPendingBookings = async () => {
+    if (!practitionerId || practitionerId === '') {
+      setLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .rpc('get_pending_same_day_bookings', {
@@ -237,9 +250,22 @@ export const SameDayBookingApproval: React.FC<SameDayBookingApprovalProps> = ({
   if (loading) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="h-5 w-40 rounded-md bg-muted animate-pulse" />
+              <div className="h-4 w-56 rounded-md bg-muted animate-pulse" />
+            </div>
+            <div className="h-6 w-20 rounded-md bg-muted animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-4 w-24 rounded bg-muted animate-pulse" />
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 w-24 rounded-md bg-muted animate-pulse" />
+            <div className="h-9 w-24 rounded-md bg-muted animate-pulse" />
           </div>
         </CardContent>
       </Card>
@@ -250,9 +276,12 @@ export const SameDayBookingApproval: React.FC<SameDayBookingApprovalProps> = ({
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">
+          <div className="text-center">
             <CheckCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-            <p>No pending same-day bookings requiring approval</p>
+            <p className="font-medium text-foreground">No pending same-day bookings</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+              Same-day clinic bookings will appear here when clients book with less than 24 hours notice.
+            </p>
           </div>
         </CardContent>
       </Card>

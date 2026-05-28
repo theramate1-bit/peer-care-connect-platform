@@ -231,7 +231,7 @@ export class ExchangeNotificationService {
       recipient_id: practitionerId,
       type: ExchangeNotificationType.EXCHANGE_SLOT_HELD,
       title: `Slot Reserved for Exchange`,
-      body: `Your slot on ${payload.sessionDate} at ${formatTimeTo12Hour(payload.startTime)} has been temporarily reserved for the treatment exchange request`,
+      body: `Your slot on ${payload.sessionDate} at ${formatTimeTo12Hour(payload.startTime)} is tentatively reserved. Respond when you're ready.`,
       payload: {
         requestId: payload.requestId,
         sessionDate: payload.sessionDate,
@@ -392,46 +392,45 @@ export class ExchangeNotificationService {
   }
 
   /**
-   * Mark all notifications related to a request as read
-   * This is called when a request is accepted/declined to clean up old notifications
+   * Mark and dismiss all notifications related to a request for the recipient.
+   * Called when a request is accepted/declined so they disappear from the feed (TREATMENT_EXCHANGE_NOTIFICATION_FLOWS).
    */
   static async markRequestNotificationsAsRead(
     requestId: string,
     recipientId: string
   ): Promise<void> {
     try {
-      // Find all notifications related to this request for the recipient
       const { data: relatedNotifications, error: fetchError } = await supabase
         .from('notifications')
         .select('id')
         .eq('recipient_id', recipientId)
         .eq('source_id', requestId)
         .in('source_type', ['treatment_exchange_request', 'slot_hold'])
-        .is('read_at', null);
+        .is('dismissed_at', null);
 
       if (fetchError) {
         console.warn('Error fetching related notifications:', fetchError);
         return;
       }
 
-      if (!relatedNotifications || relatedNotifications.length === 0) {
-        return; // No notifications to mark as read
-      }
+      if (!relatedNotifications?.length) return;
 
-      // Mark all related notifications as read using RPC function
-      const notificationIds = relatedNotifications.map(n => n.id);
-      const { error: markError } = await supabase.rpc('mark_notifications_read', {
-        p_ids: notificationIds
-      });
+      const timestamp = new Date().toISOString();
+      const { error: updateError } = await supabase
+        .from('notifications')
+        .update({
+          read_at: timestamp,
+          read: true,
+          dismissed_at: timestamp
+        })
+        .eq('recipient_id', recipientId)
+        .in('id', relatedNotifications.map(n => n.id));
 
-      if (markError) {
-        console.warn('Error marking request notifications as read:', markError);
-      } else {
-        console.log(`Marked ${notificationIds.length} related notifications as read for request ${requestId}`);
+      if (updateError) {
+        console.warn('Error dismissing request notifications:', updateError);
       }
     } catch (error) {
       console.warn('Error in markRequestNotificationsAsRead:', error);
-      // Don't throw - notification cleanup is non-critical
     }
   }
 

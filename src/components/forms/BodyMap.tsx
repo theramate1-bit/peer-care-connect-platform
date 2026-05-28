@@ -272,20 +272,22 @@ export const BodyMap: React.FC<BodyMapProps> = ({
               variant={currentSide === 'front' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setCurrentSide('front')}
-              disabled={disabled}
               className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
+              aria-pressed={currentSide === 'front'}
+              aria-label={frontMarkers.length > 0 ? `Front (${frontMarkers.length} marker${frontMarkers.length !== 1 ? 's' : ''})` : 'Front'}
             >
-              Front
+              Front{frontMarkers.length > 0 && ` (${frontMarkers.length})`}
             </Button>
             <Button
               type="button"
               variant={currentSide === 'back' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setCurrentSide('back')}
-              disabled={disabled}
               className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
+              aria-pressed={currentSide === 'back'}
+              aria-label={backMarkers.length > 0 ? `Back (${backMarkers.length} marker${backMarkers.length !== 1 ? 's' : ''})` : 'Back'}
             >
-              Back
+              Back{backMarkers.length > 0 && ` (${backMarkers.length})`}
             </Button>
           </div>
 
@@ -358,8 +360,8 @@ export const BodyMap: React.FC<BodyMapProps> = ({
               {currentMarkers.map((marker, index) => (
                 <li key={marker.id} className="p-2 bg-muted/50 rounded-lg space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-500 text-white text-xs font-bold shrink-0">
-                      {index + 1}
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-500 text-white text-xs font-bold shrink-0" aria-label={`Marker ${index + 1} on ${currentSide}`}>
+                      X
                     </span>
                     <Button
                       type="button"

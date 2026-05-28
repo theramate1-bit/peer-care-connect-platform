@@ -1,10 +1,11 @@
 import * as React from 'react';
-import { Link } from '@react-email/components';
+import { Link } from '../primitives';
+import { emailTheme } from '../theme';
 
 interface ModernButtonProps {
   href: string;
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'danger';
   color?: string;
   fullWidth?: boolean;
   icon?: string;
@@ -14,13 +15,16 @@ export const ModernButton = ({
   href,
   children,
   variant = 'primary',
-  color = '#059669',
+  color = emailTheme.brand,
   fullWidth = false,
   icon,
 }: ModernButtonProps) => {
   const isPrimary = variant === 'primary';
-  
-  // Use table-based layout for better email client compatibility
+  const isDanger = variant === 'danger';
+  const bg = isDanger ? emailTheme.dangerInk : isPrimary ? color : emailTheme.surface;
+  const fg = isDanger || isPrimary ? '#ffffff' : emailTheme.ink;
+  const borderColor = isDanger ? emailTheme.dangerInk : isPrimary ? color : emailTheme.border;
+
   return (
     <table
       cellPadding="0"
@@ -31,34 +35,28 @@ export const ModernButton = ({
       }}
     >
       <tr>
-        <td
-          style={{
-            padding: '0',
-            textAlign: 'center',
-          }}
-        >
+        <td style={{ padding: '0', textAlign: 'center' }}>
           <Link
             href={href}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: 'inline-block',
-              padding: '14px 28px',
-              backgroundColor: isPrimary ? color : 'rgba(255, 255, 255, 0.15)',
-              color: isPrimary ? '#ffffff' : '#ffffff',
+              padding: '10px 16px',
+              backgroundColor: bg,
+              color: fg,
               textDecoration: 'none',
-              borderRadius: '12px',
-              fontSize: '16px',
-              fontWeight: 700,
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 600,
               textAlign: 'center',
-              boxShadow: isPrimary
-                ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: isPrimary ? `2px solid ${color === '#059669' ? '#047857' : color}` : '2px solid rgba(255, 255, 255, 0.3)',
+              border: `1px solid ${borderColor}`,
               maxWidth: '100%',
               width: fullWidth ? '100%' : 'auto',
-              minWidth: fullWidth ? 'auto' : '200px',
+              minWidth: fullWidth ? 'auto' : '120px',
             }}
           >
-            {icon && <span style={{ marginRight: '8px' }}>{icon}</span>}
+            {icon && <span style={{ marginRight: '6px' }}>{icon}</span>}
             {children}
           </Link>
         </td>

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text, Link } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -36,7 +36,7 @@ export const ModernPeerBookingConfirmedPractitioner = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="Peer Treatment"
-      primaryColor="#059669"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
       <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
@@ -56,46 +56,46 @@ export const ModernPeerBookingConfirmedPractitioner = ({
         </table>
       </Section>
 
-      <ModernCard title="Session Details" accentColor="#059669">
+      <ModernCard title="Session Details" accentColor="#8e9b53">
         <Section style={{ marginBottom: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ verticalAlign: 'middle' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#059669', display: 'inline-block', marginRight: '12px', textAlign: 'center', lineHeight: '48px', color: '#ffffff', fontWeight: 700, fontSize: '18px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#8e9b53', display: 'inline-block', marginRight: '12px', textAlign: 'center', lineHeight: '48px', color: '#ffffff', fontWeight: 700, fontSize: '18px' }}>
                   {(data.clientName || 'C').charAt(0).toUpperCase()}
                   {(data.clientName || 'C').split(' ')[1]?.charAt(0).toUpperCase() || ''}
                 </div>
                 <div style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-                  <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Client</Text>
-                  <Text style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>{data.clientName || 'N/A'}</Text>
+                  <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600, fontWeight: 500 }}>Client</Text>
+                  <Text style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#3c4804' }}>{data.clientName || 'N/A'}</Text>
                 </div>
               </td>
             </tr>
           </table>
         </Section>
 
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
+        <Section style={{ borderTop: '1px solid #d9e2d2', paddingTop: '32px' }}>
           <table cellPadding="0" cellSpacing="0" width="100%">
             <tr>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>📅</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Date</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedDate}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Date</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{formattedDate}</Text>
                   </div>
                 </div>
               </td>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>🕐</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Time</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedTime}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Time</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{formattedTime}</Text>
                   </div>
                 </div>
               </td>
@@ -103,23 +103,23 @@ export const ModernPeerBookingConfirmedPractitioner = ({
             <tr>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>⏱️</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Duration</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.sessionDuration || 60} minutes</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Duration</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{data.sessionDuration || 60} minutes</Text>
                   </div>
                 </div>
               </td>
               <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(142, 155, 83, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ fontSize: '20px' }}>💬</span>
                   </div>
                   <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Session Type</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.sessionType || 'N/A'}</Text>
+                    <Text style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#5a5a5a', fontWeight: 600 }}>Session Type</Text>
+                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#3c4804' }}>{data.sessionType || 'N/A'}</Text>
                   </div>
                 </div>
               </td>
@@ -129,18 +129,36 @@ export const ModernPeerBookingConfirmedPractitioner = ({
       </ModernCard>
 
       {data.sessionLocation && (
-        <ModernCard title="Location Details" accentColor="#059669">
-          <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>{data.sessionLocation}</Text>
+        <ModernCard title="Location Details" accentColor="#8e9b53">
+          {mapsUrl && mapsUrl !== '#' ? (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: 600,
+                color: '#3c4804',
+                textDecoration: 'underline',
+              }}
+            >
+              {data.sessionLocation}
+            </a>
+          ) : (
+            <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600, color: '#3c4804' }}>{data.sessionLocation}</Text>
+          )}
           {mapsUrl && mapsUrl !== '#' && (
-            <Link href={mapsUrl} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', color: '#475569', fontSize: '14px', fontWeight: 700, textDecoration: 'none', backgroundColor: '#ffffff' }}>
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px 24px', borderRadius: '8px', border: '1px solid #d9e2d2', color: '#5a5a5a', fontSize: '14px', fontWeight: 700, textDecoration: 'none', backgroundColor: '#ffffff' }}>
               <span style={{ marginRight: '8px' }}>🗺️</span>View on Maps
-            </Link>
+            </a>
           )}
         </ModernCard>
       )}
 
-      <Section style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', borderLeft: '4px solid #059669' }}>
-        <Text style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+      <Section style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f0f4ef', borderRadius: '8px', borderLeft: '4px solid #8e9b53' }}>
+        <Text style={{ margin: 0, fontSize: '14px', color: '#5a5a5a', lineHeight: '1.6' }}>
           <strong>Note:</strong> This is a peer treatment exchange. Both parties are practitioners supporting each other in our community.
         </Text>
       </Section>
@@ -149,3 +167,4 @@ export const ModernPeerBookingConfirmedPractitioner = ({
 };
 
 export default ModernPeerBookingConfirmedPractitioner;
+

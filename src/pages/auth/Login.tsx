@@ -9,20 +9,31 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { getDashboardRoute, shouldRedirectToOnboarding } from "@/lib/dashboard-routing";
+import { getPostAuthRedirectPath } from "@/lib/access-policy";
+import type { AccessProfile } from "@/lib/access-policy";
 import { checkAndFixPractitionerOnboardingStatus } from "@/lib/onboarding-utils";
 import { MessagingManager } from "@/lib/messaging";
+import { readCheckoutFromSearchParams, setPendingPractitionerCheckout } from "@/lib/pricing-checkout-intent";
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, userProfile, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading, refreshProfile } = useAuth();
   const [email, setEmail] = useState(searchParams.get('email') ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Persist plan + annual/monthly from pricing (links from register / “Get started” on pricing)
+  useEffect(() => {
+    const fromPricing = searchParams.get("from") === "pricing";
+    const parsed = readCheckoutFromSearchParams(searchParams);
+    if (fromPricing && parsed) {
+      setPendingPractitionerCheckout(parsed.plan, parsed.billing);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     // Check for error parameters in URL and clear them so the message doesn't show on every visit
@@ -36,39 +47,7 @@ const Login = () => {
     }
   }, [searchParams, navigate]);
 
-  // Redirect authenticated users away from login page
-  useEffect(() => {
-    // Wait for auth to finish loading
-    if (authLoading) return;
-    
-    // If user is authenticated and profile is loaded, redirect them
-    if (user && userProfile) {
-      // Check if user needs onboarding
-      if (shouldRedirectToOnboarding(userProfile)) {
-        navigate('/onboarding', { replace: true });
-        return;
-      }
-      
-      // Check if user needs role selection
-      if (!userProfile.user_role) {
-        navigate('/auth/role-selection', { replace: true });
-        return;
-      }
-      
-      // Respect redirect param or state.from when user arrived from protected route
-      const redirectParam = searchParams.get('redirect');
-      const fromState = (location.state as { from?: { pathname?: string; search?: string } })?.from;
-      const redirectTo = redirectParam ?? (fromState ? `${fromState.pathname || ''}${fromState.search || ''}` : null);
-      if (redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
-        navigate(redirectTo, { replace: true });
-        return;
-      }
-      
-      // User is fully set up, redirect to appropriate dashboard
-      const dashboardRoute = getDashboardRoute({ userProfile });
-      navigate(dashboardRoute, { replace: true });
-    }
-  }, [user, userProfile, authLoading, navigate, searchParams, location.state]);
+  // AuthRouter redirects authenticated users off /login when profile is ready.
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,79 +71,53 @@ const Login = () => {
 
       if (data.user) {
         toast.success("Signed in successfully!");
-        
-        // Wait a moment for AuthContext to update, then fetch profile and redirect
-        setTimeout(async () => {
-          // Link guest sessions and conversations to this user (guest-to-client)
-          try {
-            await MessagingManager.linkGuestConversationsToUser(data.user.email ?? '', data.user.id);
-            await MessagingManager.linkGuestSessionsToUser(data.user.email ?? '', data.user.id);
-          } catch (linkError) {
-            console.error('Error linking guest data on login:', linkError);
-          }
 
-          // Fetch user profile to determine redirect destination
-          let { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-          
-          if (profile) {
-            // FALLBACK CHECK: For practitioners with incomplete status but who may have completed onboarding
-            const isPractitioner = profile.user_role && 
-              ['sports_therapist', 'massage_therapist', 'osteopath'].includes(profile.user_role);
-            
-            if (isPractitioner && profile.onboarding_status !== 'completed') {
-              const fixResult = await checkAndFixPractitionerOnboardingStatus(data.user.id);
-              
-              if (fixResult.wasFixed) {
-                console.log('✅ Practitioner onboarding status was automatically fixed on login');
-                // Refresh the profile to get the updated status
-                const { data: refreshedProfile } = await supabase
-                  .from('users')
-                  .select('*')
-                  .eq('id', data.user.id)
-                  .single();
-                
-                if (refreshedProfile) {
-                  profile = refreshedProfile;
-                }
-              }
-            }
-            
-            // Check if user needs onboarding
-            if (shouldRedirectToOnboarding(profile)) {
-              navigate('/onboarding', { replace: true });
-              return;
-            }
-            
-            // Check if user needs role selection
-            if (!profile.user_role) {
-              navigate('/auth/role-selection', { replace: true });
-              return;
-            }
-            
-            // Respect redirect param (e.g. from email links) or state.from (from AuthRouter)
-            const redirectTo = searchParams.get('redirect') ?? (location.state as { from?: { pathname?: string; search?: string } })?.from;
-            if (redirectTo) {
-              const targetPath = typeof redirectTo === 'string'
-                ? redirectTo
-                : `${redirectTo.pathname || ''}${redirectTo.search || ''}`.replace(/^\/+/, '/') || '/client/dashboard';
-              if (targetPath.startsWith('/') && !targetPath.startsWith('//')) {
-                navigate(targetPath, { replace: true });
-                return;
-              }
-            }
+        try {
+          await MessagingManager.linkGuestConversationsToUser(data.user.email ?? '', data.user.id);
+          await MessagingManager.linkGuestSessionsToUser(data.user.email ?? '', data.user.id);
+        } catch (linkError) {
+          console.error('Error linking guest data on login:', linkError);
+        }
 
-            // User is fully set up, redirect to appropriate dashboard
-            const dashboardRoute = getDashboardRoute({ userProfile: profile });
-            navigate(dashboardRoute, { replace: true });
-          } else {
-            // No profile found, redirect to role selection
-            navigate('/auth/role-selection', { replace: true });
+        const { data: statusRow } = await supabase
+          .from('users')
+          .select('user_role, onboarding_status')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (
+          statusRow?.user_role &&
+          ['sports_therapist', 'massage_therapist', 'osteopath'].includes(statusRow.user_role) &&
+          statusRow.onboarding_status !== 'completed'
+        ) {
+          await checkAndFixPractitionerOnboardingStatus(data.user.id);
+        }
+
+        const { profile } = await refreshProfile();
+
+        const fromState = (location.state as { from?: { pathname?: string; search?: string } })?.from;
+        const fromPath = fromState
+          ? `${fromState.pathname || ''}${fromState.search || ''}`
+          : null;
+
+        const target = getPostAuthRedirectPath(
+          (profile ?? {
+            id: data.user.id,
+            email: data.user.email ?? '',
+            first_name: 'User',
+            last_name: 'User',
+            user_role: null,
+            onboarding_status: 'pending',
+            profile_completed: false,
+          }) as AccessProfile,
+          {
+            redirectParam: searchParams.get('redirect'),
+            fromPath,
           }
-        }, 500); // Small delay to allow AuthContext to update
+        );
+        navigate(target, { replace: true });
+        setLoading(false);
+        return;
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
@@ -318,15 +271,7 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto text-sm text-muted-foreground"
-                asChild
-              >
-                <Link to="/booking/find">Find my booking</Link>
-              </Button>
+            <div className="flex items-center justify-end">
               <Button
                 type="button"
                 variant="link"

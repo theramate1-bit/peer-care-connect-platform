@@ -133,24 +133,30 @@ export class GeoSearchService {
         query = query.lte('hourly_rate', filters.maxPrice);
       }
 
-      if (filters.serviceType && filters.serviceType !== 'all') {
-        query = query.contains('services_offered', [filters.serviceType]);
-      }
-
       const { data, error } = await query;
-
       if (error) throw error;
 
-      // Calculate distances client-side using coordinates that match practitioner type.
-      // Mobile/hybrid distance should be from base coordinates, clinic from clinic coordinates.
-      const practitioners = (data || []).map(p => {
+      // Client-side filter by service: match services_offered OR product.service_category
+      let dataFiltered = data || [];
+      if (filters.serviceType && filters.serviceType !== 'all') {
+        dataFiltered = dataFiltered.filter((p: { services_offered?: string[]; products?: Array<{ service_category?: string }> }) => {
+          const fromProfile = (p.services_offered || []).includes(filters.serviceType!);
+          const fromProducts = (p.products || []).some(
+            prod => prod.service_category === filters.serviceType
+          );
+          return fromProfile || fromProducts;
+        });
+      }
+
+      // Calculate distances client-side. Mobile/hybrid: origin = base only (no clinic fallback).
+      const practitioners = dataFiltered.map((p: typeof dataFiltered[0]) => {
         let distance: number | undefined;
 
         const useBaseCoords = p.therapist_type === 'mobile' || p.therapist_type === 'hybrid';
         const originLat = useBaseCoords ? p.base_latitude : p.clinic_latitude;
         const originLon = useBaseCoords ? p.base_longitude : p.clinic_longitude;
 
-        if (originLat && originLon) {
+        if (originLat != null && originLon != null) {
           distance = this.calculateDistance(
             latitude,
             longitude,

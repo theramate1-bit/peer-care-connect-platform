@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,10 +57,12 @@ export const PreAssessmentForm: React.FC<PreAssessmentFormProps> = ({
   const [formData, setFormData] = useState<PreAssessmentFormData>({
     body_map_markers: []
   });
+  const loadedRef = useRef(false);
 
   // Load existing form data
   useEffect(() => {
     const loadForm = async () => {
+      loadedRef.current = false;
       const existing = await PreAssessmentService.getForm(sessionId);
       if (existing) {
         setFormData({
@@ -79,7 +81,7 @@ export const PreAssessmentForm: React.FC<PreAssessmentFormProps> = ({
           body_map_markers: existing.body_map_markers
         });
       } else {
-        // Auto-populate from profile or session
+        // Auto-populate from profile or session (includes prior gp/medical for existing clients)
         if (clientId) {
           const autoData = await PreAssessmentService.autoPopulateFromProfile(clientId);
           setFormData(prev => ({ ...prev, ...autoData }));
@@ -88,10 +90,40 @@ export const PreAssessmentForm: React.FC<PreAssessmentFormProps> = ({
           setFormData(prev => ({ ...prev, ...autoData }));
         }
       }
+      loadedRef.current = true;
     };
 
     loadForm();
   }, [sessionId, clientId]);
+
+  // Debounced auto-save: GP name/address, medical conditions, medical history
+  useEffect(() => {
+    if (!loadedRef.current) return;
+
+    const timer = setTimeout(() => {
+      PreAssessmentService.saveDraft(sessionId, formData, clientId).catch((err) => {
+        console.warn('Pre-assessment auto-save failed:', err);
+      });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [
+    sessionId,
+    clientId,
+    formData.gp_name,
+    formData.gp_address,
+    formData.current_medical_conditions,
+    formData.past_medical_history,
+    formData.name,
+    formData.date_of_birth,
+    formData.contact_email,
+    formData.contact_phone,
+    formData.area_of_body,
+    formData.time_scale,
+    formData.how_issue_began,
+    formData.activities_affected,
+    JSON.stringify(formData.body_map_markers ?? [])
+  ]);
 
   const updateField = (field: keyof PreAssessmentFormData, value: string | string[] | BodyMapMarker[] | undefined) => {
     setFormData(prev => ({ ...prev, [field]: value }));

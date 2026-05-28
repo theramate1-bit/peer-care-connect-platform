@@ -94,6 +94,8 @@ interface Practitioner {
   }>;
 }
 
+const COMMON_SERVICE_CODES = ['massage', 'cupping', 'acupuncture', 'manipulation', 'mobilisation', 'stretching'];
+
 const Marketplace = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -515,12 +517,13 @@ const Marketplace = () => {
         p.base_longitude != null
       );
     }
+    // Hybrid: base is derived from clinic; allow either base_* or clinic_* for coords (backfill-safe)
+    const hasBaseCoords = p.base_latitude != null && p.base_longitude != null;
+    const hasClinicCoords = p.clinic_latitude != null && p.clinic_longitude != null;
     return (
       !!p.clinic_address?.trim() &&
-      !!p.base_address?.trim() &&
       p.mobile_service_radius_km != null &&
-      p.base_latitude != null &&
-      p.base_longitude != null
+      (hasBaseCoords || hasClinicCoords)
     );
   };
 
@@ -649,13 +652,27 @@ const Marketplace = () => {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(p =>
-        p.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.specializations.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        p.bio.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const q = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(p => {
+        const nameMatch = `${p.first_name} ${p.last_name}`.toLowerCase().includes(q);
+        const locationMatch = (p.location || '').toLowerCase().includes(q);
+        const specializationsMatch = (p.specializations || []).some(s => s.toLowerCase().includes(q));
+        const bioMatch = (p.bio || '').toLowerCase().includes(q);
+        const servicesOfferedMatch = (p.services_offered || []).some(
+          s => s.toLowerCase().includes(q) || getServiceLabel(s).toLowerCase().includes(q)
+        );
+        const productMatch = (p.products || [])
+          .filter(prod => prod.is_active)
+          .some(prod =>
+            (prod.name || '').toLowerCase().includes(q) ||
+            (prod.description || '').toLowerCase().includes(q) ||
+            (prod.category || '').toLowerCase().includes(q) ||
+            ((prod as { service_category?: string }).service_category || '')
+              .toLowerCase().includes(q) ||
+            getServiceLabel((prod as { service_category?: string }).service_category).toLowerCase().includes(q)
+          );
+        return nameMatch || locationMatch || specializationsMatch || bioMatch || servicesOfferedMatch || productMatch;
+      });
     }
 
     // Role filter
@@ -673,9 +690,15 @@ const Marketplace = () => {
       filtered = filtered.filter(p => p.therapist_type === selectedPractitionerType);
     }
 
-    // Services offered filter (broad modalities)
+    // Services offered filter (broad modalities) - match users.services_offered or product.service_category
     if (serviceOffered !== 'all') {
-      filtered = filtered.filter(p => (p.services_offered || []).includes(serviceOffered));
+      filtered = filtered.filter(p => {
+        const fromProfile = (p.services_offered || []).includes(serviceOffered);
+        const fromProducts = (p.products || [])
+          .filter(prod => prod.is_active)
+          .some(prod => (prod as { service_category?: string }).service_category === serviceOffered);
+        return fromProfile || fromProducts;
+      });
     }
 
     // Liability insurance filter
@@ -808,6 +831,23 @@ const Marketplace = () => {
       .map(p => (p.location || '').trim())
       .filter(Boolean)
   )].sort();
+
+  // Unique services for filter dropdown: from services_offered + product.service_category
+  // Fallback to common services when no practitioners or none have services set
+  const uniqueServices = React.useMemo(() => {
+    const codes = new Set<string>();
+    practitioners.forEach(p => {
+      (p.services_offered || []).forEach((s: string) => codes.add(s));
+      (p.products || []).forEach(prod => {
+        const cat = (prod as { service_category?: string }).service_category;
+        if (cat) codes.add(cat);
+      });
+    });
+    const list = codes.size > 0 ? [...codes] : COMMON_SERVICE_CODES;
+    return list.sort((a, b) =>
+      getServiceLabel(a).localeCompare(getServiceLabel(b))
+    );
+  }, [practitioners]);
 
   if (loading) {
     return (
@@ -1171,19 +1211,20 @@ const Marketplace = () => {
                   </Select>
                 </div>
 
-                {/* Services Offered */}
+                {/* Services Offered - populated from practitioners' services + product categories */}
                 <div>
                   <Label className="text-sm">Service</Label>
                   <Select value={serviceOffered} onValueChange={setServiceOffered}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Any" />
+                      <SelectValue placeholder="Any Service" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Any Service</SelectItem>
-                      <SelectItem value="massage">Massage</SelectItem>
-                      <SelectItem value="cupping">Cupping</SelectItem>
-                      <SelectItem value="acupuncture">Acupuncture</SelectItem>
-                      <SelectItem value="manipulations">Manipulations</SelectItem>
+                      {uniqueServices.map(code => (
+                        <SelectItem key={code} value={code}>
+                          {getServiceLabel(code)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1298,9 +1339,13 @@ const Marketplace = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPractitioners.map((practitioner) => {
             const isMobileOnly = practitioner.therapist_type === 'mobile';
-            // Mobile-only practitioners have no clinic: show radius visual, not a clinic/location photo
-            const clinicImageUrl = isMobileOnly ? null : practitioner.clinic_image_url;
-            const locationImageUrl = !clinicImageUrl && !isMobileOnly
+            const isHybrid = practitioner.therapist_type === 'hybrid';
+            // Mobile and hybrid practitioners with a service radius: show map radius visual
+            const hasMobileRadius = (isMobileOnly || isHybrid) && practitioner.mobile_service_radius_km != null;
+            const showRadiusMap = hasMobileRadius;
+            // Mobile-only have no clinic image; hybrid can have clinic but we prioritise radius map
+            const clinicImageUrl = showRadiusMap ? null : practitioner.clinic_image_url;
+            const locationImageUrl = !clinicImageUrl && !showRadiusMap
               ? getBestLocationImageUrl(
               practitioner.clinic_latitude,
               practitioner.clinic_longitude,
@@ -1333,12 +1378,12 @@ const Marketplace = () => {
                 className="group relative h-full overflow-hidden bg-white rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-[border-color,background-color] duration-200 ease-out"
                 tabIndex={0}
               >
-                {/* Card hero: clinic/location image, or for mobile-only a radius visual (no clinic) */}
-                {isMobileOnly && practitioner.mobile_service_radius_km != null ? (
+                {/* Card hero: clinic/location image, or for mobile/hybrid a radius map visual */}
+                {showRadiusMap ? (
                   <MobileServiceAreaBlock
-                    radiusKm={practitioner.mobile_service_radius_km}
-                    baseLatitude={practitioner.base_latitude}
-                    baseLongitude={practitioner.base_longitude}
+                    radiusKm={practitioner.mobile_service_radius_km!}
+                    baseLatitude={practitioner.base_latitude ?? practitioner.clinic_latitude}
+                    baseLongitude={practitioner.base_longitude ?? practitioner.clinic_longitude}
                     areaLabel={mobileAreaLabel}
                   />
                 ) : displayImageUrl ? (
@@ -1569,22 +1614,32 @@ const Marketplace = () => {
                             {/* For hybrid therapists: Show both options clearly */}
                             {hasClinicServices && hasMobileServices ? (
                               <HybridBookingChooser
-                                onBookClinic={openBookSession}
+                                fullWidth
+                                onBookClinic={() => {
+                                  setSelectedPractitioner(practitioner);
+                                  setShowMobileRequestFlow(false);
+                                  setShowBookingFlow(true);
+                                }}
                                 onRequestMobile={() => {
                                   setSelectedPractitioner(practitioner);
                                   setShowBookingFlow(false);
                                   setShowMobileRequestFlow(true);
                                 }}
                                 practitionerName={practitionerName}
+                                className="min-w-0 flex-1"
                               />
                             ) : (
                               /* Single option: Show appropriate button */
                               <Button
                                 onClick={openBookSession}
                                 aria-label={bookSessionAriaLabel}
-                                className="min-h-[44px] min-w-[44px] flex-1 sm:flex-initial px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                                className="min-h-[44px] min-w-[44px] flex-1 sm:flex-initial px-3 py-3 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-primary focus:ring-offset-2"
                               >
-                                <Calendar className="h-4 w-4 mr-2 shrink-0" aria-hidden />
+                                {hasMobileServices ? (
+                                  <MapPin className="h-4 w-4 mr-2 shrink-0" aria-hidden />
+                                ) : (
+                                  <Calendar className="h-4 w-4 mr-2 shrink-0" aria-hidden />
+                                )}
                                 {hasMobileServices ? 'Request' : 'Book'}
                               </Button>
                             )}

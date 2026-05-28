@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Section, Text, Link } from '@react-email/components';
+import { Section, Text } from '../primitives';
 import { ModernEmailBase } from './ModernEmailBase';
 import { ModernCard } from './ModernCard';
 import { ModernButton } from './ModernButton';
@@ -55,114 +55,69 @@ export const ModernSessionReminder1h = ({
       heroTitle={heroTitle}
       heroSubtitle={heroSubtitle}
       heroBadge="1 Hour Reminder"
-      primaryColor="#dc2626"
+      primaryColor="#8e9b53"
       baseUrl={baseUrl}
     >
-      <Section style={{ textAlign: 'center', marginBottom: '48px', padding: '0 24px' }}>
-        <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', maxWidth: '500px' }}>
+      {/* 1. Unified session overview */}
+      <ModernCard title={`${data.sessionType || 'Session'} — in 1 hour`} accentColor="#8e9b53">
+        <table cellPadding="0" cellSpacing="0" width="100%">
           <tr>
-            <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={bookingUrl} variant="primary" color="#dc2626">
-                View Details
-              </ModernButton>
+            <td style={{ paddingBottom: '12px' }}>
+              <Text style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>When</Text>
+              <Text style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#3c4804' }}>
+                {formattedDate} at {formattedTime} · {data.sessionDuration || 60} min
+              </Text>
             </td>
-            <td style={{ padding: '0 8px 8px 8px', width: '50%' }}>
-              <ModernButton href={messageUrl} variant="secondary" color="#dc2626">
-                Message Practitioner
-              </ModernButton>
+          </tr>
+          <tr>
+            <td style={{ paddingBottom: '12px' }}>
+              <Text style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>With</Text>
+              <Text style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#3c4804' }}>{data.practitionerName || 'N/A'}</Text>
+            </td>
+          </tr>
+          {(shouldShowLocation || isMobileService) && (
+            <tr>
+              <td style={{ paddingTop: '12px', borderTop: '1px solid #d9e2d2' }}>
+                <Text style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Where</Text>
+                {mapsUrl && mapsUrl !== '#' && !isMobileService ? (
+                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '15px', fontWeight: 600, color: '#3c4804', textDecoration: 'underline' }}>
+                    {locationDisplayText}
+                  </a>
+                ) : (
+                  <Text style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#3c4804' }}>{locationDisplayText}</Text>
+                )}
+              </td>
+            </tr>
+          )}
+        </table>
+      </ModernCard>
+
+      {/* 2. Actions */}
+      <Section style={{ textAlign: 'center', marginTop: '16px', marginBottom: '16px' }}>
+        <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto', width: '100%', maxWidth: '400px' }}>
+          <tr>
+            <td style={{ padding: '0 4px', width: '50%' }}>
+              <ModernButton href={bookingUrl} variant="primary" color="#8e9b53">View Details</ModernButton>
+            </td>
+            <td style={{ padding: '0 4px', width: '50%' }}>
+              <ModernButton href={messageUrl} variant="secondary" color="#8e9b53">Message</ModernButton>
             </td>
           </tr>
           {mapsUrl && mapsUrl !== '#' && shouldShowLocation && (
             <tr>
-              <td colSpan={2} style={{ padding: '8px 8px 0 8px' }}>
-                <ModernButton href={mapsUrl} variant="secondary" color="#dc2626" fullWidth>
-                  Get Directions
-                </ModernButton>
+              <td colSpan={2} style={{ padding: '8px 4px 0 4px' }}>
+                <ModernButton href={mapsUrl} variant="secondary" color="#8e9b53" fullWidth>Get Directions</ModernButton>
               </td>
             </tr>
           )}
         </table>
       </Section>
 
-      <ModernCard title="Session Details" accentColor="#dc2626">
-        <Section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '32px' }}>
-          <table cellPadding="0" cellSpacing="0" width="100%">
-            <tr>
-              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '20px' }}>📅</span>
-                  </div>
-                  <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Date</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedDate}</Text>
-                  </div>
-                </div>
-              </td>
-              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '20px' }}>🕐</span>
-                  </div>
-                  <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Time</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{formattedTime}</Text>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '20px' }}>⏱️</span>
-                  </div>
-                  <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Duration</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.sessionDuration || 60} minutes</Text>
-                  </div>
-                </div>
-              </td>
-              <td style={{ paddingBottom: '24px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '20px' }}>👤</span>
-                  </div>
-                  <div>
-                    <Text style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Practitioner</Text>
-                    <Text style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{data.practitionerName || 'N/A'}</Text>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </table>
-        </Section>
-      </ModernCard>
-
-      {(shouldShowLocation || isMobileService) && (
-        <ModernCard title={isMobileService ? "Service Type" : "Location Details"} accentColor="#dc2626">
-          <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>{locationDisplayText}</Text>
-          {isMobileService ? (
-            <Text style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#64748b', lineHeight: '1.6' }}>
-              Your practitioner will travel to your location. Please ensure your address is up to date and accessible.
-            </Text>
-          ) : (
-            mapsUrl && mapsUrl !== '#' && (
-              <Link href={mapsUrl} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', color: '#475569', fontSize: '14px', fontWeight: 700, textDecoration: 'none', backgroundColor: '#ffffff' }}>
-                <span style={{ marginRight: '8px' }}>🗺️</span>View on Maps
-              </Link>
-            )
-          )}
-        </ModernCard>
-      )}
-
-      <Section style={{ marginTop: '24px', padding: '24px', backgroundColor: 'rgba(220, 38, 38, 0.05)', borderRadius: '16px', border: '1px solid rgba(220, 38, 38, 0.1)' }}>
-        <Text style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Last-minute reminders</Text>
-        <Text style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
-          • Leave now to arrive on time<br />
-          • Bring your ID if required<br />
-          • Have your phone charged<br />
-          • Check traffic conditions
+      {/* 3. Quick tips */}
+      <Section style={{ padding: '12px 16px', backgroundColor: 'rgba(142, 155, 83, 0.08)', borderRadius: '8px', border: '1px solid rgba(142, 155, 83, 0.12)' }}>
+        <Text style={{ margin: '0 0 6px 0', fontSize: '12px', fontWeight: 700, color: '#3c4804' }}>Almost time</Text>
+        <Text style={{ margin: 0, fontSize: '13px', color: '#5a5a5a', lineHeight: '1.5' }}>
+          Leave soon to arrive on time · Check traffic · Bring ID if required
         </Text>
       </Section>
     </ModernEmailBase>
@@ -170,3 +125,4 @@ export const ModernSessionReminder1h = ({
 };
 
 export default ModernSessionReminder1h;
+

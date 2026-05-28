@@ -50,7 +50,7 @@ export const HowItWorksSection = () => {
   return (
     <section 
       ref={sectionRef} 
-      className="py-28 px-6 bg-gradient-to-b from-white to-slate-50 dark:from-slate-950 dark:to-slate-900"
+      className="py-28 px-6 landing-section-surface"
     >
       <div className="max-w-7xl mx-auto">
         <motion.div
@@ -60,7 +60,7 @@ export const HowItWorksSection = () => {
         >
           {/* Header */}
           <motion.div variants={itemVariants} className="text-center max-w-3xl mx-auto mb-16">
-            <span className="text-xs font-bold tracking-widest text-primary uppercase mb-3 block">
+            <span className="landing-eyebrow mb-3 block">
               How It Works
             </span>
             <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white mb-4">
@@ -93,7 +93,7 @@ export const HowItWorksSection = () => {
                     >
                       <Icon className="w-8 h-8 text-primary" />
                     </motion.div>
-                    <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center shadow-lg">
+                    <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full landing-cta text-sm font-bold flex items-center justify-center shadow-lg shadow-primary/20">
                       {index + 1}
                     </div>
                   </div>
