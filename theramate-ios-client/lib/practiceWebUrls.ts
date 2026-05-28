@@ -24,3 +24,12 @@ export function publishedWebsitePath(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${webBase()}${p}`;
 }
+
+/** Web exchange inbox (emails / legacy links). Native app maps this to `/(practitioner)/exchange/[id]`. */
+export function practiceExchangeRequestsWebUrl(requestId?: string): string {
+  const base = `${webBase()}/practice/exchange-requests`;
+  if (requestId?.trim()) {
+    return `${base}?request=${encodeURIComponent(requestId.trim())}`;
+  }
+  return base;
+}

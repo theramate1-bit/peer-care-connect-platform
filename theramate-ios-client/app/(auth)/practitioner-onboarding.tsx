@@ -26,6 +26,9 @@ import { getMainAppHref } from "@/lib/postAuthRoute";
 import { validateDetailedStreetAddress } from "@/lib/addressValidation";
 import { fetchConnectAccountStatus } from "@/lib/api/stripeConnect";
 import { fetchLatestSubscription } from "@/lib/api/subscription";
+import { createPlatformSubscriptionCheckout } from "@/lib/api/platformSubscriptionCheckout";
+import { openHostedWebSession } from "@/lib/openHostedWeb";
+import { PLATFORM_PLANS } from "@/constants/payments";
 import {
   validatePracticeLocations,
   type PracticeLocationValues,
@@ -35,7 +38,6 @@ import {
   completePractitionerOnboarding,
   markPractitionerOnboardingInProgress,
 } from "@/lib/completePractitionerOnboarding";
-import { setPendingHostedWebSession } from "@/lib/pendingHostedWebSession";
 import { useAuthStore } from "@/stores/authStore";
 import type { UserRole } from "@/types/database";
 
@@ -362,13 +364,31 @@ export default function PractitionerOnboardingScreen() {
   };
 
   const openPricing = () => {
-    const url = `${APP_CONFIG.WEB_URL}/pricing`;
-    setPendingHostedWebSession({
-      kind: "web_app",
-      url,
-      dismissPath: "/practitioner-onboarding",
-    });
-    router.push("/hosted-web" as never);
+    router.push("/pricing" as never);
+  };
+
+  const [subCheckoutBusy, setSubCheckoutBusy] = React.useState(false);
+
+  const startSubscriptionCheckout = async () => {
+    const defaultPriceId = PLATFORM_PLANS[0]?.prices[0]?.id;
+    if (!defaultPriceId) {
+      openPricing();
+      return;
+    }
+    setSubCheckoutBusy(true);
+    try {
+      const res = await createPlatformSubscriptionCheckout(defaultPriceId);
+      if (!res.success) {
+        Alert.alert("Subscription", res.error);
+        return;
+      }
+      openHostedWebSession({
+        kind: "stripe_checkout",
+        url: res.checkoutUrl,
+      });
+    } finally {
+      setSubCheckoutBusy(false);
+    }
   };
 
   const handleVerifySubscription = async () => {
@@ -388,7 +408,7 @@ export default function PractitionerOnboardingScreen() {
       } else {
         Alert.alert(
           "Subscription",
-          "We could not find an active subscription yet. Complete checkout on the website, then tap Verify again.",
+          "We could not find an active subscription yet. Complete checkout above, then tap Verify again.",
         );
       }
     } catch (e: unknown) {
@@ -904,11 +924,19 @@ export default function PractitionerOnboardingScreen() {
               Theramate subscription
             </Text>
             <Text className="text-charcoal-500 text-sm mb-4 leading-5">
-              Choose a plan on the website, then verify your subscription before
-              completing setup (matches web onboarding).
+              Subscribe with secure Stripe Checkout in the app, then verify
+              before completing setup.
             </Text>
+            <Button
+              variant="primary"
+              onPress={() => void startSubscriptionCheckout()}
+              isLoading={subCheckoutBusy}
+              className="mb-3"
+            >
+              Subscribe (Practitioner plan)
+            </Button>
             <Button variant="outline" onPress={openPricing} className="mb-3">
-              View plans & pricing
+              View all plans & pricing
             </Button>
             <Button
               variant="outline"

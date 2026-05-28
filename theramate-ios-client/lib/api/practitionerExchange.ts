@@ -239,6 +239,149 @@ export async function fetchPendingExchangeRequestsSentByRequester(
   }
 }
 
+const TERMINAL_EXCHANGE_STATUSES = [
+  "declined",
+  "cancelled",
+  "expired",
+] as const;
+
+/** Recent non-actionable requests you sent or received (read-only history). */
+export async function fetchRecentTerminalExchangeRequestsForParticipant(
+  userId: string,
+  limit = 20,
+): Promise<{ data: ExchangeRequestRow[]; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from("treatment_exchange_requests")
+      .select(
+        "id, requester_id, recipient_id, status, created_at, updated_at, requested_session_date, requested_start_time, requested_end_time, duration_minutes, session_type, requester_notes, recipient_notes",
+      )
+      .or(`requester_id.eq.${userId},recipient_id.eq.${userId}`)
+      .in("status", [...TERMINAL_EXCHANGE_STATUSES])
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    const rows = (data || []) as ExchangeRequestRow[];
+    const ids = [
+      ...new Set(rows.flatMap((r) => [r.requester_id, r.recipient_id])),
+    ].filter((id) => id !== userId);
+    if (ids.length === 0) {
+      return {
+        data: rows.map((r) => ({
+          ...r,
+          requester_name: "Practitioner",
+          recipient_name: "Practitioner",
+        })),
+        error: null,
+      };
+    }
+
+    const { data: users, error: uErr } = await supabase
+      .from("users")
+      .select("id, first_name, last_name")
+      .in("id", ids);
+    if (uErr) throw uErr;
+    const nameById = new Map<string, string>();
+    for (const u of (users || []) as {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+    }[]) {
+      const n = `${u.first_name || ""} ${u.last_name || ""}`.trim();
+      nameById.set(u.id, n || "Practitioner");
+    }
+
+    const enriched: ExchangeRequestRow[] = rows.map((r) => ({
+      ...r,
+      requester_name: nameById.get(r.requester_id) ?? "Practitioner",
+      recipient_name: nameById.get(r.recipient_id) ?? "Practitioner",
+    }));
+    return { data: enriched, error: null };
+  } catch (e) {
+    return {
+      data: [],
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+/** Accepted swaps where both legs are booked (read-only history). */
+export async function fetchRecentCompletedExchangesForParticipant(
+  userId: string,
+  limit = 10,
+): Promise<{ data: ExchangeRequestRow[]; error: Error | null }> {
+  try {
+    const { data: mes, error: mesErr } = await supabase
+      .from("mutual_exchange_sessions")
+      .select("exchange_request_id, updated_at")
+      .or(`practitioner_a_id.eq.${userId},practitioner_b_id.eq.${userId}`)
+      .eq("practitioner_b_booked", true)
+      .eq("status", "active")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (mesErr) throw mesErr;
+    const reqIds = [
+      ...new Set(
+        (mes || []).map((m) => String(m.exchange_request_id)).filter(Boolean),
+      ),
+    ];
+    if (reqIds.length === 0) return { data: [], error: null };
+
+    const { data, error } = await supabase
+      .from("treatment_exchange_requests")
+      .select(
+        "id, requester_id, recipient_id, status, created_at, updated_at, requested_session_date, requested_start_time, requested_end_time, duration_minutes, session_type, requester_notes, recipient_notes",
+      )
+      .in("id", reqIds)
+      .eq("status", "accepted");
+    if (error) throw error;
+    const rows = (data || []) as ExchangeRequestRow[];
+    const ids = [
+      ...new Set(rows.flatMap((r) => [r.requester_id, r.recipient_id])),
+    ].filter((id) => id !== userId);
+    if (ids.length === 0) {
+      return {
+        data: rows.map((r) => ({
+          ...r,
+          requester_name: "Practitioner",
+          recipient_name: "Practitioner",
+        })),
+        error: null,
+      };
+    }
+
+    const { data: users, error: uErr } = await supabase
+      .from("users")
+      .select("id, first_name, last_name")
+      .in("id", ids);
+    if (uErr) throw uErr;
+    const nameById = new Map<string, string>();
+    for (const u of (users || []) as {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+    }[]) {
+      const n = `${u.first_name || ""} ${u.last_name || ""}`.trim();
+      nameById.set(u.id, n || "Practitioner");
+    }
+
+    const order = new Map(reqIds.map((id, i) => [id, i]));
+    const enriched: ExchangeRequestRow[] = rows
+      .map((r) => ({
+        ...r,
+        requester_name: nameById.get(r.requester_id) ?? "Practitioner",
+        recipient_name: nameById.get(r.recipient_id) ?? "Practitioner",
+      }))
+      .sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+    return { data: enriched, error: null };
+  } catch (e) {
+    return {
+      data: [],
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
 export async function cancelExchangeRequestByRequester(params: {
   requestId: string;
   requesterId: string;

@@ -18,39 +18,40 @@ If your work is the **client or guest** experience on **mobile**, or parity with
 - **[Theramate mobile app README](../../theramate-ios-client/README.md)**
 - **[Mobile / web full inventory](../product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md)**
 
-The component suggestions below focus on the **web** app (`peer-care-connect`).
+The component suggestions below focus on the **web** app at repo-root **`src/`** (not a separate `peer-care-connect/` package path on disk).
 
 ### Where to Start Reading Code
 
 **Easy Components (Start Here):**
 
-- `src/components/ui/button.tsx` - Simple UI component
-- `src/lib/validation.ts` - Clear validation logic
-- `src/lib/file-path-sanitizer.ts` - Well-documented utility
+- [src/components/ui/button.tsx](../../src/components/ui/button.tsx) — simple UI primitive
+- [src/lib/errors.ts](../../src/lib/errors.ts) — small error helpers
+- [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts) — marketplace fetch + `THERAPIST_ROLES`
 
 **Medium Complexity:**
 
-- `src/services/bookingService.ts` - Service layer with good structure
-- `src/lib/credits.ts` - Business logic (well-documented)
+- [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts) — marketplace list + `THERAPIST_ROLES`
+- [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) — booking UI (large)
 
 **Advanced (Read Later):**
 
-- `src/lib/treatment-exchange.ts` - Complex business logic
-- `src/components/marketplace/BookingFlow.tsx` - Large component
+- `theramate-ios-client/lib/api/practitionerExchange.ts` — treatment exchange API (native)
+- `theramate-ios-client/lib/api/booking.ts` — slots, holds, sessions (native)
 
 ## 📚 Understanding the Codebase
 
 ### Project Structure
 
 ```
-peer-care-connect/
-├── src/
-│   ├── components/     # React components (UI)
-│   ├── lib/           # Business logic & utilities
-│   ├── services/      # API services
-│   ├── pages/         # Page components
-│   └── contexts/      # React contexts (state)
+<repo root>/
+├── src/                 # Web app (React): components, pages, lib
+├── theramate-ios-client/  # Expo (customer + practitioner mobile)
+├── supabase/            # Migrations + Edge Functions
+├── packages/            # Shared npm packages (if any)
+└── docs/                # Documentation
 ```
+
+(`peer-care-connect/` may appear in **npm workspaces** but can be an empty directory in some checkouts — use **`src/`** for web code.)
 
 ### Key Concepts
 

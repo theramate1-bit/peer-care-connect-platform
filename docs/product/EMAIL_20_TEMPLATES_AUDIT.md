@@ -83,7 +83,7 @@ Audit of all email templates in `supabase/functions/send-email/index.ts` for pro
 | Source                                                                                         | URL builder                                    | Risk                                     |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- |
 | **Backend** (stripe-webhooks, send-booking-notification, mobile-payment, notify-guest-message) | `SITE_URL` or `APP_URL` (Edge Function secret) | OK when SITE_URL set                     |
-| **Frontend** (NotificationSystem in peer-care-connect)                                         | `window.location.origin`                       | **localhost when app runs on localhost** |
+| **Frontend** (web app `src/`)                                                                  | `window.location.origin`                       | **localhost when app runs on localhost** |
 
 **Example from email_logs metadata:**
 

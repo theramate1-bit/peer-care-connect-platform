@@ -83,28 +83,13 @@ export default function PractitionerHomeScreen() {
     isFetching,
   } = usePractitionerDashboard(practitionerId);
 
-  const pendingTotal =
-    (dash?.pendingMobileRequestsCount ?? 0) +
+  const mobilePending = dash?.pendingMobileRequestsCount ?? 0;
+  const exchangePending =
     (dash?.pendingExchangeCount ?? 0) +
+    (dash?.exchangeOutgoingPendingCount ?? 0) +
     (dash?.exchangeReciprocalNeededCount ?? 0) +
-    (dash?.exchangeExtensionPendingCount ?? 0);
-
-  const goActionRequired = () => {
-    if (!dash) return;
-    const m = dash.pendingMobileRequestsCount ?? 0;
-    const exIn = dash.pendingExchangeCount ?? 0;
-    const exRec = dash.exchangeReciprocalNeededCount ?? 0;
-    const exExt = dash.exchangeExtensionPendingCount ?? 0;
-    if (m > 0) {
-      router.push(tabPath(tabRoot, "mobile-requests") as Href);
-      return;
-    }
-    if (exIn > 0 || exRec > 0 || exExt > 0) {
-      router.push(tabPath(tabRoot, "exchange") as Href);
-      return;
-    }
-    router.push(tabPath(tabRoot, "mobile-requests") as Href);
-  };
+    (dash?.exchangeAwaitingReciprocalCount ?? 0);
+  const hasActionRequired = mobilePending > 0 || exchangePending > 0;
 
   const tabBarInset = useBottomTabBarHeight();
   const tabBarHeight =
@@ -171,37 +156,65 @@ export default function PractitionerHomeScreen() {
             </Text>
           ) : dash ? (
             <>
-              {pendingTotal > 0 ? (
-                <PressableCard
-                  variant="elevated"
-                  padding="md"
-                  className="mt-4"
-                  onPress={goActionRequired}
-                >
-                  <Text className="text-charcoal-900 font-semibold">
-                    Action required
-                  </Text>
-                  <Text className="text-charcoal-600 text-sm mt-1">
-                    {dash.pendingMobileRequestsCount > 0
-                      ? `${dash.pendingMobileRequestsCount} mobile visit request(s). `
-                      : ""}
-                    {dash.pendingExchangeCount > 0
-                      ? `${dash.pendingExchangeCount} exchange request(s) to answer. `
-                      : ""}
-                    {dash.exchangeReciprocalNeededCount > 0
-                      ? `${dash.exchangeReciprocalNeededCount} return session(s) to book. `
-                      : ""}
-                    {dash.exchangeExtensionPendingCount > 0
-                      ? `${dash.exchangeExtensionPendingCount} extension(s) to approve. `
-                      : ""}
-                  </Text>
-                  <Text className="text-sage-600 text-sm font-medium mt-2">
-                    Review →
-                  </Text>
-                </PressableCard>
+              {hasActionRequired ? (
+                <View className="mt-4 gap-3">
+                  {mobilePending > 0 ? (
+                    <PressableCard
+                      variant="elevated"
+                      padding="md"
+                      onPress={() =>
+                        router.push(tabPath(tabRoot, "mobile-requests") as Href)
+                      }
+                    >
+                      <Text className="text-charcoal-900 font-semibold">
+                        Mobile visit requests
+                      </Text>
+                      <Text className="text-charcoal-600 text-sm mt-1">
+                        {mobilePending} pending on-location booking
+                        {mobilePending === 1 ? "" : "s"}.
+                      </Text>
+                      <Text className="text-sage-600 text-sm font-medium mt-2">
+                        Review →
+                      </Text>
+                    </PressableCard>
+                  ) : null}
+                  {exchangePending > 0 ? (
+                    <PressableCard
+                      variant="elevated"
+                      padding="md"
+                      onPress={() =>
+                        router.push(tabPath(tabRoot, "exchange") as Href)
+                      }
+                    >
+                      <Text className="text-charcoal-900 font-semibold">
+                        Treatment exchange
+                      </Text>
+                      <Text className="text-charcoal-600 text-sm mt-1">
+                        {dash.pendingExchangeCount > 0
+                          ? `${dash.pendingExchangeCount} to answer. `
+                          : ""}
+                        {dash.exchangeOutgoingPendingCount > 0
+                          ? `${dash.exchangeOutgoingPendingCount} waiting on them. `
+                          : ""}
+                        {dash.exchangeReciprocalNeededCount > 0
+                          ? `${dash.exchangeReciprocalNeededCount} return session(s) to book. `
+                          : ""}
+                        {dash.exchangeAwaitingReciprocalCount > 0
+                          ? `${dash.exchangeAwaitingReciprocalCount} waiting for their return book. `
+                          : ""}
+                        {dash.exchangeExtensionPendingCount > 0
+                          ? `${dash.exchangeExtensionPendingCount} extension(s) to approve. `
+                          : ""}
+                      </Text>
+                      <Text className="text-sage-600 text-sm font-medium mt-2">
+                        Open exchange →
+                      </Text>
+                    </PressableCard>
+                  ) : null}
+                </View>
               ) : null}
 
-              <View className={pendingTotal > 0 ? "mt-6" : "mt-4"}>
+              <View className={hasActionRequired ? "mt-6" : "mt-4"}>
                 <View className="flex-row items-center justify-between mb-3">
                   <Text className="text-charcoal-900 text-lg font-bold">
                     Today

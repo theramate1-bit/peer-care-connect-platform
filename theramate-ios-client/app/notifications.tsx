@@ -28,6 +28,7 @@ import {
   markNotificationRead,
   type AppNotification,
 } from "@/lib/api/notifications";
+import { formatNotificationForInbox } from "@/lib/notificationDisplay";
 
 function payloadRecord(item: AppNotification): Record<string, unknown> {
   const d = item.data;
@@ -44,6 +45,7 @@ function NotificationItem({
   item: AppNotification;
   onPress: () => void;
 }) {
+  const display = formatNotificationForInbox(item);
   const created = item.created_at ? new Date(item.created_at) : null;
   const when = created ? `${formatDistanceToNowStrict(created)} ago` : "";
   const unread = item.is_read !== true;
@@ -54,11 +56,16 @@ function NotificationItem({
     >
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-3">
+          {display.badge ? (
+            <Text className="text-sage-700 text-xs font-semibold uppercase tracking-wide mb-1">
+              {display.badge}
+            </Text>
+          ) : null}
           <Text className="text-charcoal-900 font-semibold">
-            {item.title || "Notification"}
+            {display.title}
           </Text>
-          {item.message ? (
-            <Text className="text-charcoal-600 mt-1">{item.message}</Text>
+          {display.message ? (
+            <Text className="text-charcoal-600 mt-1">{display.message}</Text>
           ) : null}
           {when ? (
             <Text className="text-charcoal-400 text-xs mt-2">{when}</Text>
@@ -141,7 +148,10 @@ export default function NotificationsInboxScreen() {
         title="Notifications"
         fallbackHref={defaultSignedInProfileHref()}
         right={
-          <TouchableOpacity onPress={() => void readAll()} className="px-2 py-1">
+          <TouchableOpacity
+            onPress={() => void readAll()}
+            className="px-2 py-1"
+          >
             <Text className="text-sage-600 font-medium">Mark read</Text>
           </TouchableOpacity>
         }
@@ -193,9 +203,7 @@ export default function NotificationsInboxScreen() {
                   const root = getMainAppHref(
                     useAuthStore.getState().userProfile?.user_role,
                   );
-                  router.push(
-                    tabPath(root, "profile/notifications") as never,
-                  );
+                  router.push(tabPath(root, "profile/notifications") as never);
                 }}
               >
                 Notification preferences

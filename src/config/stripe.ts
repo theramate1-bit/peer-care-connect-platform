@@ -169,9 +169,7 @@ export const STRIPE_ERROR_MESSAGES = {
 export const validateStripeConfig = (): string[] => {
   const errors: string[] = [];
 
-  if (!STRIPE_CONFIG.publishableKey) {
-    errors.push("Stripe publishable key is required");
-  }
+  // Hosted Checkout only: publishable key optional on web (payments via Edge Functions + redirect).
 
   // Safety: publishable keys must never be secret keys.
   if (STRIPE_CONFIG.publishableKey?.startsWith("sk_")) {
@@ -180,13 +178,13 @@ export const validateStripeConfig = (): string[] => {
     );
   }
 
-  if (FEATURES.STRIPE_LIVE_MODE) {
-    if (!STRIPE_CONFIG.publishableKey.startsWith("pk_live_")) {
-      errors.push("Production requires live Stripe publishable key");
-    }
-  } else {
-    if (!STRIPE_CONFIG.publishableKey.startsWith("pk_test_")) {
-      errors.push("Development requires test Stripe publishable key");
+  if (STRIPE_CONFIG.publishableKey) {
+    if (FEATURES.STRIPE_LIVE_MODE) {
+      if (!STRIPE_CONFIG.publishableKey.startsWith("pk_live_")) {
+        errors.push("Production publishable key must be pk_live_* when set");
+      }
+    } else if (!STRIPE_CONFIG.publishableKey.startsWith("pk_test_")) {
+      errors.push("Development publishable key must be pk_test_* when set");
     }
   }
 
@@ -200,11 +198,11 @@ export const validateEnvironment = (): void => {
   if (errors.length > 0) {
     console.error("Stripe configuration errors:", errors);
 
-    if (FEATURES.STRIPE_LIVE_MODE) {
+    if (FEATURES.STRIPE_LIVE_MODE && errors.length > 0) {
       throw new Error(
         `Production Stripe configuration invalid: ${errors.join(", ")}`,
       );
-    } else {
+    } else if (errors.length > 0) {
       console.warn(
         "Development mode: Stripe configuration issues will not prevent startup",
       );
@@ -212,9 +210,14 @@ export const validateEnvironment = (): void => {
   }
 };
 
-// Initialize validation on import
+// Initialize validation on import (throws if sk_* or VITE_* secrets are configured)
 if (typeof window !== "undefined") {
   validateEnvironment();
+  const envErrors = validateStripeConfig();
+  const securityErrors = envErrors.filter((e) => e.startsWith("SECURITY:"));
+  if (securityErrors.length > 0) {
+    throw new Error(securityErrors.join(" "));
+  }
 }
 
 export default STRIPE_CONFIG;

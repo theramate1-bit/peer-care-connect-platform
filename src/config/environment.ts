@@ -127,13 +127,20 @@ export const validateEnvironment = (): string[] => {
     },
   };
 
-  // Check development environment
-  if (isDev) {
-    if (!config.stripe.publishableKey) {
+  // Hosted Checkout only: publishable key is optional on web (no Stripe.js in bundle).
+  if (isDev && config.stripe.publishableKey) {
+    if (
+      !config.stripe.publishableKey.startsWith("pk_test_") &&
+      !config.stripe.publishableKey.startsWith("sk_")
+    ) {
       errors.push(
-        `Missing required environment variable: ${requiredVars.stripe.publishableKey}`,
+        "Development Stripe key should be pk_test_* when VITE_STRIPE_PUBLISHABLE_KEY is set",
       );
     }
+  }
+
+  // Check development environment
+  if (isDev) {
     if (!config.supabase.url) {
       errors.push(
         `Missing required environment variable: ${requiredVars.supabase.url}`,
@@ -146,31 +153,33 @@ export const validateEnvironment = (): string[] => {
     }
   }
 
+  // Guardrail: never ship Stripe secrets to the client bundle (any environment).
+  // Anything prefixed with VITE_ is exposed via import.meta.env and ends up in built JS.
+  const viteStripeSecretKey = (
+    import.meta.env as Record<string, string | undefined>
+  ).VITE_STRIPE_SECRET_KEY;
+  const viteStripeWebhookSecret = (
+    import.meta.env as Record<string, string | undefined>
+  ).VITE_STRIPE_WEBHOOK_SECRET;
+
+  if (viteStripeSecretKey || viteStripeWebhookSecret) {
+    errors.push(
+      "SECURITY: Do not set VITE_STRIPE_SECRET_KEY or VITE_STRIPE_WEBHOOK_SECRET. Remove them from Vercel/hosting env and set STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET in Supabase Edge Function secrets only.",
+    );
+  }
+
+  if (config.stripe.publishableKey.startsWith("sk_")) {
+    errors.push(
+      "SECURITY: VITE_STRIPE_PUBLISHABLE_KEY must be pk_* (publishable), not sk_* (secret). Secret keys belong in Supabase only.",
+    );
+  }
+
   // Check production environment
-  if (isProd) {
-    // Guardrail: never ship Stripe secrets to the client bundle.
-    // Anything prefixed with VITE_ is exposed via import.meta.env and ends up in built JS.
-    const viteStripeSecretKey = (import.meta.env as any)
-      .VITE_STRIPE_SECRET_KEY as string | undefined;
-    const viteStripeWebhookSecret = (import.meta.env as any)
-      .VITE_STRIPE_WEBHOOK_SECRET as string | undefined;
-
-    if (viteStripeSecretKey || viteStripeWebhookSecret) {
-      errors.push(
-        "SECURITY: Do not set VITE_STRIPE_SECRET_KEY or VITE_STRIPE_WEBHOOK_SECRET. Remove them from hosting env vars and use STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET on the server only.",
-      );
-    }
-
+  if (isProd && config.stripe.publishableKey) {
     if (!config.stripe.publishableKey.startsWith("pk_live_")) {
-      if (config.stripe.publishableKey.startsWith("sk_")) {
-        errors.push(
-          "SECURITY: Stripe publishable key is set to a secret key (sk_*). Use VITE_STRIPE_PUBLISHABLE_KEY=pk_live_* for the frontend.",
-        );
-      } else {
-        errors.push(
-          "Production requires live Stripe publishable key (pk_live_...)",
-        );
-      }
+      errors.push(
+        "When set, production Stripe publishable key must be pk_live_... (hosted-only web can omit this var)",
+      );
     }
     if (!config.supabase.url.includes("supabase.co")) {
       errors.push("Production requires valid Supabase URL");
@@ -185,10 +194,14 @@ export const validateEnvironment = (): string[] => {
   return errors;
 };
 
-// Validate on module load (development only to avoid blocking production)
-if (isDev && typeof window !== "undefined") {
+// Validate on module load in the browser (fail closed on secret-key exposure).
+if (typeof window !== "undefined") {
   const envErrors = validateEnvironment();
-  if (envErrors.length > 0) {
+  const securityErrors = envErrors.filter((e) => e.startsWith("SECURITY:"));
+  if (securityErrors.length > 0) {
+    throw new Error(securityErrors.join(" "));
+  }
+  if (isDev && envErrors.length > 0) {
     console.warn("⚠️ Environment Configuration Issues:", envErrors);
     console.warn(
       "Please check your .env file and ensure all required variables are set.",

@@ -8,16 +8,23 @@
 
 ## Implementation Status (2026-03-14)
 
-| Gap                                  | Status       | Implementation                                                                                                                           |
-| ------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Requester cancel                  | **Resolved** | `cancel_exchange_request_by_requester` RPC; Cancel button on Exchange Requests (sent/pending); migration `20260314240000`                |
-| 2. Slot hold vs request TTL          | **Resolved** | Slot-held notification body now: "tentatively reserved (~10 min) while you decide. The request expires in 24 hours."                     |
-| 3. Expired notification to requester | **Resolved** | `reconcile_pending_exchange_requests` creates `exchange_request_expired` for requester before updating status                            |
-| 4. Reciprocal booking copy           | **Resolved** | SessionDetailView: "Exchange accepted. Both practitioners still need to book..." and "The exchange will complete once both have booked." |
-| 5. Entry point                       | **Resolved** | Empty state (Sent tab) now has "Request a treatment exchange" CTA → `/credits#peer-treatment`                                            |
-| 6. Client vs named display           | Open         | Document-only; no UI change                                                                                                              |
-| 7. Decline reason placeholder        | **Resolved** | Placeholder: "e.g. I'm unavailable that day; try next week"                                                                              |
-| 10. Credits check before send        | **Resolved** | `sendExchangeRequest` now checks `checkCreditBalance` and fails fast with clear message                                                  |
+| Gap                                  | Status                           | Implementation                                                                                                                           |
+| ------------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Requester cancel                  | **Resolved**                     | `cancel_exchange_request_by_requester` RPC; Cancel button on Exchange Requests (sent/pending); migration `20260314240000`                |
+| 2. Slot hold vs request TTL          | **Resolved**                     | Slot-held notification body now: "tentatively reserved (~10 min) while you decide. The request expires in 24 hours."                     |
+| 3. Expired notification to requester | **Resolved**                     | `reconcile_pending_exchange_requests` creates `exchange_request_expired` for requester before updating status                            |
+| 4. Reciprocal booking copy           | **Resolved**                     | SessionDetailView: "Exchange accepted. Both practitioners still need to book..." and "The exchange will complete once both have booked." |
+| 5. Entry point                       | **Resolved**                     | Empty state (Sent tab) now has "Request a treatment exchange" CTA → `/credits#peer-treatment`                                            |
+| 6. Client vs named display           | **Resolved (mobile 2026-05-21)** | `formatNotificationForInbox` in `theramate-ios-client/lib/notificationDisplay.ts`; web still uses `formatBookingNotificationPreview`     |
+| 7. Decline reason placeholder        | **Resolved**                     | Placeholder: "e.g. I'm unavailable that day; try next week"                                                                              |
+| 10. Credits check before send        | **Resolved**                     | `sendExchangeRequest` now checks `checkCreditBalance` and fails fast with clear message                                                  |
+| 11. Leg-1 diary session on accept    | **Resolved (2026-05-19)**        | Migration `20260519120000_treatment_exchange_leg1_credits_slot_hold.sql`                                                                 |
+| 12. Credits when both legs booked    | **Resolved (2026-05-19)**        | `process_peer_booking_credits` in reciprocal RPC                                                                                         |
+| 13. Slot hold on native send         | **Resolved (2026-05-19)**        | `create_treatment_exchange_request`                                                                                                      |
+| 14. Reschedule + extension (mobile)  | **Resolved (2026-05-19)**        | Theramate `exchange/*` screens                                                                                                           |
+| 15. Accept without conflict check    | **Resolved (2026-05-20)**        | `assert_practitioner_slot_available` on send/accept/reciprocal                                                                           |
+| 16. Stale 24h expiry copy            | **Resolved (2026-05-20)**        | Slot-held notification; requests do not auto-expire                                                                                      |
+| 17. Post-accept cancel (mobile)      | **Resolved (2026-05-20)**        | Booking detail + `process_peer_booking_refund` no-payment path                                                                           |
 
 ---
 

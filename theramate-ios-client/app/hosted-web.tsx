@@ -30,19 +30,35 @@ export default function HostedWebScreen() {
   }, []);
 
   const handleClose = useCallback(() => {
+    const dismissPath = session?.dismissPath?.trim();
     finish();
+    if (dismissPath) {
+      router.replace(dismissPath as never);
+      return;
+    }
     if (router.canGoBack()) {
       router.back();
     } else {
       router.replace("/" as never);
     }
-  }, [finish]);
+  }, [session?.dismissPath, finish]);
 
   const handleHttpUrl = useCallback(
     (url: string) => {
-      if (!session || session.kind !== "stripe_checkout") return;
+      if (
+        !session ||
+        (session.kind !== "stripe_checkout" && session.kind !== "web_app")
+      ) {
+        return;
+      }
       const redir = parseCheckoutRedirectFromUrl(url);
       if (!redir) return;
+
+      if (redir.type === "connect_onboarding_return") {
+        finish();
+        router.replace("/onboarding/stripe-return" as never);
+        return;
+      }
 
       if (redir.type === "clinic_success") {
         finish();
@@ -66,6 +82,15 @@ export default function HostedWebScreen() {
         return;
       }
 
+      if (redir.type === "subscription_success") {
+        finish();
+        router.replace({
+          pathname: "/subscription-success",
+          params: { session_id: redir.checkoutSessionId },
+        } as never);
+        return;
+      }
+
       if (redir.type === "canceled") {
         finish();
         router.back();
@@ -77,10 +102,7 @@ export default function HostedWebScreen() {
   if (!session) {
     return (
       <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-        <AppStackHeader
-          title="Browser"
-          onBackPress={() => router.back()}
-        />
+        <AppStackHeader title="Browser" onBackPress={() => router.back()} />
         <View className="flex-1 px-6 justify-center">
           <Text className="text-charcoal-900 text-lg font-semibold text-center">
             Nothing to open

@@ -20,11 +20,11 @@ Edge functions enrich booking emails with URLs like:
 
 ## Native implementation
 
-| File                                                        | Role                                                                         |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **`theramate-ios-client/lib/api/guestBooking.ts`**          | **`fetchGuestSessionByToken`** → **`get_session_by_guest_token`**.           |
-| **`theramate-ios-client/app/booking/view/[sessionId].tsx`** | **`GuestBookingViewScreen`** — token-based session display.                  |
-| **`theramate-ios-client/app/booking/find.tsx`**             | **`findBookingsByEmail`** — lookup by email (adjacent “find my booking” UX). |
+| File                                                        | Role                                                                                                                                     |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **`theramate-ios-client/lib/api/guestBooking.ts`**          | **`fetchGuestSessionByToken`** → **`get_session_by_guest_token`**.                                                                       |
+| **`theramate-ios-client/app/booking/view/[sessionId].tsx`** | **`GuestBookingViewScreen`** — token-based session display.                                                                              |
+| **`theramate-ios-client/app/booking/find.tsx`**             | **`findBookingsByEmail`** → RPC **`get_guest_sessions_by_email`**; opens **`booking/view`** only when **`guest_view_token`** is present. |
 
 ## Web (`src/`) gap
 

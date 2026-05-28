@@ -44,7 +44,7 @@ Use this template for each remediation ticket.
   - Provide mobile-first rendering mode for day/week/month.
   - Preserve existing desktop behavior.
 - **Non-goals:** Rewriting booking logic or calendar data source.
-- **Affected paths:** `peer-care-connect/src/components/BookingCalendar.tsx`
+- **Affected paths:** `theramate-ios-client/app/(practitioner)/(ptabs)/schedule/ + src/pages/practice/UpcomingSessions.tsx`
 - **AC mapping:** `AC-MOB-01`
 - **QA evidence placeholders:**
   - Before/after screenshot at `360x800`
@@ -62,7 +62,7 @@ Use this template for each remediation ticket.
   - Introduce mobile list/card layout or explicit horizontal scroll strategy.
   - Keep `View` and notes actions immediately tappable.
 - **Non-goals:** Session status business rules.
-- **Affected paths:** `peer-care-connect/src/pages/practice/PracticeClientManagement.tsx`
+- **Affected paths:** `search src/pages/practice and native practitioner clients`
 - **AC mapping:** `AC-MOB-02`
 - **QA evidence placeholders:**
   - Sessions tab screenshots at `360x800` and `390x844`
@@ -96,7 +96,7 @@ Use this template for each remediation ticket.
   - Stack or wrap header actions under mobile breakpoints.
   - Use scrollable segmented tabs or mobile-safe tab pattern.
 - **Non-goals:** Service pricing business logic and validation rules.
-- **Affected paths:** `peer-care-connect/src/components/practitioner/ProductManager.tsx`
+- **Affected paths:** `search native practitioner products`
 - **AC mapping:** `AC-MOB-04`
 - **QA evidence placeholders:**
   - Hybrid mode tab interaction screenshots
@@ -113,7 +113,7 @@ Use this template for each remediation ticket.
   - Apply scrollable tabs, stacked controls, or accordion behavior under `md`.
   - Keep parity across profile view and profile builder.
 - **Non-goals:** Profile data model changes.
-- **Affected paths:** `peer-care-connect/src/components/profiles/ProfileViewer.tsx`, `peer-care-connect/src/components/profiles/ProfileBuilder.tsx`
+- **Affected paths:** `search src/ + native profileProfileViewer.tsx`, `search src/ + native profileProfileBuilder.tsx`
 - **AC mapping:** `AC-MOB-05`
 - **QA evidence placeholders:**
   - Section navigation screenshots (view + edit)
@@ -130,7 +130,7 @@ Use this template for each remediation ticket.
   - Move to shared responsive modal/sheet primitives.
   - Collapse two-column forms to one column on mobile.
 - **Non-goals:** Exchange matching logic and payment flow behavior.
-- **Affected paths:** `peer-care-connect/src/pages/practice/TreatmentExchange.tsx`, `peer-care-connect/src/pages/practice/ExchangeRequests.tsx`
+- **Affected paths:** `theramate-ios-client app/(practitioner)/exchange`, `theramate-ios-client exchange routes`
 - **AC mapping:** `AC-MOB-06`
 - **QA evidence placeholders:**
   - Modal open/submit recordings on phone widths
@@ -147,7 +147,7 @@ Use this template for each remediation ticket.
   - Stack URL and copy action on small widths.
   - Preserve one-tap copy of full URL.
 - **Non-goals:** Booking link generation logic.
-- **Affected paths:** `peer-care-connect/src/pages/practice/PracticeSchedule.tsx`
+- **Affected paths:** `native practitioner schedule + src/pages/practice`
 - **AC mapping:** `AC-MOB-07`
 - **QA evidence placeholders:**
   - Copy interaction screenshot at `360x800`

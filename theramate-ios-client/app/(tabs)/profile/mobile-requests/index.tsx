@@ -85,6 +85,14 @@ function RequestCard({ item }: { item: ClientMobileRequest }) {
           </Text>
         </View>
       ) : null}
+      {item.expires_at && (item.status || "").toLowerCase() === "pending" ? (
+        <View className="flex-row items-center mt-1">
+          <CircleAlert size={14} color={Colors.warning} />
+          <Text className="text-warning text-xs ml-1">
+            Expires {format(new Date(item.expires_at), "EEE d MMM · HH:mm")}
+          </Text>
+        </View>
+      ) : null}
       <Text className="text-sage-600 font-semibold mt-3">
         £{(item.total_price_pence / 100).toFixed(2)}
       </Text>
@@ -115,7 +123,10 @@ export default function ClientMobileRequestsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="Mobile requests" fallbackHref={defaultSignedInProfileHref()} />
+      <AppStackHeader
+        title="Mobile requests"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">

@@ -21,6 +21,7 @@ import {
   createConnectAccount,
   fetchConnectAccountStatus,
 } from "@/lib/api/stripeConnect";
+import { openConnectHostedOnboarding } from "@/lib/openConnectHostedOnboarding";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -58,14 +59,19 @@ export default function PractitionerStripeConnectScreen() {
       if (!res.ok) throw new Error(res.error);
       return res;
     },
-    onSuccess: async () => {
+    onSuccess: async (res) => {
       await queryClient.invalidateQueries({
         queryKey: ["stripe_connect_status", userId],
       });
       await queryClient.invalidateQueries({
         queryKey: ["connect_status", userId],
       });
-      router.push(tabPath(tabRoot, "stripe-connect/embedded") as never);
+      const hosted = await openConnectHostedOnboarding({
+        stripeAccountId: res.stripe_account_id ?? undefined,
+      });
+      if (!hosted.ok) {
+        Alert.alert("Stripe Connect", hosted.error);
+      }
     },
     onError: (e: Error) => {
       Alert.alert("Stripe Connect", e.message);
@@ -146,8 +152,8 @@ export default function PractitionerStripeConnectScreen() {
           In this app
         </Text>
         <Text className="text-charcoal-600 leading-6 mb-4">
-          Connect or manage payouts. Use embedded onboarding when you already
-          have a Connect account and continue setup directly in app.
+          Connect or manage payouts. Verification opens on Stripe&apos;s secure
+          hosted page inside the app (no card SDK keys in the app).
         </Text>
 
         {statusQuery.isLoading ? (
@@ -180,8 +186,8 @@ export default function PractitionerStripeConnectScreen() {
               Not connected yet
             </Text>
             <Text className="text-charcoal-600 text-sm mt-2">
-              Create a payout account, then finish verification in embedded
-              onboarding (no external browser).
+              Create a payout account, then finish verification on Stripe&apos;s
+              hosted onboarding page.
             </Text>
             <Button
               variant="primary"
@@ -226,7 +232,7 @@ export default function PractitionerStripeConnectScreen() {
                     </Text>
                   ))}
                 <Text className="text-charcoal-500 text-xs mt-2">
-                  Continue embedded onboarding to submit these items.
+                  Continue hosted onboarding on Stripe to submit these items.
                 </Text>
               </View>
             ) : null}
@@ -236,11 +242,19 @@ export default function PractitionerStripeConnectScreen() {
         {!statusQuery.data?.notConnected ? (
           <Button
             variant="primary"
-            onPress={() =>
-              router.push(tabPath(tabRoot, "stripe-connect/embedded") as never)
-            }
+            onPress={() => {
+              void (async () => {
+                const hosted = await openConnectHostedOnboarding({
+                  stripeAccountId:
+                    statusQuery.data?.data?.stripe_account_id ?? undefined,
+                });
+                if (!hosted.ok) {
+                  Alert.alert("Stripe Connect", hosted.error);
+                }
+              })();
+            }}
           >
-            Embedded onboarding (native)
+            Continue setup on Stripe
           </Button>
         ) : null}
 

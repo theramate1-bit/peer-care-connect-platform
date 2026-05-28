@@ -24,7 +24,7 @@
 
 ## Web
 
-This repo snapshot does **not** include a full practitioner **`Profile.tsx`** under **`src/`** comparable to legacy **`peer-care-connect`** docs. Practitioner-facing pages present include **`src/pages/practice/ManualBooking.tsx`**, **`PaymentPreferences.tsx`**, **`UpcomingSessions.tsx`**.
+This repo snapshot does **not** include a full practitioner **profile editor** page under **`src/`** comparable to older wireframe inventories. Practitioner-facing pages present include **`src/pages/practice/ManualBooking.tsx`**, **`PaymentPreferences.tsx`**, **`UpcomingSessions.tsx`**.
 
 If web practitioner onboarding lives elsewhere (another package or route), link it here when consolidated.
 

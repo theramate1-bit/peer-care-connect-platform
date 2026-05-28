@@ -28,7 +28,7 @@ So: **clinic vs mobile/hybrid location is handled correctly** in session detail 
 
 ### 2.1 Session list does not show or use location
 
-**Where:** `peer-care-connect/src/pages/practice/PracticeClientManagement.tsx`
+**Where:** `search src/pages/practice and native practitioner clients`
 
 - **loadData** (lines ~1907–1931): The `client_sessions` select does **not** include `appointment_type` or `visit_address` (or `start_time` in the first query). Only a fixed set of columns is selected and mapped into `ClientSession`.
 - **ClientSession** interface (lines 95–114): No `appointment_type`, `visit_address`, or location-related fields.
@@ -80,15 +80,15 @@ So behaviour differs depending on whether the practitioner opens the session fro
 
 ## 4. File reference
 
-- **Practice Client Management:** `peer-care-connect/src/pages/practice/PracticeClientManagement.tsx`
+- **Practice Client Management:** `search src/pages/practice and native practitioner clients`
   - Session list query: ~1907–1931
   - `ClientSession` interface: ~95–114
   - Sessions table: ~3460–3560
   - Note editor: `editingSession`, `handleEditSessionNote`
 - **Location rule and helpers:**
   - `docs/features/session-location-rule.md`
-  - `peer-care-connect/src/utils/sessionLocation.ts` → `getSessionLocation`
-- **Session detail (with location):** `peer-care-connect/src/components/sessions/SessionDetailView.tsx`
+  - `theramate-ios-client/lib/sessionLocation.ts (native); search src/ for web session location` → `getSessionLocation`
+- **Session detail (with location):** `search src/ + native session detail`
 
 ---
 

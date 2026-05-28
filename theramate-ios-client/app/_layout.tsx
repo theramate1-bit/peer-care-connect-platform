@@ -15,12 +15,10 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StripeProvider } from "@stripe/stripe-react-native";
 import * as Linking from "expo-linking";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { useAuthStore } from "@/stores/authStore";
 import { authHelpers, supabase } from "@/lib/supabase";
-import { API_CONFIG } from "@/constants/config";
 import { Colors } from "@/constants/colors";
 import {
   getNavigationFromDeepLink,
@@ -171,11 +169,6 @@ export default function RootLayout() {
     };
   }, []);
 
-  const stripeKeyRaw = API_CONFIG.STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
-  const useStripe =
-    stripeKeyRaw.length > 0 &&
-    (stripeKeyRaw.startsWith("pk_test_") ||
-      stripeKeyRaw.startsWith("pk_live_"));
   const appTree = (
     <>
       <StatusBar style="dark" />
@@ -285,17 +278,7 @@ export default function RootLayout() {
       >
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
-            {useStripe ? (
-              <StripeProvider
-                publishableKey={stripeKeyRaw}
-                merchantIdentifier={API_CONFIG.STRIPE_MERCHANT_ID}
-                urlScheme="theramate"
-              >
-                {appTree}
-              </StripeProvider>
-            ) : (
-              appTree
-            )}
+            {appTree}
           </QueryClientProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

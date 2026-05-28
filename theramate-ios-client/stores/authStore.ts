@@ -280,14 +280,32 @@ export const useAuthStore = create<AuthState>()(
             await clearPendingOAuthSignupRole();
           }
 
-          const { error } = await authHelpers.signInWithOAuth(provider);
+          const { data, error } = await authHelpers.signInWithOAuth(provider);
 
           if (error) {
             set({ isLoading: false, error: error.message });
             return { success: false, error: error.message };
           }
 
-          set({ isLoading: false });
+          const session = data?.session ?? null;
+          if (!session?.user) {
+            set({ isLoading: false, error: "Sign-in did not complete" });
+            return { success: false, error: "Sign-in did not complete" };
+          }
+
+          const { data: profile } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+
+          set({
+            session,
+            authUser: session.user,
+            userProfile: profile,
+            isLoading: false,
+          });
+
           return { success: true };
         } catch (error: any) {
           set({ isLoading: false, error: error.message });

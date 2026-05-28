@@ -49,36 +49,31 @@ export async function fetchGuestSessionByToken(params: {
   }
 }
 
+export type GuestBookingLookupRow = {
+  session_id: string;
+  session_date: string;
+  start_time: string;
+  session_type: string | null;
+  practitioner_name: string | null;
+  status: string | null;
+  guest_view_token: string | null;
+};
+
 export async function findBookingsByEmail(email: string): Promise<{
-  data: Array<{
-    id: string;
-    session_date: string;
-    start_time: string;
-    status: string | null;
-    therapist_id: string | null;
-    client_email: string | null;
-  }>;
+  data: GuestBookingLookupRow[];
   error: Error | null;
 }> {
+  const normalized = email.trim();
+  if (!normalized) {
+    return { data: [], error: new Error("Email is required") };
+  }
   try {
-    const { data, error } = await supabase
-      .from("client_sessions")
-      .select(
-        "id, session_date, start_time, status, therapist_id, client_email",
-      )
-      .eq("client_email", email.trim().toLowerCase())
-      .order("session_date", { ascending: false })
-      .limit(20);
+    const { data, error } = await supabase.rpc("get_guest_sessions_by_email", {
+      p_email: normalized,
+    });
     if (error) throw error;
     return {
-      data: (data || []) as Array<{
-        id: string;
-        session_date: string;
-        start_time: string;
-        status: string | null;
-        therapist_id: string | null;
-        client_email: string | null;
-      }>,
+      data: (data || []) as GuestBookingLookupRow[],
       error: null,
     };
   } catch (e) {

@@ -3,13 +3,7 @@
  */
 
 import React, { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
@@ -37,6 +31,7 @@ import {
   useToggleFavoriteTherapist,
 } from "@/hooks/useFavoriteTherapists";
 import { fetchTherapistPublicReviews } from "@/lib/api/reviews";
+import { bookingEligibilityForMarketplacePractitioner } from "@/lib/practitionerBookingProfile";
 
 export default function PractitionerDetailScreen() {
   const tabRoot = useTabRoot();
@@ -60,9 +55,40 @@ export default function PractitionerDetailScreen() {
       .filter(Boolean)
       .join(", ") ?? "";
 
+  const bookingEligibility = useMemo(
+    () =>
+      therapist
+        ? bookingEligibilityForMarketplacePractitioner(therapist)
+        : { clinic: false, mobile: false },
+    [therapist],
+  );
+
+  const openMobileRequest = () => {
+    if (!therapist) return;
+    if (!bookingEligibility.mobile) {
+      Alert.alert(
+        "Mobile visits unavailable",
+        "This practitioner is not set up for mobile visits (check service area and active mobile services).",
+      );
+      return;
+    }
+    router.push({
+      pathname: "/booking/mobile-request",
+      params: { practitionerId: therapist.id },
+    });
+  };
+
   const openBooking = () => {
     if (!therapist) return;
-    if (therapistMode === "hybrid") {
+    const { clinic, mobile } = bookingEligibility;
+    if (!clinic && !mobile) {
+      Alert.alert(
+        "Booking unavailable",
+        "This practitioner has no bookable services set up yet. Try messaging them or choose another practitioner.",
+      );
+      return;
+    }
+    if (clinic && mobile) {
       router.push({
         pathname: "/booking/choose-mode",
         params: {
@@ -73,16 +99,12 @@ export default function PractitionerDetailScreen() {
       });
       return;
     }
+    if (mobile) {
+      openMobileRequest();
+      return;
+    }
     router.push({
       pathname: "/booking",
-      params: { practitionerId: therapist.id },
-    });
-  };
-
-  const openMobileRequest = () => {
-    if (!therapist) return;
-    router.push({
-      pathname: "/booking/mobile-request",
       params: { practitionerId: therapist.id },
     });
   };
@@ -116,14 +138,10 @@ export default function PractitionerDetailScreen() {
   const onMessageTherapist = async () => {
     if (!therapist) return;
     if (!userId) {
-      Alert.alert(
-        "Sign in required",
-        "Sign in to message this practitioner.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Sign in", onPress: () => router.push("/login") },
-        ],
-      );
+      Alert.alert("Sign in required", "Sign in to message this practitioner.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => router.push("/login") },
+      ]);
       return;
     }
     setMessageBusy(true);
@@ -146,9 +164,8 @@ export default function PractitionerDetailScreen() {
   };
 
   const therapistMode = (therapist?.therapist_type || "").toLowerCase();
-  const canBookClinic = therapistMode !== "mobile";
-  const canRequestMobile =
-    therapistMode === "mobile" || therapistMode === "hybrid";
+  const clinicBookingAvailable = bookingEligibility.clinic;
+  const mobileBookingAvailable = bookingEligibility.mobile;
 
   const { data: reviewSnippets = [] } = useQuery({
     queryKey: ["therapist_public_reviews", therapist?.id],
@@ -197,9 +214,13 @@ export default function PractitionerDetailScreen() {
             <Heart
               size={24}
               color={
-                favoriteSet.has(therapist.id) ? Colors.error : Colors.charcoal[400]
+                favoriteSet.has(therapist.id)
+                  ? Colors.error
+                  : Colors.charcoal[400]
               }
-              fill={favoriteSet.has(therapist.id) ? Colors.error : "transparent"}
+              fill={
+                favoriteSet.has(therapist.id) ? Colors.error : "transparent"
+              }
             />
           </TouchableOpacity>
         ) : null}
@@ -259,24 +280,24 @@ export default function PractitionerDetailScreen() {
             </View>
           </View>
 
-          {canBookClinic ? (
+          {clinicBookingAvailable ? (
             <Button variant="primary" className="mt-8" onPress={openBooking}>
               <Text className="text-white font-semibold">
-                {therapistMode === "hybrid"
+                {clinicBookingAvailable && mobileBookingAvailable
                   ? "Choose booking mode"
                   : "Book at clinic"}
               </Text>
             </Button>
           ) : null}
-          {canRequestMobile ? (
+          {mobileBookingAvailable ? (
             <Button
-              variant={canBookClinic ? "outline" : "primary"}
-              className={canBookClinic ? "mt-3" : "mt-8"}
+              variant={clinicBookingAvailable ? "outline" : "primary"}
+              className={clinicBookingAvailable ? "mt-3" : "mt-8"}
               onPress={openMobileRequest}
             >
               <Text
                 className={
-                  canBookClinic
+                  clinicBookingAvailable
                     ? "text-charcoal-700 font-semibold"
                     : "text-white font-semibold"
                 }
@@ -284,6 +305,11 @@ export default function PractitionerDetailScreen() {
                 Request mobile session
               </Text>
             </Button>
+          ) : null}
+          {!clinicBookingAvailable && !mobileBookingAvailable && therapist ? (
+            <Text className="text-charcoal-500 text-sm mt-8">
+              Online booking is not available for this profile yet.
+            </Text>
           ) : null}
           <Button
             variant="outline"
@@ -296,11 +322,13 @@ export default function PractitionerDetailScreen() {
             Message
           </Button>
           <Text className="text-charcoal-500 text-sm mt-3">
-            {canBookClinic && canRequestMobile
-              ? "Choose clinic for in-practice sessions, or mobile for therapist home visits."
-              : canRequestMobile
+            {clinicBookingAvailable && mobileBookingAvailable
+              ? "Choose clinic for in-practice sessions, or mobile for visits at your address."
+              : mobileBookingAvailable
                 ? "This practitioner offers mobile visits. Submit a request and hold payment until accepted."
-                : "This practitioner offers clinic-based sessions."}
+                : clinicBookingAvailable
+                  ? "This practitioner offers clinic-based sessions."
+                  : ""}
           </Text>
 
           <View className="mt-8">

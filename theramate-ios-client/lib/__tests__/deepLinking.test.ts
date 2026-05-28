@@ -40,6 +40,18 @@ describe("getNavigationFromDeepLink", () => {
     });
   });
 
+  it("maps practice exchange-requests deep link to native detail", () => {
+    const id = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
+    expect(
+      getNavigationFromDeepLink(
+        `https://theramate.co.uk/practice/exchange-requests?request=${id}`,
+      ),
+    ).toEqual({
+      pathname: "/(practitioner)/exchange/[id]",
+      params: { id },
+    });
+  });
+
   it("maps public therapist profile URL", () => {
     expect(
       getNavigationFromDeepLink(

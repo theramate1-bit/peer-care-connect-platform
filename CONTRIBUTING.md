@@ -27,40 +27,38 @@ This project adheres to a code of conduct. By participating, you are expected to
 
 ### Initial Setup
 
-1. **Fork and clone the repository**
+1. **Fork and clone the repository** (use your fork URL; upstream is often `theramate1-bit/peer-care-connect-platform` or similar)
+
    ```bash
-   git clone https://github.com/your-username/peer-care-connect.git
-   cd peer-care-connect
+   git clone https://github.com/your-username/<repo-name>.git
+   cd <repo-name>
    ```
 
-2. **Install dependencies**
+2. **Install dependencies** (repo root — npm workspaces)
+
    ```bash
-   # For main project
-   cd peer-care-connect
    npm install
-   
-   # For other sub-projects as needed
-   cd ../ai-ugc-creator
-   npm install
+
+   # Optional: other workspaces
+   cd ai-ugc-creator && npm install && cd ..
    ```
 
 3. **Set up environment variables**
+
    ```bash
-   # Copy example file
    cp env.production.example .env.local
-   
-   # Fill in your environment variables
-   # See ENVIRONMENT_SETUP_GUIDE.md for details
+   # Fill in values — see docs/getting-started/environment-setup.md
    ```
 
 4. **Set up the database**
-   - Follow instructions in `peer-care-connect/README.md`
-   - Run migrations in order
+   - Migrations and Edge Functions live in **`supabase/`** at repo root
+   - See [docs/getting-started](./docs/getting-started/) and [Supabase local docs](https://supabase.com/docs/guides/cli)
 
 5. **Start development server**
    ```bash
    npm run dev
    ```
+   If this fails because a **`peer-care-connect`** workspace package is missing, check root **`package.json`** `workspaces` and your branch’s README; booking-related web code for Theramate is under **`src/`** (e.g. `src/components/booking/`).
 
 ## Development Workflow
 
@@ -98,6 +96,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -107,6 +106,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore`: Maintenance tasks
 
 **Examples:**
+
 ```
 feat(booking): add recurring session support
 
@@ -203,21 +203,26 @@ See `TESTING_GUIDE.md` for detailed testing guidelines.
 
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 
 ## Testing
+
 How was this tested?
 
 ## Screenshots (if applicable)
+
 Add screenshots for UI changes
 
 ## Checklist
+
 - [ ] Tests pass
 - [ ] Documentation updated
 - [ ] No breaking changes (or documented)
@@ -232,19 +237,20 @@ Add screenshots for UI changes
 
 ## Project Structure
 
-### Main Projects
+### Main projects
 
-- **peer-care-connect/** - Main therapy platform (React + Vite + Supabase)
-- **ai-ugc-creator/** - AI video generation tool (Next.js + InstantDB)
-- **theramate-ios-client/** - iOS mobile application
+- **`src/`** — Theramate / Peer Care Connect **web** UI and shared TS (booking, messaging, payments pages used in this repo)
+- **`supabase/`** — PostgreSQL migrations, RPCs, Edge Functions (single backend for web + native)
+- **`theramate-ios-client/`** — Expo **customer + practitioner** mobile app
+- **`ai-ugc-creator/`** — separate Next.js tool
+- **`peer-care-connect/`** — optional npm workspace name; folder may be **empty**. Do not assume every doc path `peer-care-connect/src/...` exists on disk
 
-### Key Directories
+### Key directories
 
-- `src/` - Source code
-- `supabase/` - Database migrations and Edge Functions
-- `tests/` - Test files
-- `docs/` - Documentation
-- `public/` - Static assets
+- `src/` — Web application source
+- `supabase/` — Database and serverless
+- `docs/` — Documentation
+- `public/` — Static assets
 
 ## Getting Help
 
@@ -256,7 +262,7 @@ Add screenshots for UI changes
 ## Additional Resources
 
 - [README.md](./README.md) - Project overview
-- [TESTING_GUIDE.md](./peer-care-connect/TESTING_GUIDE.md) - Testing guidelines
+- [docs/testing/](./docs/testing/) — testing docs (paths like `./peer-care-connect/TESTING_GUIDE.md` are legacy)
 - [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Deployment instructions
 - [ENVIRONMENT_SETUP_GUIDE.md](./ENVIRONMENT_SETUP_GUIDE.md) - Environment setup
 

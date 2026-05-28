@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Linking,
-} from "react-native";
+import { View, Text, Alert, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -22,6 +15,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { supabase } from "@/lib/supabase";
 import { PROFILE_IMAGE_MAX_BYTES } from "@/constants/config";
+import { openSignedDocumentUrl } from "@/lib/openSignedDocument";
 
 const PROFESSIONAL_BODY_OPTIONS = [
   { id: "society_of_sports_therapists", label: "Society of Sports Therapists" },
@@ -516,7 +510,7 @@ export default function PractitionerEditProfileScreen() {
               <Button
                 variant="outline"
                 className="mb-2"
-                onPress={() => void Linking.openURL(qualificationFileUrl)}
+                onPress={() => openSignedDocumentUrl(qualificationFileUrl)}
               >
                 Open certificate
               </Button>

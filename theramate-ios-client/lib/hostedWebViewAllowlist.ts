@@ -3,6 +3,10 @@
  */
 
 import { API_CONFIG, APP_CONFIG } from "@/constants/config";
+import {
+  getStripeCheckoutWebOrigins,
+  isCheckoutWebHostname,
+} from "@/lib/stripeCheckoutWebOrigins";
 
 function hostnameOf(url: string): string | null {
   try {
@@ -16,16 +20,23 @@ function normalizeHost(h: string): string {
   return h.replace(/^www\./, "").toLowerCase();
 }
 
+const CHECKOUT_WEB_ORIGINS = getStripeCheckoutWebOrigins(
+  APP_CONFIG.WEB_URL,
+  APP_CONFIG.CHECKOUT_WEB_ORIGINS_EXTRA,
+);
+
 function webAppHosts(): Set<string> {
   const hosts = new Set<string>();
-  try {
-    const h = normalizeHost(new URL(APP_CONFIG.WEB_URL).hostname);
-    if (h) {
-      hosts.add(h);
-      hosts.add(`www.${h}`);
+  for (const origin of CHECKOUT_WEB_ORIGINS) {
+    try {
+      const h = normalizeHost(new URL(origin).hostname);
+      if (h) {
+        hosts.add(h);
+        hosts.add(`www.${h}`);
+      }
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
   }
   return hosts;
 }
@@ -50,7 +61,8 @@ export function isStripeHostedHostname(host: string): boolean {
 /** Marketing / success pages on our web app (Checkout success_url / cancel_url). */
 export function isAppWebHostname(host: string): boolean {
   const h = host.toLowerCase();
-  return webAppHosts().has(h);
+  if (webAppHosts().has(h)) return true;
+  return isCheckoutWebHostname(h, CHECKOUT_WEB_ORIGINS);
 }
 
 /** Supabase Storage signed URLs (reports, clinical attachments). */
@@ -60,11 +72,7 @@ export function isSupabaseStorageHostname(host: string): boolean {
 
 export function isAllowedHostedNavigationUrl(
   url: string,
-  mode:
-    | "stripe_checkout"
-    | "stripe_portal"
-    | "signed_document"
-    | "web_app",
+  mode: "stripe_checkout" | "stripe_portal" | "signed_document" | "web_app",
 ): boolean {
   let u: URL;
   try {

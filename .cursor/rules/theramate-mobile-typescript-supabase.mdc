@@ -22,10 +22,14 @@ alwaysApply: false
   - **Supabase MCP** (if enabled): list tables, run read-only checks, or inspect project metadata **before** assuming column names.
   - Repo docs: **`docs/architecture/database-*.md`**, **`docs/product/MOBILE_WEB_FULL_SCREEN_INVENTORY.md`**, and the **web app under repo-root `src/`** (e.g. `src/lib/marketplacePractitioners.ts`) for the same query patterns.
 - **`lib/supabase.ts`** uses an **untyped** `createClient(...)` so inserts are not blocked by stale generated types; still **match** the live schema and **never** ship service-role keys in the app.
+- **OAuth (Google/Apple):** PKCE + **`expo-web-browser` `openAuthSessionAsync`** with **`getOAuthRedirectUrl()`** (`Linking.createURL('/oauth-callback')`); do not use **`Linking.openURL`** for provider sign-in. Keep **`theramate://oauth-callback`** (and HTTPS `/auth/callback` on web hosts) in Supabase redirect allow list. **`completeOAuthFromUrl`** is single-flight to avoid double `exchangeCodeForSession`.
 
 ## Marketplace / practitioner roles
 
 - **`lib/api/marketplace.ts`** → **`THERAPIST_ROLES`** is the source of which disciplines appear in Explore; keep **`constants/config.ts` → `SPECIALIZATIONS`** in lockstep. Docs must not imply a generic `user_role = 'practitioner'` or filters for roles that are not in `THERAPIST_ROLES`.
+- **Clinic vs mobile CTAs:** keep **`lib/booking-flow-type.ts`** aligned with **`peer-care-connect/src/lib/booking-flow-type.ts`**; use **`bookingEligibilityForMarketplacePractitioner`** + **`filterClinicBookableProducts` / `filterMobileBookableProducts`** on explore, choose-mode, `booking/index`, `booking/mobile-request`. **Symptom:** hybrid shows mobile CTA without radius/products. **Cause:** branching on `therapist_type` only.
+- **Guest mobile accept → session:** guests must open **`/booking/view/[sessionId]`** with **`guest_view_token`** (`lib/api/guestMobileRequests.ts`, RPC `get_guest_mobile_request_session_link`). **Symptom:** “View session” sends guests to signed-in bookings. **Cause:** missing token on handoff.
+- **Mobile accept:** **`acceptMobileBookingRequest`** must call **`stripe-payment`** `capture-mobile-payment` **before** `accept_mobile_booking_request`; decline must call **`release-mobile-payment`** first when PI is held. Emails: RPC queues **`mobile_accept`** via pg_net only (do not duplicate client invoke).
 
 ## Treatment exchange
 
@@ -35,6 +39,12 @@ alwaysApply: false
 - **Peer cancel:** mobile uses **`process_peer_booking_refund`** from booking detail; refunds credits only if **`session_payment`** exists (pre-reciprocal cancel must not mint credits).
 - UI copy: recipient action is **“Request different time”** (RPC **`decline_exchange_request`**); not “Decline”. Pending requests do **not** auto-expire (no “24 hours” in slot-held notification). Extension: **`request_exchange_extension`** / **`approve_exchange_extension`**.
 - **Inbox queues:** recipient **`fetchAcceptedExchangesNeedingReciprocal`** (book return); requester **`fetchAcceptedExchangesAwaitingReciprocalByRequester`** (waiting for their book). Screen map: **`docs/product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md`**.
+- **Home Action required:** include **`exchangeAwaitingReciprocalCount`** (queue ②) and **`exchangeOutgoingPendingCount`** (queue ③) in badge total; do not double-count **`exchangeExtensionPendingCount`** (subset of awaiting rows).
+- **Terminal history:** **`fetchRecentTerminalExchangeRequestsForParticipant`** (declined/cancelled/expired) + **`fetchRecentCompletedExchangesForParticipant`** (both legs booked); inbox sections, not active queues.
+- **Home action cards:** separate **Mobile visit requests** and **Treatment exchange** when both pending (do not route mobile-first through one card).
+- **Notifications inbox:** **`formatNotificationForInbox`** — pending exchange never shows false “Confirmed”; replace “Client” with payload peer name when present.
+- **Stripe checkout:** clinic = PaymentSheet when secrets returned, else **`openHostedWebSession`**; mobile visit = hosted Checkout only; success via **`parseCheckoutRedirectFromUrl`** → **`/booking-success`** or **`/mobile-booking/success`**; retry via **`resumeMobileRequestCheckout`**. Map: **`docs/product/STRIPE_CHECKOUT_MOBILE_SCREEN_FLOWS.md`**.
+- **Stripe keys:** **hosted Checkout only** — no `pk_*` required in app/web clients; payments via **`stripe-payment`** + redirect/WebView. **`sk_*` / `whsec_*` = Supabase Edge secrets only**. Never `VITE_STRIPE_SECRET_KEY`. Connect onboarding: **`create-connect-hosted-onboarding-link`** + **`openConnectHostedOnboarding`**. Doc: **`docs/product/STRIPE_HOSTED_CHECKOUT_ONLY.md`**.
 - **Reciprocal UI:** shared **`ExchangeReciprocalSlotModal`** on hub + detail; Maestro **`exchange-choose-reciprocal`** / “Choose date and time”. Empty slots = **requester’s calendar** — do not link recipient to their own weekly hours.
 - **Peer booking detail:** hide generic reschedule; link via **`fetchExchangeRequestIdForPeerSession`**; label **Message practitioner**.
 

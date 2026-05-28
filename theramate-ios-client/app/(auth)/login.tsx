@@ -3,7 +3,7 @@
  * Email/password and OAuth login
  */
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,25 +11,25 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, router } from 'expo-router';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Mail, Lock, ArrowRight } from 'lucide-react-native';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Link, router } from "expo-router";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Mail, Lock, ArrowRight } from "lucide-react-native";
 
-import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/stores/authStore';
-import { getMainAppHref } from '@/lib/postAuthRoute';
-import { AuthBackHeader } from '@/components/AuthBackHeader';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/colors';
+import { useAuth } from "@/hooks/useAuth";
+import { useAuthStore } from "@/stores/authStore";
+import { getMainAppHref } from "@/lib/postAuthRoute";
+import { AuthBackHeader } from "@/components/AuthBackHeader";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Colors } from "@/constants/colors";
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  email: z.string().email("Please enter a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -45,8 +45,8 @@ export default function LoginScreen() {
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
-      password: '',
+      email: "",
+      password: "",
     },
   });
 
@@ -60,15 +60,18 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOAuth = async (provider: 'google' | 'apple') => {
+  const handleOAuth = async (provider: "google" | "apple") => {
     clearError();
-    await signInWithOAuth(provider);
+    const result = await signInWithOAuth(provider);
+    if (result.success) {
+      router.replace("/oauth-completion");
+    }
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.cream[50] }}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -157,7 +160,9 @@ export default function LoginScreen() {
             {/* Divider */}
             <View className="flex-row items-center mb-6">
               <View className="flex-1 h-px bg-charcoal-100" />
-              <Text className="mx-4 text-charcoal-400 text-sm">or continue with</Text>
+              <Text className="mx-4 text-charcoal-400 text-sm">
+                or continue with
+              </Text>
               <View className="flex-1 h-px bg-charcoal-100" />
             </View>
 
@@ -165,17 +170,17 @@ export default function LoginScreen() {
             <View className="space-y-3 mb-8">
               <Button
                 variant="outline"
-                onPress={() => handleOAuth('google')}
+                onPress={() => handleOAuth("google")}
                 fullWidth
                 className="mb-3"
               >
                 Continue with Google
               </Button>
 
-              {Platform.OS === 'ios' && (
+              {Platform.OS === "ios" && (
                 <Button
                   variant="outline"
-                  onPress={() => handleOAuth('apple')}
+                  onPress={() => handleOAuth("apple")}
                   fullWidth
                 >
                   Continue with Apple
@@ -198,4 +203,3 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-

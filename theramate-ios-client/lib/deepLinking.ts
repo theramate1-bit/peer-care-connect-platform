@@ -3,6 +3,7 @@
  */
 
 import { APP_CONFIG } from "@/constants/config";
+import { parsePracticeExchangeRequestId } from "@/lib/webExchangeDeepLink";
 
 export type DeepLinkNavigation =
   | { pathname: "/booking-success"; params: { session_id?: string } }
@@ -40,7 +41,12 @@ export type DeepLinkNavigation =
   | {
       pathname: "/booking/view/[sessionId]";
       params: { sessionId: string; token?: string };
-    };
+    }
+  | {
+      pathname: "/(practitioner)/exchange/[id]";
+      params: { id: string };
+    }
+  | { pathname: "/(practitioner)/exchange" };
 
 function webHostSet(): Set<string> {
   const hosts = new Set<string>([
@@ -129,6 +135,17 @@ export function getNavigationFromDeepLink(
 
   if (p === "booking/find") {
     return { pathname: "/booking/find" };
+  }
+
+  const exchangeRequestId = parsePracticeExchangeRequestId(url);
+  if (exchangeRequestId) {
+    return {
+      pathname: "/(practitioner)/exchange/[id]",
+      params: { id: exchangeRequestId },
+    };
+  }
+  if (p === "practice/exchange-requests") {
+    return { pathname: "/(practitioner)/exchange" };
   }
 
   // booking/view/<sessionId> — token often arrives in query string (email links)

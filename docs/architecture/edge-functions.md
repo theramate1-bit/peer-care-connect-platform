@@ -70,13 +70,13 @@ Supabase Edge Functions run serverless Deno code. This document lists all functi
 
 ### send-booking-notification
 
-**Purpose:** Sends cancellation or rescheduling emails with consistent location data. Fetches session + practitioner, uses `getBookingEmailLocationData`, then invokes send-email.
+**Purpose:** Sends cancellation, rescheduling, pay-at-clinic confirmation, and **mobile request accept** emails with consistent location data. Fetches session + practitioner, uses `getBookingEmailLocationData`, then invokes send-email.
 
 **Code:** [supabase/functions/send-booking-notification/index.ts](../../supabase/functions/send-booking-notification/index.ts)
 
-**Body:** `{ sessionId, emailType: 'cancellation' | 'rescheduling', cancellationReason?, refundAmount?, originalDate?, originalTime?, newDate?, newTime? }`
+**Body:** `{ sessionId, emailType: 'cancellation' | 'rescheduling' | 'confirmation' | 'mobile_accept', requestId?, ... }`
 
-**Called by:** Frontend (RescheduleService, cancel flows)
+**Called by:** Frontend (RescheduleService, cancel flows), `accept_mobile_booking_request` (pg_net), app accept backup invoke
 
 ---
 
@@ -88,7 +88,7 @@ Supabase Edge Functions run serverless Deno code. This document lists all functi
 
 **Body:** `{ conversationId, messageId, messagePreview? }` + `Authorization: Bearer <user_jwt>`
 
-**Called by:** [peer-care-connect/src/lib/messaging.ts](../../peer-care-connect/src/lib/messaging.ts) – `sendGuestMessageNotification` → NotificationSystem
+**Called by:** [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx) – `sendGuestMessageNotification` → NotificationSystem
 
 ---
 
@@ -99,17 +99,19 @@ Supabase Edge Functions run serverless Deno code. This document lists all functi
 **Code:** [supabase/functions/mobile-payment/index.ts](../../supabase/functions/mobile-payment/index.ts)  
 **Code (v2):** [supabase/functions/mobile-payment-v2/index.ts](../../supabase/functions/mobile-payment-v2/index.ts)
 
-**Called by:** [peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx](../../peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx)
+**Called by:** [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts) and native mobile-request screens.
 
 ---
 
 ### stripe-payment
 
-**Purpose:** Creates Stripe PaymentIntent for clinic bookings. Used by BookingFlow / GuestBookingFlow.
+**Purpose:** All Stripe server operations (Checkout sessions, mobile holds, Connect, capture/release). Clients use **hosted redirect/WebView only** — no `pk_*` in bundles. See [STRIPE_HOSTED_CHECKOUT_ONLY.md](../product/STRIPE_HOSTED_CHECKOUT_ONLY.md).
+
+**Notable actions:** `create-checkout-session`, `create-mobile-checkout-session`, `confirm-mobile-checkout-session`, `capture-mobile-payment`, `release-mobile-payment`, `create-connect-hosted-onboarding-link`.
 
 **Code:** [supabase/functions/stripe-payment/index.ts](../../supabase/functions/stripe-payment/index.ts)
 
-**Called by:** [peer-care-connect/src/services/bookingService.ts](../../peer-care-connect/src/services/bookingService.ts) (or equivalent)
+**Called by:** `src/components/booking/BookingFlow.tsx`, `src/lib/clientMarketplaceBooking.ts`, `theramate-ios-client/lib/api/booking.ts`, `theramate-ios-client/lib/openConnectHostedOnboarding.ts`.
 
 ---
 

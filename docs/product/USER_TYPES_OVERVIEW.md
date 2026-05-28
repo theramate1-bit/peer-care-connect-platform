@@ -28,18 +28,18 @@ Rules for engineers: [GUEST_VS_CLIENT_RULES.md](../development/GUEST_VS_CLIENT_R
 
 ## Documentation map (read in this order)
 
-| Topic                                                          | Doc                                                                               |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Guest — feature-by-feature (web + native paths)**            | [features/guest/README.md](../features/guest/README.md)                           |
-| Guest touchpoints (legacy narrative; peer-care-connect paths)  | [USER_TYPE_GUEST.md](./USER_TYPE_GUEST.md)                                        |
-| **Client — feature-by-feature (web + native paths)**           | [features/client/README.md](../features/client/README.md)                         |
-| **Practitioner types — clinic, mobile, hybrid**                | [features/practitioner-types/README.md](../features/practitioner-types/README.md) |
-| Client touchpoints (legacy narrative; peer-care-connect paths) | [USER_TYPE_CLIENT.md](./USER_TYPE_CLIENT.md)                                      |
-| Side-by-side table + gaps                                      | [GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](./GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md)  |
-| Diary/session labels                                           | [Diary overview](../features/diary-overview.md)                                   |
-| **BMAD planning shards** (backlog, architecture, epics 1–12)   | [Planning artifacts README](../../_bmad-output/planning-artifacts/README.md)      |
+| Topic                                                           | Doc                                                                               |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Guest — feature-by-feature (web + native paths)**             | [features/guest/README.md](../features/guest/README.md)                           |
+| Guest touchpoints (detailed narrative; verify paths in `src/`)  | [USER_TYPE_GUEST.md](./USER_TYPE_GUEST.md)                                        |
+| **Client — feature-by-feature (web + native paths)**            | [features/client/README.md](../features/client/README.md)                         |
+| **Practitioner types — clinic, mobile, hybrid**                 | [features/practitioner-types/README.md](../features/practitioner-types/README.md) |
+| Client touchpoints (detailed narrative; verify paths in `src/`) | [USER_TYPE_CLIENT.md](./USER_TYPE_CLIENT.md)                                      |
+| Side-by-side table + gaps                                       | [GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](./GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md)  |
+| Diary/session labels                                            | [Diary overview](../features/diary-overview.md)                                   |
+| **BMAD planning shards** (backlog, architecture, epics 1–12)    | [Planning artifacts README](../../_bmad-output/planning-artifacts/README.md)      |
 
-**Path disclaimer:** `USER_TYPE_GUEST.md` / `USER_TYPE_CLIENT.md` still cite `peer-care-connect/src/...`. In **this** repo the web app lives under **`src/`** at the repository root; treat those paths as **conceptual** and grep here under `src/` for current filenames.
+**Path disclaimer:** Older deep-dive docs may still show historical **`peer-care-connect/src/...`** paths. In **this** repo the web app lives under **`src/`** at the repository root; treat stale paths as **conceptual** and grep under `src/` for current filenames.
 
 ---
 

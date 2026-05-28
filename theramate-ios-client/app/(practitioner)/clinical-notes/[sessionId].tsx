@@ -20,14 +20,7 @@ import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
-import {
-  MapPin,
-  Mic,
-  Paperclip,
-  Sparkles,
-  Square,
-  Trash2,
-} from "lucide-react-native";
+import { MapPin, Paperclip, Sparkles, Trash2 } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
@@ -50,16 +43,10 @@ import { Button } from "@/components/ui/Button";
 import { generateSoapNotesFromTranscript } from "@/lib/api/soapNotes";
 import { transcribeSessionVoiceRecording } from "@/lib/api/aiSoapTranscribe";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
-import { useVoiceSessionRecorder } from "@/hooks/useVoiceSessionRecorder";
+import { VoiceSoapCapture } from "@/components/clinical/VoiceSoapCapture";
 import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PRACTITIONER_PTABS_HREF } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
-
-function formatVoiceDuration(totalSec: number): string {
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 const SECTIONS: { key: TreatmentNoteType; label: string; hint: string }[] = [
   { key: "subjective", label: "Subjective", hint: "What the client reports" },
@@ -82,9 +69,6 @@ export default function ClinicalNotesEditorScreen() {
   const [aiChief, setAiChief] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [transcribingVoice, setTranscribingVoice] = useState(false);
-
-  const voice = useVoiceSessionRecorder();
-  const voiceSupported = Platform.OS !== "web";
 
   const sessionQuery = useQuery({
     queryKey: ["practitioner_session_detail", userId, sessionId],
@@ -131,30 +115,21 @@ export default function ClinicalNotesEditorScreen() {
     setDraft((d) => ({ ...d, [key]: text }));
   };
 
-  const onStartVoice = async () => {
-    const res = await voice.start();
-    if (!res.ok && res.error) {
-      Alert.alert("Microphone", res.error.message);
-    }
-  };
-
-  const onStopVoice = async () => {
+  const onVoiceRecorded = async (file: {
+    fileUri: string;
+    fileName: string;
+    mimeType: string;
+  }) => {
+    if (!userId || !sessionId) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const stopped = await voice.stop();
-    if (stopped.error) {
-      Alert.alert("Recording", stopped.error.message);
-      return;
-    }
-    if (!stopped.uri || !userId || !sessionId) return;
-
     setTranscribingVoice(true);
     try {
       const tx = await transcribeSessionVoiceRecording({
         sessionId,
         practitionerId: userId,
-        fileUri: stopped.uri,
-        fileName: stopped.fileName,
-        mimeType: stopped.mimeType,
+        fileUri: file.fileUri,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
       });
       if (tx.error || !tx.text) {
         const msg = tx.error?.message ?? "Could not transcribe this recording.";
@@ -506,57 +481,12 @@ export default function ClinicalNotesEditorScreen() {
                 Edit every section before saving.
               </Text>
 
-              {voiceSupported ? (
-                <View className="mb-3">
-                  {voice.isRecording ? (
-                    <View className="flex-row items-center bg-white border border-cream-200 rounded-xl px-3 py-3">
-                      <View className="w-2.5 h-2.5 rounded-full bg-red-500 mr-3" />
-                      <View className="flex-1">
-                        <Text className="text-charcoal-900 font-semibold">
-                          Recording {formatVoiceDuration(voice.durationSec)}
-                        </Text>
-                        <Text className="text-charcoal-400 text-xs mt-0.5">
-                          Tap stop when finished — we transcribe, then open the
-                          draft sheet.
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        className="flex-row items-center bg-charcoal-800 px-4 py-2.5 rounded-xl"
-                        onPress={() => void onStopVoice()}
-                        disabled={transcribingVoice}
-                        accessibilityRole="button"
-                        accessibilityLabel="Stop recording"
-                      >
-                        <Square size={16} color="#fff" fill="#fff" />
-                        <Text className="text-white font-semibold ml-2">
-                          Stop
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      disabled={transcribingVoice || aiBusy || saving}
-                      leftIcon={<Mic size={18} color={Colors.sage[600]} />}
-                      onPress={() => void onStartVoice()}
-                    >
-                      <Text className="text-charcoal-800 font-semibold">
-                        {transcribingVoice
-                          ? "Transcribing…"
-                          : "Record voice memo"}
-                      </Text>
-                    </Button>
-                  )}
-                  {transcribingVoice ? (
-                    <View className="flex-row items-center mt-3">
-                      <ActivityIndicator color={Colors.sage[500]} />
-                      <Text className="text-charcoal-500 text-sm ml-2">
-                        Uploading and transcribing…
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
+              <VoiceSoapCapture
+                disabled={aiBusy || saving}
+                transcribing={transcribingVoice}
+                onRecordingReady={(file) => void onVoiceRecorded(file)}
+                onError={(msg) => Alert.alert("Voice", msg)}
+              />
 
               <Button
                 variant="outline"

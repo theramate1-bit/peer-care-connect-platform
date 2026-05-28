@@ -12,15 +12,15 @@ So you **cannot** "remove CSP in Vercel → theramate → Settings → Headers" 
 
 ## What this repo does
 
-- **vercel.json** (both [peer-care-connect/vercel.json](../../peer-care-connect/vercel.json) and the repo root [vercel.json](../../vercel.json)) defines a **production-safe** `Content-Security-Policy` that includes **`https://connect-js.stripe.com`** in `script-src` and `script-src-elem`, plus `https://js.stripe.com`, `embed.tawk.to`, frame-src, connect-src, and related directives required for Stripe Connect and Tawk.
+- **vercel.json** at the **repo root** ([vercel.json](../../vercel.json)) defines (or should define) a **production-safe** `Content-Security-Policy` that includes **`https://connect-js.stripe.com`** in `script-src` and `script-src-elem`, plus `https://js.stripe.com`, `embed.tawk.to`, frame-src, connect-src, and related directives required for Stripe Connect and Tawk. Some branches also had a nested `vercel.json` under a **`peer-care-connect/`** workspace — prefer the file that your Vercel **Root Directory** actually deploys.
 - If the **live site** still sends a **stricter** CSP (e.g. only `script-src 'self' 'unsafe-inline' https://js.stripe.com` with **no** `connect-js.stripe.com`), that policy is coming from somewhere other than "Dashboard Headers" — see below.
 
 ## Deploy from this folder (Vercel CLI)
 
-From the directory that contains the `vercel.json` you want (e.g. `peer-care-connect`):
+From the directory that contains the `vercel.json` Vercel is using (often the **repo root**):
 
 ```bash
-cd peer-care-connect
+cd /path/to/repo
 npx vercel --prod
 ```
 
@@ -40,7 +40,7 @@ If **dropdowns, selects, modals, popovers, or tooltips** do not open or behave c
 - **`style-src 'self' 'unsafe-inline';`** – Radix UI (dropdowns, dialogs, etc.) uses inline styles for positioning. If `style-src` is omitted, the browser falls back to `default-src 'self'`, which blocks inline styles and breaks these components.
 - **`script-src`** must include `'self'` and `'unsafe-inline'` for the app bundle and the inline script in `index.html`.
 
-The repo’s [peer-care-connect/vercel.json](../../peer-care-connect/vercel.json) already includes these directives. The root [vercel.json](../../vercel.json) has been updated to include `style-src 'self' 'unsafe-inline'` so that if the root config is used, dropdowns still work.
+The repo root [vercel.json](../../vercel.json) should include these directives when that file is the one deployed.
 
 **Fix:** Ensure the deployment uses the app’s `vercel.json` (see Root Directory below) and that no stricter **Content-Security-Policy** override is applied in **Vercel Team Settings → Security** (or Firewall). Remove or relax any such override so the repo policy is used.
 
@@ -48,7 +48,7 @@ The repo’s [peer-care-connect/vercel.json](../../peer-care-connect/vercel.json
 
 ## Why the live site might still send a stricter CSP
 
-1. **Wrong Root Directory** – In Vercel: **Settings → General → Root Directory**. If the project is set to the repo root but the app that serves theramate.co.uk is built from `peer-care-connect/`, set Root Directory to **`peer-care-connect`** so a single `vercel.json` controls headers (and so the full CSP including `style-src 'self' 'unsafe-inline'` is applied).
+1. **Wrong Root Directory** – In Vercel: **Settings → General → Root Directory**. It must match the folder that contains the **`vercel.json`** you intend (often **`.`** = repo root). If headers look wrong, confirm you are not deploying an empty **`peer-care-connect/`** workspace by mistake.
 2. **Framework or build step** – The app or a plugin might inject a CSP. Check for `Content-Security-Policy` in `index.html`, server middleware, or build config.
 3. **Security / Firewall** – In **Settings → Security** (and Team settings), check for rules that might add or override response headers. If a **Content-Security-Policy** header is set there and is stricter than the repo (e.g. no `style-src` or no `'unsafe-inline'`), remove it or align it with the repo so dropdowns and UI work.
 
@@ -60,10 +60,10 @@ After changing Root Directory or code: **Redeploy** (Deployments → … on late
 
 If you cannot get the desired CSP to apply, the app already loads Stripe Connect and Tawk via **same-origin proxies** so they are not blocked by a strict `script-src`:
 
-- **Stripe Connect**: loaded via `/api/proxy/connect` (see [EmbeddedStripeOnboarding](../../peer-care-connect/src/components/onboarding/EmbeddedStripeOnboarding.tsx)).
-- **Tawk**: loaded via `/api/proxy/tawk?widget=...` (see [LiveChat](../../peer-care-connect/src/components/LiveChat.tsx)).
+- **Stripe Connect**: loaded via `/api/proxy/connect` — search `src/` / `app/` for the proxy route used on your branch.
+- **Tawk**: loaded via `/api/proxy/tawk?widget=...` — search the repo for `proxy/tawk`.
 
-Ensure the project's Root Directory and rewrites serve `/api/*` from the app (e.g. `peer-care-connect/vercel.json` rewrites exclude `/api` from the SPA fallback). After a redeploy, onboarding and chat should work even under a strict CSP.
+Ensure the project's Root Directory and rewrites serve `/api/*` from the app (see root [vercel.json](../../vercel.json) rewrites). After a redeploy, onboarding and chat should work even under a strict CSP.
 
 ## CORS error on stripe-payment
 

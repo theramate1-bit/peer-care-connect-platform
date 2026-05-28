@@ -25,6 +25,10 @@ export default function MobileBookingPendingScreen() {
   const checkoutSessionIdValue =
     typeof checkoutSessionId === "string" ? checkoutSessionId : "";
   const checkoutUrlValue = typeof checkoutUrl === "string" ? checkoutUrl : "";
+  const stashedCheckoutUrl = requestIdValue
+    ? getStashedMobileCheckoutUrl(requestIdValue)
+    : null;
+  const canReopenCheckout = Boolean(checkoutUrlValue || stashedCheckoutUrl);
 
   const confirmPayment = async () => {
     if (!requestIdValue || !checkoutSessionIdValue) {
@@ -122,7 +126,7 @@ export default function MobileBookingPendingScreen() {
           variant="outline"
           className="mt-3 w-full"
           onPress={() => reopenCheckout()}
-          disabled={!checkoutUrlValue}
+          disabled={!canReopenCheckout}
         >
           Reopen checkout
         </Button>

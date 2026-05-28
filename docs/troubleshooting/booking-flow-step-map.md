@@ -1,60 +1,37 @@
 # Booking Flow Step Map (UI Source of Truth)
 
-This document maps each booking UI to the exact component so step labels and button states are easy to debug.
+This document maps booking UI entry points to **files that exist in this monorepo** (`src/` + `theramate-ios-client/`). Older copies listed `peer-care-connect/src/components/marketplace/*` paths; those filenames are **not** guaranteed here.
 
 ## Why this exists
 
-There are multiple booking/checkout UIs in the codebase, each with different step counters and button text. A fix in one flow does not automatically apply to another flow.
+There are multiple booking surfaces (web `BookingFlow`, native explore → booking, practitioner mobile requests). Step labels and button text can diverge. A fix in one surface may not apply to another.
 
-## Booking UIs and their components
+## Booking UIs and their components (verified paths)
 
-- Main marketplace booking modal (authenticated users):
-  - `peer-care-connect/src/components/marketplace/BookingFlow.tsx`
-  - Uses a Radix `Dialog` and custom step indicator.
-  - Final action button: `Complete Booking` -> `Processing...` when loading.
+- **Web — authenticated or guest clinic booking (shared component):**
+  - [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx)
+  - Guests use the same component with **`guestMode`** (see [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx) `?guest=1`).
 
-- Guest booking modal:
-  - `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`
-  - Separate step progression and button rendering.
+- **Web — practitioner discovery / list before booking:**
+  - [src/pages/discovery/TherapistSearch.tsx](../../src/pages/discovery/TherapistSearch.tsx)
+  - [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx)
 
-- Pre-assessment form inside booking:
-  - `peer-care-connect/src/components/forms/PreAssessmentForm.tsx`
-  - Has its own step header (`Step X of Y`) and its own final `Complete Booking` button.
-  - On submit, header and button now show `Processing...`.
+- **Native — client explore → practitioner detail → booking / mobile request:**
+  - `theramate-ios-client/app/(tabs)/explore/[id].tsx`, `theramate-ios-client/app/booking/`, `theramate-ios-client/lib/api/booking.ts`
 
-- Checkout card flow:
-  - `peer-care-connect/src/components/checkout/CheckoutFlow.tsx`
-  - Uses internal `currentStep` and already shows `Processing...` during submit.
+- **Native — mobile booking requests (client + practitioner):**
+  - [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts)
+  - `theramate-ios-client/app/(tabs)/profile/mobile-requests/`, `theramate-ios-client/app/(practitioner)/mobile-requests/`
 
-- Mobile checkout flow:
-  - `peer-care-connect/src/components/checkout/MobileCheckout.tsx`
-  - Displays center footer text like `Step N` or `Complete Booking` depending on current step.
+## Historic components (not present under these paths in this repo)
 
-## Intake form save behavior (authoritative)
+The following names appear in legacy docs; **search** the repo if you need equivalent behaviour:
 
-- Booking intake form component:
-  - `peer-care-connect/src/components/booking/IntakeForm.tsx`
-  - Behavior: collect form data in-memory and pass to parent via `onComplete`.
-  - It should **not** persist to DB directly from this component.
+- `GuestBookingFlow.tsx` (separate file) — guest path is **`BookingFlow` + `guestMode`** on web.
+- `MobileBookingRequestFlow.tsx`, `CheckoutFlow.tsx`, `MobileCheckout.tsx`, `PreAssessmentForm.tsx`, `IntakeForm.tsx` — may exist only on other branches or under different folders; grep `src/` and `theramate-ios-client/`.
 
-- Persistence location:
-  - `peer-care-connect/src/components/marketplace/BookingFlow.tsx`
-  - Intake form data is saved during booking completion flow, not on intake-form submit click.
+## Debug checklist
 
-## Recent corrections applied
-
-- `PreAssessmentForm` submit state:
-  - Replaced `Submitting...` with `Processing...`.
-  - While loading, step header text and step counter switch to `Processing...`.
-
-- Removed unused dual-state behavior:
-  - `saving` path removed from `PreAssessmentForm` disable checks.
-  - Submit disable conditions now rely on `loading` only.
-
-## Debug checklist (if mismatch appears again)
-
-1. Identify exact component from DOM structure and mounted route/modal.
-2. Confirm which `Complete Booking` instance is rendered.
-3. Verify that flow-specific loading state toggles before async call.
-4. Check only one place persists intake data (booking completion path).
-5. Validate with lints and then re-test that exact flow in UI.
+1. Confirm **web vs native** and **guest vs signed-in**.
+2. Open [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md) for modality rules.
+3. Trace RPCs in **`supabase/`** (`create_booking_with_validation`, `create_mobile_booking_request`, etc.).

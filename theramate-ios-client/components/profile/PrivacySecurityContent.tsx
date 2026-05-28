@@ -8,10 +8,8 @@ import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
-import { APP_CONFIG } from "@/constants/config";
 import { useAuth } from "@/hooks/useAuth";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
-import { openHostedWebSession } from "@/lib/openHostedWeb";
 import {
   buildUsersPreferencesUpdate,
   loadProfilePreferences,
@@ -193,28 +191,9 @@ export function PrivacySecurityContent() {
           variant="outline"
           className="mt-3"
           leftIcon={<Globe size={16} color={Colors.charcoal[700]} />}
-          onPress={() =>
-            openHostedWebSession({
-              kind: "web_app",
-              url: APP_CONFIG.PRIVACY_URL,
-            })
-          }
+          onPress={() => router.push("/privacy")}
         >
-          Published privacy notice (in app)
-        </Button>
-
-        <Button
-          variant="outline"
-          className="mt-3"
-          leftIcon={<Globe size={16} color={Colors.charcoal[700]} />}
-          onPress={() =>
-            openHostedWebSession({
-              kind: "web_app",
-              url: APP_CONFIG.SUBPROCESSORS_URL,
-            })
-          }
-        >
-          Sub-processors list (in app)
+          Privacy policy (in app)
         </Button>
 
         <Button

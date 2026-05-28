@@ -14,21 +14,21 @@ Resolve location in this order:
 ## Implementations
 
 - **Backend (Edge Functions):** `supabase/functions/_shared/booking-email-data.ts` → `getBookingEmailLocationData`
-- **Frontend (UI):** `peer-care-connect/src/utils/sessionLocation.ts` → `getSessionLocation`
+- **Frontend (UI):** `theramate-ios-client/lib/sessionLocation.ts (native); search src/ for web session location` → `getSessionLocation`
 
 Keep both in sync when changing the rule.
 
 ## Call sites
 
-| Consumer                                        | File                                                                | Usage                                                     |
-| ----------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
-| Emails (confirmation, cancellation, reschedule) | `supabase/functions/send-email/index.ts`                            | Payload from callers                                      |
-| Stripe webhooks (post-payment confirmation)     | `supabase/functions/stripe-webhooks/index.ts`                       | `getBookingEmailLocationData`                             |
-| Send booking notification                       | `supabase/functions/send-booking-notification/index.ts`             | `getBookingEmailLocationData`                             |
-| Guest booking flow (post-booking notification)  | `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx` | `getSessionLocation`                                      |
-| Credits session list                            | `peer-care-connect/src/pages/Credits.tsx`                           | `getSessionLocation`                                      |
-| Booking calendar (modal + event map)            | `peer-care-connect/src/components/BookingCalendar.tsx`              | `getSessionLocation`                                      |
-| Session notifications (in-app)                  | `peer-care-connect/src/lib/session-notifications.ts`                | `sessionLocation` and `sessionLocationLabel` from callers |
+| Consumer                                        | File                                                                                                  | Usage                                                     |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Emails (confirmation, cancellation, reschedule) | `supabase/functions/send-email/index.ts`                                                              | Payload from callers                                      |
+| Stripe webhooks (post-payment confirmation)     | `supabase/functions/stripe-webhooks/index.ts`                                                         | `getBookingEmailLocationData`                             |
+| Send booking notification                       | `supabase/functions/send-booking-notification/index.ts`                                               | `getBookingEmailLocationData`                             |
+| Guest booking flow (post-booking notification)  | `src/components/booking/BookingFlow.tsx (guestMode)`                                                  | `getSessionLocation`                                      |
+| Credits session list                            | `search src/ + native credits screens`                                                                | `getSessionLocation`                                      |
+| Booking calendar (modal + event map)            | `theramate-ios-client/app/(practitioner)/(ptabs)/schedule/ + src/pages/practice/UpcomingSessions.tsx` | `getSessionLocation`                                      |
+| Session notifications (in-app)                  | `search src/ + supabase functions`                                                                    | `sessionLocation` and `sessionLocationLabel` from callers |
 
 Queries that feed these must select `appointment_type`, `visit_address`, and practitioner `clinic_address` (or `location`) where needed. Session list queries and transforms must preserve these fields (do not drop them when mapping to UI state) so `getSessionLocation` receives correct input and can resolve "Clinic at [address]" vs "Visit at [address]" correctly.
 

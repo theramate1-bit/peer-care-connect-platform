@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePractitionerMobileRequests } from "@/hooks/usePractitionerMobileRequests";
 import { useQuery } from "@tanstack/react-query";
 import {
+  fetchAcceptedExchangesAwaitingReciprocalByRequester,
   fetchAcceptedExchangesNeedingReciprocal,
   fetchPendingExchangeRequestsForRecipient,
   fetchPendingExchangeRequestsSentByRequester,
@@ -94,16 +95,37 @@ export default function PractitionerMobileRequestsListScreen() {
     enabled: !!userId,
   });
 
+  const {
+    data: awaitingTheirBook = [],
+    refetch: refetchAwaitingTheirBook,
+    isFetching: fetchingAwaitingTheirBook,
+  } = useQuery({
+    queryKey: ["exchange_awaiting_reciprocal", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } =
+        await fetchAcceptedExchangesAwaitingReciprocalByRequester(userId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
   const loading = loadingM;
 
   const refreshing =
-    fetchingM || fetchingIncoming || fetchingReciprocal || fetchingOutgoing;
+    fetchingM ||
+    fetchingIncoming ||
+    fetchingReciprocal ||
+    fetchingOutgoing ||
+    fetchingAwaitingTheirBook;
 
   const onRefreshAll = () => {
     void refetchM();
     void refetchIncoming();
     void refetchReciprocal();
     void refetchOutgoing();
+    void refetchAwaitingTheirBook();
   };
 
   return (
@@ -189,6 +211,66 @@ export default function PractitionerMobileRequestsListScreen() {
                     }
                   >
                     Choose time in Treatment exchange
+                  </Button>
+                </Card>
+              ))}
+            </View>
+          ) : null}
+
+          {awaitingTheirBook.length > 0 ? (
+            <View className="mb-8">
+              <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
+                Treatment exchange
+              </Text>
+              <Text className="text-charcoal-900 font-bold text-lg mb-1">
+                Waiting for their return book
+              </Text>
+              <Text className="text-charcoal-500 text-sm mb-3">
+                They accepted your swap — they still need to book their return
+                session with you.
+              </Text>
+              {awaitingTheirBook.map((r) => (
+                <Card
+                  key={r.mutual_session_id}
+                  variant="default"
+                  padding="md"
+                  className="mb-3 border border-cream-200"
+                >
+                  <Text className="text-charcoal-900 font-semibold">
+                    With {r.recipient_name}
+                  </Text>
+                  {r.your_session_date ? (
+                    <Text className="text-charcoal-700 text-sm mt-2">
+                      Your treatment session: {r.your_session_date}
+                      {r.your_session_start_time
+                        ? ` · ${fmtTime(String(r.your_session_start_time))}`
+                        : ""}
+                    </Text>
+                  ) : null}
+                  {r.reciprocal_booking_deadline ? (
+                    <Text className="text-charcoal-500 text-xs mt-2">
+                      They should book by:{" "}
+                      {new Date(r.reciprocal_booking_deadline).toLocaleString()}
+                    </Text>
+                  ) : null}
+                  {r.extension_requested_at && !r.extension_approved_at ? (
+                    <Text className="text-amber-800 text-xs mt-2">
+                      Extension pending your approval
+                    </Text>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    className="mt-3"
+                    onPress={() =>
+                      router.push(
+                        tabPath(
+                          tabRoot,
+                          `exchange/${r.exchange_request_id}`,
+                        ) as Href,
+                      )
+                    }
+                  >
+                    View request details
                   </Button>
                 </Card>
               ))}

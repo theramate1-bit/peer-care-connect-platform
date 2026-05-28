@@ -8,6 +8,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Full schema:** For every table with complete column definitions (type, nullable, default), see [database-complete-schema.md](./database-complete-schema.md).
 
+**Where is the application code?** Older versions of this doc linked **`peer-care-connect/src/...`**. In this monorepo, use **repo-root `src/`** for web (e.g. `src/components/booking/BookingFlow.tsx`), **`theramate-ios-client/`** for Expo, and **`supabase/`** for RPCs. The **`peer-care-connect/`** directory may exist only as an empty npm workspace placeholder — if a path 404s, search the repo.
+
 ---
 
 ## Core Tables (Primary Use)
@@ -18,26 +20,25 @@ This document describes every core table in the `public` schema, derived from Su
 
 **DB comment:** _(none)_
 
-| Column                                            | Type           | Nullable | Default            | Purpose                                      |
-| ------------------------------------------------- | -------------- | -------- | ------------------ | -------------------------------------------- |
-| id                                                | uuid           | NO       | uuid_generate_v4() | PK, matches auth.uid for authenticated       |
-| email                                             | varchar        | NO       | -                  | Unique                                       |
-| first_name, last_name                             | varchar        | NO       | -                  | Display name                                 |
-| user_role                                         | user_role      | YES      | 'sports_therapist' | client, practitioner, admin, guest           |
-| therapist_type                                    | therapist_type | YES      | 'clinic_based'     | clinic_based, mobile, hybrid                 |
-| clinic_address, clinic_latitude, clinic_longitude | text/numeric   | YES      | -                  | Clinic location                              |
-| base_address, base_latitude, base_longitude       | text/numeric   | YES      | -                  | Base for mobile (hybrid: synced from clinic) |
-| mobile_service_radius_km                          | integer        | YES      | 25                 | Mobile service radius                        |
-| treatment_exchange_opt_in                         | boolean        | YES      | false              | Can receive exchange requests                |
-| stripe_connect_account_id                         | text           | YES      | -                  | Stripe Connect                               |
-| booking_slug                                      | varchar        | YES      | -                  | Direct link slug                             |
-| ...                                               |                |          |                    | (See schema for full list)                   |
+| Column                                            | Type           | Nullable | Default            | Purpose                                                                                                                                 |
+| ------------------------------------------------- | -------------- | -------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| id                                                | uuid           | NO       | uuid_generate_v4() | PK, matches auth.uid for authenticated                                                                                                  |
+| email                                             | varchar        | NO       | -                  | Unique                                                                                                                                  |
+| first_name, last_name                             | varchar        | NO       | -                  | Display name                                                                                                                            |
+| user_role                                         | user_role      | YES      | 'sports_therapist' | `client`, `guest`, `admin`, therapist disciplines (`sports_therapist`, `massage_therapist`, `osteopath`, …) — see live enum in Supabase |
+| therapist_type                                    | therapist_type | YES      | 'clinic_based'     | clinic_based, mobile, hybrid                                                                                                            |
+| clinic_address, clinic_latitude, clinic_longitude | text/numeric   | YES      | -                  | Clinic location                                                                                                                         |
+| base_address, base_latitude, base_longitude       | text/numeric   | YES      | -                  | Base for mobile (hybrid: synced from clinic)                                                                                            |
+| mobile_service_radius_km                          | integer        | YES      | 25                 | Mobile service radius                                                                                                                   |
+| treatment_exchange_opt_in                         | boolean        | YES      | false              | Can receive exchange requests                                                                                                           |
+| stripe_connect_account_id                         | text           | YES      | -                  | Stripe Connect                                                                                                                          |
+| booking_slug                                      | varchar        | YES      | -                  | Direct link slug                                                                                                                        |
+| ...                                               |                |          |                    | (See schema for full list)                                                                                                              |
 
 **Code references:**
 
-- Profile: [peer-care-connect/src/pages/Profile.tsx](../../peer-care-connect/src/pages/Profile.tsx)
-- Booking flow type: [peer-care-connect/src/lib/booking-flow-type.ts](../../peer-care-connect/src/lib/booking-flow-type.ts)
-- Geo search: [peer-care-connect/src/lib/geo-search-service.ts](../../peer-care-connect/src/lib/geo-search-service.ts)
+- Marketplace practitioner list (queries `users` + products + reviews): [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts), [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx)
+- Booking UI: [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx)
 
 ---
 
@@ -73,9 +74,9 @@ This document describes every core table in the `public` schema, derived from Su
 **Code references:**
 
 - Create (clinic): RPC `create_booking_with_validation` — [supabase/migrations](../../supabase/migrations/)
-- Create (mobile): RPC `create_session_from_mobile_request` — [peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx](../../peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx)
-- Diary: [peer-care-connect/src/components/BookingCalendar.tsx](../../peer-care-connect/src/components/BookingCalendar.tsx)
-- Dashboard: [peer-care-connect/src/components/dashboards/TherapistDashboard.tsx](../../peer-care-connect/src/components/dashboards/TherapistDashboard.tsx)
+- Web booking UI: [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx), [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx)
+- Web practice lists: [src/pages/practice/UpcomingSessions.tsx](../../src/pages/practice/UpcomingSessions.tsx), [src/pages/practice/ManualBooking.tsx](../../src/pages/practice/ManualBooking.tsx)
+- Native (sessions, mobile): `theramate-ios-client/lib/api/booking.ts`, `theramate-ios-client/lib/api/mobileRequests.ts`, `theramate-ios-client/app/(practitioner)/(ptabs)/bookings/`
 
 ---
 
@@ -95,8 +96,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Slot generation: [peer-care-connect/src/lib/slot-generation-utils.ts](../../peer-care-connect/src/lib/slot-generation-utils.ts)
-- Availability UI: [peer-care-connect/src/components/practice/AvailabilitySettings.tsx](../../peer-care-connect/src/components/practice/AvailabilitySettings.tsx)
+- Web booking / slots: [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (search `practitioner_availability`, `availability_slots`, `calendar_events`)
+- Native availability editor: [theramate-ios-client/lib/api/practitionerAvailability.ts](../../theramate-ios-client/lib/api/practitionerAvailability.ts), `theramate-ios-client/components/practitioner/PractitionerAvailabilityEditor.tsx`
 
 ---
 
@@ -119,8 +120,9 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Product form: [peer-care-connect/src/components/practitioner/ProductForm.tsx](../../peer-care-connect/src/components/practitioner/ProductForm.tsx)
-- Booking flow type: [peer-care-connect/src/lib/booking-flow-type.ts](../../peer-care-connect/src/lib/booking-flow-type.ts)
+- Web booking + products: [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx), [src/lib/clientMarketplaceBooking.ts](../../src/lib/clientMarketplaceBooking.ts)
+- Native products: `theramate-ios-client/lib/api/booking.ts` (`fetchPractitionerProducts`)
+- Marketplace list + discipline filters: [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts)
 
 ---
 
@@ -140,8 +142,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Block time: [peer-care-connect/src/components/practice/BlockTimeManager.tsx](../../peer-care-connect/src/components/practice/BlockTimeManager.tsx)
-- Slot conflict: [peer-care-connect/src/lib/block-time-utils.ts](../../peer-care-connect/src/lib/block-time-utils.ts)
+- Native block time: [theramate-ios-client/lib/api/blockTime.ts](../../theramate-ios-client/lib/api/blockTime.ts), `theramate-ios-client/app/(practitioner)/block-time.tsx`
+- Web: search `src/` for `calendar_events` / block (no single historic filename)
 
 ---
 
@@ -163,8 +165,9 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Treatment exchange: [peer-care-connect/src/lib/treatment-exchange.ts](../../peer-care-connect/src/lib/treatment-exchange.ts) — `SlotHoldingService`
-- Slot generation: [peer-care-connect/src/lib/slot-generation-utils.ts](../../peer-care-connect/src/lib/slot-generation-utils.ts)
+- Web booking holds: [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (search `slot_holds`)
+- Native: `theramate-ios-client/lib/api/booking.ts`
+- Treatment exchange holds: [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts)
 
 ---
 
@@ -186,9 +189,7 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Send: [peer-care-connect/src/lib/treatment-exchange.ts](../../peer-care-connect/src/lib/treatment-exchange.ts)
-- Accept modal: [peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx](../../peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx)
-- Dashboard: [peer-care-connect/src/components/dashboards/TherapistDashboard.tsx](../../peer-care-connect/src/components/dashboards/TherapistDashboard.tsx)
+- Native treatment exchange: [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts), `theramate-ios-client/app/(practitioner)/exchange/`
 
 ---
 
@@ -229,8 +230,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Create: RPC `create_mobile_booking_request` — [peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx](../../peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx)
-- Accept/Decline: [peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx](../../peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx)
+- Native mobile requests (client + practitioner): [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts), `theramate-ios-client/app/(practitioner)/mobile-requests/`, `theramate-ios-client/app/(tabs)/profile/mobile-requests/`
+- Web + flow rules: [clinic-mobile-hybrid-flows.md](../features/clinic-mobile-hybrid-flows.md); RPC callers may live in [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) — search `mobile_booking`
 
 ---
 
@@ -248,8 +249,7 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- [peer-care-connect/src/lib/credits.ts](../../peer-care-connect/src/lib/credits.ts)
-- [peer-care-connect/src/lib/treatment-exchange.ts](../../peer-care-connect/src/lib/treatment-exchange.ts)
+- Native credits + exchange: [theramate-ios-client/lib/api/credits.ts](../../theramate-ios-client/lib/api/credits.ts), [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts)
 
 ---
 
@@ -271,8 +271,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- Create: [peer-care-connect/src/lib/notification-utils.ts](../../peer-care-connect/src/lib/notification-utils.ts) — `create_notification` RPC
-- Fetch: [peer-care-connect/src/components/dashboards/TherapistDashboard.tsx](../../peer-care-connect/src/components/dashboards/TherapistDashboard.tsx)
+- Native notifications: [theramate-ios-client/lib/api/notifications.ts](../../theramate-ios-client/lib/api/notifications.ts), `theramate-ios-client/app/(tabs)/profile/notifications.tsx`
+- Web: search `src/` for `notifications` / Supabase channel subscriptions
 
 ---
 
@@ -291,8 +291,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- [peer-care-connect/src/lib/messaging.ts](../../peer-care-connect/src/lib/messaging.ts)
-- RPCs: `get_or_create_conversation`, `get_or_create_guest_conversation`
+- Web messaging: [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx), [src/pages/messages/Messages.tsx](../../src/pages/messages/Messages.tsx)
+- Native: `theramate-ios-client/lib/api/messages.ts`
 
 ---
 
@@ -313,7 +313,8 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- [peer-care-connect/src/lib/messaging.ts](../../peer-care-connect/src/lib/messaging.ts)
+- Web messaging: [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx)
+- Native: `theramate-ios-client/lib/api/messages.ts`
 - RPC: `send_message`
 
 ---
@@ -326,7 +327,7 @@ This document describes every core table in the `public` schema, derived from Su
 
 **Code references:**
 
-- [peer-care-connect/src/lib/pre-assessment-service.ts](../../peer-care-connect/src/lib/pre-assessment-service.ts)
+- Search repo for `pre_assessment` / `pre_assessment_forms` (RPC + UI vary by branch; no single historic `src` path)
 
 ---
 
@@ -338,23 +339,23 @@ Supporting tables for Stripe payments, Connect onboarding, reviews, practitioner
 
 ## Key RPCs (Frontend Calls)
 
-| RPC                                                   | Purpose                  | Code                                        |
-| ----------------------------------------------------- | ------------------------ | ------------------------------------------- |
-| `create_booking_with_validation`                      | Clinic booking           | Migrations                                  |
-| `create_mobile_booking_request`                       | Mobile request           | MobileBookingRequestFlow                    |
-| `create_session_from_mobile_request`                  | Mobile accept            | MobileRequestManagement                     |
-| `get_practitioner_mobile_requests`                    | Pending mobile requests  | TherapistDashboard, MobileRequestManagement |
-| `get_pending_same_day_bookings`                       | Same-day clinic approval | TherapistDashboard                          |
-| `expire_pending_payment_bookings`                     | Expire unpaid slots      | TherapistDashboard                          |
-| `link_slot_hold_to_request`                           | Link hold to exchange    | treatment-exchange.ts                       |
-| `accept_exchange_request`, `decline_exchange_request` | Exchange accept/decline  | treatment-exchange.ts                       |
-| `cancel_exchange_request_by_requester`                | Requester cancels        | treatment-exchange.ts                       |
-| `process_peer_booking_credits`                        | Credit deduction         | treatment-exchange.ts                       |
-| `create_notification`                                 | Insert notification      | notification-utils.ts                       |
-| `mark_notifications_read`                             | Mark read                | notification-utils.ts                       |
-| `get_or_create_conversation`                          | Messaging                | messaging.ts                                |
-| `get_or_create_guest_conversation`                    | Guest messaging          | messaging.ts                                |
-| `send_message`                                        | Send message             | messaging.ts                                |
+| RPC                                                   | Purpose                  | Code (this repo)                                                                                                                                          |
+| ----------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_booking_with_validation`                      | Clinic booking           | [supabase/migrations](../../supabase/migrations/), [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx)                 |
+| `create_mobile_booking_request`                       | Mobile request           | Native: `theramate-ios-client/lib/api/mobileRequests.ts`; web: search `src/` + [clinic-mobile-hybrid-flows.md](../features/clinic-mobile-hybrid-flows.md) |
+| `create_session_from_mobile_request`                  | Mobile accept            | Native practitioner mobile-requests screens; RPC in `supabase/`                                                                                           |
+| `get_practitioner_mobile_requests`                    | Pending mobile requests  | `theramate-ios-client/app/(practitioner)/mobile-requests/`                                                                                                |
+| `get_pending_same_day_bookings`                       | Same-day clinic approval | Search `supabase/` + `src/` / native practitioner bookings                                                                                                |
+| `expire_pending_payment_bookings`                     | Expire unpaid slots      | Scheduled job / edge — search `supabase/`                                                                                                                 |
+| `link_slot_hold_to_request`                           | Link hold to exchange    | [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts)                                        |
+| `accept_exchange_request`, `decline_exchange_request` | Exchange accept/decline  | [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts)                                        |
+| `cancel_exchange_request_by_requester`                | Requester cancels        | [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts)                                        |
+| `process_peer_booking_credits`                        | Credit deduction         | [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts)                                        |
+| `create_notification`                                 | Insert notification      | [theramate-ios-client/lib/api/notifications.ts](../../theramate-ios-client/lib/api/notifications.ts) (pattern); server triggers vary                      |
+| `mark_notifications_read`                             | Mark read                | Native `notifications` screen; search `src/` for web                                                                                                      |
+| `get_or_create_conversation`                          | Messaging                | [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx)                                                    |
+| `get_or_create_guest_conversation`                    | Guest messaging          | Same + `supabase/functions/notify-guest-message`                                                                                                          |
+| `send_message`                                        | Send message             | [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx), native `messages.ts`                              |
 
 ---
 

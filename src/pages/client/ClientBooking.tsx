@@ -13,6 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Search, MapPin, Star, Filter } from "lucide-react";
 import { toast } from "sonner";
 import BookingFlow from "@/components/booking/BookingFlow";
+import { HybridBookingChooser } from "@/components/marketplace/HybridBookingChooser";
+import { MobileBookingRequestFlow } from "@/components/marketplace/MobileBookingRequestFlow";
+import { canBookClinic, canRequestMobile } from "@/lib/booking-flow-type";
 import {
   fetchMarketplacePractitioners,
   type MarketplacePractitioner,
@@ -35,6 +38,13 @@ const ClientBooking: React.FC = () => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("guest") === "1";
   });
+  const [flowMode, setFlowMode] = useState<"clinic" | "mobile" | null>(() => {
+    if (typeof window === "undefined") return null;
+    const mode = new URLSearchParams(window.location.search).get("mode");
+    if (mode === "mobile") return "mobile";
+    if (mode === "clinic") return "clinic";
+    return null;
+  });
 
   useEffect(() => {
     fetchPractitioners();
@@ -44,16 +54,16 @@ const ClientBooking: React.FC = () => {
     filterPractitioners();
   }, [practitioners, searchTerm, selectedType, selectedLocation]);
 
-  // Deep-link support for "Book" CTA from discovery:
-  // /client/ClientBooking?therapistId=<id>
+  // Deep-link: /client/ClientBooking?therapistId=<id>&mode=mobile|clinic&guest=1
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const therapistId = new URLSearchParams(window.location.search).get(
-      "therapistId",
-    );
+    const params = new URLSearchParams(window.location.search);
+    const therapistId = params.get("therapistId");
     if (!therapistId) return;
     const match = practitioners.find((p) => p.id === therapistId);
     if (match) setSelectedPractitioner(match);
+    const mode = params.get("mode");
+    if (mode === "mobile" || mode === "clinic") setFlowMode(mode);
   }, [practitioners]);
 
   const fetchPractitioners = async () => {
@@ -193,10 +203,127 @@ const ClientBooking: React.FC = () => {
   );
 
   if (selectedPractitioner) {
+    const practitionerName = `${selectedPractitioner.first_name} ${selectedPractitioner.last_name}`;
+    const clinicOk = canBookClinic(selectedPractitioner);
+    const mobileOk = canRequestMobile(selectedPractitioner);
+
+    if (!clinicOk && !mobileOk) {
+      return (
+        <div className="container mx-auto px-4 py-8 max-w-lg">
+          <Card>
+            <CardContent className="pt-6 text-center space-y-4">
+              <p className="text-muted-foreground">
+                This practitioner is not available for online booking yet.
+              </p>
+              <Button onClick={() => setSelectedPractitioner(null)}>
+                Back to list
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    if (!flowMode && clinicOk && mobileOk) {
+      return (
+        <HybridBookingChooser
+          practitionerName={practitionerName}
+          onChooseClinic={() => setFlowMode("clinic")}
+          onChooseMobile={() => setFlowMode("mobile")}
+          onBack={() => {
+            setSelectedPractitioner(null);
+            setFlowMode(null);
+          }}
+        />
+      );
+    }
+
+    const effectiveMode =
+      flowMode ?? (mobileOk && !clinicOk ? "mobile" : "clinic");
+
+    if (effectiveMode === "mobile") {
+      if (!mobileOk) {
+        return (
+          <div className="container mx-auto px-4 py-8 max-w-lg">
+            <Card>
+              <CardContent className="pt-6 text-center space-y-4">
+                <p className="text-muted-foreground">
+                  Mobile visits are not available for this practitioner.
+                </p>
+                {clinicOk ? (
+                  <Button onClick={() => setFlowMode("clinic")}>
+                    Book at clinic instead
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedPractitioner(null);
+                    setFlowMode(null);
+                  }}
+                >
+                  Back
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      }
+      return (
+        <MobileBookingRequestFlow
+          embedded
+          practitioner={{
+            id: selectedPractitioner.id,
+            first_name: selectedPractitioner.first_name,
+            last_name: selectedPractitioner.last_name,
+            therapist_type: selectedPractitioner.therapist_type,
+            mobile_service_radius_km:
+              selectedPractitioner.mobile_service_radius_km,
+            base_latitude: selectedPractitioner.base_latitude,
+            base_longitude: selectedPractitioner.base_longitude,
+            products: selectedPractitioner.products,
+          }}
+          guestMode={isGuestMode}
+          onCancel={() => {
+            setSelectedPractitioner(null);
+            setFlowMode(null);
+          }}
+        />
+      );
+    }
+
+    if (!clinicOk) {
+      return (
+        <div className="container mx-auto px-4 py-8 max-w-lg">
+          <Card>
+            <CardContent className="pt-6 text-center space-y-4">
+              <p className="text-muted-foreground">
+                Clinic booking is not available. Try requesting a mobile visit
+                from discovery.
+              </p>
+              <Button
+                onClick={() => {
+                  setFlowMode("mobile");
+                }}
+              >
+                Request mobile visit
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setSelectedPractitioner(null)}
+              >
+                Back
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <BookingFlow
         practitionerId={selectedPractitioner.id}
-        practitionerName={`${selectedPractitioner.first_name} ${selectedPractitioner.last_name}`}
+        practitionerName={practitionerName}
         practitionerType={
           selectedPractitioner.user_role as
             | "sports_therapist"
@@ -205,11 +332,15 @@ const ClientBooking: React.FC = () => {
         }
         acceptInPersonPayment={selectedPractitioner.accept_in_person_payment}
         guestMode={isGuestMode}
-        onBookingComplete={(sessionId) => {
+        onBookingComplete={() => {
           toast.success("Booking created successfully!");
           setSelectedPractitioner(null);
+          setFlowMode(null);
         }}
-        onCancel={() => setSelectedPractitioner(null)}
+        onCancel={() => {
+          setSelectedPractitioner(null);
+          setFlowMode(null);
+        }}
       />
     );
   }

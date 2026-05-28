@@ -29,6 +29,12 @@ import {
   useToggleFavoriteTherapist,
 } from "@/hooks/useFavoriteTherapists";
 import { SPECIALIZATIONS } from "@/constants/config";
+import {
+  ExploreFiltersSheet,
+  DEFAULT_EXPLORE_FILTERS,
+  type ExploreFilters,
+  type ExploreSortKey,
+} from "@/components/explore/ExploreFiltersSheet";
 import type { MarketplacePractitioner } from "@/lib/api/marketplace";
 import { formatUnknownError } from "@/lib/errors";
 import { useMarketplacePractitioners } from "@/hooks/useMarketplacePractitioners";
@@ -156,7 +162,13 @@ export default function ExploreScreen() {
   const [selectedSpecialization, setSelectedSpecialization] = useState<
     string | null
   >(null);
-  const [acceptsInPersonOnly, setAcceptsInPersonOnly] = useState(false);
+  const [filters, setFilters] = useState<ExploreFilters>(
+    DEFAULT_EXPLORE_FILTERS,
+  );
+  const [draftFilters, setDraftFilters] = useState<ExploreFilters>(
+    DEFAULT_EXPLORE_FILTERS,
+  );
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const {
     data: practitioners = [],
@@ -167,20 +179,54 @@ export default function ExploreScreen() {
     isFetching,
   } = useMarketplacePractitioners();
 
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (filters.therapistType) n++;
+    if (filters.acceptsInPersonOnly) n++;
+    if (filters.sortBy !== "rating") n++;
+    return n;
+  }, [filters]);
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return practitioners.filter((p) => {
+    const list = practitioners.filter((p) => {
       if (selectedSpecialization) {
-        const specs = p.specializations || [];
-        if (!specs.includes(selectedSpecialization)) return false;
+        const matchedSpec = SPECIALIZATIONS.find(
+          (s) => s.value === selectedSpecialization,
+        );
+        const roleMatch = matchedSpec
+          ? p.user_role === matchedSpec.role
+          : false;
+        const tagMatch = (p.specializations || []).includes(
+          selectedSpecialization,
+        );
+        if (!roleMatch && !tagMatch) return false;
       }
-      if (acceptsInPersonOnly && !p.accept_in_person_payment) return false;
+      if (filters.therapistType) {
+        const t = (p.therapist_type || "").toLowerCase();
+        if (t !== filters.therapistType) return false;
+      }
+      if (filters.acceptsInPersonOnly && !p.accept_in_person_payment)
+        return false;
       if (!q) return true;
       const name = `${p.first_name} ${p.last_name}`.toLowerCase();
       const loc = (p.location || "").toLowerCase();
       return name.includes(q) || loc.includes(q);
     });
-  }, [practitioners, searchQuery, selectedSpecialization, acceptsInPersonOnly]);
+
+    const sortBy: ExploreSortKey = filters.sortBy;
+    return [...list].sort((a, b) => {
+      if (sortBy === "price") {
+        const pa = a.from_price ?? a.hourly_rate ?? Number.MAX_SAFE_INTEGER;
+        const pb = b.from_price ?? b.hourly_rate ?? Number.MAX_SAFE_INTEGER;
+        return pa - pb;
+      }
+      if (sortBy === "reviews") {
+        return (b.total_reviews || 0) - (a.total_reviews || 0);
+      }
+      return (b.average_rating || 0) - (a.average_rating || 0);
+    });
+  }, [practitioners, searchQuery, selectedSpecialization, filters]);
 
   return (
     <SafeAreaView
@@ -234,8 +280,27 @@ export default function ExploreScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-          <TouchableOpacity className="ml-2 p-2 bg-cream-100 rounded-lg">
-            <Filter size={18} color={Colors.charcoal[600]} />
+          <TouchableOpacity
+            className={`ml-2 p-2 rounded-lg ${
+              activeFilterCount > 0 ? "bg-sage-100" : "bg-cream-100"
+            }`}
+            onPress={() => {
+              setDraftFilters(filters);
+              setFilterSheetOpen(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              activeFilterCount > 0
+                ? `Filters, ${activeFilterCount} active`
+                : "Open filters"
+            }
+          >
+            <Filter
+              size={18}
+              color={
+                activeFilterCount > 0 ? Colors.sage[600] : Colors.charcoal[600]
+              }
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -285,27 +350,20 @@ export default function ExploreScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-
-          <TouchableOpacity
-            className={`px-4 py-2 rounded-full border ${
-              acceptsInPersonOnly
-                ? "bg-sage-500 border-sage-500"
-                : "bg-white border-cream-300"
-            }`}
-            onPress={() => setAcceptsInPersonOnly((v) => !v)}
-            accessibilityRole="button"
-            accessibilityLabel="Show only therapists who accept pay at clinic"
-          >
-            <Text
-              className={`text-sm font-medium ${
-                acceptsInPersonOnly ? "text-white" : "text-charcoal-700"
-              }`}
-            >
-              Pay at clinic
-            </Text>
-          </TouchableOpacity>
         </ScrollView>
       </View>
+
+      <ExploreFiltersSheet
+        visible={filterSheetOpen}
+        filters={draftFilters}
+        onChange={setDraftFilters}
+        onClose={() => setFilterSheetOpen(false)}
+        onReset={() => setDraftFilters(DEFAULT_EXPLORE_FILTERS)}
+        onApply={() => {
+          setFilters(draftFilters);
+          setFilterSheetOpen(false);
+        }}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center py-20">
@@ -386,7 +444,7 @@ export default function ExploreScreen() {
             <View className="px-6 pb-3 flex-row items-center justify-between">
               <Text className="text-charcoal-500 text-sm">
                 {filtered.length} therapist{filtered.length === 1 ? "" : "s"}
-                {searchQuery || selectedSpecialization || acceptsInPersonOnly
+                {searchQuery || selectedSpecialization || activeFilterCount > 0
                   ? " (filtered)"
                   : ""}
               </Text>

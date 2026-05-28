@@ -15,37 +15,38 @@ Before you begin, ensure you have the following installed:
 ## Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/peer-care-connect.git
-cd peer-care-connect
+git clone https://github.com/your-username/<repo>.git
+cd <repo>
 ```
 
 ## Step 2: Install Dependencies
 
-### Main Project (Peer Care Connect)
+### Monorepo root (recommended)
 
 ```bash
-cd peer-care-connect
 npm install
 ```
 
-### Other Projects (Optional)
+### Other projects (optional)
 
 ```bash
 # AI UGC Creator
-cd ../ai-ugc-creator
+cd ai-ugc-creator
 npm install
+cd ..
 
 # iOS Client (if needed)
-cd ../theramate-ios-client
+cd theramate-ios-client
 npm install
+cd ..
 ```
 
 ## Step 3: Set Up Environment Variables
 
-1. **Copy the example file:**
+1. **Copy the example file (repo root):**
+
    ```bash
-   cd peer-care-connect
-   cp .env.example .env.local
+   cp env.production.example .env.local
    ```
 
 2. **Fill in your environment variables:**
@@ -61,22 +62,21 @@ npm install
    - Note your project URL and anon key
 
 2. **Run database migrations:**
+
    ```bash
-   # Navigate to peer-care-connect
-   cd peer-care-connect
-   
-   # Run migrations in order (check supabase/migrations/ directory)
+   # Migrations live at repo-root supabase/migrations
    # Use Supabase CLI or Dashboard SQL Editor
    ```
 
 3. **Set up Edge Functions:**
+
    ```bash
    # Install Supabase CLI if not already installed
    npm install -g supabase
-   
+
    # Link to your project
    supabase link --project-ref your-project-ref
-   
+
    # Deploy Edge Functions
    supabase functions deploy
    ```
@@ -84,11 +84,11 @@ npm install
 ## Step 5: Start Development Server
 
 ```bash
-cd peer-care-connect
+# From repo root (uses root package.json workspaces)
 npm run dev
 ```
 
-The application should now be running at `http://localhost:5173`
+The local URL and port depend on your branch (Vite vs Next, workspace wiring). If `npm run dev` fails on a missing workspace package, see the root [README](../../README.md).
 
 ## Step 6: Verify Installation
 
@@ -102,6 +102,7 @@ The application should now be running at `http://localhost:5173`
 ### Common Issues
 
 #### Port Already in Use
+
 ```bash
 # Kill process on port 5173
 # Windows
@@ -113,16 +114,19 @@ lsof -ti:5173 | xargs kill
 ```
 
 #### Environment Variables Not Loading
+
 - Ensure file is named `.env.local` (not `.env`)
 - Restart the development server
 - Check that variables start with `VITE_` for client-side access
 
 #### Database Connection Issues
+
 - Verify Supabase project is active
 - Check environment variables are correct
 - Ensure RLS policies are set up correctly
 
 #### Build Errors
+
 ```bash
 # Clear cache and reinstall
 rm -rf node_modules package-lock.json
@@ -139,6 +143,7 @@ npm install
 ## Development Tools
 
 ### Recommended VS Code Extensions
+
 - ESLint
 - Prettier
 - TypeScript and JavaScript Language Features
@@ -168,8 +173,8 @@ npm run lint:fix        # Fix ESLint issues
 
 - Check [Troubleshooting](#troubleshooting) section
 - Review [Documentation Index](../README.md)
-- Open an [Issue](https://github.com/your-username/peer-care-connect/issues)
-- Ask in [Discussions](https://github.com/your-username/peer-care-connect/discussions)
+- Open an issue on your fork / upstream repository
+- Ask in your team’s chat or repo Discussions
 
 ---
 

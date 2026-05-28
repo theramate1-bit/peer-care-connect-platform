@@ -217,26 +217,35 @@ sequenceDiagram
 
 ## 8. Remediation log (2026-05-21)
 
-| ID    | Fix                                                                  |
-| ----- | -------------------------------------------------------------------- |
-| L2    | Inbox queue ② + requester detail banner                              |
-| L3    | Inline reciprocal slot modal on detail                               |
-| L4    | Hide generic reschedule on peer booking detail                       |
-| L5    | View exchange request link from peer session                         |
-| C1    | “Decline” → “Request different time” copy sweep                      |
-| C2    | Detail timestamp “Different time requested”                          |
-| C3    | Maestro taps `exchange-choose-reciprocal`                            |
-| C4/C5 | Message practitioner; no client reschedule copy on peer              |
-| C6    | Detail reschedule uses `formatExchangeConflictMessage`               |
-| L2b   | Home dashboard extension-pending + accept invalidates awaiting cache |
+| ID    | Fix                                                                               |
+| ----- | --------------------------------------------------------------------------------- |
+| L2    | Inbox queue ② + requester detail banner                                           |
+| L3    | Inline reciprocal slot modal on detail                                            |
+| L4    | Hide generic reschedule on peer booking detail                                    |
+| L5    | View exchange request link from peer session                                      |
+| C1    | “Decline” → “Request different time” copy sweep                                   |
+| C2    | Detail timestamp “Different time requested”                                       |
+| C3    | Maestro taps `exchange-choose-reciprocal`                                         |
+| C4/C5 | Message practitioner; no client reschedule copy on peer                           |
+| C6    | Detail reschedule uses `formatExchangeConflictMessage`                            |
+| L2b   | Home dashboard extension-pending + accept invalidates awaiting cache              |
+| C1    | Home Action required: `exchangeAwaitingReciprocalCount` in badge + copy (queue ②) |
+| C3    | Mobile requests snapshot: “Waiting for their return book” → `exchange/[id]`       |
+| C2    | Home Action required: outgoing pending (queue ③) in badge + copy                  |
+| C4    | Inbox “Past requests” — declined / cancelled / expired (last 20)                  |
+| C6    | Home: separate Mobile visits + Treatment exchange action cards                    |
+| G6    | Notifications inbox: `formatNotificationForInbox` badge + label rules             |
+| C4b   | Inbox “Completed swaps” — both legs booked                                        |
 
-**Still open (not in this PR):** terminal history inbox, web parity, deep-link routes, notification “Client” label rules (Gap 6).
+**Still open:** web parity; full `npm run test:exchange:e2e` (needs `EXCHANGE_*` in `.env`); Maestro on device.
+
+**Readiness index:** [`TREATMENT_EXCHANGE_MOBILE_PRODUCTION_READINESS.md`](TREATMENT_EXCHANGE_MOBILE_PRODUCTION_READINESS.md)
 
 ---
 
 ## 9. QA checklist
 
-- [ ] Requester sees queue ② after recipient accepts
+- [x] Requester sees queue ② after recipient accepts (hub + Home Action required + mobile-requests)
 - [ ] Recipient books return from hub **or** detail (same modal)
 - [ ] Peer booking detail: no reschedule; link to exchange request works
 - [ ] Copy never says “Decline” on mobile exchange surfaces

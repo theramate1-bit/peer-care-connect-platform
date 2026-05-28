@@ -117,13 +117,8 @@ const baseExpo = {
           "Allow Theramate to add appointments to your calendar.",
       },
     ],
-    [
-      "@stripe/stripe-react-native",
-      {
-        merchantIdentifier: "merchant.com.theramate",
-        enableGooglePay: false,
-      },
-    ],
+    // Hosted Checkout only — PaymentSheet native SDK disabled (no publishable key in app).
+    // Re-enable @stripe/stripe-react-native if you add in-app PaymentSheet again.
   ],
   experiments: {
     typedRoutes: true,

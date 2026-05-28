@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -23,8 +23,12 @@ import {
   fetchPractitionerProducts,
   type PractitionerProductRow,
 } from "@/lib/api/booking";
+import { filterMobileBookableProducts } from "@/lib/bookingProducts";
+import { canRequestMobile } from "@/lib/booking-flow-type";
+import { marketplacePractitionerToBookingFlow } from "@/lib/practitionerBookingProfile";
 import { stashMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
+import { openGuestBookingOnWeb } from "@/lib/guestBookingWeb";
 
 export default function MobileRequestBookingScreen() {
   const { practitionerId } = useLocalSearchParams<{
@@ -48,17 +52,36 @@ export default function MobileRequestBookingScreen() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const bookingFlowProfile = useMemo(
+    () => (therapist ? marketplacePractitionerToBookingFlow(therapist) : null),
+    [therapist],
+  );
+
+  useEffect(() => {
+    if (!practitionerId || !bookingFlowProfile) return;
+    if (canRequestMobile(bookingFlowProfile)) return;
+    router.replace({
+      pathname: "/booking",
+      params: { practitionerId },
+    });
+  }, [practitionerId, bookingFlowProfile]);
+
   const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ["practitioner_products_mobile", practitionerId],
+    queryKey: [
+      "practitioner_products_mobile",
+      practitionerId,
+      therapist?.therapist_type,
+    ],
     queryFn: async () => {
       if (!practitionerId) return [];
       const { data, error } = await fetchPractitionerProducts(practitionerId);
       if (error) throw error;
-      return data.filter((p) =>
-        ["mobile", "both"].includes((p.service_type || "").toLowerCase()),
+      return filterMobileBookableProducts(
+        therapist?.therapist_type ?? null,
+        data,
       );
     },
-    enabled: !!practitionerId,
+    enabled: !!practitionerId && !!therapist,
   });
 
   const dateOptions = useMemo(
@@ -93,8 +116,7 @@ export default function MobileRequestBookingScreen() {
         return data;
       },
       enabled: !!practitionerId && !!selectedProduct,
-      refetchInterval:
-        practitionerId && selectedProduct ? 25_000 : false,
+      refetchInterval: practitionerId && selectedProduct ? 25_000 : false,
       staleTime: 0,
     });
 
@@ -105,15 +127,20 @@ export default function MobileRequestBookingScreen() {
   }, [availableTimes, startTime]);
 
   const submit = async () => {
-    if (
-      !userId ||
-      !user?.email ||
-      !practitionerId ||
-      !selectedProduct ||
-      !address ||
-      !startTime
-    )
+    if (!userId || !user?.email) {
+      if (practitionerId) {
+        openGuestBookingOnWeb({ practitionerId, mode: "mobile" });
+      } else {
+        Alert.alert(
+          "Sign in or use web",
+          "Mobile visit checkout for guests runs on the website. Sign in to pay in the app.",
+        );
+      }
       return;
+    }
+    if (!practitionerId || !selectedProduct || !address || !startTime) {
+      return;
+    }
     setSubmitting(true);
     try {
       const geocode = await Location.geocodeAsync(address);
@@ -177,6 +204,36 @@ export default function MobileRequestBookingScreen() {
         className="flex-1 px-6 pt-5"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
+        {!userId ? (
+          <View className="mb-5 p-4 rounded-xl border border-cream-200 bg-white">
+            <Text className="text-charcoal-900 font-semibold">
+              Guest mobile visit
+            </Text>
+            <Text className="text-charcoal-500 text-sm mt-2 leading-5">
+              Card checkout for guests runs on the website (same as web). Sign
+              in to request and pay inside the app.
+            </Text>
+            <Button
+              variant="primary"
+              className="mt-4"
+              onPress={() =>
+                practitionerId &&
+                openGuestBookingOnWeb({ practitionerId, mode: "mobile" })
+              }
+              disabled={!practitionerId}
+            >
+              Continue on website
+            </Button>
+            <Button
+              variant="outline"
+              className="mt-3"
+              onPress={() => router.replace("/login" as never)}
+            >
+              Sign in
+            </Button>
+          </View>
+        ) : null}
+
         <Text className="text-charcoal-800 font-semibold mb-1">Service</Text>
         <Text className="text-charcoal-500 text-sm mb-3">
           Mobile or hybrid services only.

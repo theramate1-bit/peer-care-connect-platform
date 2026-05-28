@@ -12,6 +12,11 @@ export const THERAPIST_ROLES = [
   "massage_therapist",
 ] as const;
 
+export type MarketplaceProductSummary = {
+  is_active: boolean;
+  service_type: string | null;
+};
+
 export type MarketplacePractitioner = {
   id: string;
   first_name: string;
@@ -22,6 +27,11 @@ export type MarketplacePractitioner = {
   /** Discipline (sports_therapist, etc.) — aligned with web marketplace list. */
   user_role: string;
   therapist_type: string | null;
+  mobile_service_radius_km: number | null;
+  base_latitude: number | null;
+  base_longitude: number | null;
+  /** Active products — used with `booking-flow-type` for clinic vs mobile CTAs. */
+  products: MarketplaceProductSummary[];
   bio: string | null;
   average_rating: number;
   total_reviews: number;
@@ -44,6 +54,9 @@ type UserRow = {
   specializations: string[] | null;
   user_role: string;
   therapist_type: string | null;
+  mobile_service_radius_km: number | null;
+  base_latitude: number | null;
+  base_longitude: number | null;
   bio: string | null;
   is_verified: boolean | null;
   profile_photo_url: string | null;
@@ -59,7 +72,7 @@ export async function fetchMarketplacePractitioners(): Promise<{
     const { data: usersData, error: usersError } = await supabase
       .from("users")
       .select(
-        "id, first_name, last_name, location, hourly_rate, specializations, user_role, therapist_type, bio, is_verified, profile_photo_url, accept_in_person_payment, experience_years",
+        "id, first_name, last_name, location, hourly_rate, specializations, user_role, therapist_type, mobile_service_radius_km, base_latitude, base_longitude, bio, is_verified, profile_photo_url, accept_in_person_payment, experience_years",
       )
       // DB has therapist role values beyond generated `UserRole` type
       .in("user_role", [...THERAPIST_ROLES] as unknown as string[])
@@ -79,24 +92,40 @@ export async function fetchMarketplacePractitioners(): Promise<{
 
     const { data: productsData, error: productsError } = await supabase
       .from("practitioner_products")
-      .select("practitioner_id, price_amount, is_active")
+      .select("practitioner_id, price_amount, is_active, service_type")
       .in("practitioner_id", practitionerIds)
       .eq("is_active", true);
 
     if (productsError) throw productsError;
 
-    type ProductRow = { practitioner_id: string; price_amount: number | null };
+    type ProductRow = {
+      practitioner_id: string;
+      price_amount: number | null;
+      is_active: boolean | null;
+      service_type: string | null;
+    };
     const productRows = (productsData || []) as ProductRow[];
 
     const minPriceByPractitioner = new Map<string, number>();
+    const productsByPractitioner = new Map<
+      string,
+      MarketplaceProductSummary[]
+    >();
     for (const row of productRows) {
       const pid = row.practitioner_id;
       const pence = row.price_amount;
-      if (pence == null) continue;
-      const major = pence / 100;
-      const prev = minPriceByPractitioner.get(pid);
-      if (prev === undefined || major < prev)
-        minPriceByPractitioner.set(pid, major);
+      if (pence != null) {
+        const major = pence / 100;
+        const prev = minPriceByPractitioner.get(pid);
+        if (prev === undefined || major < prev)
+          minPriceByPractitioner.set(pid, major);
+      }
+      const list = productsByPractitioner.get(pid) ?? [];
+      list.push({
+        is_active: row.is_active !== false,
+        service_type: row.service_type,
+      });
+      productsByPractitioner.set(pid, list);
     }
 
     const { data: reviewsData, error: reviewsError } = await supabase
@@ -142,6 +171,10 @@ export async function fetchMarketplacePractitioners(): Promise<{
         specializations: p.specializations,
         user_role: p.user_role,
         therapist_type: p.therapist_type,
+        mobile_service_radius_km: p.mobile_service_radius_km,
+        base_latitude: p.base_latitude,
+        base_longitude: p.base_longitude,
+        products: productsByPractitioner.get(p.id) ?? [],
         bio: p.bio?.trim() || null,
         average_rating,
         total_reviews,

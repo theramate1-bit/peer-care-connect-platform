@@ -6,12 +6,15 @@
 
 ## What’s Available
 
-### 1. Playwright E2E (peer-care-connect)
+### 1. Playwright E2E (web)
 
-- **Location:** `peer-care-connect/tests/e2e/treatment-exchange-flow.spec.ts`
-- **Command:** `npm run test:e2e` (or `npx playwright test treatment-exchange-flow.spec.ts`)
-- **Config:** `peer-care-connect/playwright.config.ts`
-- **Base URL:** `http://localhost:3000` (dev server started automatically unless `SKIP_E2E_SERVER` is set)
+**This checkout:** There is **no** `playwright.config` or `*.spec.ts` under the repo root in the default layout. If your branch adds Playwright, colocate config with the web package and document `npm run test:e2e` there.
+
+When present, typical layout is:
+
+- **Spec:** search for `treatment-exchange-flow.spec.ts` or `playwright.config.*`
+- **Command:** `npx playwright test` (from the directory that contains `playwright.config`)
+- **Base URL:** match your web dev server port (often `http://localhost:5173` or `3000`)
 
 | Test group             | Coverage                                     |
 | ---------------------- | -------------------------------------------- |
@@ -22,7 +25,7 @@
 | Cancellation Flow      | Refund tiers (24h+, 2–24h, &lt;2h)           |
 | Error Handling         | Insufficient credits, expired, disabled      |
 
-**Note:** Many tests are placeholders (`expect(true).toBe(true)`) and depend on test users/data. CI runs them with `continue-on-error: true`.
+**Note:** Many tests may be placeholders (`expect(true).toBe(true)`) and depend on test users/data. CI may run them with `continue-on-error: true`.
 
 ### 2. cursor-ide-browser MCP (manual smoke)
 
@@ -39,7 +42,35 @@ Useful for ad‑hoc checks like:
 2. Reschedule flow (recipient uses Reschedule instead of Decline)
 3. Request extension → Approve extension
 
-### 3. Node smoke scripts
+### 3. Staging RPC E2E (recommended)
+
+**`test-scripts/treatment-exchange-staging-e2e.js`** — two authenticated practitioners against staging Supabase:
+
+| Scenario       | What it verifies                                                                                                                                                                              |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Happy path     | `create_treatment_exchange_request` → `accept_exchange_request` → `get_exchange_reciprocal_available_slots` → `book_exchange_reciprocal_session` → `credits_deducted` + `credit_transactions` |
+| Reschedule cap | Two `decline_exchange_request` succeed; third raises `RESCHEDULE_CAP_EXCEEDED`                                                                                                                |
+
+```bash
+# .env (repo root)
+EXCHANGE_REQUESTER_EMAIL=...
+EXCHANGE_REQUESTER_PASSWORD=...
+EXCHANGE_RECIPIENT_EMAIL=...
+EXCHANGE_RECIPIENT_PASSWORD=...
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_ANON_KEY=...   # or VITE_SUPABASE_PUBLISHABLE_KEY
+
+npm run test:exchange:e2e
+# Dry-run (sign-in + tier/credits check, no RPC writes): npm run test:exchange:e2e:dry
+# Without EXCHANGE_* in .env the script exits 0 with a skip message.
+```
+
+### 4. Maestro (mobile UI)
+
+See **`theramate-ios-client/.maestro/README.md`**. Flows use `testID`s: `exchange-segment-discover`, `exchange-send-request`, `exchange-accept`, `exchange-reschedule`, `exchange-reciprocal-slot`.
+
+### 5. Other Node scripts
 
 - **`test-scripts/qa-email-guest-location-smoke.js`** – Email + guest/location (no treatment exchange)
 - **`test-scripts/user-journey-tests.js`** – Payment user journeys (no treatment exchange)
@@ -66,16 +97,26 @@ Useful for ad‑hoc checks like:
 ## Running smoke tests
 
 ```bash
-# 1. Playwright (from peer-care-connect)
-cd peer-care-connect
-npm run test:e2e                              # all E2E
-npx playwright test treatment-exchange-flow  # treatment exchange only
-npx playwright test --project=chromium        # chromium only (faster)
+# 1. Treatment exchange staging E2E (RPC — primary)
+npm run test:exchange:e2e
 
-# 2. Dev server must be running for full E2E
-npm run dev &   # or use SKIP_E2E_SERVER if app is already up
-npm run test:e2e
+# 2. Maestro (mobile UI — optional)
+cd theramate-ios-client && maestro test .maestro/exchange-happy-path-requester.yaml
+
+# 3. Playwright (web — not in this checkout; see e2e/README.md)
+
+# 4. Backend Jest (present in backend/package.json)
+cd backend
+npm run test:unit
+npm run test:integration
+npm run test:ci
+
+# 3. Web Jest — root package.json may expose test:web when the web workspace exists
+cd ..   # repo root
+npm run test:web   # verify in root package.json; fails if workspace package is missing
 ```
+
+For **manual** checks, use the **cursor-ide-browser** MCP (section 2) or run Node scripts under `test-scripts/` (section 3).
 
 ---
 

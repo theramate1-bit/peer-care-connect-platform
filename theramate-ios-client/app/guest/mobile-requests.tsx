@@ -8,12 +8,17 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { format } from "date-fns";
 
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
-import { format } from "date-fns";
+import {
+  fetchGuestMobileRequestsByEmail,
+  fetchGuestMobileRequestSessionLink,
+  type GuestMobileRequestRow,
+} from "@/lib/api/guestMobileRequests";
 
 type CancelResult = {
   success?: boolean;
@@ -21,73 +26,36 @@ type CancelResult = {
   request_id?: string;
 };
 
-type GuestMobileRequest = {
-  id: string;
-  requested_date: string;
-  requested_start_time: string;
-  duration_minutes: number;
-  total_price_pence: number;
-  status: string | null;
-  payment_status: string | null;
-  client_address: string | null;
-  created_at: string | null;
-};
-
 export default function GuestMobileRequestsScreen() {
+  const { requestId: routeRequestId } = useLocalSearchParams<{
+    requestId?: string;
+  }>();
   const [email, setEmail] = React.useState("");
-  const [requestId, setRequestId] = React.useState<string>("");
-  const [requests, setRequests] = React.useState<GuestMobileRequest[]>([]);
+  const [requestId, setRequestId] = React.useState(
+    typeof routeRequestId === "string" ? routeRequestId : "",
+  );
+  const [requests, setRequests] = React.useState<GuestMobileRequestRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<string | null>(null);
   const [searching, setSearching] = React.useState(false);
+  const [openingSessionId, setOpeningSessionId] = React.useState<string | null>(
+    null,
+  );
 
   const searchRequests = async () => {
     if (!email) return;
     setSearching(true);
     setResult(null);
     try {
-      const emailNorm = email.trim().toLowerCase();
-      // Use the guest-optimized RPC so this screen works even when table RLS blocks
-      // anon reads of `users` / `mobile_booking_requests`.
-      const { data, error } = await supabase.rpc(
-        "get_guest_mobile_requests_by_email",
-        {
-          p_email: emailNorm,
-        },
-      );
+      const { data, error } = await fetchGuestMobileRequestsByEmail(email);
       if (error) {
         setResult(error.message || "Could not load requests.");
         return;
       }
-
-      const rows = (data || []) as Array<{
-        id: string;
-        requested_date: string | null;
-        requested_start_time: string | null;
-        duration_minutes: number | null;
-        total_price_pence: number | null;
-        status: string | null;
-        payment_status: string | null;
-        client_address: string | null;
-        created_at: string | null;
-      }>;
-
-      setRequests(
-        rows.map((r) => ({
-          id: r.id,
-          requested_date: r.requested_date ?? "",
-          requested_start_time: r.requested_start_time ?? "",
-          duration_minutes: r.duration_minutes ?? 0,
-          total_price_pence: r.total_price_pence ?? 0,
-          status: r.status,
-          payment_status: r.payment_status,
-          client_address: r.client_address,
-          created_at: r.created_at,
-        })),
-      );
-
-      if (!rows || rows.length === 0)
+      setRequests(data);
+      if (data.length === 0) {
         setResult("No mobile requests found for this email.");
+      }
     } finally {
       setSearching(false);
     }
@@ -119,6 +87,55 @@ export default function GuestMobileRequestsScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openGuestSession = async (request: GuestMobileRequestRow) => {
+    if (!request.session_id) return;
+    const emailNorm = email.trim().toLowerCase();
+    if (!emailNorm) {
+      Alert.alert("Email required", "Enter your email to view the session.");
+      return;
+    }
+
+    let token = request.guest_view_token?.trim() || null;
+    if (!token) {
+      setOpeningSessionId(request.id);
+      try {
+        const { sessionId, guestViewToken, error } =
+          await fetchGuestMobileRequestSessionLink({
+            requestId: request.id,
+            email: emailNorm,
+          });
+        if (error || !sessionId) {
+          Alert.alert(
+            "Could not open session",
+            error?.message ||
+              "Use the secure link from your confirmation email, or contact support.",
+          );
+          return;
+        }
+        token = guestViewToken?.trim() || null;
+        if (!token) {
+          Alert.alert(
+            "Secure link required",
+            "Open the booking details link from your confirmation email.",
+          );
+          return;
+        }
+        router.push({
+          pathname: "/booking/view/[sessionId]",
+          params: { sessionId, token },
+        });
+      } finally {
+        setOpeningSessionId(null);
+      }
+      return;
+    }
+
+    router.push({
+      pathname: "/booking/view/[sessionId]",
+      params: { sessionId: request.session_id, token },
+    });
   };
 
   return (
@@ -216,6 +233,13 @@ export default function GuestMobileRequestsScreen() {
                   Status: {r.status || "pending"} · Payment:{" "}
                   {r.payment_status || "pending"}
                 </Text>
+                {r.expires_at &&
+                (r.status || "").toLowerCase() === "pending" ? (
+                  <Text className="text-warning text-xs mt-1">
+                    Expires:{" "}
+                    {format(new Date(r.expires_at), "EEE d MMM · HH:mm")}
+                  </Text>
+                ) : null}
                 {r.client_address ? (
                   <Text
                     className="text-charcoal-400 text-xs mt-1"
@@ -224,8 +248,21 @@ export default function GuestMobileRequestsScreen() {
                     {r.client_address}
                   </Text>
                 ) : null}
+                {(r.status || "").toLowerCase() === "accepted" &&
+                r.session_id ? (
+                  <View className="mt-3">
+                    <Button
+                      variant="primary"
+                      onPress={() => void openGuestSession(r)}
+                      isLoading={openingSessionId === r.id}
+                      disabled={openingSessionId === r.id}
+                    >
+                      View session
+                    </Button>
+                  </View>
+                ) : null}
                 <Text className="text-sage-600 text-xs mt-2">
-                  Tap to select ID for actions
+                  Tap card to select ID for cancel
                 </Text>
               </TouchableOpacity>
             ))}

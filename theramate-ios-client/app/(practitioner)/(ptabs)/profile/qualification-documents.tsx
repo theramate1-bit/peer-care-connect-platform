@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Linking,
-} from "react-native";
+import { View, Text, Alert, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppStackHeader } from "@/components/navigation/AppStackHeader";
@@ -20,6 +13,7 @@ import {
   uploadQualificationDocumentForPractitioner,
   validateQualificationDocumentSize,
 } from "@/lib/qualificationDocuments";
+import { openSignedDocumentUrl } from "@/lib/openSignedDocument";
 
 type QualificationDocument = {
   id: string;
@@ -161,7 +155,7 @@ export default function PractitionerQualificationDocumentsScreen() {
                 <View className="flex-row gap-2 mt-2">
                   <Button
                     variant="outline"
-                    onPress={() => void Linking.openURL(item.file_url)}
+                    onPress={() => openSignedDocumentUrl(item.file_url)}
                   >
                     Open
                   </Button>

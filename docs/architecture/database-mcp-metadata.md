@@ -41,6 +41,8 @@ Tables and views that have PostgreSQL `COMMENT ON TABLE`:
 | v_paid_sessions                | Paid sessions view - respects RLS on underlying tables                                                                                                                |
 | v_practice_totals              | Practice totals view - respects RLS on underlying tables                                                                                                              |
 
+**Note:** The **`marketplace_practitioners`** view is valid for PostgREST browsing, but the **web and native marketplace lists** in this repo typically load practitioners via **`users`** and `fetchMarketplacePractitioners` / `THERAPIST_ROLES` (`src/lib/marketplacePractitioners.ts`, `theramate-ios-client/lib/api/marketplace.ts`) instead of querying this view. Treat the view as one consumer among several.
+
 ---
 
 ## RLS policy counts

@@ -1,6 +1,6 @@
 # Practitioner mobile — remaining work & status
 
-**Purpose:** Track parity gaps vs web (`peer-care-connect` / Supabase) and what is implemented in `theramate-ios-client/app/(practitioner)/` — **tabs** under `(ptabs)/`, **stack-only** flows (clients, care plans editor, billing, etc.) as siblings of `(ptabs)/` under the same `(practitioner)` group.  
+**Purpose:** Track parity gaps vs web (repo-root **`src/`** + **`supabase/`**) and what is implemented in `theramate-ios-client/app/(practitioner)/` — **tabs** under `(ptabs)/`, **stack-only** flows (clients, care plans editor, billing, etc.) as siblings of `(ptabs)/` under the same `(practitioner)` group.  
 **Practitioner tab bar:** Five tabs (Home, Diary/schedule, Sessions, Messages, Profile), aligned with web primary destinations; nested billing/Connect/analytics routes must stay off the bar (see `MOBILE_WEB_FULL_SCREEN_INVENTORY.md`).
 
 **Updated:** 2026-04-21 — Same as 2026-04-10, plus checklist alignment pass: this file is now explicitly reconciled with `MOBILE_NATIVE_COMPLETION_CHECKLIST.md` for P1 clients/projects and care-plan/clinical fallback rows. **Native-first money and documents** remain: client **Stripe Checkout** (when Payment Sheet unavailable), **Customer Portal**, **mobile checkout reopen**, **message attachments**, **notification URLs**, and practitioner **report exports** + **plan/clinical attachment** opens use **allowlisted in-app WebView** (`app/hosted-web.tsx`, `lib/openHostedWeb.ts`, `ControlledHostedWebView`) instead of Safari. OAuth may still use system browser via `lib/supabase.ts`.
@@ -81,10 +81,10 @@
 
 ## 6. QA / release
 
-| Item                                       | Status  | Notes                                                                                                                                                                  |
-| ------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Role routing (client vs practitioner)      | Done    | Fixed: only **clients** use in-app onboarding; practitioners no longer get routed to client onboarding after OAuth.                                                    |
-| E2E: exchange accept on web from deep link | Backlog | **Mobile:** pending + reciprocal rows open **`/practice/exchange-requests?request=<id>`**. **Web:** implement query handler in `peer-care-connect` (not in this repo). |
+| Item                                       | Status  | Notes                                                                                                                                                                                                                |
+| ------------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role routing (client vs practitioner)      | Done    | Fixed: only **clients** use in-app onboarding; practitioners no longer get routed to client onboarding after OAuth.                                                                                                  |
+| E2E: exchange accept on web from deep link | Backlog | **Mobile:** pending + reciprocal rows open **`/practice/exchange-requests?request=<id>`**. **Web:** implement query handler on the consumer site (repo-root **`src/`** routes or app shell that owns `/practice/*`). |
 
 ---
 

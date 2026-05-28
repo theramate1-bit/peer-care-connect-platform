@@ -22,7 +22,7 @@ Identified gaps in the **logical use** of the email system and clinic/mobile/hyb
 
 ## 3. Practitioner dashboard / Credits session list use profile location
 
-**Where:** `peer-care-connect/src/pages/Credits.tsx` (exchange session list).
+**Where:** `search src/ + native credits screens` (exchange session list).
 
 **Status:** **Fixed.** The peer-sessions transform now preserves `appointment_type`, `visit_address`, and practitioner `clinic_address`. The list uses `getSessionLocation(session, session.practitioner)` so location is derived from the booking record (clinic at [address] or visit at [address] / "Visit address to be confirmed").
 
@@ -30,7 +30,7 @@ Identified gaps in the **logical use** of the email system and clinic/mobile/hyb
 
 ## 4. BookingCalendar modal does not show session location
 
-**Where:** `peer-care-connect/src/components/BookingCalendar.tsx`.
+**Where:** `theramate-ios-client/app/(practitioner)/(ptabs)/schedule/ + src/pages/practice/UpcomingSessions.tsx`.
 
 **Status:** **Implemented.** Sessions are mapped to `BookingEvent` with `location` from `getSessionLocation(session, session.therapist)`. The modal shows `selectedBookingForModal.location` when set.
 
@@ -51,7 +51,7 @@ Identified gaps in the **logical use** of the email system and clinic/mobile/hyb
 
 ## 6. Post-booking side effect uses practitioner.location only
 
-**Where:** `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx` (e.g. around line 442): `sessionLocation: practitioner?.location ?? undefined` in a post-booking side effect (e.g. analytics or logging).
+**Where:** `src/components/booking/BookingFlow.tsx (guestMode)` (e.g. around line 442): `sessionLocation: practitioner?.location ?? undefined` in a post-booking side effect (e.g. analytics or logging).
 
 **Behaviour:** That side effect does not use session `appointment_type` or `visit_address`; it uses practitioner location only.
 

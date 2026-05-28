@@ -16,28 +16,17 @@ Handover note for the next engineer working on the three practitioner types. Thi
 
 ---
 
-## 2. Where each type is used (quick map)
+## 2. Where each type is used (quick map — this repo)
 
-- **`src/lib/booking-flow-type.ts`** – Central logic: `canBookClinic`, `canRequestMobile`, `getEffectiveProductServiceType`, `isProductClinicBookable`, `isProductMobileBookable`, `defaultBookingFlowType`. All three types handled.
-- **`src/pages/Marketplace.tsx`** – Eligibility `isPractitionerEligibleForMarketplace`, filter by `therapist_type`, `HybridBookingChooser` when both flows available. Uses `isValidTherapistType` (clinic_based | mobile | hybrid).
-- **`src/lib/geo-search-service.ts`** – Distance/origin: mobile/hybrid use **base** coords only in fallback; no clinic fallback (hybrid without base drops out of mobile geo results).
-- **`src/components/marketplace/BookingFlow.tsx`** + **GuestBookingFlow.tsx** – Clinic flow; pass `therapistType` and `requestedAppointmentType="clinic"` into slot generation.
-- **`src/components/marketplace/MobileBookingRequestFlow.tsx`** – Mobile request flow; distance from **base** only; shows “Practitioner must set base address for mobile bookings” when base missing.
-- **`src/lib/slot-generation-utils.ts`** – Buffers: clinic↔mobile and mobile↔mobile use 30 min for hybrid/mobile; `therapistType` and `requestedAppointmentType` must be passed by callers.
-- **`src/pages/Profile.tsx`** – Validation: clinic*based → clinic_address; mobile → base_address + radius; hybrid → clinic_address + radius (no base_address required in UI). **Save:** for hybrid, base*_ is synced from clinic\__ so DB has base for mobile.
-- **`src/pages/auth/Onboarding.tsx`** – Same idea: hybrid only requires clinic address + radius; base derived from clinic.
-- **`src/components/practitioner/ProductForm.tsx`** – Service type: hybrid can choose clinic / mobile / both; mobile can only choose mobile.
-- **`src/pages/practice/PracticeClientManagement.tsx`** – Internal booking: clinic vs mobile; slot picker gets `therapistType` and `requestedAppointmentType`; visit address required for mobile.
-- **`src/components/dashboards/TherapistDashboard.tsx`** – Session cards show “Clinic” vs “Mobile” and location for hybrid/mobile when `appointment_type` / `visit_address` present.
-- **`src/components/practitioner/MobileRequestManagement.tsx`** – Accept/decline mobile requests; “View session” uses `session_id` from RPC; applies to both mobile and hybrid.
-- **`src/lib/reschedule-service.ts`** – Uses `therapistType` and `requestedAppointmentType` for buffer conflict check; handles all three types.
+> **Important:** The monolithic **`src/lib/booking-flow-type.ts`** and many **`src/pages/Marketplace.tsx`** / **`src/components/marketplace/*`** paths described in older handovers **are not present** in repo-root `src/` on this branch. Use the following instead:
 
-**Backend (Supabase):**
-
-- **`create_mobile_booking_request`** – Requires `base_latitude` / `base_longitude` for mobile and hybrid; no clinic fallback.
-- **`get_directional_booking_buffer_minutes`** – 30 min for (hybrid: mobile→clinic, clinic→mobile, mobile→mobile); 15 otherwise.
-- **`get_practitioner_mobile_requests`** – Returns `session_id`; used for mobile and hybrid.
-- **`create_booking_with_validation`** – Rejects mobile when `p_visit_address` is null/blank; uses directional buffer.
+- **Flow rules (narrative):** [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md)
+- **Web clinic booking:** [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (guests: `guestMode`)
+- **Web discovery / booking entry:** [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx), [src/pages/discovery/TherapistSearch.tsx](../../src/pages/discovery/TherapistSearch.tsx), [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts)
+- **Native practitioner detail (CTAs):** `theramate-ios-client/app/(tabs)/explore/[id].tsx` (`canBookClinic`, `canRequestMobile`)
+- **Native mobile requests:** [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts), `theramate-ios-client/app/(practitioner)/mobile-requests/`
+- **Native availability / slots / exchange:** `theramate-ios-client/lib/api/booking.ts`, `theramate-ios-client/lib/api/practitionerAvailability.ts`, `theramate-ios-client/lib/api/practitionerExchange.ts`
+- **Backend (Supabase):** `supabase/migrations`, RPCs `create_mobile_booking_request`, `create_booking_with_validation`, `get_directional_booking_buffer_minutes`, etc.
 
 ---
 
@@ -56,19 +45,16 @@ Handover note for the next engineer working on the three practitioner types. Thi
 - **Mobile CTA** uses `canRequestMobile`, which requires **base** coords only (no clinic fallback).
 - So: hybrid with only clinic coords appears on marketplace, can be booked at clinic only; “Request mobile session” does not show until they have base (e.g. after Profile save, which syncs base from clinic). This is intentional; no code bug, but worth documenting so the next engineer doesn’t “fix” it by re-adding a clinic fallback for mobile.
 
-### 3.3 Refetch practitioner payload (Marketplace)
+### 3.3 Refetch practitioner payload (web booking modal)
 
-- **`refetchPractitioner`** in Marketplace fetches practitioner when opening the booking modal but does **not** select `clinic_latitude` / `clinic_longitude` in the `users` select (it does select `base_latitude`, `base_longitude`, `therapist_type`, etc.).
-- **Impact:** `canRequestMobile(refreshed)` only sees base*\*; it does not see clinic*\*. That’s correct for **current** rules (mobile requires base only). So no bug, but if anyone later re-introduces a clinic fallback for hybrid in `canRequestMobile`, they’d need to add clinic_lat/lon to this refetch.
+- Older **Marketplace** implementations refetched practitioner rows when opening the booking modal. In this repo, trace **`BookingFlow`** / **`ClientBooking`** and ensure any refetch used for **mobile** eligibility includes **`base_latitude` / `base_longitude`** (and clinic coords only where clinic booking needs them).
 
-### 3.4 PostGIS RPC `find_practitioners_by_distance`
-
-- Geo search uses Supabase RPC `find_practitioners_by_distance` when available; fallback is in `geo-search-service.ts` (base-only for mobile/hybrid).
-- The **RPC** definition was not found in the migrations searched; it may live in another repo or migration. The next engineer should confirm that the RPC uses **base** as origin for mobile and hybrid (and does not use clinic for hybrid), so geo results stay aligned with `canRequestMobile` and `create_mobile_booking_request`.
+- Geo search uses Supabase RPC `find_practitioners_by_distance` when available; client-side distance logic may live in web/native booking code — **search** `src/` and `theramate-ios-client/` for `find_practitioners_by_distance` / radius checks.
+- The **RPC** definition may not appear in every branch’s migrations; confirm in your linked Supabase project that the RPC uses **base** as origin for mobile and hybrid (not clinic for hybrid mobile).
 
 ### 3.5 Product `service_type` vs practitioner type
 
-- **`getEffectiveProductServiceType`** in `booking-flow-type.ts` normalises product `service_type` by practitioner type (e.g. clinic_based + product “mobile” → “clinic”; mobile + product “clinic” → “mobile”; hybrid → “both” when product type is missing). All three types are handled; no known gap, but any new product or practitioner-type logic should go through this helper so behaviour stays consistent.
+- **`getEffectiveProductServiceType`** — product `service_type` is still normalized in **web** booking code and **RPCs**; locate helpers by searching `src/components/booking` and `theramate-ios-client/lib/api/booking.ts` for `service_type` / clinic vs mobile product filtering.
 
 ### 3.6 Reschedule and internal booking
 
@@ -79,7 +65,7 @@ Handover note for the next engineer working on the three practitioner types. Thi
 
 ## 4. Summary for handover
 
-- **Three types:** clinic_based, mobile, hybrid. Single source of truth for “who can do what” is `booking-flow-type.ts` plus backend RPCs.
+- **Three types:** clinic_based, mobile, hybrid. Behaviour is split across **web `BookingFlow`**, **native explore + booking APIs**, and **Supabase RPCs** — there is no single `booking-flow-type.ts` file in repo-root `src/` to edit for all surfaces.
 - **Hybrid:** Can offer clinic and mobile. Mobile is only offered when **base** coords (and radius) exist; no clinic fallback in backend or in `canRequestMobile` / geo fallback. Profile/onboarding sync base from clinic on save so hybrids get base after first save.
 - **Main gap:** `HYBRID_CLINIC_AND_MOBILE_BOOKING_RULES.md` is out of date and should be updated or superseded.
 - **Verify after changes:** Run through marketplace (list, clinic book, mobile request), Profile save (hybrid base sync), geo search, and internal booking for all three types; confirm no unintended clinic fallback for mobile.
@@ -90,7 +76,7 @@ Handover note for the next engineer working on the three practitioner types. Thi
 
 - **Plan:** `.cursor/plans/hybrid_mobile_eligibility_and_ops_b7ce41be.plan.md`
 - **DB alignment:** `docs/product/SUPABASE_MCP_ALIGNMENT_HYBRID_MOBILE.md`
-- **Booking flow logic:** `peer-care-connect/src/lib/booking-flow-type.ts`
+- **Booking flow logic:** [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md); [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx); native `theramate-ios-client/app/(tabs)/explore/[id].tsx`
 - **Out of date (update or supersede):** `docs/product/HYBRID_CLINIC_AND_MOBILE_BOOKING_RULES.md`
 
 **Type-specific docs (touchpoints per practitioner type):**

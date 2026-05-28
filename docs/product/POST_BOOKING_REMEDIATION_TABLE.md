@@ -17,12 +17,12 @@ Product decision captured: guests should be **self-serve** post-booking (guest-s
 
 ## Confirmed Evidence
 
-- `peer-care-connect/src/pages/BookingSuccess.tsx`
-- `peer-care-connect/src/pages/booking/GuestBookingView.tsx`
-- `peer-care-connect/src/pages/client/MySessions.tsx`
-- `peer-care-connect/src/components/sessions/SessionDetailView.tsx`
-- `peer-care-connect/src/utils/sessionLocation.ts`
-- `peer-care-connect/src/components/AppContent.tsx`
+- `search src/ for booking success`
+- `search src/ for booking pagesGuestBookingView.tsx`
+- `search src/pages + native bookings`
+- `search src/ + native session detail`
+- `theramate-ios-client/lib/sessionLocation.ts (native); search src/ for web session location`
+- `search src/ app routing (layout)`
 
 ## Fix Order
 

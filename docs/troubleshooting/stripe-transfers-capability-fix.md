@@ -100,7 +100,7 @@ The issue was in the `handleCreatePaymentIntent` function in `supabase/functions
 ### Deployment Command
 
 ```powershell
-cd "C:\Users\rayma\Desktop\New folder\peer-care-connect"
+cd <path-to-this-repo-root>
 supabase functions deploy stripe-payment --project-ref aikqnvltuwwgifuocvto
 ```
 

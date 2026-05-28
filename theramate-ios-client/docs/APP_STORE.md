@@ -16,7 +16,7 @@
 6. **Encryption export compliance** — `ITSAppUsesNonExemptEncryption` is **false** in `app.config.js` (standard TLS only). In App Store Connect, answer the encryption questionnaire accordingly (typically “uses encryption exempt under EAR”).
 7. **Privacy Nutrition Labels** — In App Store Connect, declare data collected (account, health/fitness if applicable, location for therapist search, purchases, etc.) to match actual app behaviour and your privacy policy (`https://theramate.com/privacy` in config).
 8. **Universal Links** — `associatedDomains` are set for `theramate.com` / `www`. Host **apple-app-site-association** on those domains or Universal Links will not open the app from Safari.
-9. **Payments & portal in-app** — Primary **Stripe Checkout**, **Customer Portal**, and **signed document/export** flows use an **allowlisted in-app WebView** (`app/hosted-web.tsx`, `app/stripe-customer-portal.tsx`) so users are not sent to the system browser for those steps. OAuth sign-in may still use `Linking.openURL` as required by the provider.
+9. **Payments & portal in-app** — Primary **Stripe Checkout**, **Customer Portal**, and **signed document/export** flows use an **allowlisted in-app WebView** (`app/hosted-web.tsx`, `app/stripe-customer-portal.tsx`) so users are not sent to the system browser for those steps. **OAuth** uses **`expo-web-browser` `openAuthSessionAsync`** (in-app auth sheet, same PKCE flow); deep links to `oauth-callback` remain for Universal Links fallback.
 
 ## Build & submit commands
 

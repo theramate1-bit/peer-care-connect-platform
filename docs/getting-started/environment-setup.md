@@ -14,11 +14,14 @@ Environment variables are used to configure:
 
 ## File Structure
 
+At the **repository root** (not a nested `peer-care-connect/` app folder):
+
 ```
-peer-care-connect/
-├── .env.local          # Local development (gitignored)
-├── .env.example       # Template for developers
-└── env.production.example  # Production template
+./
+├── .env.local                 # Local development (gitignored) — copy from env.production.example
+├── env.production.example     # Template for variables (repo root)
+├── theramate-ios-client/.env.example   # Expo public keys
+└── ...
 ```
 
 ## Required Variables

@@ -5,6 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -12,20 +13,16 @@ import { format } from "date-fns";
 
 import { Colors } from "@/constants/colors";
 import { Button } from "@/components/ui/Button";
-import { findBookingsByEmail } from "@/lib/api/guestBooking";
+import {
+  findBookingsByEmail,
+  type GuestBookingLookupRow,
+} from "@/lib/api/guestBooking";
 
 export default function FindBookingScreen() {
   const [email, setEmail] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [results, setResults] = React.useState<
-    Array<{
-      id: string;
-      session_date: string;
-      start_time: string;
-      status: string | null;
-    }>
-  >([]);
+  const [results, setResults] = React.useState<GuestBookingLookupRow[]>([]);
 
   const search = async () => {
     setError(null);
@@ -36,17 +33,25 @@ export default function FindBookingScreen() {
         setError(e.message || "Could not find bookings right now.");
         return;
       }
-      setResults(
-        data.map((r) => ({
-          id: r.id,
-          session_date: r.session_date,
-          start_time: r.start_time,
-          status: r.status,
-        })),
-      );
+      setResults(data);
     } finally {
       setLoading(false);
     }
+  };
+
+  const openSession = (row: GuestBookingLookupRow) => {
+    const token = row.guest_view_token?.trim();
+    if (!token) {
+      Alert.alert(
+        "Secure link required",
+        "Open the booking details link from your confirmation email, or contact support.",
+      );
+      return;
+    }
+    router.push({
+      pathname: "/booking/view/[sessionId]",
+      params: { sessionId: row.session_id, token },
+    });
   };
 
   return (
@@ -84,7 +89,7 @@ export default function FindBookingScreen() {
           className="mt-4"
           onPress={() => void search()}
           isLoading={loading}
-          disabled={!email}
+          disabled={!email.trim()}
         >
           Search bookings
         </Button>
@@ -96,14 +101,9 @@ export default function FindBookingScreen() {
             </Text>
             {results.map((s) => (
               <TouchableOpacity
-                key={s.id}
+                key={s.session_id}
                 className="bg-white border border-cream-200 rounded-xl px-4 py-3 mb-3"
-                onPress={() =>
-                  router.push({
-                    pathname: "/booking/view/[sessionId]",
-                    params: { sessionId: s.id },
-                  })
-                }
+                onPress={() => openSession(s)}
               >
                 <Text className="text-charcoal-900 font-medium">
                   {format(
@@ -112,10 +112,19 @@ export default function FindBookingScreen() {
                   )}{" "}
                   at {s.start_time?.slice(0, 5)}
                 </Text>
+                {s.practitioner_name ? (
+                  <Text className="text-charcoal-500 text-sm mt-1">
+                    {s.practitioner_name}
+                  </Text>
+                ) : null}
                 <Text className="text-charcoal-500 text-sm mt-1">
                   Status: {s.status || "unknown"}
                 </Text>
-                <Text className="text-sage-600 text-sm mt-1">Open booking</Text>
+                <Text className="text-sage-600 text-sm mt-1">
+                  {s.guest_view_token?.trim()
+                    ? "View booking"
+                    : "Use email link to open"}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>

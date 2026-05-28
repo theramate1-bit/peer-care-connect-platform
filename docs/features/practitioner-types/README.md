@@ -16,8 +16,8 @@
 
 ## Canonical product narratives (detail + diagrams)
 
-- [Clinic, mobile & hybrid flows](../clinic-mobile-hybrid-flows.md) — full reference (some components still named for legacy app layout).
-- [PRACTITIONER_TYPE_CLINIC_BASED.md](../../product/PRACTITIONER_TYPE_CLINIC_BASED.md), [PRACTITIONER_TYPE_MOBILE.md](../../product/PRACTITIONER_TYPE_MOBILE.md), [PRACTITIONER_TYPE_HYBRID.md](../../product/PRACTITIONER_TYPE_HYBRID.md) — behaviour matrices (`peer-care-connect/` paths; concepts unchanged).
+- [Clinic, mobile & hybrid flows](../clinic-mobile-hybrid-flows.md) — full reference (names of UI components may differ by branch).
+- [PRACTITIONER_TYPE_CLINIC_BASED.md](../../product/PRACTITIONER_TYPE_CLINIC_BASED.md), [PRACTITIONER_TYPE_MOBILE.md](../../product/PRACTITIONER_TYPE_MOBILE.md), [PRACTITIONER_TYPE_HYBRID.md](../../product/PRACTITIONER_TYPE_HYBRID.md) — behaviour matrices; trace code under repo-root **`src/`** / **`theramate-ios-client/`** when paths in those docs lag.
 
 ## Related
 

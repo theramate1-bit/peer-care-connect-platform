@@ -16,7 +16,7 @@ Context for **guest** users (`users.user_role = 'guest'`, sessions with `is_gues
 
 ## Related docs
 
-- [USER_TYPE_GUEST.md](../../product/USER_TYPE_GUEST.md) — legacy detailed narrative (still references `peer-care-connect/` paths; concepts align).
+- [USER_TYPE_GUEST.md](../../product/USER_TYPE_GUEST.md) — detailed narrative (some paths may still show historical folder names; concepts align).
 - [Client features](../client/README.md) — registered client flows (contrast).
 - [GUEST_VS_CLIENT_RULES.md](../../development/GUEST_VS_CLIENT_RULES.md)
 - [USER_TYPES_OVERVIEW.md](../../product/USER_TYPES_OVERVIEW.md)

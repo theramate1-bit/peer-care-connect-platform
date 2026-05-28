@@ -10,7 +10,7 @@ Sources reviewed:
 - `docs/product/PRACTITIONER_MOBILE_REMAINING.md`
 - `docs/features/mobile-hybrid-practitioner-booking-gaps.md`
 
-Last reviewed: 2026-04-21
+Last reviewed: 2026-05-26
 
 ---
 
@@ -81,25 +81,30 @@ Legend:
 
 ### 5) Account + subscription (client/practitioner profile areas)
 
-- Status: `Open/Partial`
-- Missing:
-  - Native subscription + billing management replacing web dependency in:
-    - `app/settings/subscription.tsx`
-    - `app/(tabs)/profile/payment-methods.tsx`
-    - profile subscription rows
-  - Native privacy tooling replacing account-web dependence
-  - Native help-centre knowledge base/FAQ parity
-  - Optional native content pages (`how-it-works`, `contact`, `pricing`)
-- Source: `MOBILE_NATIVE_COMPLETION_CHECKLIST.md` (P2)
+- Status: `Partial` (2026-05-26)
+- Done:
+  - Help centre FAQ — `HelpCentreContent.tsx`, `help-centre.tsx`
+  - Platform subscribe — `platformSubscriptionCheckout.ts`, `pricing.tsx`, `subscription-success.tsx`
+  - Payment methods list + portal WebView — `payment-methods.tsx`
+  - Marketing shells — `how-it-works`, `contact`, `pricing`
+  - Privacy/legal in-app — `PrivacySecurityContent.tsx`, cookie policy route
+- Still open:
+  - Plan change UX without extra web hops (portal WebView remains)
+  - Privacy export/delete account flows
+  - Analytics report export without WebView (W2-4)
+- Source: `MOBILE_NATIVE_COMPLETION_CHECKLIST.md` (P2), [WEB_APP_FEATURE_PARITY.md](./WEB_APP_FEATURE_PARITY.md)
 
 ### 6) Booking mode clarity (mobile/hybrid), address/location, and messaging of location
 
-- Status: `Partial`
-- Missing:
-  - Ensure all booking entry points consistently branch by practitioner type
-  - Ensure location/address handling is explicit and consistent for clinic vs mobile sessions
-  - Keep practitioner/client confirmations and in-app notifications aligned with selected session location
-- Source: `docs/features/mobile-hybrid-practitioner-booking-gaps.md` (gap analysis + recommendations)
+- Status: `Resolved` (P0 + P1-1 email-on-accept)
+- Done (2026-05-25):
+  - App `booking-flow-type` parity with web
+  - Guest + client mobile session handoff (migrations applied on Supabase `aikqnvltuwwgifuocvto`)
+  - `expires_at` on app mobile request UIs; client RPC returns `guest_view_token`
+  - Guest backfill for legacy mobile sessions missing tokens
+- Done (2026-05-25): Resend on accept via `send-booking-notification` (`emailType: mobile_accept`) — client `mobile_request_accepted_client` + practitioner `booking_confirmation_practitioner` with visit address
+- Done (2026-05-26): Web `FindBooking` + `GuestBookingView` in `src/`; Resend on **decline** via `queue_mobile_request_client_email` + `emailType: mobile_decline`
+- Source: [WEB_APP_FEATURE_PARITY.md](./WEB_APP_FEATURE_PARITY.md), `docs/features/mobile-hybrid-practitioner-booking-gaps.md`
 
 ### 7) Cleanup and guardrails
 
@@ -116,11 +121,11 @@ Legend:
 
 ---
 
-## C) Suggested immediate next steps
+## C) Suggested immediate next steps (CTO/PM — 2026-05-25)
 
-1. Keep docs/index links in sync as features evolve (resolved in this pass).
-2. Reconcile status conflicts between checklist and practitioner-remaining docs.
-3. Prioritize P0 blockers first:
-   - Billing/Connect parity
-   - Schedule/scheduler/calendar parity
-4. Keep this index updated weekly as the single feature-gap snapshot.
+1. **QA sign-off:** Guest mobile accept → View session (app + web); signed-in client with `guest_view_token`; hybrid booking rules on device.
+2. **Deploy** `send-booking-notification` edge function after pulling `mobile_accept` changes.
+3. **P2 account:** QA platform subscribe + portal; analytics export in-app (see section 5).
+4. Reconcile `MOBILE_NATIVE_COMPLETION_CHECKLIST.md` vs `PRACTITIONER_MOBILE_REMAINING.md`.
+5. Run `npm run test:readiness` before store build (see [APP_RELEASE_READINESS.md](./APP_RELEASE_READINESS.md)).
+6. Track waves and sign-offs in [APP_RELEASE_BACKLOG_CTO_PM.md](./APP_RELEASE_BACKLOG_CTO_PM.md).

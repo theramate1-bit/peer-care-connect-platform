@@ -19,101 +19,76 @@ export type ClientMobileRequest = {
   alternate_date: string | null;
   alternate_start_time: string | null;
   created_at: string | null;
+  expires_at: string | null;
   session_id: string | null;
+  guest_view_token: string | null;
 };
 
-type MobileRequestRow = {
+type RpcRow = {
   id: string;
-  practitioner_id: string | null;
-  product_id: string | null;
+  practitioner_id: string;
+  practitioner_name: string;
+  product_id: string;
+  product_name: string;
   service_type: string;
   requested_date: string;
   requested_start_time: string;
   duration_minutes: number;
+  client_address: string | null;
   total_price_pence: number;
   payment_status: string | null;
   status: string | null;
-  client_address: string | null;
-  client_notes: string | null;
   decline_reason: string | null;
   alternate_date: string | null;
   alternate_start_time: string | null;
+  client_notes: string | null;
   created_at: string | null;
+  expires_at: string | null;
   session_id: string | null;
+  guest_view_token: string | null;
 };
 
-function toClientItem(
-  row: MobileRequestRow,
-  practitionerNames: Map<string, string>,
-  productNames: Map<string, string>,
-): ClientMobileRequest {
+function mapRpcRow(row: RpcRow): ClientMobileRequest {
   return {
-    ...row,
-    practitioner_name: row.practitioner_id
-      ? practitionerNames.get(row.practitioner_id) || "Practitioner"
-      : "Practitioner",
-    product_name: row.product_id
-      ? productNames.get(row.product_id) || "Service"
-      : "Service",
+    id: row.id,
+    practitioner_id: row.practitioner_id ?? null,
+    practitioner_name: row.practitioner_name || "Practitioner",
+    product_id: row.product_id ?? null,
+    product_name: row.product_name || "Service",
+    service_type: row.service_type,
+    requested_date: row.requested_date,
+    requested_start_time: row.requested_start_time,
+    duration_minutes: row.duration_minutes,
+    total_price_pence: row.total_price_pence,
+    payment_status: row.payment_status,
+    status: row.status,
+    client_address: row.client_address,
+    client_notes: row.client_notes,
+    decline_reason: row.decline_reason,
+    alternate_date: row.alternate_date,
+    alternate_start_time: row.alternate_start_time,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
+    session_id: row.session_id,
+    guest_view_token: row.guest_view_token,
   };
 }
 
-export async function fetchClientMobileRequests(clientId: string): Promise<{
+export async function fetchClientMobileRequests(
+  clientId: string,
+  status?: string | null,
+): Promise<{
   data: ClientMobileRequest[];
   error: Error | null;
 }> {
   try {
-    const { data, error } = await supabase
-      .from("mobile_booking_requests")
-      .select(
-        "id, practitioner_id, product_id, service_type, requested_date, requested_start_time, duration_minutes, total_price_pence, payment_status, status, client_address, client_notes, decline_reason, alternate_date, alternate_start_time, created_at, session_id",
-      )
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.rpc("get_client_mobile_requests", {
+      p_client_id: clientId,
+      p_status: status ?? null,
+    });
     if (error) throw error;
-    const rows = (data || []) as MobileRequestRow[];
-    if (rows.length === 0) return { data: [], error: null };
-
-    const practitionerIds = [
-      ...new Set(rows.map((r) => r.practitioner_id).filter(Boolean)),
-    ] as string[];
-    const productIds = [
-      ...new Set(rows.map((r) => r.product_id).filter(Boolean)),
-    ] as string[];
-
-    const practitionerNames = new Map<string, string>();
-    if (practitionerIds.length > 0) {
-      const { data: users, error: uErr } = await supabase
-        .from("users")
-        .select("id, first_name, last_name")
-        .in("id", practitionerIds);
-      if (uErr) throw uErr;
-      for (const u of (users || []) as Array<{
-        id: string;
-        first_name: string | null;
-        last_name: string | null;
-      }>) {
-        practitionerNames.set(
-          u.id,
-          `${u.first_name || ""} ${u.last_name || ""}`.trim() || "Practitioner",
-        );
-      }
-    }
-
-    const productNames = new Map<string, string>();
-    if (productIds.length > 0) {
-      const { data: products, error: pErr } = await supabase
-        .from("practitioner_products")
-        .select("id, name")
-        .in("id", productIds);
-      if (pErr) throw pErr;
-      for (const p of (products || []) as Array<{ id: string; name: string }>) {
-        productNames.set(p.id, p.name || "Service");
-      }
-    }
-
     return {
-      data: rows.map((r) => toClientItem(r, practitionerNames, productNames)),
+      data: ((data || []) as RpcRow[]).map(mapRpcRow),
       error: null,
     };
   } catch (e) {

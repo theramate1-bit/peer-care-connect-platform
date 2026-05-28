@@ -21,8 +21,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   fetchMarketplacePractitioners,
+  MARKETPLACE_DISCIPLINE_FILTERS,
   type MarketplacePractitioner,
 } from "@/lib/marketplacePractitioners";
+import { canBookClinic, canRequestMobile } from "@/lib/booking-flow-type";
 import {
   Search,
   Filter,
@@ -104,9 +106,16 @@ const TherapistSearch: React.FC = () => {
     let list = therapists;
 
     if (filters.therapyType) {
-      list = list.filter((t) =>
-        (t.specializations || []).includes(filters.therapyType),
+      const spec = MARKETPLACE_DISCIPLINE_FILTERS.find(
+        (f) => f.value === filters.therapyType,
       );
+      list = list.filter((t) => {
+        const tagMatch = (t.specializations || []).includes(
+          filters.therapyType,
+        );
+        const roleMatch = spec ? t.user_role === spec.role : false;
+        return tagMatch || roleMatch;
+      });
     }
     if (filters.location.trim()) {
       const loc = filters.location.toLowerCase();
@@ -270,15 +279,11 @@ const TherapistSearch: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">All types</SelectItem>
-                    <SelectItem value="sports_therapy">
-                      Sports Therapy
-                    </SelectItem>
-                    <SelectItem value="massage_therapy">
-                      Massage Therapy
-                    </SelectItem>
-                    <SelectItem value="osteopathy">Osteopathy</SelectItem>
-                    <SelectItem value="physiotherapy">Physiotherapy</SelectItem>
-                    <SelectItem value="counselling">Counselling</SelectItem>
+                    {MARKETPLACE_DISCIPLINE_FILTERS.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -590,9 +595,10 @@ const TherapistSearch: React.FC = () => {
                   {/* Actions */}
                   <div className="flex space-x-2 pt-2">
                     {(() => {
-                      const isHybrid = therapist.therapist_type === "hybrid";
+                      const clinic = canBookClinic(therapist);
+                      const mobile = canRequestMobile(therapist);
 
-                      if (isHybrid) {
+                      if (clinic) {
                         return (
                           <>
                             <Button
@@ -600,11 +606,54 @@ const TherapistSearch: React.FC = () => {
                               size="sm"
                               className="flex-1"
                               onClick={() =>
-                                (window.location.href = `/client/ClientBooking?therapistId=${therapist.id}`)
+                                (window.location.href = `/client/booking?therapistId=${therapist.id}&guest=1`)
                               }
                             >
                               <Calendar className="h-4 w-4 mr-2" />
                               Book
+                            </Button>
+                            {mobile ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() =>
+                                  (window.location.href = `/client/booking?therapistId=${therapist.id}&mode=mobile&guest=1`)
+                                }
+                              >
+                                <MapPin className="h-4 w-4 mr-2" />
+                                Mobile
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() =>
+                                  (window.location.href = `/messages?therapist=${therapist.id}`)
+                                }
+                              >
+                                <MessageCircle className="h-4 w-4 mr-2" />
+                                Message
+                              </Button>
+                            )}
+                          </>
+                        );
+                      }
+
+                      if (mobile) {
+                        return (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() =>
+                                (window.location.href = `/client/booking?therapistId=${therapist.id}&mode=mobile&guest=1`)
+                              }
+                            >
+                              <MapPin className="h-4 w-4 mr-2" />
+                              Request visit
                             </Button>
                             <Button
                               variant="outline"
@@ -615,7 +664,7 @@ const TherapistSearch: React.FC = () => {
                               }
                             >
                               <MessageCircle className="h-4 w-4 mr-2" />
-                              Request
+                              Message
                             </Button>
                           </>
                         );

@@ -1,15 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, MapPin, CreditCard } from "lucide-react-native";
+import { Clock, MapPin, CreditCard, CircleAlert } from "lucide-react-native";
 import { format } from "date-fns";
 
 import { AppStackHeader } from "@/components/navigation/AppStackHeader";
@@ -20,6 +21,9 @@ import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { Card } from "@/components/ui/Card";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { Button } from "@/components/ui/Button";
+import { resumeMobileRequestCheckout } from "@/lib/api/booking";
+import { stashMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
+import { openHostedWebSession } from "@/lib/openHostedWeb";
 
 function statusLabel(status: string | null): string {
   const s = (status || "pending").toLowerCase();
@@ -30,10 +34,20 @@ function statusLabel(status: string | null): string {
   return "Pending";
 }
 
+function needsPaymentCompletion(
+  status: string | null,
+  paymentStatus: string | null,
+): boolean {
+  if ((status || "").toLowerCase() !== "pending") return false;
+  const pay = (paymentStatus || "").toLowerCase();
+  return pay !== "held" && pay !== "paid" && pay !== "succeeded";
+}
+
 export default function MobileRequestDetailScreen() {
   const tabRoot = useTabRoot();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { userId } = useAuth();
+  const { userId, user } = useAuth();
+  const [paying, setPaying] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["client_mobile_request_detail", userId, id],
@@ -51,7 +65,10 @@ export default function MobileRequestDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="Request details" fallbackHref={defaultSignedInProfileHref()} />
+      <AppStackHeader
+        title="Request details"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -90,6 +107,16 @@ export default function MobileRequestDetailScreen() {
             <Text className="text-charcoal-700 font-medium mt-2">
               Status: {statusLabel(data.status)}
             </Text>
+            {data.expires_at &&
+            (data.status || "").toLowerCase() === "pending" ? (
+              <View className="flex-row items-center mt-2">
+                <CircleAlert size={16} color={Colors.warning} />
+                <Text className="text-warning text-sm ml-2">
+                  Expires{" "}
+                  {format(new Date(data.expires_at), "EEE d MMM yyyy · HH:mm")}
+                </Text>
+              </View>
+            ) : null}
           </Card>
 
           <Card variant="default" padding="md" className="mb-3">
@@ -156,18 +183,79 @@ export default function MobileRequestDetailScreen() {
             </Card>
           ) : null}
 
-          {data.session_id ? (
+          {needsPaymentCompletion(data.status, data.payment_status) ? (
             <Button
               variant="primary"
-              onPress={() =>
+              className="mb-3"
+              isLoading={paying}
+              onPress={() => {
+                if (!userId || !id) return;
+                void (async () => {
+                  setPaying(true);
+                  try {
+                    const result = await resumeMobileRequestCheckout({
+                      requestId: id,
+                      clientId: userId,
+                      clientEmail: user?.email ?? undefined,
+                    });
+                    if (!result.ok) {
+                      Alert.alert("Payment", result.error);
+                      return;
+                    }
+                    stashMobileCheckoutUrl(
+                      result.requestId,
+                      result.checkoutUrl,
+                    );
+                    openHostedWebSession({
+                      kind: "stripe_checkout",
+                      url: result.checkoutUrl,
+                    });
+                  } finally {
+                    setPaying(false);
+                  }
+                })();
+              }}
+            >
+              Complete payment
+            </Button>
+          ) : null}
+
+          {data.session_id &&
+          (data.status || "").toLowerCase() === "accepted" ? (
+            <Button
+              variant="primary"
+              onPress={() => {
+                const token = data.guest_view_token?.trim();
+                if (token) {
+                  router.push({
+                    pathname: "/booking/view/[sessionId]",
+                    params: { sessionId: data.session_id!, token },
+                  } as never);
+                  return;
+                }
                 router.push(
                   tabPath(tabRoot, `bookings/${data.session_id}`) as never,
-                )
+                );
+              }}
+            >
+              <Text className="text-white font-semibold">View session</Text>
+            </Button>
+          ) : null}
+
+          {needsPaymentCompletion(data.status, data.payment_status) ? (
+            <Button
+              variant="outline"
+              className="mt-3"
+              onPress={() =>
+                router.push({
+                  pathname: "/mobile-booking/pending",
+                  params: {
+                    requestId: id,
+                  },
+                } as never)
               }
             >
-              <Text className="text-white font-semibold">
-                View created session
-              </Text>
+              Payment help
             </Button>
           ) : null}
         </ScrollView>

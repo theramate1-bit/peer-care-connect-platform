@@ -50,7 +50,10 @@ export default function RegisterScreen() {
 
   const handleOAuth = async (provider: "google" | "apple") => {
     clearError();
-    await signInWithOAuth(provider, { signupRole });
+    const result = await signInWithOAuth(provider, { signupRole });
+    if (result.success) {
+      router.replace("/oauth-completion");
+    }
   };
   const {
     control,
@@ -199,7 +202,9 @@ export default function RegisterScreen() {
 
           <View className="flex-row items-center my-6">
             <View className="flex-1 h-px bg-charcoal-100" />
-            <Text className="mx-4 text-charcoal-400 text-sm">or continue with</Text>
+            <Text className="mx-4 text-charcoal-400 text-sm">
+              or continue with
+            </Text>
             <View className="flex-1 h-px bg-charcoal-100" />
           </View>
 

@@ -4,7 +4,7 @@ Purpose: remove all web shortcut dependencies so the mobile app is fully usable 
 
 Scope: `theramate-ios-client` (client + practitioner surfaces).
 
-**Doc note (2026-04):** P2 **Payments and checkout** (allowlisted in-app WebView for Stripe Checkout, Customer Portal, signed URLs, notifications) is **shipped** — see bullets under “P2 - Client/account” below and `MOBILE_NATIVE_COMPLETION_SPRINT_PLAN.md` (“Completed — native-first in-app WebView”). **P0 / P1 and P2 account-privacy-help items remain open** until checkboxes below are cleared.
+**Doc note (2026-05-26):** P2 **Payments and checkout** + **account/privacy/help** shells are **shipped**. **Platform subscribe** (`pricing.tsx`, `subscription-success.tsx`) and **guest booking** (`guest=1`, `openGuestBookingOnWeb`) shipped; **voice SOAP** (`VoiceSoapCapture`) shipped. Remaining: analytics export in-app, CI guard, full QA without required web hops.
 **Verification note (2026-04-21):** Checklist items were re-audited against current `theramate-ios-client` practitioner files. Clients/projects and care-plan/clinical fallback rows were updated to match current native behavior and hosted WebView usage for signed documents.
 
 ---
@@ -94,23 +94,35 @@ These paths use **allowlisted in-app WebView** (`app/hosted-web.tsx`, `component
 
 ### Account and subscription
 
-- [ ] Native subscription + billing management to replace web dependence in:
-  - `app/settings/subscription.tsx`
+- [x] Native subscription + billing management to replace web dependence in:
+  - `app/settings/subscription.tsx` — practitioner vs client copy, practice billing CTA
   - `app/(tabs)/profile/payment-methods.tsx`
   - `app/(tabs)/profile/index.tsx` (Subscription row)
   - `app/(practitioner)/(ptabs)/profile/index.tsx` (Subscription row)
 
 ### Privacy/help/marketing content
 
-- [ ] Native privacy tools to replace `account-web` dependence in:
+- [x] Native privacy tools to replace `account-web` dependence in:
   - `app/settings/privacy.tsx`
-  - `components/profile/PrivacySecurityContent.tsx`
-- [ ] Native help center knowledge base/FAQ to replace web dependence in:
-  - `app/(tabs)/profile/help-centre.tsx`
-- [ ] Optional native content pages to remove web dependence in:
+  - `components/profile/PrivacySecurityContent.tsx` — legal routes in-app (`/privacy`, `/terms`, `/cookies`, `/dpa`)
+- [x] Native help center knowledge base/FAQ to replace web dependence in:
+  - `app/(tabs)/profile/help-centre.tsx` — `HelpCentreContent` (web FAQ parity, no website help WebView)
+- [x] Optional native content pages to remove web dependence in:
   - `app/how-it-works.tsx`
   - `app/contact.tsx`
-  - `app/pricing.tsx`
+  - `app/pricing.tsx` — platform plan cards + marketplace fee display
+  - `lib/api/platformSubscriptionCheckout.ts` — hosted Checkout + `verify-checkout`
+  - `app/subscription-success.tsx` — post-checkout verify
+
+### Guest booking (2026-05-26)
+
+- [x] Pay-at-clinic without account: `app/booking/index.tsx?guest=1`, `ensure_guest_user_for_booking`
+- [x] Card checkout: `lib/guestBookingWeb.ts` → in-app WebView to web `/client/booking?guest=1`
+- [x] Entry: `app/book/[slug].tsx` — Book as guest
+
+### Clinical polish (2026-05-26)
+
+- [x] Voice → SOAP: `components/clinical/VoiceSoapCapture.tsx` on `clinical-notes/[sessionId].tsx`
 
 ---
 
@@ -136,7 +148,8 @@ Calendar policy note:
 
 Client/account hotspots:
 
-- `app/settings/subscription.tsx`
+- `app/settings/subscription.tsx` (status; subscribe via `pricing` / onboarding)
+- `app/pricing.tsx` (platform Checkout — not web-only)
 - `app/settings/privacy.tsx`
 - `app/(tabs)/profile/help-centre.tsx`
 - `app/(tabs)/profile/payment-methods.tsx`

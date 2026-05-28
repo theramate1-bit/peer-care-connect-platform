@@ -4,103 +4,27 @@
 
 import { router } from "expo-router";
 
-import { APP_CONFIG } from "@/constants/config";
 import {
   isStripeHostedHostname,
   isSupabaseStorageHostname,
 } from "@/lib/hostedWebViewAllowlist";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
-import { getMainAppHref } from "@/lib/postAuthRoute";
-import { tabPath } from "@/lib/tabPath";
+import { tryMapWebUrlToRoute } from "@/lib/notificationWebRouteMap";
+import {
+  getStripeCheckoutWebOrigins,
+  isCheckoutWebHostname,
+} from "@/lib/stripeCheckoutWebOrigins";
+import { APP_CONFIG } from "@/constants/config";
 
-function normalizeWebHost(): string | null {
-  try {
-    return new URL(APP_CONFIG.WEB_URL).hostname
-      .replace(/^www\./, "")
-      .toLowerCase();
-  } catch {
-    return null;
-  }
-}
+export { tryMapWebUrlToRoute } from "@/lib/notificationWebRouteMap";
 
-function hostsMatch(u: URL, webHost: string): boolean {
-  const h = u.hostname.replace(/^www\./, "").toLowerCase();
-  return h === webHost;
-}
+const APP_WEB_ORIGINS = getStripeCheckoutWebOrigins(
+  APP_CONFIG.WEB_URL,
+  APP_CONFIG.CHECKOUT_WEB_ORIGINS_EXTRA,
+);
 
-/**
- * Map absolute web-app URLs to native routes when we have a direct equivalent.
- */
-export function tryMapWebUrlToRoute(
-  absoluteUrl: string,
-  role: string | null | undefined,
-): string | null {
-  let u: URL;
-  try {
-    u = new URL(absoluteUrl);
-  } catch {
-    return null;
-  }
-  const webHost = normalizeWebHost();
-  if (!webHost || !hostsMatch(u, webHost)) return null;
-
-  const path = u.pathname;
-  const root = getMainAppHref(role);
-
-  if (path === "/marketplace" || path.startsWith("/marketplace/")) {
-    return tabPath(root, "explore");
-  }
-
-  if (path === "/client/favorites" || path.startsWith("/client/favorites/")) {
-    return tabPath(root, "profile/favorites");
-  }
-
-  if (path === "/client/plans") {
-    return tabPath(root, "profile/treatment-plans");
-  }
-  const plansDetail = path.match(/^\/client\/plans\/([^/]+)/);
-  if (plansDetail?.[1]) {
-    return tabPath(root, `profile/treatment-plans/${plansDetail[1]}`);
-  }
-
-  const staticPaths = new Set([
-    "/privacy",
-    "/terms",
-    "/cookies",
-    "/dpa",
-    "/pricing",
-    "/how-it-works",
-    "/contact",
-    "/help",
-  ]);
-  if (staticPaths.has(path)) {
-    const map: Record<string, string> = {
-      "/help": "/help",
-      "/privacy": "/privacy",
-      "/terms": "/terms",
-      "/cookies": "/cookies",
-      "/dpa": "/dpa",
-      "/pricing": "/pricing",
-      "/how-it-works": "/how-it-works",
-      "/contact": "/contact",
-    };
-    const target = map[path];
-    return target ? `${target}${u.search}` : null;
-  }
-
-  if (path.startsWith("/booking-success")) {
-    const sid = u.searchParams.get("session_id");
-    if (sid) {
-      return `/booking-success?session_id=${encodeURIComponent(sid)}`;
-    }
-  }
-
-  if (path.startsWith("/mobile-booking/success")) {
-    const q = u.searchParams.toString();
-    return `/mobile-booking/success${q ? `?${q}` : ""}`;
-  }
-
-  return null;
+function isTheramateWebUrl(u: URL): boolean {
+  return isCheckoutWebHostname(u.hostname.toLowerCase(), APP_WEB_ORIGINS);
 }
 
 export function openNotificationAbsoluteUrl(
@@ -138,8 +62,7 @@ export function openNotificationAbsoluteUrl(
     return;
   }
 
-  const webHost = normalizeWebHost();
-  if (webHost && hostsMatch(u, webHost)) {
+  if (isTheramateWebUrl(u)) {
     openHostedWebSession({ kind: "web_app", url: trimmed });
     return;
   }

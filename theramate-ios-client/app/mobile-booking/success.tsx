@@ -57,13 +57,16 @@ export default function MobileBookingSuccessScreen() {
         }
         const payload = (data || {}) as {
           success?: boolean;
+          already_confirmed?: boolean;
           status?: string;
           payment_status?: string;
           error?: string;
         };
         if (payload.success) {
           setVerificationMessage(
-            `Mobile request confirmed (${payload.payment_status || payload.status || "held"}).`,
+            payload.already_confirmed
+              ? "Payment was already confirmed for this request."
+              : `Mobile request confirmed (${payload.payment_status || payload.status || "held"}).`,
           );
           if (userId) {
             await queryClient.invalidateQueries({
@@ -105,51 +108,89 @@ export default function MobileBookingSuccessScreen() {
           </View>
         ) : null}
 
-        {sessionId ? (
-          <Button
-            variant="primary"
-            className="mt-8 w-full"
-            onPress={() =>
-              router.replace(signedInTabPath(`bookings/${sessionId}`) as never)
-            }
-          >
-            View booking details
-          </Button>
+        {userId ? (
+          <>
+            {sessionId ? (
+              <Button
+                variant="primary"
+                className="mt-8 w-full"
+                onPress={() =>
+                  router.replace(
+                    signedInTabPath(`bookings/${sessionId}`) as never,
+                  )
+                }
+              >
+                View booking details
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                className="mt-8 w-full"
+                onPress={() =>
+                  router.replace(signedInTabPath("bookings") as never)
+                }
+              >
+                Go to sessions
+              </Button>
+            )}
+            {mobile_request_id ? (
+              <Button
+                variant="outline"
+                className="mt-3 w-full"
+                onPress={() =>
+                  router.replace(
+                    signedInTabPath(
+                      `profile/mobile-requests/${mobile_request_id}`,
+                    ) as never,
+                  )
+                }
+              >
+                View mobile request
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="mt-3 w-full"
+              onPress={() => router.replace(getSignedInTabRoot() as never)}
+            >
+              Back to home
+            </Button>
+          </>
         ) : (
-          <Button
-            variant="primary"
-            className="mt-8 w-full"
-            onPress={() =>
-              router.replace(signedInTabPath("bookings") as never)
-            }
-          >
-            Go to sessions
-          </Button>
+          <>
+            <Text className="text-charcoal-500 text-center mt-4 text-sm">
+              Track your request with the email you used at checkout.
+            </Text>
+            {mobile_request_id ? (
+              <Button
+                variant="primary"
+                className="mt-6 w-full"
+                onPress={() =>
+                  router.replace({
+                    pathname: "/guest/mobile-requests",
+                    params: { requestId: mobile_request_id },
+                  } as never)
+                }
+              >
+                View my request
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="mt-3 w-full"
+              onPress={() => router.replace("/guest/mobile-requests" as never)}
+            >
+              Guest mobile requests
+            </Button>
+            <Button
+              variant="outline"
+              className="mt-3 w-full"
+              onPress={() => router.replace("/(tabs)/explore" as never)}
+            >
+              Browse practitioners
+            </Button>
+          </>
         )}
-
-        {mobile_request_id ? (
-          <Button
-            variant="outline"
-            className="mt-3 w-full"
-            onPress={() =>
-              router.replace(
-                signedInTabPath(
-                  `profile/mobile-requests/${mobile_request_id}`,
-                ) as never,
-              )
-            }
-          >
-            View mobile request
-          </Button>
-        ) : null}
-
-        <Button
-          variant="outline"
-          className="mt-3 w-full"
-          onPress={() => router.replace(getSignedInTabRoot() as never)}
-        >
-          Back to home
-        </Button>
       </View>
     </SafeAreaView>
   );

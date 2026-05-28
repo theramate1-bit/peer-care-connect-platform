@@ -237,7 +237,7 @@ Used in: `slot-generation-utils.ts`, `get_directional_booking_buffer_minutes` (b
 | Public profile            | Same                 | Same                                   | Same                                                                |
 | Client booking (rebook)   | Same                 | Same                                   | Same                                                                |
 
-All use `canBookClinic()` and `canRequestMobile()` from `booking-flow-type.ts` to decide which CTAs to show.
+Web and native surfaces derive **clinic vs mobile** CTAs from practitioner **`therapist_type`** and (on native detail) inline helpers such as `canBookClinic` / `canRequestMobile` in **`theramate-ios-client/app/(tabs)/explore/[id].tsx`**. There is **no** single shared `booking-flow-type.ts` module in repo-root `src/`; product rules are summarized in this doc and implemented per surface.
 
 ---
 

@@ -24,9 +24,9 @@ Scope: mobile request flow UX and logic consistency across guest/client/practiti
 
 ## Key Evidence
 
-- `peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx`
-- `peer-care-connect/src/pages/MobileBookingSuccess.tsx`
-- `peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx`
-- `peer-care-connect/src/components/client/MobileRequestStatus.tsx`
-- `peer-care-connect/src/lib/notification-system.ts`
+- `theramate-ios-client/lib/api/mobileRequests.ts + native mobile-request screens`
+- `search src/ + native mobile booking success`
+- `theramate-ios-client/app/(practitioner)/mobile-requests/`
+- `native mobile-requests screens`
+- `search src/ + native notifications`
 - `supabase/migrations/20260308221000_enforce_mobile_request_ttl_and_deduplicate_pending.sql`

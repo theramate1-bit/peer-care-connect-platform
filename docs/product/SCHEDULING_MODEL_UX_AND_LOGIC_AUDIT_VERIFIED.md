@@ -22,39 +22,39 @@ Confirmed in code: the intended scheduling model is sound, but it is not consist
    - Additional caveat: this flow does not persist `appointment_type`, so directional hybrid buffer logic cannot be applied reliably there.
    - Checked-in DB trigger guarantees direct overlap and blocked-time rejection on insert/update, but not full shared scheduling semantics.
    - Evidence:
-     - `peer-care-connect/src/pages/practice/AppointmentScheduler.tsx`
-     - `peer-care-connect/supabase/migrations/20251226185342_prevent_double_bookings.sql`
+     - `search native practitioner schedule + src/`
+     - `supabase/migrations/20251226185342_prevent_double_bookings.sql`
 
 2. **Resolved**: Reschedule now validates blocked `calendar_events` in pre-flight and maps DB trigger errors to clear blocked-time vs booking-conflict messages.
    - Result: fewer late failures and clearer user-facing error causes.
    - Evidence:
-     - `peer-care-connect/src/lib/reschedule-service.ts`
+     - `src/components/booking/RescheduleSessionButton.tsx + native session APIs`
 
 3. **High**: Legacy booking surface still computes hourly `:00` slots instead of shared quarter-hour generator and exposes unsupported 120-minute duration.
    - Risk: false availability, hidden valid `:15/:30/:45` starts, and durations that later fail shared validation (max 90).
    - Evidence:
-     - `peer-care-connect/src/components/booking/UnifiedBookingModal.tsx`
-     - `peer-care-connect/src/components/booking/CompleteBookingFlow.tsx`
-     - `peer-care-connect/src/lib/slot-generation-utils.ts`
-     - `peer-care-connect/src/lib/booking-validation.ts`
+     - `src/components/booking/BookingFlow.tsx (unified on this branch)`
+     - `src/components/booking/BookingFlow.tsx`
+     - `search src/ + theramate-ios-client/lib/api/booking.ts for slot logic`
+     - `search src/components/booking for validation`
 
 4. **Resolved (policy change)**: Rebooking fallback has been removed; rebooking suggestions are realtime RPC-only.
    - Result: no optimistic local suggestions when RPC is unavailable (returns no slot instead).
    - Evidence:
-     - `peer-care-connect/src/lib/rebooking-service.ts`
+     - `search src/ for rebook`
 
 5. **Medium**: 15-minute buffer does not apply around blocked time.
    - Current behavior requires practitioners to block full padded ranges explicitly.
    - Evidence:
-     - `peer-care-connect/src/lib/slot-generation-utils.ts`
-     - `peer-care-connect/src/lib/block-time-utils.ts`
+     - `search src/ + theramate-ios-client/lib/api/booking.ts for slot logic`
+     - `theramate-ios-client/lib/api/blockTime.ts (native); search src/`
 
 6. **Low**: Day-level availability and same-day cutoff wording drift in edge cases.
    - Month view can look available based on working hours while yielding zero valid slots when opened.
    - Same-day slots inside 2-hour cutoff are shown as `past` instead of `too soon`.
    - Evidence:
-     - `peer-care-connect/src/lib/slot-generation-utils.ts`
-     - `peer-care-connect/src/components/booking/CalendarTimeSelector.tsx`
+     - `search src/ + theramate-ios-client/lib/api/booking.ts for slot logic`
+     - `search src/components/booking`
 
 ## Priority Risks
 
@@ -68,8 +68,8 @@ Checked-in migration history is inconsistent about the canonical booking RPC and
 
 Evidence:
 
-- `peer-care-connect/supabase/migrations/20260203_reduce_booking_hold_time.sql`
-- `peer-care-connect/AVAILABILITY_BOOKING_COMPLETE.md`
+- `supabase/migrations/20260203_reduce_booking_hold_time.sql`
+- Internal availability narrative: search **`docs/`** for `availability` / `booking hold` (there is no checked-in `AVAILABILITY_BOOKING_COMPLETE.md` on this branch).
 
 ## Recommended Next Step
 

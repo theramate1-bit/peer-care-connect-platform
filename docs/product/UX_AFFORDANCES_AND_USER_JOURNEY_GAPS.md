@@ -189,17 +189,17 @@ Gaps identified and partially addressed. Remaining:
 
 ## 8. Files Referenced
 
-| File                                                                       | Role                                                |
-| -------------------------------------------------------------------------- | --------------------------------------------------- |
-| `peer-care-connect/src/pages/BookingSuccess.tsx`                           | Post-booking confirmation; missing location         |
-| `peer-care-connect/src/pages/booking/GuestBookingView.tsx`                 | Guest view; cancel works; reschedule not self-serve |
-| `peer-care-connect/src/pages/client/MySessions.tsx`                        | Client session list; wrong location model           |
-| `peer-care-connect/src/components/sessions/SessionDetailView.tsx`          | Cancel logic; client Cancel only for `scheduled`    |
-| `peer-care-connect/src/pages/practice/ExchangeRequests.tsx`                | Exchange UI; selected state, affordances            |
-| `peer-care-connect/src/components/notifications/RealTimeNotifications.tsx` | Notifications; icon-only actions                    |
-| `peer-care-connect/src/components/ui/button.tsx`                           | Disabled/hover styling                              |
-| `peer-care-connect/src/utils/sessionLocation.ts`                           | Shared location resolver                            |
-| `peer-care-connect/src/lib/session-display-status.ts`                      | displayStatus (scheduled vs confirmed)              |
+| File                                                                                         | Role                                                |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `search src/ for booking success`                                                            | Post-booking confirmation; missing location         |
+| `search src/ for booking pagesGuestBookingView.tsx`                                          | Guest view; cancel works; reschedule not self-serve |
+| `search src/pages + native bookings`                                                         | Client session list; wrong location model           |
+| `search src/ + native session detail`                                                        | Cancel logic; client Cancel only for `scheduled`    |
+| `theramate-ios-client exchange routes`                                                       | Exchange UI; selected state, affordances            |
+| `search src/ for notificationsRealTimeNotifications.tsx`                                     | Notifications; icon-only actions                    |
+| `src/components/ui/button.tsx`                                                               | Disabled/hover styling                              |
+| `theramate-ios-client/lib/sessionLocation.ts (native); search src/ for web session location` | Shared location resolver                            |
+| `theramate-ios-client/lib/sessionDisplayStatus.ts (native); search src/ for web`             | displayStatus (scheduled vs confirmed)              |
 
 ---
 

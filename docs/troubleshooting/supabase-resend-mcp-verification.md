@@ -20,7 +20,7 @@ This doc records verification done via **Supabase MCP**, **Resend MCP**, and **S
 
 | Function              | Status | Notes                                                                                                                                                                 |
 | --------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **send-email**        | ACTIVE | Entrypoint from this repo: `peer-care-connect/supabase/functions/send-email/index.ts`. Used for all transactional emails via Resend.                                  |
+| **send-email**        | ACTIVE | Entrypoint from this repo: `supabase/functions/send-email/index.ts`. Used for all transactional emails via Resend.                                                    |
 | **stripe-webhook**    | ACTIVE | Linked to repo; handles Stripe events.                                                                                                                                |
 | **stripe-webhooks**   | ACTIVE | Plural name; may be older deploy from `C:\tmp`. Ensure the **repo** version (with `sendBookingConfirmationEmails` on `payment_intent.succeeded`) is the one deployed. |
 | **process-reminders** | ACTIVE | Sends session reminders; should pass `sessionLocation` and `directionsUrl` when calling send-email so “Get Directions” works in reminder emails.                      |

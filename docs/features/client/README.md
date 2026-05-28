@@ -16,7 +16,7 @@ Context for **registered clients**: `users.user_role = 'client'`, `users.id = au
 
 ## Related docs
 
-- [USER_TYPE_CLIENT.md](../../product/USER_TYPE_CLIENT.md) — legacy narrative (`peer-care-connect/` paths).
+- [USER_TYPE_CLIENT.md](../../product/USER_TYPE_CLIENT.md) — detailed narrative (verify file paths under repo-root `src/`).
 - [GUEST_VS_CLIENT_RULES.md](../../development/GUEST_VS_CLIENT_RULES.md)
 - [Guest features](../guest/README.md) — contrast with guest flows.
 - [USER_TYPES_OVERVIEW.md](../../product/USER_TYPES_OVERVIEW.md)

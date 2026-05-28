@@ -58,8 +58,12 @@ export default function PractitionerMobileRequestDetailScreen() {
     await queryClient.invalidateQueries({
       queryKey: ["practitioner_mobile_requests"],
     });
-    await queryClient.invalidateQueries({ queryKey: ["practitioner_dashboard"] });
-    await queryClient.invalidateQueries({ queryKey: ["practitioner_sessions"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["practitioner_dashboard"],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["practitioner_sessions"],
+    });
   };
 
   const onAccept = () => {
@@ -70,39 +74,38 @@ export default function PractitionerMobileRequestDetailScreen() {
       );
       return;
     }
-    Alert.alert(
-      "Accept request",
-      "Capture payment and create this session?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          onPress: async () => {
-            setBusy(true);
-            try {
-              const res = await acceptMobileBookingRequest({
-                requestId: req.id,
-                stripePaymentIntentId: req.stripe_payment_intent_id!,
-              });
-              if (!res.ok) {
-                Alert.alert("Could not accept", res.error || "");
-                return;
-              }
-              await invalidate();
-              Alert.alert("Accepted", "Session created.", [
-                {
-                  text: "OK",
-                  onPress: () =>
-                    goBackOrReplace(tabPath(tabRoot, "mobile-requests")),
-                },
-              ]);
-            } finally {
-              setBusy(false);
+    Alert.alert("Accept request", "Capture payment and create this session?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Accept",
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const res = await acceptMobileBookingRequest({
+              requestId: req.id,
+              stripePaymentIntentId: req.stripe_payment_intent_id!,
+            });
+            if (!res.ok) {
+              Alert.alert("Could not accept", res.error || "");
+              return;
             }
-          },
+            await invalidate();
+            const transferNote = res.transferWarning?.trim()
+              ? `\n\n${res.transferWarning}`
+              : "";
+            Alert.alert("Accepted", `Session created.${transferNote}`, [
+              {
+                text: "OK",
+                onPress: () =>
+                  goBackOrReplace(tabPath(tabRoot, "mobile-requests")),
+              },
+            ]);
+          } finally {
+            setBusy(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const onDecline = () => {
@@ -117,6 +120,7 @@ export default function PractitionerMobileRequestDetailScreen() {
           try {
             const res = await declineMobileBookingRequest({
               requestId: req.id,
+              stripePaymentIntentId: req.stripe_payment_intent_id,
               declineReason: declineReason.trim() || undefined,
             });
             if (!res.ok) {
@@ -148,7 +152,10 @@ export default function PractitionerMobileRequestDetailScreen() {
           ) : null}
         </View>
       ) : (
-        <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView
+          className="flex-1 px-6 pt-4"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           <ScreenHeader
             className="-mx-6 -mt-4 mb-2"
             eyebrow="Practice"
@@ -164,9 +171,12 @@ export default function PractitionerMobileRequestDetailScreen() {
           </Card>
 
           <Card variant="default" padding="md" className="mb-3">
-            <Text className="text-charcoal-800 font-semibold">{req.product_name}</Text>
+            <Text className="text-charcoal-800 font-semibold">
+              {req.product_name}
+            </Text>
             <Text className="text-charcoal-600 mt-2">
-              {req.requested_date} at {String(req.requested_start_time).slice(0, 5)} ·{" "}
+              {req.requested_date} at{" "}
+              {String(req.requested_start_time).slice(0, 5)} ·{" "}
               {req.duration_minutes ?? 60} min
             </Text>
             {req.total_price_pence != null ? (
@@ -179,7 +189,9 @@ export default function PractitionerMobileRequestDetailScreen() {
           {req.client_address ? (
             <View className="flex-row items-start bg-white border border-cream-200 rounded-xl p-4 mb-4">
               <MapPin size={18} color={Colors.charcoal[500]} />
-              <Text className="text-charcoal-700 ml-2 flex-1">{req.client_address}</Text>
+              <Text className="text-charcoal-700 ml-2 flex-1">
+                {req.client_address}
+              </Text>
             </View>
           ) : null}
 
@@ -202,11 +214,7 @@ export default function PractitionerMobileRequestDetailScreen() {
             multiline
           />
 
-          <Button
-            variant="primary"
-            disabled={busy}
-            onPress={onAccept}
-          >
+          <Button variant="primary" disabled={busy} onPress={onAccept}>
             <Text className="text-white font-semibold text-center">
               {busy ? "Please wait…" : "Accept & capture payment"}
             </Text>
@@ -218,9 +226,10 @@ export default function PractitionerMobileRequestDetailScreen() {
             disabled={busy}
             onPress={onDecline}
           >
-            <Text className="text-error font-semibold text-center">Decline</Text>
+            <Text className="text-error font-semibold text-center">
+              Decline
+            </Text>
           </Button>
-
         </ScrollView>
       )}
     </SafeAreaView>

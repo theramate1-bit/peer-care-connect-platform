@@ -6,7 +6,7 @@
 **Platform:** iOS (React Native / Expo)  
 **Target Users:** Healthcare clients seeking therapy services  
 **Version:** 1.0 MVP  
-**Last Updated:** April 2026
+**Last Updated:** May 2026 (aligned to current `theramate-ios-client` behavior)
 
 ### Vision Statement
 
@@ -15,6 +15,21 @@ A beautiful, intuitive iOS app enabling clients to discover, book, and manage th
 ### Related planning artifacts
 
 BMAD-style backlog and technical planning live under `_bmad-output/planning-artifacts/` (repo root). Start at [**Planning artifacts README**](../_bmad-output/planning-artifacts/README.md); [**Epics & stories**](../_bmad-output/planning-artifacts/epics.md) spans client MVP phases, **Epic 10** (practitioner), **Epic 11** (exchange/credits), and **Epic 12** (guest). Shards: [**Practitioner**](../_bmad-output/planning-artifacts/prd-practitioner-shard.md) (**PFR**), [**Exchange & credits**](../_bmad-output/planning-artifacts/prd-exchange-credits-shard.md) (**EXFR**), [**Guest**](../_bmad-output/planning-artifacts/prd-guest-shard.md) (**GFR**), [**Marketplace discovery**](../_bmad-output/planning-artifacts/prd-marketplace-discovery-shard.md) (**MKFR**), [**Payments & Stripe**](../_bmad-output/planning-artifacts/prd-payments-stripe-shard.md) (**PYFR**), [**Subscription & billing portal**](../_bmad-output/planning-artifacts/prd-subscription-billing-portal-shard.md) (**SUBFR**), [**Notifications & messaging**](../_bmad-output/planning-artifacts/prd-notifications-messaging-shard.md) (**NMFR**), [**Clinical documentation**](../_bmad-output/planning-artifacts/prd-clinical-documentation-shard.md) (**CLFR**), [**Calendar sync**](../_bmad-output/planning-artifacts/prd-calendar-sync-shard.md) (**CALFR**).
+
+---
+
+## As-built source of truth (iOS client)
+
+This PRD is maintained to describe **what the shipped client code does**. If anything below disagrees with the repo, **`theramate-ios-client/`** and **`types/database.ts`** win—update the doc, not the other way around.
+
+| Area                        | Where to look                                                                                                             | What actually runs                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Signed-in **Explore** list  | `lib/api/marketplace.ts` (`fetchMarketplacePractitioners`), `hooks/useMarketplacePractitioners.ts`, `app/(tabs)/explore/` | Query **`users`** with `user_role` in **`THERAPIST_ROLES`**: `sports_therapist`, `osteopath`, `massage_therapist`, plus `is_active`, `profile_completed`, `onboarding_status = completed`. Then separate queries on **`practitioner_products`** (derive display “from” price from `price_amount` in minor units) and **`reviews`**. This path does **not** use the PostgREST **`marketplace_practitioners`** view. |
+| Explore **filters**         | `constants/config.ts` → `SPECIALIZATIONS`, `app/(tabs)/explore/index.tsx`                                                 | Three discipline chips aligned to those roles, plus optional **`users.specializations`** tags; **Pay at clinic** filters `accept_in_person_payment`. The search bar **Filter** icon is decorative (no sheet yet).                                                                                                                                                                                                  |
+| **Service delivery model**  | `users.therapist_type`                                                                                                    | `clinic_based`, `mobile`, or `hybrid` — drives clinic vs mobile / choose-mode booking from practitioner detail.                                                                                                                                                                                                                                                                                                    |
+| **Legacy / alternate APIs** | e.g. `lib/api/therapists.ts`, some practitioner surfaces                                                                  | May still reference **`marketplace_practitioners`**, **`therapist_profiles`**, **`availability_slots`**. Do not assume parity with Explore without reading the file.                                                                                                                                                                                                                                               |
+
+**Disciplines in product scope today:** marketplace listing and native filter chips only cover the three practitioner `user_role` values above. Any extra therapy categories are backlog until roles and `THERAPIST_ROLES` are extended in code and database.
 
 ---
 
@@ -107,10 +122,12 @@ Drawing from:
 
 ## 2. Database Schema
 
+> **Browse vs profile:** Client **Explore** loads practitioners from **`users`** (see _As-built source of truth_). **`therapist_profiles`** is still used elsewhere (e.g. practitioner profile editing, some discovery helpers)—do not assume one table backs every screen.
+
 ### 2.1 Core Tables (Existing - Read Access)
 
 ```sql
--- Users table (shared auth system)
+-- Users table (shared auth system; also holds practitioner marketplace fields)
 users (
   id UUID PRIMARY KEY,
   email TEXT NOT NULL,
@@ -121,7 +138,12 @@ users (
   location TEXT,
   bio TEXT,
   avatar_preferences JSONB,
-  user_role user_role ENUM,         -- 'client' | 'practitioner' | 'admin'
+  user_role user_role ENUM,         -- includes client, guest, admin, sports_therapist, massage_therapist, osteopath (see types/database.ts)
+  therapist_type therapist_type ENUM, -- clinic_based | mobile | hybrid (practitioners)
+  specializations TEXT[],           -- optional tags; Explore filters also match user_role
+  hourly_rate NUMERIC,
+  profile_photo_url TEXT,
+  accept_in_person_payment BOOLEAN,
   onboarding_status onboarding_status ENUM,
   profile_completed BOOLEAN,
   is_active BOOLEAN,
@@ -153,7 +175,7 @@ client_sessions (
   updated_at TIMESTAMPTZ
 )
 
--- Therapist Profiles
+-- Therapist Profiles (extended practitioner row; not the Explore list source of truth)
 therapist_profiles (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
@@ -182,9 +204,11 @@ practitioner_products (
   practitioner_id UUID REFERENCES users(id),
   name TEXT NOT NULL,
   description TEXT,
-  price_pence INTEGER NOT NULL,
-  duration_minutes INTEGER NOT NULL,
+  price_amount INTEGER NOT NULL,   -- minor units (e.g. pence); app divides for display
+  currency TEXT,
+  duration_minutes INTEGER,
   is_active BOOLEAN DEFAULT true,
+  service_type TEXT,               -- clinic / mobile / both — used when filtering products for booking mode
   category TEXT,
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ
@@ -337,10 +361,14 @@ client_profiles (
 )
 ```
 
-### 2.2 Views (Existing)
+### 2.2 `marketplace_practitioners` view (database; not used by Explore)
+
+Supabase may expose a **`marketplace_practitioners`** view (see `types/database.ts` → `Views`). Some modules (e.g. legacy `lib/api/therapists.ts`) can query it. **The signed-in client Explore tab does not:** it uses `fetchMarketplacePractitioners` on **`users`** plus related tables, as documented in _As-built source of truth_.
+
+The following SQL is **illustrative** of how such a view might be composed from `therapist_profiles` + `users`; treat it as reference infrastructure, not the iOS list implementation:
 
 ```sql
--- Marketplace Practitioners View
+-- Illustrative only — Explore uses application-side joins from `users` instead
 CREATE VIEW marketplace_practitioners AS
 SELECT
   tp.id,
@@ -369,6 +397,8 @@ WHERE tp.is_active = true AND u.is_active = true;
 ```
 
 ### 2.3 Entity Relationship Diagram
+
+Browse list path today: **`users`** (practitioner rows) → **`practitioner_products`** (pricing) and **`reviews`** (ratings) in code. **`therapist_profiles`** may parallel some display fields for other flows.
 
 ```
 ┌─────────────────┐       ┌─────────────────────┐
@@ -451,10 +481,15 @@ GET    /auth/v1/callback                  // OAuth callback
 GET    /rest/v1/users?id=eq.{userId}
 PATCH  /rest/v1/users?id=eq.{userId}
 
-// Marketplace / Therapist Discovery
+// Marketplace / Therapist Discovery (Explore — as-built)
+// Implemented in lib/api/marketplace.ts: GET users with filters, then practitioner_products + reviews.
+GET    /rest/v1/users?user_role=in.(sports_therapist,osteopath,massage_therapist)&is_active=eq.true&profile_completed=eq.true&onboarding_status=eq.completed
+GET    /rest/v1/practitioner_products?practitioner_id=in.(...)&is_active=eq.true
+GET    /rest/v1/reviews?therapist_id=in.(...)&review_status=eq.approved
+
+// Legacy / alternate (other modules — verify before use)
 GET    /rest/v1/marketplace_practitioners
 GET    /rest/v1/marketplace_practitioners?location=ilike.*london*
-GET    /rest/v1/marketplace_practitioners?specializations=cs.{sports_therapy}
 
 // Therapist Profiles
 GET    /rest/v1/therapist_profiles?user_id=eq.{userId}
@@ -674,19 +709,25 @@ const refreshSession = async () => {
 ### 4.3 Role-Based Access
 
 ```typescript
-// User roles (from users table)
-type UserRole = 'client' | 'practitioner' | 'admin';
+// User roles (from users table — see types/database.ts)
+type UserRole =
+  | "client"
+  | "guest"
+  | "admin"
+  | "sports_therapist"
+  | "massage_therapist"
+  | "osteopath";
 
-// Client app only needs 'client' role
-const isClient = userProfile?.user_role === 'client';
+// Client app: primary signed-in experience is clients; Explore still loads practitioner rows from users.
+const isClient = userProfile?.user_role === "client";
 
-// Route protection
+// Route protection (example — adjust if you allow multi-role sign-in)
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" />;
-  if (user.user_role !== 'client') return <Navigate to="/unauthorized" />;
+  if (user.user_role !== "client") return <Navigate to="/unauthorized" />;
 
   return children;
 };
@@ -1407,9 +1448,9 @@ theramate-ios-client/
 │  ║  ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────┐ ║   │
 │  ║  │Dashboard│ │Therapist │ │ Session  │ │ Chat     │ │Settings │ ║   │
 │  ║  │• Next   │ │  List    │ │  List    │ │  List    │ │• Edit   │ ║   │
-│  ║  │  Session│ │• Map View│ │• Upcoming│ │• Realtime│ │  Profile│ ║   │
+│  ║  │  Session│ │• Search  │ │• Upcoming│ │• Realtime│ │  Profile│ ║   │
 │  ║  │• Quick  │ │• Filters │ │• Past    │ │  Updates │ │• Favs   │ ║   │
-│  ║  │  Actions│ │• Search  │ │• Cancel  │ │          │ │• Help   │ ║   │
+│  ║  │  Actions│ │          │ │• Cancel  │ │          │ │• Help   │ ║   │
 │  ║  └─────────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────────┘ ║   │
 │  ║                   │            │            │                     ║   │
 │  ║                   ▼            ▼            ▼                     ║   │
@@ -1452,19 +1493,21 @@ theramate-ios-client/
 
 ## 10. MVP Feature Scope
 
+The tables below are **historical planning waves** (priority vs time). Several items marked P1–P3 already have screens or APIs in the current repo (e.g. messaging, favorites on Explore, home exercises, treatment plans). For release decisions, prefer **what exists under `app/` and `lib/api/`** plus the _As-built source of truth_ section over the numeric phase alone.
+
 ### 10.1 Phase 1 - Core MVP (4-6 weeks)
 
-| Feature             | Priority | Description                                        |
-| ------------------- | -------- | -------------------------------------------------- |
-| Auth & Onboarding   | P0       | Login, register, password reset, client onboarding |
-| Dashboard           | P0       | Next session, quick actions, recent activity       |
-| Therapist Discovery | P0       | List view, search, filters, map view               |
-| Therapist Profile   | P0       | Bio, services, reviews, availability preview       |
-| Booking Flow        | P0       | Select service → time → confirm → pay              |
-| My Sessions         | P0       | Upcoming, past, cancel session                     |
-| Session Detail      | P0       | Status, therapist info, location, notes            |
-| Payments            | P0       | Stripe payment sheet, Apple Pay                    |
-| Push Notifications  | P0       | Session reminders, booking confirmations           |
+| Feature             | Priority | Description                                                       |
+| ------------------- | -------- | ----------------------------------------------------------------- |
+| Auth & Onboarding   | P0       | Login, register, password reset, client onboarding                |
+| Dashboard           | P0       | Next session, quick actions, recent activity                      |
+| Therapist Discovery | P0       | List view, text search, discipline + pay-at-clinic chips (no map) |
+| Therapist Profile   | P0       | Bio, services, reviews, availability preview                      |
+| Booking Flow        | P0       | Select service → time → confirm → pay                             |
+| My Sessions         | P0       | Upcoming, past, cancel session                                    |
+| Session Detail      | P0       | Status, therapist info, location, notes                           |
+| Payments            | P0       | Stripe payment sheet, Apple Pay                                   |
+| Push Notifications  | P0       | Session reminders, booking confirmations                          |
 
 ### 10.2 Phase 2 - Communication (2-3 weeks)
 
@@ -1606,26 +1649,32 @@ module.exports = {
 
 ## Appendix B: API Response Examples
 
-### Therapist List Response
+### Therapist list (Explore — in-app shape)
+
+After `fetchMarketplacePractitioners`, each row matches `MarketplacePractitioner` in `lib/api/marketplace.ts` (not the `marketplace_practitioners` view row).
 
 ```json
 {
   "data": [
     {
       "id": "uuid",
-      "user_id": "uuid",
       "first_name": "Sarah",
       "last_name": "Johnson",
-      "specializations": ["sports_therapy", "rehabilitation"],
+      "user_role": "sports_therapist",
+      "therapist_type": "hybrid",
+      "specializations": ["sports_therapy", "sports_massage"],
       "hourly_rate": 80.0,
+      "from_price": 65.0,
       "average_rating": 4.8,
       "total_reviews": 47,
       "profile_photo_url": "https://...",
       "location": "London, UK",
-      "verification_status": "verified"
+      "verified": true,
+      "accept_in_person_payment": false,
+      "bio": "...",
+      "experience_years": 8
     }
-  ],
-  "count": 25
+  ]
 }
 ```
 
@@ -1653,6 +1702,6 @@ module.exports = {
 
 ---
 
-_Document Version: 1.0_  
-_Last Updated: January 2026_  
+_Document Version: 1.1 (as-built alignment pass)_  
+_Last Updated: May 2026_  
 _Author: AI Assistant_

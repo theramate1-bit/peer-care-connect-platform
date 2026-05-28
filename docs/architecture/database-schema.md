@@ -10,7 +10,7 @@ The platform uses **Supabase** (PostgreSQL) as its database. All tables live in 
 
 **Key concepts:**
 
-- **Practitioners** are users with `user_role = 'practitioner'`. They offer services, manage availability, and see the practice dashboard.
+- **Practitioners** are `users` rows whose **`user_role`** is a therapist discipline (e.g. `sports_therapist`, `massage_therapist`, `osteopath`), not a single generic `practitioner` value. They offer services, manage availability, and use the practice dashboard when that role applies.
 - **Clients** are registered users who book sessions. `client_id` on sessions links to their `users` row.
 - **Guests** book without an account. Sessions have `is_guest_booking = true` and may use a guest `users` row.
 - **Practitioner types:** `clinic_based`, `mobile`, `hybrid`—determine booking flows and location logic. See [Practitioner Types](../product/PRACTITIONER_TYPE_CLINIC_BASED.md).
@@ -41,19 +41,19 @@ conversations ◄──► messages (conversation_id)
 
 The central identity table. Links to Supabase Auth via `id = auth.uid()` for authenticated users. Guests also get a `users` row.
 
-| Column                                                  | Type         | Purpose                                                 |
-| ------------------------------------------------------- | ------------ | ------------------------------------------------------- |
-| `id`                                                    | uuid         | Primary key, matches auth.uid for authenticated users   |
-| `email`                                                 | varchar      | Unique                                                  |
-| `first_name`, `last_name`                               | varchar      | Display name                                            |
-| `user_role`                                             | enum         | `client`, `practitioner`, `admin`, `guest`              |
-| `therapist_type`                                        | enum         | `clinic_based`, `mobile`, `hybrid` (practitioners only) |
-| `clinic_address`, `clinic_latitude`, `clinic_longitude` | text/numeric | Clinic location (clinic_based, hybrid)                  |
-| `base_address`, `base_latitude`, `base_longitude`       | text/numeric | Base location for mobile visits (mobile, hybrid)        |
-| `mobile_service_radius_km`                              | integer      | Radius for mobile service (mobile, hybrid)              |
-| `treatment_exchange_opt_in`                             | boolean      | Can receive treatment exchange requests                 |
-| `stripe_connect_account_id`                             | text         | Stripe Connect for payouts                              |
-| `is_guest_booking`                                      | boolean      | N/A on users; used on `client_sessions`                 |
+| Column                                                  | Type         | Purpose                                                                                                                                                |
+| ------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                                                    | uuid         | Primary key, matches auth.uid for authenticated users                                                                                                  |
+| `email`                                                 | varchar      | Unique                                                                                                                                                 |
+| `first_name`, `last_name`                               | varchar      | Display name                                                                                                                                           |
+| `user_role`                                             | enum         | `client`, `guest`, `admin`, plus therapist disciplines (`sports_therapist`, `massage_therapist`, `osteopath`, …) — not a single `practitioner` literal |
+| `therapist_type`                                        | enum         | `clinic_based`, `mobile`, `hybrid` (practitioners only)                                                                                                |
+| `clinic_address`, `clinic_latitude`, `clinic_longitude` | text/numeric | Clinic location (clinic_based, hybrid)                                                                                                                 |
+| `base_address`, `base_latitude`, `base_longitude`       | text/numeric | Base location for mobile visits (mobile, hybrid)                                                                                                       |
+| `mobile_service_radius_km`                              | integer      | Radius for mobile service (mobile, hybrid)                                                                                                             |
+| `treatment_exchange_opt_in`                             | boolean      | Can receive treatment exchange requests                                                                                                                |
+| `stripe_connect_account_id`                             | text         | Stripe Connect for payouts                                                                                                                             |
+| `is_guest_booking`                                      | boolean      | N/A on users; used on `client_sessions`                                                                                                                |
 
 **See:** [PRACTITIONER_TYPE_CLINIC_BASED](../product/PRACTITIONER_TYPE_CLINIC_BASED.md), [PRACTITIONER_TYPE_MOBILE](../product/PRACTITIONER_TYPE_MOBILE.md), [PRACTITIONER_TYPE_HYBRID](../product/PRACTITIONER_TYPE_HYBRID.md).
 

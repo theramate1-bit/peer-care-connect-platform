@@ -30,7 +30,7 @@ The UI and step counts differ by flow and user type.
 
 ## 1) Authenticated Marketplace Booking
 
-**Component:** `peer-care-connect/src/components/marketplace/BookingFlow.tsx`
+**Component:** `src/components/booking/BookingFlow.tsx`
 
 ### Who uses this
 
@@ -80,7 +80,7 @@ The component passes `totalSteps={5}` when `!isClient` for the shared progress h
 
 ## 2) Guest Marketplace Booking
 
-**Component:** `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`
+**Component:** `src/components/booking/BookingFlow.tsx (guestMode)`
 
 ### Who uses this
 
@@ -107,7 +107,7 @@ The component passes `totalSteps={5}` when `!isClient` for the shared progress h
 
 ## 3) Pre-Assessment Form Flow (Embedded)
 
-**Component:** `peer-care-connect/src/components/forms/PreAssessmentForm.tsx`
+**Component:** `search src/ for pre-assessment`
 
 ### Where used
 
@@ -134,7 +134,7 @@ The component passes `totalSteps={5}` when `!isClient` for the shared progress h
 
 ## 4) Practitioner Intake Form Flow (Embedded)
 
-**Component:** `peer-care-connect/src/components/booking/IntakeForm.tsx`
+**Component:** `search src/components/booking`
 
 ### Where used
 
@@ -159,7 +159,7 @@ The component passes `totalSteps={5}` when `!isClient` for the shared progress h
 
 ## 5) Checkout Card Flow
 
-**Component:** `peer-care-connect/src/components/checkout/CheckoutFlow.tsx`
+**Component:** `search src/components/paymentsCheckoutFlow.tsx`
 
 ### Step model
 
@@ -178,7 +178,7 @@ The component passes `totalSteps={5}` when `!isClient` for the shared progress h
 
 ## 6) Mobile Checkout Flow
 
-**Component:** `peer-care-connect/src/components/checkout/MobileCheckout.tsx`
+**Component:** `search src/components/paymentsMobileCheckout.tsx`
 
 ### Step model
 
@@ -225,12 +225,12 @@ The component passes `totalSteps={5}` when `!isClient` for the shared progress h
 
 ## File Index
 
-- `peer-care-connect/src/components/marketplace/BookingFlow.tsx`
-- `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`
-- `peer-care-connect/src/components/forms/PreAssessmentForm.tsx`
-- `peer-care-connect/src/components/booking/IntakeForm.tsx`
-- `peer-care-connect/src/components/checkout/CheckoutFlow.tsx`
-- `peer-care-connect/src/components/checkout/MobileCheckout.tsx`
+- `src/components/booking/BookingFlow.tsx`
+- `src/components/booking/BookingFlow.tsx (guestMode)`
+- `search src/ for pre-assessment`
+- `search src/components/booking`
+- `search src/components/paymentsCheckoutFlow.tsx`
+- `search src/components/paymentsMobileCheckout.tsx`
 
 ---
 

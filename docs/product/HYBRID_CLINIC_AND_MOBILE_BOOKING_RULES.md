@@ -30,12 +30,9 @@
 
 ## Implementation Checklist (current)
 
-- [x] **`lib/booking-flow-type.ts`** – `canRequestMobile()` requires base_lat/lon only (no clinic fallback).
-- [x] **Marketplace** – Eligibility for hybrid allows clinic OR base so they can appear and offer clinic; mobile CTA only when `canRequestMobile` (base set). Hybrid shows `HybridBookingChooser` when both flows available.
-- [x] **`MobileBookingRequestFlow`** – Distance and validation use **base** coords only; “Practitioner must set base address for mobile bookings” when base missing.
-- [x] **Backend** – `create_mobile_booking_request` requires base\_\* for mobile and hybrid; no clinic fallback.
-- [x] **Geo-search** – Fallback uses base only for mobile/hybrid; hybrids without base drop out of mobile results.
-- [x] **BookingFlow / GuestBookingFlow** – Pass `therapistType` and `requestedAppointmentType`; refetch includes base*\* (clinic*\* not required for `canRequestMobile`).
+- [x] **Eligibility** — `canRequestMobile`-style checks require **base** coords only (see native explore `[id].tsx` and web `BookingFlow` search for `therapist_type` / mobile).
+- [x] **Marketplace** — hybrid can list with clinic-only coords; mobile CTA appears when base exists (after profile sync).
+- [x] **Mobile request UI** — native `mobileRequests` + RPCs; web may be partial — search `src/` for `mobile_booking`.
 
 ## Same-day approval vs mobile requests
 
@@ -53,7 +50,8 @@
 
 ## References
 
-- `peer-care-connect/src/lib/booking-flow-type.ts` – `canBookClinic`, `canRequestMobile`, `isProductClinicBookable`, `isProductMobileBookable`.
-- `peer-care-connect/src/pages/Marketplace.tsx` – cards, `HybridBookingChooser`, modal routing.
-- `peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx` – distance from base/clinic for hybrid.
-- Backend: `create_mobile_booking_request` (Supabase RPC) – origin coords for hybrid.
+- [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md) — narrative source of truth for CTAs and flows.
+- [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) — web clinic booking (`guestMode` for guests).
+- [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts) — practitioner list for web discovery.
+- Native: `theramate-ios-client/app/(tabs)/explore/[id].tsx`, [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts).
+- Backend: `create_mobile_booking_request` and related RPCs under **`supabase/`**.

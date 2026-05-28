@@ -27,49 +27,49 @@ Latest MCP re-check confirms these signatures are still present:
    - Current state: `PublicTherapistProfile` now uses `HybridBookingChooser`, `BookingFlow` / `GuestBookingFlow`, and `MobileBookingRequestFlow`.
    - Result: legacy `UnifiedBookingModal` bypass on this route is removed.
    - Evidence:
-     - `peer-care-connect/src/pages/public/PublicTherapistProfile.tsx`
-     - `peer-care-connect/src/components/profiles/PublicPractitionerProfileContent.tsx`
+     - `search src/ for public therapist profile (if present)`
+     - `search src/ + native profilePublicPractitionerProfileContent.tsx`
 
 2. **Medium (Resolved): Marketplace-only mobile pre-search gate**
    - Current state: marketplace no longer hard-disables mobile entry pending geo-search.
    - Result: mobile entry behavior is now aligned with other surfaces (validation happens inside mobile flow).
    - Evidence:
-     - `peer-care-connect/src/pages/Marketplace.tsx`
+     - `src/pages/discovery/TherapistSearch.tsx + src/pages/client/ClientBooking.tsx`
 
 3. **Medium (Resolved): Hybrid chooser standardization**
    - Current state: shared `HybridBookingChooser` is used across marketplace, direct booking, profile viewer, client booking, and public therapist page.
    - Marketplace hybrid chooser now follows inline pattern in smart and traditional paths (no separate chooser dialog path).
    - Evidence:
-     - `peer-care-connect/src/components/booking/HybridBookingChooser.tsx`
-     - `peer-care-connect/src/pages/Marketplace.tsx`
-     - `peer-care-connect/src/pages/public/DirectBooking.tsx`
-     - `peer-care-connect/src/components/profiles/ProfileViewer.tsx`
-     - `peer-care-connect/src/pages/client/ClientBooking.tsx`
-     - `peer-care-connect/src/pages/public/PublicTherapistProfile.tsx`
+     - `native explore choose-mode + web BookingFlow routing (search repo)`
+     - `src/pages/discovery/TherapistSearch.tsx + src/pages/client/ClientBooking.tsx`
+     - `search src/ for direct booking / slug routes`
+     - `search src/ + native profileProfileViewer.tsx`
+     - `src/pages/client/ClientBooking.tsx`
+     - `search src/ for public therapist profile (if present)`
 
 4. **Medium (Resolved): Wrong-flow recovery callback wiring gaps**
    - Current state: `onRedirectToMobile` is now wired where clinic booking flows are opened (including profile viewer and client booking).
    - Result: stale mode mismatches can reroute to mobile flow consistently.
    - Evidence:
-     - `peer-care-connect/src/components/profiles/ProfileViewer.tsx`
-     - `peer-care-connect/src/pages/client/ClientBooking.tsx`
-     - `peer-care-connect/src/pages/Marketplace.tsx`
-     - `peer-care-connect/src/pages/public/DirectBooking.tsx`
-     - `peer-care-connect/src/pages/public/PublicTherapistProfile.tsx`
+     - `search src/ + native profileProfileViewer.tsx`
+     - `src/pages/client/ClientBooking.tsx`
+     - `src/pages/discovery/TherapistSearch.tsx + src/pages/client/ClientBooking.tsx`
+     - `search src/ for direct booking / slug routes`
+     - `search src/ for public therapist profile (if present)`
 
 5. **Low (Partial): CTA language drift**
    - Current state: hybrid-choice labels are explicitly standardized (`Book at Clinic`, `Request Visit to My Location`) in shared chooser contexts, including client booking and profile viewer.
    - Result: hybrid semantics are consistent; non-hybrid generic labels still exist on some single-mode CTA branches.
    - Evidence:
-     - `peer-care-connect/src/pages/client/ClientBooking.tsx`
-     - `peer-care-connect/src/components/profiles/ProfileViewer.tsx`
-     - `peer-care-connect/src/pages/Marketplace.tsx`
+     - `src/pages/client/ClientBooking.tsx`
+     - `search src/ + native profileProfileViewer.tsx`
+     - `src/pages/discovery/TherapistSearch.tsx + src/pages/client/ClientBooking.tsx`
 
 6. **Low (Open): Guest clinic local state still carries `location`**
    - Current state: local state still includes `location` in guest clinic flow despite clinic RPC semantics.
    - Result: harmless but indicates leftover model split in UI state.
    - Evidence:
-     - `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`
+     - `src/components/booking/BookingFlow.tsx (guestMode)`
 
 ## Updated Mode Audit
 
@@ -86,7 +86,7 @@ Latest MCP re-check confirms these signatures are still present:
 
 ## Residual Risk
 
-- Guest clinic local state still carries `location` despite clinic RPC semantics in `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`.
+- Guest clinic local state still carries `location` despite clinic RPC semantics in `src/components/booking/BookingFlow.tsx (guestMode)`.
 
 ## Related Post-Booking Docs
 

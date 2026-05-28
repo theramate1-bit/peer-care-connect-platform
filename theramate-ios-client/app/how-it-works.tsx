@@ -28,47 +28,56 @@ export default function HowItWorksScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text className="text-charcoal-900 text-xl font-bold">
-          Client portal
+          How it works
         </Text>
         <Text className="text-charcoal-500 mt-3 leading-6">
-          Same core journey as the web client experience — on your phone.
+          Book qualified therapists across the UK — clinic or mobile visits —
+          with the same flows on web and mobile.
         </Text>
 
-        <View className="mt-6 gap-4">
+        <View className="mt-8 gap-6">
           <View>
-            <Text className="text-charcoal-900 font-semibold">
+            <Text className="text-charcoal-900 text-lg font-semibold">
               1. Explore & book
             </Text>
-            <Text className="text-charcoal-600 mt-1 text-sm leading-5">
-              Search therapists, open a profile, then book a clinic session or
-              request a mobile visit. You can also use Home → Quick actions or
-              Profile → Saved therapists.
+            <Text className="text-charcoal-600 mt-2 text-sm leading-5">
+              Search the marketplace, open a profile, and book a clinic slot or
+              request a mobile visit. Guests can book with an email; signed-in
+              clients see sessions and messages in one place.
             </Text>
           </View>
           <View>
-            <Text className="text-charcoal-900 font-semibold">
+            <Text className="text-charcoal-900 text-lg font-semibold">
               2. Sessions & reviews
             </Text>
-            <Text className="text-charcoal-600 mt-1 text-sm leading-5">
-              Upcoming and past sessions live under Sessions. Leave a review
+            <Text className="text-charcoal-600 mt-2 text-sm leading-5">
+              Track upcoming and past appointments under Sessions. Find a
+              booking by email if you checked out as a guest. Leave reviews
               after eligible visits.
             </Text>
+            <Button
+              variant="outline"
+              className="mt-3"
+              onPress={() => router.push("/booking/find" as never)}
+            >
+              Find my booking
+            </Button>
           </View>
           <View>
-            <Text className="text-charcoal-900 font-semibold">
-              3. Messages & plans
+            <Text className="text-charcoal-900 text-lg font-semibold">
+              3. For practitioners
             </Text>
-            <Text className="text-charcoal-600 mt-1 text-sm leading-5">
-              Message your practitioner from Messages. Treatment plans,
-              exercises, and progress sit under Profile when your therapist
-              shares them.
+            <Text className="text-charcoal-600 mt-2 text-sm leading-5">
+              Manage diary, mobile requests, care plans, clinical notes,
+              treatment exchange, and payouts from your practice workspace on
+              web or app.
             </Text>
           </View>
         </View>
 
         <Button
           variant="primary"
-          className="mt-8"
+          className="mt-10"
           leftIcon={<Search size={18} color="#fff" />}
           onPress={() => router.replace(signedInTabPath("explore") as never)}
         >
@@ -99,6 +108,20 @@ export default function HowItWorksScreen() {
           }
         >
           Treatment plans
+        </Button>
+        <Button
+          variant="outline"
+          className="mt-3"
+          onPress={() => router.push("/pricing" as never)}
+        >
+          Practitioner plans & fees
+        </Button>
+        <Button
+          variant="outline"
+          className="mt-3"
+          onPress={() => router.push("/guest/mobile-requests" as never)}
+        >
+          Track a mobile request (guest)
         </Button>
       </ScrollView>
     </SafeAreaView>

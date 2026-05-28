@@ -139,6 +139,12 @@ export default function PractitionerExchangeRequestDetailScreen() {
     await queryClient.invalidateQueries({
       queryKey: ["exchange_request_detail"],
     });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_terminal_history", userId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_completed_history", userId],
+    });
   };
 
   const backToList = () =>

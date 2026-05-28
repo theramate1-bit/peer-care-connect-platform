@@ -52,18 +52,32 @@ export default function DirectBookingScreen() {
         )}
 
         {practitionerId ? (
-          <Button
-            variant="primary"
-            className="mt-6"
-            onPress={() =>
-              router.push({
-                pathname: "/booking",
-                params: { practitionerId },
-              })
-            }
-          >
-            Continue to booking
-          </Button>
+          <>
+            <Button
+              variant="primary"
+              className="mt-6"
+              onPress={() =>
+                router.push({
+                  pathname: "/booking",
+                  params: { practitionerId, guest: "1" },
+                })
+              }
+            >
+              Book as guest (pay at clinic)
+            </Button>
+            <Button
+              variant="outline"
+              className="mt-3"
+              onPress={() =>
+                router.push({
+                  pathname: "/booking",
+                  params: { practitionerId },
+                })
+              }
+            >
+              Book signed in
+            </Button>
+          </>
         ) : null}
 
         <Button

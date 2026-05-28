@@ -27,6 +27,15 @@ RPC-level staging tests (no UI): from repo root run `npm run test:exchange:e2e`.
 
 ## Run
 
+From repo root (loads `EXCHANGE_*` from `.env`):
+
+```powershell
+npm run verify:exchange:staging
+npm run test:maestro:exchange
+```
+
+Or manually:
+
 ```bash
 cd theramate-ios-client
 maestro test .maestro/exchange-happy-path-requester.yaml

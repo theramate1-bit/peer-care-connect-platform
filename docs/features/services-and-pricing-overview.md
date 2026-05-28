@@ -50,7 +50,7 @@ sequenceDiagram
 | **Mobile**        | `mobile` only                                        | Single "Request mobile session" flow                                  |
 | **Hybrid**        | `clinic`, `mobile`, or `both`                        | "Book at clinic" and/or "Request mobile session" depending on product |
 
-**`getEffectiveProductServiceType(therapistType, product)`** in `booking-flow-type.ts` enforces this. A clinic-based practitioner with a `mobile` product will have it treated as `clinic`; they cannot offer mobile.
+**`getEffectiveProductServiceType(therapistType, product)`** (logic may live in web `BookingFlow` / `clientMarketplaceBooking` and native `booking` APIs — search the repo for `getEffectiveProductServiceType` or `service_type` normalization) enforces this. A clinic-based practitioner with a `mobile` product will have it treated as `clinic`; they cannot offer mobile.
 
 **See:** [PRACTITIONER_TYPE_CLINIC_BASED](../product/PRACTITIONER_TYPE_CLINIC_BASED.md), [PRACTITIONER_TYPE_MOBILE](../product/PRACTITIONER_TYPE_MOBILE.md), [PRACTITIONER_TYPE_HYBRID](../product/PRACTITIONER_TYPE_HYBRID.md).
 
@@ -58,12 +58,12 @@ sequenceDiagram
 
 ## Key Files
 
-| File                                                   | Role                                                                  |
-| ------------------------------------------------------ | --------------------------------------------------------------------- |
-| `src/components/practitioner/ProductForm.tsx`          | Create/edit product; service type dropdown by therapist type          |
-| `src/pages/practice/PracticeProducts.tsx` (or similar) | Product list; add/edit/delete                                         |
-| `src/lib/booking-flow-type.ts`                         | `canBookClinic`, `canRequestMobile`, `getEffectiveProductServiceType` |
-| `practitioner_products` table                          | Name, price, duration, `service_type`, `is_active`                    |
+| File                                                                                                                              | Role                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `src/components/practitioner/ProductForm.tsx`                                                                                     | Create/edit product; service type dropdown by therapist type         |
+| `src/pages/practice/PracticeProducts.tsx` (or similar)                                                                            | Product list; add/edit/delete                                        |
+| `src/lib/clientMarketplaceBooking.ts`, `src/components/booking/BookingFlow.tsx`, native `theramate-ios-client/lib/api/booking.ts` | `canBookClinic`, `canRequestMobile`, product `service_type` handling |
+| `practitioner_products` table                                                                                                     | Name, price, duration, `service_type`, `is_active`                   |
 
 ---
 

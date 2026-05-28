@@ -30,3 +30,18 @@ alwaysApply: true
 
 - **Prefer reading** real files, schemas, and APIs via **repository search**, **terminal**, and **MCP servers** (Supabase, GitHub, etc.) over guessing names or behavior.
 - When integrating with external systems, **verify** signatures and env vars from code or docs in-repo rather than inventing them.
+
+## 6. Documentation paths (drift guardrail)
+
+- **Symptom:** Links to `peer-care-connect/src/...` or `booking-flow-type.ts` 404 or mislead. **Cause:** Monorepo web code lives at repo-root **`src/`**; `peer-care-connect/` may be an empty workspace; central booking-type module may not exist on branch. **Guardrail:** Prefer **`docs/README.md`** “Legacy paths” note, **`docs/features/clinic-mobile-hybrid-flows.md`**, and grep **`src/`** / **`theramate-ios-client/`** by basename when updating docs; do not paste long Jest/test file inventories without confirming paths exist in the checkout.
+- **Symptom:** `/book/:slug` always “Could not resolve”. **Cause:** slug is `users.booking_slug`, not UUID-only lookup. **Guardrail:** `fetchPublicTherapistBySlugOrId` in `src/lib/guestBooking.ts` (web) and `theramate-ios-client/lib/api/guestBooking.ts`; route table in `peer-care-connect/src/components/AppContent.tsx`.
+- **Symptom:** Web exchange empty or wrong actions. **Cause:** must use `src/lib/practitionerExchange.ts` (ported from app) and `/practice/exchange-requests?request=<uuid>`; recipient labels decline as “Request different time”. **Guardrail:** keep web file in sync with `theramate-ios-client/lib/api/practitionerExchange.ts` on RPC changes.
+
+## 7. Web brand colors (landing / peer-care-connect)
+
+- **Symptom:** Greens look mismatched (bright buttons vs muted cards). **Cause:** `--primary` HSL saturation too high vs mobile `#7A9E7E` (~16% not ~23%), or per-section `emerald`/`violet`/`amber` classes. **Guardrail:** derive `--primary` from `theramate-ios-client/constants/colors.ts`; landing sections use shared `landing-*` classes in `peer-care-connect/src/index.css`.
+- **Symptom:** Hero “Feel better.” invisible on cream background. **Cause:** `landing-accent-text` used cream gradient (`bg-clip-text` on near-white). **Guardrail:** hero accent uses `text-primary` (same token as CTAs/icons).
+
+## 8. Auth boot (web)
+
+- **Symptom:** Long “Authenticating” / timeout / wrong dashboard flash. **Cause:** Profile coupled to auth events; duplicate guards; stale cache. **Guardrail:** `resolveAccess()` + `resolveRouteGuard()` in `access-policy.ts`; `getPostAuthRedirectPath` must use `resolveSafeRedirectTarget`; `/auth/callback` + `/auth/oauth-completion` are profile-optional; subscription wait only in `SimpleProtectedRoute`, not `AuthRouter`.

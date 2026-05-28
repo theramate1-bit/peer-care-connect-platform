@@ -9,7 +9,7 @@ When a guest **signs up** with the same email used for bookings/messages, sessio
 
 Defined in **`supabase/migrations/20260310100000_link_guest_sessions_and_conversations_to_user.sql`** (execute grants for **`authenticated`** / **`service_role`**).
 
-- App callbacks after OAuth/email login may still call **`convert_guest_to_client_or_create_profile`** (or equivalent) when merging profiles — see **`docs/product/USER_TYPE_GUEST.md` §11**; implementation paths may reference legacy **`peer-care-connect/`** folders.
+- App callbacks after OAuth/email login may still call **`convert_guest_to_client_or_create_profile`** (or equivalent) when merging profiles — see **`docs/product/USER_TYPE_GUEST.md` §11**; implementation lives under repo-root **`src/`** (search auth callback / guest linking).
 
 ## Canonical detail
 

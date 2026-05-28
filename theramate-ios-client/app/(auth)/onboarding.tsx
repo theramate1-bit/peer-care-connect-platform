@@ -18,9 +18,6 @@ import { router } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
 import { getMainAppHref } from "@/lib/postAuthRoute";
 import { AuthBackHeader } from "@/components/AuthBackHeader";
-import { openHostedWebSession } from "@/lib/openHostedWeb";
-import { publishedWebsitePath } from "@/lib/practiceWebUrls";
-
 const THERAPY_TYPES = [
   "Sports Therapy",
   "Massage Therapy",
@@ -670,12 +667,7 @@ export default function ClientOnboardingScreen() {
         />
         <TouchableOpacity
           className="mb-2"
-          onPress={() =>
-            openHostedWebSession({
-              kind: "web_app",
-              url: publishedWebsitePath("/terms"),
-            })
-          }
+          onPress={() => router.push("/terms" as never)}
         >
           <Text className="text-sage-600 text-sm">
             Read Terms of Service (in app)
@@ -688,12 +680,7 @@ export default function ClientOnboardingScreen() {
         />
         <TouchableOpacity
           className="mb-2"
-          onPress={() =>
-            openHostedWebSession({
-              kind: "web_app",
-              url: publishedWebsitePath("/privacy"),
-            })
-          }
+          onPress={() => router.push("/privacy" as never)}
         >
           <Text className="text-sage-600 text-sm">
             Read Privacy Policy (in app)

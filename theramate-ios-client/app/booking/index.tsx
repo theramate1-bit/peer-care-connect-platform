@@ -2,7 +2,7 @@
  * Booking flow — service, date/time, pre-assessment, payment method, confirm.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,8 +16,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { addDays, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useStripe } from "@stripe/stripe-react-native";
-
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,11 +26,16 @@ import {
   bookSessionAndOpenCheckout,
   type PractitionerProductRow,
 } from "@/lib/api/booking";
+import { filterClinicBookableProducts } from "@/lib/bookingProducts";
+import { canBookClinic, canRequestMobile } from "@/lib/booking-flow-type";
+import { marketplacePractitionerToBookingFlow } from "@/lib/practitionerBookingProfile";
 import { tabPath } from "@/contexts/TabRootContext";
 import { getMainAppHref } from "@/lib/postAuthRoute";
 import { signedInTabPath } from "@/lib/signedInRoutes";
 import { useAuthStore } from "@/stores/authStore";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
+import { ensureGuestUserForBooking } from "@/lib/api/guestUser";
+import { openGuestBookingOnWeb } from "@/lib/guestBookingWeb";
 
 const BASE_STEP_LABELS = [
   "Service",
@@ -43,15 +46,16 @@ const BASE_STEP_LABELS = [
 ] as const;
 
 export default function BookingModalScreen() {
-  const { practitionerId, initialDate, initialTime } = useLocalSearchParams<{
-    practitionerId?: string;
-    initialDate?: string;
-    initialTime?: string;
-  }>();
+  const { practitionerId, initialDate, initialTime, guest } =
+    useLocalSearchParams<{
+      practitionerId?: string;
+      initialDate?: string;
+      initialTime?: string;
+      guest?: string;
+    }>();
   const { userId, userProfile, user } = useAuth();
+  const isGuestMode = guest === "1" || guest === "true" || guest === "yes";
   const queryClient = useQueryClient();
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
-
   const { data: practitioners, isLoading: loadingList } =
     useMarketplacePractitioners();
   const therapist = useMemo(
@@ -59,15 +63,38 @@ export default function BookingModalScreen() {
     [practitioners, practitionerId],
   );
 
+  const bookingFlowProfile = useMemo(
+    () => (therapist ? marketplacePractitionerToBookingFlow(therapist) : null),
+    [therapist],
+  );
+
+  useEffect(() => {
+    if (!practitionerId || !bookingFlowProfile) return;
+    if (canBookClinic(bookingFlowProfile)) return;
+    if (canRequestMobile(bookingFlowProfile)) {
+      router.replace({
+        pathname: "/booking/mobile-request",
+        params: { practitionerId },
+      });
+    }
+  }, [practitionerId, bookingFlowProfile]);
+
   const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ["practitioner_products", practitionerId],
+    queryKey: [
+      "practitioner_products",
+      practitionerId,
+      therapist?.therapist_type,
+    ],
     queryFn: async () => {
       if (!practitionerId) return [];
       const { data, error } = await fetchPractitionerProducts(practitionerId);
       if (error) throw error;
-      return data;
+      return filterClinicBookableProducts(
+        therapist?.therapist_type ?? null,
+        data,
+      );
     },
-    enabled: !!practitionerId,
+    enabled: !!practitionerId && !!therapist,
   });
 
   const [step, setStep] = useState(0);
@@ -92,8 +119,17 @@ export default function BookingModalScreen() {
   const [paymentCollection, setPaymentCollection] = useState<
     "online" | "in_person"
   >("online");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
 
   const supportsInPerson = therapist?.accept_in_person_payment === true;
+
+  React.useEffect(() => {
+    if (isGuestMode) {
+      setPaymentCollection("in_person");
+    }
+  }, [isGuestMode]);
   const stepLabels = supportsInPerson
     ? BASE_STEP_LABELS
     : (BASE_STEP_LABELS.filter(
@@ -151,16 +187,28 @@ export default function BookingModalScreen() {
   }, [availableTimes, startTime]);
 
   const openCheckout = async () => {
-    if (
-      !practitionerId ||
-      !userId ||
-      !user ||
-      !userProfile ||
-      !selectedProduct
-    ) {
+    if (!practitionerId || !selectedProduct) {
+      return;
+    }
+
+    if (isGuestMode && paymentCollection === "online") {
+      openGuestBookingOnWeb({ practitionerId, mode: "clinic" });
+      return;
+    }
+
+    if (isGuestMode) {
+      if (!guestName.trim() || !guestEmail.trim()) {
+        Alert.alert(
+          "Your details",
+          "Name and email are required for guest booking.",
+        );
+        return;
+      }
+    } else if (!userId || !user || !userProfile) {
       Alert.alert("Sign in required", "Please sign in to complete booking.");
       return;
     }
+
     if (!policyAccepted) {
       Alert.alert(
         "Cancellation policy",
@@ -171,15 +219,43 @@ export default function BookingModalScreen() {
 
     setSubmitting(true);
     try {
-      const clientName =
-        `${userProfile.first_name || ""} ${userProfile.last_name || ""}`.trim() ||
-        "Client";
+      let clientId = userId!;
+      let clientName = "Client";
+      let clientEmail = "";
+      let clientPhone: string | null = null;
+      let isGuestBooking = false;
+
+      if (isGuestMode) {
+        const guestRes = await ensureGuestUserForBooking({
+          email: guestEmail,
+          name: guestName,
+        });
+        if (guestRes.error || !guestRes.userId) {
+          Alert.alert(
+            "Could not continue",
+            guestRes.error?.message ?? "Guest profile error",
+          );
+          return;
+        }
+        clientId = guestRes.userId;
+        clientName = guestName.trim();
+        clientEmail = guestEmail.trim();
+        clientPhone = guestPhone.trim() || null;
+        isGuestBooking = true;
+      } else {
+        clientName =
+          `${userProfile!.first_name || ""} ${userProfile!.last_name || ""}`.trim() ||
+          "Client";
+        clientEmail = user!.email || "";
+        clientPhone = userProfile!.phone ?? null;
+      }
+
       const result = await bookSessionAndOpenCheckout({
         therapistId: practitionerId,
-        clientId: userId,
+        clientId,
         clientName,
-        clientEmail: user.email || "",
-        clientPhone: userProfile.phone ?? null,
+        clientEmail,
+        clientPhone,
         sessionDate,
         startTime,
         product: selectedProduct,
@@ -189,6 +265,7 @@ Pain level (0-10): ${painLevel || "0"}
 Mobility impact: ${mobilityImpact || "Not provided"}
 Goals: ${goals || "Not provided"}`,
         paymentCollection,
+        isGuestBooking,
       });
 
       if (!result.ok) {
@@ -199,55 +276,42 @@ Goals: ${goals || "Not provided"}`,
         return;
       }
 
-      await queryClient.invalidateQueries({
-        queryKey: ["client_sessions", userId],
-      });
+      if (!isGuestMode && userId) {
+        await queryClient.invalidateQueries({
+          queryKey: ["client_sessions", userId],
+        });
+      }
 
       if (result.paymentCollection === "in_person") {
         Alert.alert(
           "Booking confirmed",
-          "Your session is booked. You will pay at the clinic.",
-          [
-            {
-              text: "Open booking",
-              onPress: () =>
-                router.replace(
-                  tabPath(
-                    getMainAppHref(
-                      useAuthStore.getState().userProfile?.user_role,
+          isGuestMode
+            ? "Your session is booked. Pay at the clinic on the day. Use Find my booking with your email to view details."
+            : "Your session is booked. You will pay at the clinic.",
+          isGuestMode
+            ? [
+                {
+                  text: "Find my booking",
+                  onPress: () => router.replace("/booking/find" as never),
+                },
+                { text: "Done", style: "cancel" },
+              ]
+            : [
+                {
+                  text: "Open booking",
+                  onPress: () =>
+                    router.replace(
+                      tabPath(
+                        getMainAppHref(
+                          useAuthStore.getState().userProfile?.user_role,
+                        ),
+                        `bookings/${result.sessionId}`,
+                      ) as never,
                     ),
-                    `bookings/${result.sessionId}`,
-                  ) as never,
-                ),
-            },
-          ],
+                },
+              ],
         );
         return;
-      }
-
-      // Prefer native PaymentSheet when server returns required Stripe secrets.
-      if (result.paymentIntentClientSecret) {
-        const init = await initPaymentSheet({
-          merchantDisplayName: "Theramate",
-          paymentIntentClientSecret: result.paymentIntentClientSecret,
-          customerId: result.customerId,
-          customerEphemeralKeySecret: result.customerEphemeralKeySecret,
-          allowsDelayedPaymentMethods: false,
-          returnURL: "theramate://booking-success",
-        });
-
-        if (!init.error) {
-          const presented = await presentPaymentSheet();
-          if (!presented.error) {
-            router.replace(
-              tabPath(
-                getMainAppHref(useAuthStore.getState().userProfile?.user_role),
-                `bookings/${result.sessionId}`,
-              ) as never,
-            );
-            return;
-          }
-        }
       }
 
       if (!result.checkoutUrl) {
@@ -510,6 +574,51 @@ Goals: ${goals || "Not provided"}`,
 
         {step === 2 && selectedProduct && (
           <View>
+            {isGuestMode ? (
+              <View className="mb-5">
+                <Text className="text-charcoal-800 font-semibold mb-1">
+                  Your details
+                </Text>
+                <Text className="text-charcoal-500 text-sm mb-3">
+                  Book without an account. Card payments open on the website;
+                  pay-at-clinic can be confirmed here.
+                </Text>
+                <Text className="text-charcoal-700 font-medium mb-2">
+                  Full name *
+                </Text>
+                <TextInput
+                  value={guestName}
+                  onChangeText={setGuestName}
+                  placeholder="Your name"
+                  placeholderTextColor={Colors.charcoal[400]}
+                  className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
+                />
+                <Text className="text-charcoal-700 font-medium mb-2">
+                  Email *
+                </Text>
+                <TextInput
+                  value={guestEmail}
+                  onChangeText={setGuestEmail}
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor={Colors.charcoal[400]}
+                  className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
+                />
+                <Text className="text-charcoal-700 font-medium mb-2">
+                  Phone (optional)
+                </Text>
+                <TextInput
+                  value={guestPhone}
+                  onChangeText={setGuestPhone}
+                  placeholder="Phone number"
+                  keyboardType="phone-pad"
+                  placeholderTextColor={Colors.charcoal[400]}
+                  className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-4"
+                />
+              </View>
+            ) : null}
+
             <Text className="text-charcoal-800 font-semibold mb-1">
               Pre-assessment
             </Text>
@@ -603,24 +712,42 @@ Goals: ${goals || "Not provided"}`,
               Payment method
             </Text>
             <Text className="text-charcoal-500 text-sm mb-4">
-              Choose whether to pay online now or at the clinic.
+              {isGuestMode
+                ? "Guests can confirm pay-at-clinic here. Pay online on the website."
+                : "Choose whether to pay online now or at the clinic."}
             </Text>
 
-            <TouchableOpacity
-              onPress={() => setPaymentCollection("online")}
-              className={`mb-3 p-4 rounded-xl border ${
-                paymentCollection === "online"
-                  ? "border-sage-500 bg-sage-500/10"
-                  : "border-cream-200 bg-white"
-              }`}
-            >
-              <Text className="text-charcoal-900 font-semibold">
-                Pay online
-              </Text>
-              <Text className="text-charcoal-500 text-sm mt-1">
-                Secure card payment now via Stripe.
-              </Text>
-            </TouchableOpacity>
+            {!isGuestMode ? (
+              <TouchableOpacity
+                onPress={() => setPaymentCollection("online")}
+                className={`mb-3 p-4 rounded-xl border ${
+                  paymentCollection === "online"
+                    ? "border-sage-500 bg-sage-500/10"
+                    : "border-cream-200 bg-white"
+                }`}
+              >
+                <Text className="text-charcoal-900 font-semibold">
+                  Pay online
+                </Text>
+                <Text className="text-charcoal-500 text-sm mt-1">
+                  Secure card payment now via Stripe.
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Button
+                variant="outline"
+                className="mb-3"
+                onPress={() =>
+                  practitionerId &&
+                  openGuestBookingOnWeb({
+                    practitionerId,
+                    mode: "clinic",
+                  })
+                }
+              >
+                Pay online on website (guest)
+              </Button>
+            )}
 
             <TouchableOpacity
               onPress={() => setPaymentCollection("in_person")}

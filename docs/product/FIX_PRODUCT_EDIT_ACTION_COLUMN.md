@@ -55,4 +55,4 @@ Only keys present in the request body that are in this whitelist are passed to `
 ## References
 
 - Edge Function: `supabase/functions/stripe-payment/index.ts` — `handleUpdateProduct`, `PRACTITIONER_PRODUCTS_UPDATE_KEYS`.
-- Frontend: `peer-care-connect/src/lib/stripe-products.ts` — `updatePractitionerProduct` (sends `action: 'update-product'` in body; no change needed).
+- Frontend: `search src/config/stripe.ts and src/lib for product updates` — `updatePractitionerProduct` (sends `action: 'update-product'` in body; no change needed).

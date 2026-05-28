@@ -12,7 +12,7 @@
 | -------------------------------- | ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | **Direct booking** `/book/:slug` | Anyone            | `BookingFlow` / `GuestBookingFlow` (clinic) **or** `MobileBookingRequestFlow` (mobile) | ✅ Uses `canBookClinic` / `canRequestMobile`. Hybrid gets choice; mobile-only opens mobile flow. |
 | **Marketplace**                  | Logged-in / guest | `BookingFlow` / `GuestBookingFlow`                                                     | ⚠️ No therapist_type–based branching; no “Book at clinic” vs “Request mobile” for hybrid.        |
-| **Profile / other**              | Varies            | Same as above via `booking-flow-type`                                                  | Depends on whether entry point passes therapist_type and offers both CTAs.                       |
+| **Profile / other**              | Varies            | Same as above via therapist type + product rules (see hybrid doc)                      | Depends on whether entry point passes therapist_type and offers both CTAs.                       |
 
 ### 1.2 What each flow collects
 
@@ -142,7 +142,7 @@ So the main missing piece in **emails** is **visit address** in the practitioner
 ## 6. File reference
 
 - **Flows:** `BookingFlow.tsx`, `GuestBookingFlow.tsx`, `MobileBookingRequestFlow.tsx` (marketplace); `DirectBooking.tsx` (direct).
-- **Flow type:** `lib/booking-flow-type.ts` (`canBookClinic`, `canRequestMobile`, `defaultBookingFlowType`).
+- **Flow type:** Web `BookingFlow` + native explore (`canBookClinic`, `canRequestMobile`); see [clinic-mobile-hybrid-flows.md](./clinic-mobile-hybrid-flows.md).
 - **Booking creation:** `create_booking_with_validation` (no address); `create_mobile_booking_request` (has `p_client_address`).
 - **Emails:** `supabase/functions/send-email/index.ts` (templates and `sessionLocation` / `directionsUrl` usage).
 - **Session data:** `client_sessions` (no session_location in current types); mobile request data in RPC/localStorage/context.
@@ -156,7 +156,7 @@ So the main missing piece in **emails** is **visit address** in the practitioner
 - **Post-payment email trigger:** `stripe-webhooks` now sends booking confirmation emails on `payment_intent.succeeded` when `metadata.session_id` is set. It loads session + practitioner, sets `sessionLocation` and `directionsUrl` from practitioner `location` (clinic address), and calls `send-email` for both `booking_confirmation_client` and `booking_confirmation_practitioner` with `Authorization: Bearer SUPABASE_SERVICE_ROLE_KEY`. Mobile client address is not yet in `client_sessions`; when added (e.g. column or linked mobile request), the same flow can pass it for mobile sessions.
 - **Marketplace / Book CTA:** DirectBooking (`/book/:slug`) already uses `canBookClinic` / `canRequestMobile` and shows "Book at clinic" vs "Request mobile" for hybrid; mobile-only uses mobile flow. No separate marketplace listing page found in repo.
 - **In-app notifications:** `SessionNotificationTrigger` supports optional `sessionLocation`; `booking_created` message appends "Visit address: {sessionLocation}" when provided. Callers (e.g. mobile flow completion) can pass it when available.
-- **Tests:** Unit tests for `canBookClinic`, `canRequestMobile`, `defaultBookingFlowType` in `src/lib/booking-flow-type.test.ts` (run: `npx jest src/lib/booking-flow-type.test.ts`).
+- **Tests:** Add or run tests next to `src/components/booking/` and `theramate-ios-client` booking APIs (historic `booking-flow-type.test.ts` may not exist on this branch).
 
 ### Production verification checklist
 

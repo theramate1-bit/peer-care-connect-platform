@@ -97,6 +97,12 @@ Deno.serve(async (req) => {
           return await handleVerifyConnectAccount(req, body, supabaseAdmin);
         } else if (action === "create-onboarding-link") {
           return await handleCreateOnboardingLink(req, body, supabaseAdmin);
+        } else if (action === "create-connect-hosted-onboarding-link") {
+          return await handleCreateConnectHostedOnboardingLink(
+            req,
+            body,
+            supabaseAdmin,
+          );
         } else if (action === "transfer-to-connect") {
           return await handleTransferToConnect(req, body, supabaseAdmin);
         } else if (action === "create-product") {
@@ -125,6 +131,12 @@ Deno.serve(async (req) => {
           return await handleCaptureMobilePayment(req, body, supabaseAdmin);
         } else if (action === "release-mobile-payment") {
           return await handleReleaseMobilePayment(req, body, supabaseAdmin);
+        } else if (action === "create-platform-subscription-checkout") {
+          return await handleCreatePlatformSubscriptionCheckout(
+            req,
+            body,
+            supabaseAdmin,
+          );
         } else {
           console.error("[STRIPE-PAYMENT] Unknown action:", action);
           return new Response(
@@ -1849,6 +1861,143 @@ async function handleVerifyConnectAccount(
   }
 }
 
+/**
+ * Stripe-hosted Connect onboarding (Account Links). No publishable key on client.
+ */
+async function handleCreateConnectHostedOnboardingLink(
+  req: Request,
+  body: Record<string, unknown>,
+  supabase: ReturnType<typeof createClient>,
+) {
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: missing authorization header" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const supabaseAnon = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: authData, error: authError } =
+      await supabaseAnon.auth.getUser(token);
+    if (authError || !authData?.user?.id) {
+      return new Response(
+        JSON.stringify({
+          error: "Unauthorized: invalid user",
+          details: authError?.message,
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const userId = authData.user.id;
+    let accountId =
+      typeof body.stripe_account_id === "string"
+        ? body.stripe_account_id
+        : null;
+
+    if (!accountId) {
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("stripe_connect_account_id")
+        .eq("id", userId)
+        .maybeSingle();
+      accountId =
+        (userRow as { stripe_connect_account_id?: string | null } | null)
+          ?.stripe_connect_account_id ?? null;
+    }
+
+    if (!accountId) {
+      return new Response(
+        JSON.stringify({
+          error: "No Stripe Connect account. Create a Connect account first.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const appUrl = (
+      Deno.env.get("APP_URL") ||
+      Deno.env.get("SITE_URL") ||
+      ""
+    ).replace(/\/$/, "");
+    if (!appUrl) {
+      return new Response(
+        JSON.stringify({
+          error: "Server not configured: APP_URL or SITE_URL required",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const returnPath =
+      typeof body.return_path === "string" && body.return_path.startsWith("/")
+        ? body.return_path
+        : "/onboarding/stripe-return";
+    const returnUrl =
+      typeof body.return_url === "string" && body.return_url.startsWith("http")
+        ? body.return_url
+        : `${appUrl}${returnPath}`;
+    const refreshUrl =
+      typeof body.refresh_url === "string" &&
+      body.refresh_url.startsWith("http")
+        ? body.refresh_url
+        : returnUrl;
+
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2023-10-16",
+    });
+    const link = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: "account_onboarding",
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        onboarding_url: link.url,
+        stripe_account_id: accountId,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[CREATE-CONNECT-HOSTED-ONBOARDING-LINK] Error:", message);
+    return new Response(
+      JSON.stringify({
+        error: "Failed to create hosted onboarding link",
+        details: message,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+}
+
 async function handleCreateOnboardingLink(
   req: Request,
   body: any,
@@ -2141,7 +2290,12 @@ async function handleCreateMobileCheckoutSession(
       practitioner_id,
       therapist_connect_account_id,
       metadata,
+      idempotency_key: idempotencyKeyBody,
     } = body || {};
+    const idempotency_key =
+      typeof idempotencyKeyBody === "string" && idempotencyKeyBody.length > 0
+        ? idempotencyKeyBody
+        : `mobile_checkout_${request_id}`;
 
     if (
       !request_id ||
@@ -2171,10 +2325,9 @@ async function handleCreateMobileCheckoutSession(
     const { data: mobileRequest, error: requestError } = await supabase
       .from("mobile_booking_requests")
       .select(
-        "id, status, payment_status, total_price_pence, platform_fee_pence, practitioner_id, product_id, client_id",
+        "id, status, payment_status, total_price_pence, platform_fee_pence, practitioner_id, product_id, client_id, stripe_payment_intent_id",
       )
       .eq("id", request_id)
-      .eq("practitioner_id", practitioner_id)
       .maybeSingle();
 
     if (requestError || !mobileRequest) {
@@ -2197,6 +2350,29 @@ async function handleCreateMobileCheckoutSession(
         }),
         {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const existingPay = String(
+      mobileRequest.payment_status || "",
+    ).toLowerCase();
+    if (
+      existingPay === "held" ||
+      existingPay === "paid" ||
+      existingPay === "succeeded" ||
+      existingPay === "captured"
+    ) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          already_paid: true,
+          request_id,
+          payment_status: mobileRequest.payment_status,
+        }),
+        {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
@@ -2241,6 +2417,38 @@ async function handleCreateMobileCheckoutSession(
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2023-10-16",
     });
+
+    const stripeIdempotencyOpts = { idempotencyKey: idempotency_key };
+
+    const { data: existingCheckout } = await supabase
+      .from("checkout_sessions")
+      .select("stripe_checkout_session_id, status")
+      .eq("idempotency_key", idempotency_key)
+      .maybeSingle();
+
+    if (existingCheckout?.stripe_checkout_session_id) {
+      try {
+        const prior = await stripe.checkout.sessions.retrieve(
+          existingCheckout.stripe_checkout_session_id,
+        );
+        if (prior.url && prior.status === "open") {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              checkout_url: prior.url,
+              checkout_session_id: prior.id,
+              reused_checkout_session: true,
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      } catch (_e) {
+        /* create fresh session below */
+      }
+    }
 
     const appUrl = (
       Deno.env.get("APP_URL") ||
@@ -2291,17 +2499,20 @@ async function handleCreateMobileCheckoutSession(
     let checkoutSession: any;
     try {
       // Primary path: destination charge (auto transfer on capture).
-      checkoutSession = await stripe.checkout.sessions.create({
-        ...baseCheckoutPayload,
-        payment_intent_data: {
-          capture_method: "manual",
-          application_fee_amount: platformFee,
-          transfer_data: {
-            destination: destinationAccountId,
+      checkoutSession = await stripe.checkout.sessions.create(
+        {
+          ...baseCheckoutPayload,
+          payment_intent_data: {
+            capture_method: "manual",
+            application_fee_amount: platformFee,
+            transfer_data: {
+              destination: destinationAccountId,
+            },
+            metadata: paymentMetadata,
           },
-          metadata: paymentMetadata,
         },
-      });
+        stripeIdempotencyOpts,
+      );
     } catch (primaryError: any) {
       const errorMessage = String(primaryError?.message || "");
       const transferCapabilityError =
@@ -2323,13 +2534,16 @@ async function handleCreateMobileCheckoutSession(
       );
 
       // Fallback path: hold funds on platform and transfer at capture time.
-      checkoutSession = await stripe.checkout.sessions.create({
-        ...baseCheckoutPayload,
-        payment_intent_data: {
-          capture_method: "manual",
-          metadata: paymentMetadata,
+      checkoutSession = await stripe.checkout.sessions.create(
+        {
+          ...baseCheckoutPayload,
+          payment_intent_data: {
+            capture_method: "manual",
+            metadata: paymentMetadata,
+          },
         },
-      });
+        stripeIdempotencyOpts,
+      );
     }
 
     if (
@@ -2344,6 +2558,20 @@ async function handleCreateMobileCheckoutSession(
         })
         .eq("id", request_id);
     }
+
+    await supabase.from("checkout_sessions").upsert(
+      {
+        stripe_checkout_session_id: checkoutSession.id,
+        idempotency_key,
+        practitioner_id,
+        client_email,
+        status: checkoutSession.status || "open",
+        expires_at: checkoutSession.expires_at
+          ? new Date(checkoutSession.expires_at * 1000).toISOString()
+          : null,
+      },
+      { onConflict: "idempotency_key" },
+    );
 
     return new Response(
       JSON.stringify({
@@ -2390,6 +2618,47 @@ async function handleConfirmMobileCheckoutSession(
         }),
         {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const { data: mobileRequest, error: requestError } = await supabase
+      .from("mobile_booking_requests")
+      .select("id, status, payment_status, stripe_payment_intent_id")
+      .eq("id", request_id)
+      .maybeSingle();
+
+    if (requestError || !mobileRequest) {
+      return new Response(
+        JSON.stringify({
+          error: "Mobile request not found",
+          details: requestError?.message,
+        }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const confirmPay = String(mobileRequest.payment_status || "").toLowerCase();
+    if (
+      confirmPay === "held" ||
+      confirmPay === "paid" ||
+      confirmPay === "succeeded" ||
+      confirmPay === "captured"
+    ) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          already_confirmed: true,
+          request_id,
+          payment_intent_id: mobileRequest.stripe_payment_intent_id,
+          payment_status: mobileRequest.payment_status,
+        }),
+        {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
@@ -3614,6 +3883,104 @@ async function handleCreateAccountSession(
         param: errorDetails.param,
         request_id: errorDetails.request_id,
         fullError: errorDetails,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+}
+
+/** Practitioner platform plan (Stripe Checkout subscription mode). */
+async function handleCreatePlatformSubscriptionCheckout(
+  req: Request,
+  body: any,
+  _supabaseAdmin: any,
+) {
+  try {
+    const priceId = body?.price_id;
+    if (!priceId || typeof priceId !== "string") {
+      return new Response(JSON.stringify({ error: "Missing price_id" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseAnon = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: authData, error: authError } =
+      await supabaseAnon.auth.getUser(token);
+    if (authError || !authData?.user?.id) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const appUrl = (
+      Deno.env.get("APP_URL") ||
+      Deno.env.get("SITE_URL") ||
+      "https://theramate.co.uk"
+    ).replace(/\/$/, "");
+
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2023-10-16",
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      customer_email: authData.user.email || undefined,
+      client_reference_id: authData.user.id,
+      metadata: {
+        user_id: authData.user.id,
+        checkout_type: "platform_subscription",
+      },
+      subscription_data: {
+        metadata: { user_id: authData.user.id },
+      },
+      success_url: `${appUrl}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/pricing`,
+    });
+
+    if (!session.url) {
+      return new Response(
+        JSON.stringify({ error: "Checkout session did not return a URL" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        checkout_url: session.url,
+        checkout_session_id: session.id,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  } catch (e: any) {
+    console.error("[CREATE-PLATFORM-SUB-CHECKOUT]", e);
+    return new Response(
+      JSON.stringify({
+        error: "Failed to create subscription checkout",
+        details: e?.message,
       }),
       {
         status: 500,

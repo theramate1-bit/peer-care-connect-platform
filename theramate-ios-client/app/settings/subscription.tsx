@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
+import { isPractitionerPortalRole } from "@/lib/authRoles";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
 import {
@@ -42,7 +43,8 @@ function formatDate(iso: string | null | undefined): string | null {
 }
 
 export default function SettingsSubscriptionScreen() {
-  const { userId, isAuthenticated, isInitialized } = useAuth();
+  const { userId, isAuthenticated, isInitialized, userProfile } = useAuth();
+  const isPractitioner = isPractitionerPortalRole(userProfile?.user_role);
 
   const {
     data: summary,
@@ -169,15 +171,40 @@ export default function SettingsSubscriptionScreen() {
             </Card>
           ) : null}
 
-          {!sub && !summary?.accessDenied ? (
+          {!isPractitioner ? (
+            <Card variant="default" padding="md" className="mb-4">
+              <Text className="text-charcoal-900 font-semibold text-lg">
+                Client account
+              </Text>
+              <Text className="text-charcoal-500 mt-2 leading-6">
+                Platform subscriptions apply to practitioner accounts. For
+                session payments and saved cards, use Payment methods or the
+                secure billing area below.
+              </Text>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onPress={() => router.push(paymentMethodsPath as never)}
+              >
+                Payment methods
+              </Button>
+              <Button
+                variant="outline"
+                className="mt-3"
+                onPress={() => router.push("/pricing" as never)}
+              >
+                Plans & session fees
+              </Button>
+            </Card>
+          ) : !sub && !summary?.accessDenied ? (
             <Card variant="default" padding="md" className="mb-4">
               <Text className="text-charcoal-900 font-semibold text-lg">
                 No subscription on file
               </Text>
               <Text className="text-charcoal-500 mt-2 leading-6">
                 When you subscribe to a Theramate plan, your status and renewal
-                dates will appear here. You can add or manage cards in the
-                secure billing area once you have a Stripe customer record.
+                dates will appear here. Complete onboarding or contact support
+                if you already pay by invoice.
               </Text>
               <Button
                 variant="outline"
@@ -187,7 +214,7 @@ export default function SettingsSubscriptionScreen() {
                 Plans & platform fees
               </Button>
             </Card>
-          ) : sub ? (
+          ) : isPractitioner && sub ? (
             <Card variant="default" padding="md" className="mb-4">
               <View className="flex-row items-center justify-between">
                 <Text className="text-charcoal-900 font-semibold text-lg">
@@ -252,6 +279,15 @@ export default function SettingsSubscriptionScreen() {
             >
               Open secure billing
             </Button>
+            {isPractitioner ? (
+              <Button
+                variant="outline"
+                className="mt-3"
+                onPress={() => router.push("/(practitioner)/billing" as never)}
+              >
+                Practice payouts & Connect
+              </Button>
+            ) : null}
           </Card>
 
           <Card variant="default" padding="md" className="mb-4">

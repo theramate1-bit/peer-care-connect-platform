@@ -138,3 +138,40 @@ export async function createConnectAccount(params: {
     };
   }
 }
+
+/** Stripe-hosted Connect onboarding URL (no publishable key in the app). */
+export async function createConnectHostedOnboardingLink(params?: {
+  stripeAccountId?: string;
+  returnPath?: string;
+}): Promise<{ url: string | null; error: Error | null }> {
+  try {
+    const { data, error: fnErr } = await supabase.functions.invoke(
+      "stripe-payment",
+      {
+        body: {
+          action: "create-connect-hosted-onboarding-link",
+          ...(params?.stripeAccountId
+            ? { stripe_account_id: params.stripeAccountId }
+            : {}),
+          ...(params?.returnPath ? { return_path: params.returnPath } : {}),
+        },
+      },
+    );
+    if (fnErr) {
+      return { url: null, error: new Error(fnErr.message) };
+    }
+    const raw = data as Record<string, unknown> | null;
+    if (!raw?.success || typeof raw.onboarding_url !== "string") {
+      return {
+        url: null,
+        error: new Error(String(raw?.error ?? "No onboarding URL returned")),
+      };
+    }
+    return { url: raw.onboarding_url, error: null };
+  } catch (e) {
+    return {
+      url: null,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}

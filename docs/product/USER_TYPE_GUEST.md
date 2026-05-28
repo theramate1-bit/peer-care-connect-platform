@@ -9,11 +9,11 @@
 ## 1. Marketplace – flow selection and entry
 
 - **Who is a guest:** Anyone on the marketplace who is **not** logged in (`!user`). No auth required to browse or start a booking.
-- **Clinic booking:** When a guest clicks “Book” (or “Book at clinic” for a hybrid), the app opens **GuestBookingFlow** (not BookingFlow). Logic: `user ? <BookingFlow /> : <GuestBookingFlow />`.
-- **Mobile request:** Same **MobileBookingRequestFlow** is used for both guests and clients. For guests, the flow collects `guestData` (first name, last name, email, phone) and calls `upsert_guest_user` before creating the mobile booking request.
-- **Eligibility:** Guests see the same practitioner list and filters as clients; practitioner eligibility is determined by `booking-flow-type.ts` (canBookClinic / canRequestMobile), not by booker type.
+- **Clinic booking:** When a guest starts checkout, the app uses **[src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx)** with **`guestMode`** (or equivalent props), not a separate top-level `GuestBookingFlow` file in this repo layout.
+- **Mobile request:** Native and web flows share the same RPCs; guests supply identity fields before `create_mobile_booking_request`. See [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md).
+- **Eligibility:** Guests see the same practitioner list as clients; eligibility is driven by practitioner **`therapist_type`** + product **`service_type`** (see hybrid doc above), not by guest vs client.
 
-**Relevant file:** `peer-care-connect/src/pages/Marketplace.tsx`
+**Relevant files:** [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx) (`?guest=1`), [src/pages/discovery/TherapistSearch.tsx](../../src/pages/discovery/TherapistSearch.tsx)
 
 ---
 
@@ -21,15 +21,15 @@
 
 - **Not used by guests.** The ClientBooking page (e.g. `/client/booking` or similar) is for **authenticated clients** only. It only renders **BookingFlow** and **MobileBookingRequestFlow**; there is no GuestBookingFlow on this page because the page is behind auth. Guests use the **public Marketplace** and get GuestBookingFlow when they choose clinic booking.
 
-**Relevant file:** `peer-care-connect/src/pages/client/ClientBooking.tsx`
+**Relevant file:** [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx)
 
 ---
 
-## 3. booking-flow-type.ts
+## 3. Practitioner eligibility (historic `booking-flow-type.ts`)
 
 - **No guest-specific logic.** This module defines **practitioner** eligibility (`canBookClinic`, `canRequestMobile`, etc.). Whether the booker is a guest or client does not change which flows are available for a given practitioner; it only changes **which component** is used for clinic booking (GuestBookingFlow vs BookingFlow) on the Marketplace.
 
-**Relevant file:** `peer-care-connect/src/lib/booking-flow-type.ts`
+**Relevant:** [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md), [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx), native `theramate-ios-client/app/(tabs)/explore/[id].tsx`.
 
 ---
 
@@ -37,7 +37,7 @@
 
 - **Same as clients.** Guests can use location search and filters the same way. Distance and “within radius” are computed from practitioner data (clinic or base); there is no separate guest geo logic. Both guests and clients may pass `clientLocation` (e.g. from geo search) into **MobileBookingRequestFlow** when requesting a mobile session.
 
-**Relevant file:** `peer-care-connect/src/lib/geo-search-service.ts`
+**Relevant:** Search `src/` for location/geo usage; [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts).
 
 ---
 
@@ -50,7 +50,7 @@
 - **Pre-assessment:** Same rule as clients: first-time (unrecognised email) → form required; returning (email has completed form) → can skip. `PreAssessmentService.checkFormRequirement(sessionId, guestUser.id)` and email-based recognition.
 - **Payment:** After payment, webhook sets `status = 'confirmed'` and generates `guest_view_token`; confirmation email includes token-based “View booking” link.
 
-**Relevant file:** `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`
+**Relevant file:** [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (`guestMode` / guest RPC path inside same component tree as authenticated booking)
 
 ---
 
@@ -62,7 +62,7 @@
 - **Pre-assessment:** Email-based; same first-time vs returning logic. Optional marketing consent is stored on the guest user row (`marketing_consent_source: 'guest_mobile_booking_request'`).
 - **Post-request:** Guest is directed to payment/checkout or “wait for practitioner to accept”; no in-app inbox. When practitioner accepts, session is created and confirmation email can include token link for viewing.
 
-**Relevant file:** `peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx`
+**Relevant:** Native `theramate-ios-client/lib/api/mobileRequests.ts`; search `src/` for web mobile-request UI.
 
 ---
 
@@ -79,7 +79,7 @@
 - **Actions:** GuestBookingView shows session details, practitioner, time, location; guest can cancel or (if supported) reschedule via the same token/email link. They do **not** have a “My Sessions” dashboard; everything is link-based.
 - **BookingSuccess:** After payment, guest is shown success; “View bookings” for guest points to `/booking/view/:sessionId?email=...` (or token when available), not `/client/sessions`.
 
-**Relevant files:** `peer-care-connect/src/pages/booking/GuestBookingView.tsx`, `peer-care-connect/src/pages/BookingSuccess.tsx`
+**Relevant:** Search `src/` for guest booking view / success routes; compare `supabase/functions` email templates.
 
 ---
 
@@ -89,7 +89,7 @@
 - **Practitioner → guest message:** When the practitioner sends a message to a guest, the system uses Edge Function `notify-guest-message` and template `message_notification_guest`. The recipient is identified by `user_role === 'guest'`. The link in the email is **/login** (guest must sign up to reply in-app).
 - **Guest reply:** Guest has no in-app inbox; they cannot reply without creating an account. Linking on signup (see below) attaches prior conversations to the new account.
 
-**Relevant:** Stripe webhooks (bookingUrl), `notify-guest-message`, `peer-care-connect/src/lib/notification-system.ts`, `peer-care-connect/src/lib/messaging.ts` (sendMessageToGuest, sendGuestMessageNotification)
+**Relevant:** Stripe webhooks (`supabase/functions`), [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx), `notify-guest-message` Edge Function.
 
 ---
 
@@ -98,7 +98,7 @@
 - **Required:** First-time (unrecognised email) must complete; use `email_has_completed_pre_assessment` (or equivalent). Returning (email already has completed form) can skip.
 - **Storage:** Forms stored in `pre_assessment_forms` with `client_email` and `client_id` (guest user id when applicable). Recognition and reuse are by email; same rule for guests and clients.
 
-**Relevant file:** `peer-care-connect/src/lib/pre-assessment-service.ts`
+**Relevant:** Search repo for `pre_assessment`.
 
 ---
 
@@ -110,7 +110,7 @@
 - **Conversation linking:** `MessagingManager.linkGuestConversationsToUser(email, userId)` calls RPC `link_guest_conversations_to_user(p_email, p_user_id)` so the new user sees prior guest messages in their inbox.
 - **Duplicate users:** The same email may have an old guest `users` row and a new auth-backed row. Linking moves sessions and conversations to the new id; the old guest row may remain (see backlog: duplicate user handling).
 
-**Relevant files:** `peer-care-connect/src/components/auth/AuthCallback.tsx`, `peer-care-connect/src/lib/messaging.ts`
+**Relevant:** Search `src/` for OAuth completion / guest conversation linking; [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx).
 
 ---
 
@@ -119,25 +119,24 @@
 - **Guest:** No direct use of RescheduleService in-app by the guest. If the guest view page (`GuestBookingView`) offers “Reschedule” or “Cancel”, it typically uses session id + token (or email) to call backend endpoints or RPCs that validate the guest and perform the action. Buffer rules (e.g. clinic vs mobile) are applied on the server for the practitioner’s type; the guest does not pass `therapistType` themselves.
 - **Client:** Uses the app and RescheduleService with auth; see USER_TYPE_CLIENT.md.
 
-**Relevant:** `peer-care-connect/src/pages/booking/GuestBookingView.tsx` (cancel/reschedule if present), backend RPCs that accept token/email for guest actions.
+**Relevant:** Search `src/` for guest token view; `supabase/` RPCs that accept token/email for guest actions.
 
 ---
 
 ## Summary table (guest at each touchpoint)
 
-| Touchpoint                   | Guest behavior                                                                                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Marketplace**              | Not logged in → GuestBookingFlow for clinic; same MobileBookingRequestFlow with guestData                                           |
-| **ClientBooking page**       | Not used (guests use Marketplace)                                                                                                   |
-| **booking-flow-type.ts**     | No guest-specific logic (practitioner eligibility only)                                                                             |
-| **Geo-search**               | Same as client; no special guest logic                                                                                              |
-| **GuestBookingFlow**         | Clinic booking; upsert_guest_user → create_booking_with_validation with p_is_guest_booking true                                     |
-| **MobileBookingRequestFlow** | Guest path: guestData → upsert_guest_user → create_mobile_booking_request with guest client_id                                      |
-| **Profile / Onboarding**     | N/A                                                                                                                                 |
-| **View booking**             | Token or email link → GuestBookingView; no dashboard                                                                                |
-| **Email / messaging**        | Confirmation with token link; practitioner→guest message email with /login link                                                     |
-| **Pre-assessment**           | Email-based first-time vs returning; same as client                                                                                 |
-| **Account conversion**       | AuthCallback: linkGuestSessionsToUser, linkGuestConversationsToUser (and convert_guest_to_client_or_create_profile when no profile) |
-| **Reschedule / cancel**      | Via token/email on GuestBookingView if supported; no RescheduleService in-app                                                       |
+| Touchpoint                   | Guest behavior                                                                                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Discovery / booking**      | Web: [`ClientBooking`](../../src/pages/client/ClientBooking.tsx) with `?guest=1` → [`BookingFlow`](../../src/components/booking/BookingFlow.tsx) (`guestMode`); native: explore + booking routes. |
+| **Practitioner eligibility** | Rules are **not** guest-specific; see [clinic-mobile-hybrid-flows.md](../features/clinic-mobile-hybrid-flows.md) and `therapist_type` / product handling in web + native code.                    |
+| **Geo-search**               | Same as client; no special guest logic                                                                                                                                                            |
+| **Clinic booking (web)**     | Guest contact fields + `guestMode`; RPC `create_booking_with_validation` with `p_is_guest_booking` (confirm in `supabase/`).                                                                      |
+| **Mobile request**           | Web: [`createMobileRequestAndOpenCheckout`](../../src/lib/clientMarketplaceBooking.ts) when wired for guests; native: mobile request flows + same RPCs.                                           |
+| **Profile / Onboarding**     | N/A                                                                                                                                                                                               |
+| **View booking**             | Token or email link → guest view route (search `src/` / app router); no full client dashboard                                                                                                     |
+| **Email / messaging**        | Confirmation with token link; practitioner→guest message email with /login link                                                                                                                   |
+| **Pre-assessment**           | Email-based first-time vs returning; same as client                                                                                                                                               |
+| **Account conversion**       | Auth callback: `linkGuestSessionsToUser`, `linkGuestConversationsToUser` (and `convert_guest_to_client_or_create_profile` when applicable)                                                        |
+| **Reschedule / cancel**      | Token/email flows if implemented; no in-app RescheduleService until the user becomes a client                                                                                                     |
 
 See also: [GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md), [GUEST_VS_CLIENT_RULES.md](../development/GUEST_VS_CLIENT_RULES.md), [USER_TYPE_CLIENT.md](USER_TYPE_CLIENT.md).

@@ -170,7 +170,7 @@ Use environment variables for Supabase URL and keys; do not store secrets in the
 
 **Fail:** Redirect to login when token is valid.
 
-**Code:** [GuestBookingView.tsx](../../peer-care-connect/src/pages/booking/GuestBookingView.tsx); RPC `get_session_by_guest_token`.
+**Code:** [GuestBookingView.tsx](../../search src/ for booking pagesGuestBookingView.tsx); RPC `get_session_by_guest_token`.
 
 ---
 
@@ -223,7 +223,7 @@ For every booking-related email template, verify:
 
 **Pass:** Email delivered; content correct; status updated.
 
-**Code:** [SessionDetailView.tsx](../../peer-care-connect/src/components/sessions/SessionDetailView.tsx) → `send-booking-notification` with `emailType: 'cancellation'`.
+**Code:** [SessionDetailView.tsx](../../search src/ + native session detail) → `send-booking-notification` with `emailType: 'cancellation'`.
 
 ---
 
@@ -242,7 +242,7 @@ For every booking-related email template, verify:
 
 **Pass:** Correct original and new times shown.
 
-**Code:** [reschedule-service.ts](../../peer-care-connect/src/lib/reschedule-service.ts) → `send-booking-notification` with `emailType: 'rescheduling'`.
+**Code:** [reschedule-service.ts](../../src/components/booking/RescheduleSessionButton.tsx + native session APIs) → `send-booking-notification` with `emailType: 'rescheduling'`.
 
 ---
 

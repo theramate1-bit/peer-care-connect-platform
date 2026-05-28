@@ -3,6 +3,15 @@
  */
 
 import { APP_CONFIG } from "@/constants/config";
+import {
+  getStripeCheckoutWebOrigins,
+  isCheckoutWebHostname,
+} from "@/lib/stripeCheckoutWebOrigins";
+
+const CHECKOUT_WEB_ORIGINS = getStripeCheckoutWebOrigins(
+  APP_CONFIG.WEB_URL,
+  APP_CONFIG.CHECKOUT_WEB_ORIGINS_EXTRA,
+);
 
 export type CheckoutRedirect =
   | { type: "clinic_success"; checkoutSessionId: string }
@@ -11,6 +20,8 @@ export type CheckoutRedirect =
       mobileRequestId: string;
       checkoutSessionId: string;
     }
+  | { type: "subscription_success"; checkoutSessionId: string }
+  | { type: "connect_onboarding_return" }
   | { type: "canceled" }
   | null;
 
@@ -30,21 +41,8 @@ export function parseCheckoutRedirectFromUrl(raw: string): CheckoutRedirect {
     return null;
   }
 
-  const web = APP_CONFIG.WEB_URL.replace(/\/$/, "");
-  let webHost: string;
-  try {
-    webHost = new URL(web).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-
   const host = url.hostname.toLowerCase();
-  const hostOk =
-    host === webHost ||
-    host === `www.${webHost}` ||
-    host.replace(/^www\./, "") === webHost.replace(/^www\./, "");
-
-  if (!hostOk) return null;
+  if (!isCheckoutWebHostname(host, CHECKOUT_WEB_ORIGINS)) return null;
 
   if (pathIncludes(url, "/mobile-booking/success")) {
     const rid = url.searchParams.get("mobile_request_id");
@@ -61,6 +59,20 @@ export function parseCheckoutRedirectFromUrl(raw: string): CheckoutRedirect {
   if (pathIncludes(url, "/booking-success")) {
     const sid = url.searchParams.get("session_id");
     if (sid) return { type: "clinic_success", checkoutSessionId: sid };
+  }
+
+  if (pathIncludes(url, "/subscription-success")) {
+    const sid = url.searchParams.get("session_id");
+    if (sid) return { type: "subscription_success", checkoutSessionId: sid };
+  }
+
+  const path = url.pathname.toLowerCase().replace(/\/+$/, "") || "/";
+  if (
+    path === "/onboarding/stripe-return" ||
+    path.endsWith("/onboarding/stripe-return") ||
+    path === "/stripe-return"
+  ) {
+    return { type: "connect_onboarding_return" };
   }
 
   if (url.searchParams.get("mobile_checkout_canceled") === "1") {

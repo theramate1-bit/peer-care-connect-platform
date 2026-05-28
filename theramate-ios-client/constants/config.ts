@@ -10,6 +10,7 @@ type PublicEnvKey =
   | "EXPO_PUBLIC_SUPABASE_ANON_KEY"
   | "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY"
   | "EXPO_PUBLIC_WEB_URL"
+  | "EXPO_PUBLIC_CHECKOUT_WEB_ORIGINS"
   | "EXPO_PUBLIC_POSTHOG_API_KEY"
   | "EXPO_PUBLIC_SENTRY_DSN";
 
@@ -65,6 +66,9 @@ export const APP_CONFIG = {
   WEB_URL: (
     envPublic("EXPO_PUBLIC_WEB_URL") ?? "https://theramate.co.uk"
   ).replace(/\/$/, ""),
+  /** Comma-separated extra origins for Stripe return URL parsing (e.g. https://theramate.com) */
+  CHECKOUT_WEB_ORIGINS_EXTRA:
+    envPublic("EXPO_PUBLIC_CHECKOUT_WEB_ORIGINS") ?? "",
 
   // Support
   SUPPORT_EMAIL: "support@theramate.co.uk",
@@ -136,15 +140,23 @@ export const MAP_CONFIG = {
   GEOCODING_DELAY_MS: 1000,
 } as const;
 
-// Specializations (matching web app)
+/**
+ * Supported practitioner disciplines — must match `THERAPIST_ROLES` in
+ * `lib/api/marketplace.ts` (sports_therapist, massage_therapist, osteopath).
+ * Only add a value here when there is a corresponding user_role in the DB.
+ */
 export const SPECIALIZATIONS = [
-  { value: "sports_therapy", label: "Sports Therapy" },
-  { value: "massage_therapy", label: "Massage Therapy" },
-  { value: "osteopathy", label: "Osteopathy" },
-  { value: "physiotherapy", label: "Physiotherapy" },
-  { value: "chiropractic", label: "Chiropractic" },
-  { value: "acupuncture", label: "Acupuncture" },
-  { value: "rehabilitation", label: "Rehabilitation" },
+  {
+    value: "sports_therapy",
+    label: "Sports Therapy",
+    role: "sports_therapist",
+  },
+  {
+    value: "massage_therapy",
+    label: "Massage Therapy",
+    role: "massage_therapist",
+  },
+  { value: "osteopathy", label: "Osteopathy", role: "osteopath" },
 ] as const;
 
 export type Specialization = (typeof SPECIALIZATIONS)[number]["value"];

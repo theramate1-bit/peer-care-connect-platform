@@ -84,10 +84,10 @@ instead of assuming the enum values are always fully expanded and aligned everyw
 
 ## Files changed
 
-- `peer-care-connect/src/lib/notification-utils.ts`
-- `peer-care-connect/src/components/notifications/RealTimeNotifications.tsx`
-- `peer-care-connect/src/pages/Notifications.tsx`
-- `peer-care-connect/src/components/dashboards/TherapistDashboard.tsx`
+- `theramate-ios-client/lib/api/notifications.ts (native); search src/ for web`
+- `search src/ for notificationsRealTimeNotifications.tsx`
+- `theramate-ios-client/app/(tabs)/profile/notifications.tsx (native); search src/ for web`
+- `theramate-ios-client practitioner tabs + src/pages/practice/`
 - `supabase/migrations/20260313133000_notifications_read_and_dismiss_alignment.sql`
 
 ## Supabase changes applied

@@ -2,9 +2,11 @@
 
 **Definition:** Practitioner works only at their clinic. Clients book sessions at the practitioner’s clinic location. No mobile (visit-to-client) option.
 
+> **Repo paths:** Mentions of `peer-care-connect/src/...` below are **historical**. Implementations today are under repo-root **`src/`**, **`theramate-ios-client/`**, and **`supabase/`**. See [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md) for the live narrative; search the repo by filename if a path 404s.
+
 ---
 
-## 1. booking-flow-type.ts – eligibility and product normalization
+## 1. Eligibility and product normalization (historic `booking-flow-type.ts` name)
 
 - **`canBookClinic(practitioner)`**  
   True when `therapist_type === 'clinic_based'` (or `'hybrid'`) and at least one product is clinic-bookable. For clinic_based, any product with `service_type` clinic or both counts; a product declared as `mobile` is normalized to `clinic` via `getEffectiveProductServiceType`.
@@ -18,7 +20,7 @@
 - **`defaultBookingFlowType(practitioner)`**  
   For clinic_based with clinic products: returns `'clinic'` (only option).
 
-**Relevant file:** `peer-care-connect/src/lib/booking-flow-type.ts`
+**Implementation:** [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md); search `src/components/booking` and `theramate-ios-client/app/(tabs)/explore/[id].tsx`.
 
 ---
 
@@ -30,7 +32,7 @@
 
 - **HybridBookingChooser:** Not shown for clinic_based. Only one flow (clinic), so the single “Book” CTA opens the clinic flow. No “Request mobile session” option.
 
-**Relevant file:** `peer-care-connect/src/pages/Marketplace.tsx`
+**Relevant file:** `src/pages/discovery/TherapistSearch.tsx + src/pages/client/ClientBooking.tsx`
 
 ---
 
@@ -40,7 +42,7 @@
 
 - **Filtering:** No mobile radius check; inclusion is purely “clinic within search radius.”
 
-**Relevant file:** `peer-care-connect/src/lib/geo-search-service.ts`
+**Relevant file:** `search src/ + supabase RPC find_practitioners_by_distance`
 
 ---
 
@@ -50,7 +52,7 @@
 
 - **MobileBookingRequestFlow:** Not available for clinic_based; the mobile request flow is never shown or opened for this type.
 
-**Relevant files:** `peer-care-connect/src/components/marketplace/BookingFlow.tsx`, `GuestBookingFlow.tsx`, `MobileBookingRequestFlow.tsx`
+**Relevant files:** `src/components/booking/BookingFlow.tsx`, `GuestBookingFlow.tsx`, `MobileBookingRequestFlow.tsx`
 
 ---
 
@@ -64,7 +66,7 @@
 
 - **Onboarding:** Location step requires clinic address only; no base address or radius step for clinic_based.
 
-**Relevant files:** `peer-care-connect/src/pages/Profile.tsx`, `peer-care-connect/src/pages/auth/Onboarding.tsx`
+**Relevant files:** `search src/ + native profile screens`, `src/pages/onboarding/ClientOnboarding.tsx (client); native app/(auth)/`
 
 ---
 
@@ -72,7 +74,7 @@
 
 - **Service delivery type:** For clinic_based, the “Service Delivery Type” dropdown (clinic / mobile / both) is **not** shown. All services are treated as clinic-only. If the product table has `service_type` mobile or both, `getEffectiveProductServiceType` still normalizes to clinic for clinic_based in booking logic.
 
-**Relevant file:** `peer-care-connect/src/components/practitioner/ProductForm.tsx`
+**Relevant file:** `search theramate-ios-client for practitioner products UI`
 
 ---
 
@@ -82,7 +84,7 @@
 
 - **Visit address:** Not used for clinic_based; sessions are at the practitioner’s clinic.
 
-**Relevant file:** `peer-care-connect/src/pages/practice/PracticeClientManagement.tsx`
+**Relevant file:** `search src/pages/practice and native practitioner clients`
 
 ---
 
@@ -92,7 +94,7 @@
 
 - **Location:** Session location is resolved from practitioner’s clinic address (or location); no visit address.
 
-**Relevant file:** `peer-care-connect/src/components/dashboards/TherapistDashboard.tsx`
+**Relevant file:** `theramate-ios-client practitioner tabs + src/pages/practice/`
 
 ---
 
@@ -100,7 +102,7 @@
 
 - **Not applicable.** Clinic_based practitioners do not receive mobile booking requests. They do not use the mobile request queue, accept/decline, or “View session” for mobile requests. The page may be in the nav but will show no requests for clinic_based.
 
-**Relevant file:** `peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx`
+**Relevant file:** `theramate-ios-client/app/(practitioner)/mobile-requests/`
 
 ---
 
@@ -108,4 +110,4 @@
 
 - **Buffer logic:** When rescheduling, `therapistType` is `'clinic_based'`. Slot conflict check uses `requestedAppointmentType` from the session (always clinic for clinic_based). `getDirectionalBufferMinutes` returns 15 for all clinic↔clinic transitions; no 30-minute mobile travel buffers apply.
 
-**Relevant file:** `peer-care-connect/src/lib/reschedule-service.ts` (uses `slot-generation-utils` buffer logic)
+**Relevant file:** `src/components/booking/RescheduleSessionButton.tsx + native session APIs` (uses `slot-generation-utils` buffer logic)

@@ -7,6 +7,12 @@
 
 import { unknownToError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
+import {
+  clinicBookingIdempotencyKey,
+  isMobilePaymentAlreadyComplete,
+  mobileCheckoutIdempotencyKey,
+  resolveClinicSessionIdFromRpc,
+} from "@/lib/bookingPaymentIdempotency";
 import { createSessionCheckout } from "@/lib/api/payment";
 import { BOOKING_CONFIG } from "@/constants/config";
 
@@ -527,6 +533,7 @@ export type BookAndPayParams = {
   product: PractitionerProductRow;
   notes?: string | null;
   paymentCollection?: "online" | "in_person";
+  isGuestBooking?: boolean;
 };
 
 export type BookAndPayResult =
@@ -577,7 +584,12 @@ export async function bookSessionAndOpenCheckout(
   const duration = p.product.duration_minutes ?? 60;
   const sessionType = p.product.name;
   const notes = p.notes || null;
-  const idempotencyKey = `${p.clientId}-${p.therapistId}-${p.sessionDate}-${p.startTime}`;
+  const idempotencyKey = clinicBookingIdempotencyKey({
+    clientId: p.clientId,
+    therapistId: p.therapistId,
+    sessionDate: p.sessionDate,
+    startTime: p.startTime,
+  });
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
   const { data: bookingResult, error: rpcError } = await supabase.rpc(
@@ -598,7 +610,7 @@ export async function bookSessionAndOpenCheckout(
       p_status: isInPerson ? "scheduled" : "pending_payment",
       p_expires_at: isInPerson ? null : expiresAt,
       p_idempotency_key: idempotencyKey,
-      p_is_guest_booking: false,
+      p_is_guest_booking: p.isGuestBooking === true,
       p_payment_collection: paymentCollection,
       p_appointment_type: "clinic",
       p_visit_address: null,
@@ -609,17 +621,18 @@ export async function bookSessionAndOpenCheckout(
     return { ok: false, error: rpcError.message };
   }
 
-  const result = bookingResult as BookingRpcResult;
-  if (!result?.success || !result.session_id) {
-    const code = result?.error_code || "";
-    const msg = result?.error_message || "Failed to create booking";
-    if (code === "CONFLICT_BOOKING" || code === "CONFLICT_BLOCKED") {
-      return { ok: false, error: msg, conflict: true };
-    }
-    return { ok: false, error: msg };
+  const resolved = resolveClinicSessionIdFromRpc(
+    bookingResult as BookingRpcResult,
+  );
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      error: resolved.error,
+      conflict: resolved.conflict,
+    };
   }
 
-  const sessionId = result.session_id;
+  const sessionId = resolved.sessionId;
   if (isInPerson) {
     return {
       ok: true,
@@ -740,6 +753,7 @@ export async function createMobileRequestAndOpenCheckout(
         body: {
           action: "create-mobile-checkout-session",
           request_id: requestId,
+          idempotency_key: mobileCheckoutIdempotencyKey(requestId),
           amount: total,
           currency: (p.product.currency || "gbp").toUpperCase(),
           client_email: p.clientEmail,
@@ -754,10 +768,17 @@ export async function createMobileRequestAndOpenCheckout(
 
     const checkoutPayload = (checkoutData || {}) as {
       success?: boolean;
+      already_paid?: boolean;
       checkout_url?: string;
       checkout_session_id?: string;
       error?: string;
     };
+    if (checkoutPayload.already_paid) {
+      return {
+        ok: false,
+        error: "Payment is already complete for this request.",
+      };
+    }
     if (!checkoutPayload.success || !checkoutPayload.checkout_url) {
       return {
         ok: false,
@@ -768,6 +789,115 @@ export async function createMobileRequestAndOpenCheckout(
     return {
       ok: true,
       requestId,
+      checkoutUrl: checkoutPayload.checkout_url,
+      checkoutSessionId: checkoutPayload.checkout_session_id,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** New checkout session for an existing pending mobile request (payment retry). */
+export async function resumeMobileRequestCheckout(params: {
+  requestId: string;
+  clientId: string;
+  clientEmail?: string;
+}): Promise<CreateMobileRequestResult> {
+  try {
+    const { data: reqRow, error: reqErr } = await supabase
+      .from("mobile_booking_requests")
+      .select(
+        "id, client_id, practitioner_id, product_id, status, payment_status, total_price_pence",
+      )
+      .eq("id", params.requestId)
+      .eq("client_id", params.clientId)
+      .maybeSingle();
+    if (reqErr || !reqRow) {
+      return { ok: false, error: reqErr?.message || "Request not found." };
+    }
+
+    const row = reqRow as {
+      status?: string | null;
+      payment_status?: string | null;
+      total_price_pence?: number | null;
+      practitioner_id?: string | null;
+      product_id?: string | null;
+    };
+
+    if ((row.status || "").toLowerCase() !== "pending") {
+      return {
+        ok: false,
+        error: "This request is no longer awaiting payment.",
+      };
+    }
+
+    if (isMobilePaymentAlreadyComplete(row.payment_status)) {
+      return {
+        ok: false,
+        error: "Payment is already complete for this request.",
+      };
+    }
+
+    const total = Number(row.total_price_pence || 0);
+    if (!total || total <= 0) {
+      return { ok: false, error: "Invalid request total for checkout." };
+    }
+
+    if (!row.practitioner_id) {
+      return { ok: false, error: "Practitioner missing on this request." };
+    }
+
+    let serviceName = "Mobile Session";
+    if (row.product_id) {
+      const { data: product } = await supabase
+        .from("practitioner_products")
+        .select("name, currency")
+        .eq("id", row.product_id)
+        .maybeSingle();
+      if (product?.name) serviceName = String(product.name);
+    }
+
+    const { data: checkoutData, error: checkoutError } =
+      await supabase.functions.invoke("stripe-payment", {
+        body: {
+          action: "create-mobile-checkout-session",
+          request_id: params.requestId,
+          idempotency_key: mobileCheckoutIdempotencyKey(params.requestId),
+          amount: total,
+          currency: "GBP",
+          client_email: params.clientEmail,
+          practitioner_id: row.practitioner_id,
+          metadata: {
+            service_name: serviceName,
+            client_user_id: params.clientId,
+          },
+        },
+      });
+    if (checkoutError) return { ok: false, error: checkoutError.message };
+
+    const checkoutPayload = (checkoutData || {}) as {
+      success?: boolean;
+      already_paid?: boolean;
+      checkout_url?: string;
+      checkout_session_id?: string;
+      error?: string;
+    };
+    if (checkoutPayload.already_paid) {
+      return {
+        ok: false,
+        error: "Payment is already complete for this request.",
+      };
+    }
+    if (!checkoutPayload.success || !checkoutPayload.checkout_url) {
+      return {
+        ok: false,
+        error: checkoutPayload.error || "Could not start mobile checkout.",
+      };
+    }
+
+    return {
+      ok: true,
+      requestId: params.requestId,
       checkoutUrl: checkoutPayload.checkout_url,
       checkoutSessionId: checkoutPayload.checkout_session_id,
     };

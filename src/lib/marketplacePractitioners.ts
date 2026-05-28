@@ -12,6 +12,30 @@ export const THERAPIST_ROLES = [
   "massage_therapist",
 ] as const;
 
+/**
+ * Therapy-type filter options for discovery UIs. Each `role` must stay in sync
+ * with `THERAPIST_ROLES` — do not add labels here without a matching `user_role`
+ * in the database.
+ */
+export const MARKETPLACE_DISCIPLINE_FILTERS = [
+  {
+    value: "sports_therapy",
+    label: "Sports Therapy",
+    role: "sports_therapist",
+  },
+  {
+    value: "massage_therapy",
+    label: "Massage Therapy",
+    role: "massage_therapist",
+  },
+  { value: "osteopathy", label: "Osteopathy", role: "osteopath" },
+] as const;
+
+export type MarketplaceProductSummary = {
+  is_active: boolean;
+  service_type: string | null;
+};
+
 export type MarketplacePractitioner = {
   id: string;
   first_name: string;
@@ -22,6 +46,10 @@ export type MarketplacePractitioner = {
   /** Discipline for booking UI (sports_therapist, etc.) */
   user_role: string;
   therapist_type: string | null;
+  mobile_service_radius_km: number | null;
+  base_latitude: number | null;
+  base_longitude: number | null;
+  products: MarketplaceProductSummary[];
   bio: string | null;
   average_rating: number;
   total_reviews: number;
@@ -44,6 +72,9 @@ type UserRow = {
   specializations: string[] | null;
   user_role: string;
   therapist_type: string | null;
+  mobile_service_radius_km: number | null;
+  base_latitude: number | null;
+  base_longitude: number | null;
   bio: string | null;
   is_verified: boolean | null;
   profile_photo_url: string | null;
@@ -59,7 +90,7 @@ export async function fetchMarketplacePractitioners(): Promise<{
     const { data: usersData, error: usersError } = await supabase
       .from("users")
       .select(
-        "id, first_name, last_name, location, hourly_rate, specializations, user_role, therapist_type, bio, is_verified, profile_photo_url, accept_in_person_payment, experience_years",
+        "id, first_name, last_name, location, hourly_rate, specializations, user_role, therapist_type, mobile_service_radius_km, base_latitude, base_longitude, bio, is_verified, profile_photo_url, accept_in_person_payment, experience_years",
       )
       // DB has therapist role values beyond generated `UserRole` type
       .in("user_role", [...THERAPIST_ROLES] as unknown as string[])
@@ -79,24 +110,40 @@ export async function fetchMarketplacePractitioners(): Promise<{
 
     const { data: productsData, error: productsError } = await supabase
       .from("practitioner_products")
-      .select("practitioner_id, price_amount, is_active")
+      .select("practitioner_id, price_amount, is_active, service_type")
       .in("practitioner_id", practitionerIds)
       .eq("is_active", true);
 
     if (productsError) throw productsError;
 
-    type ProductRow = { practitioner_id: string; price_amount: number | null };
+    type ProductRow = {
+      practitioner_id: string;
+      price_amount: number | null;
+      is_active: boolean;
+      service_type: string | null;
+    };
     const productRows = (productsData || []) as ProductRow[];
 
     const minPriceByPractitioner = new Map<string, number>();
+    const productsByPractitioner = new Map<
+      string,
+      MarketplaceProductSummary[]
+    >();
     for (const row of productRows) {
       const pid = row.practitioner_id;
       const pence = row.price_amount;
-      if (pence == null) continue;
-      const major = pence / 100;
-      const prev = minPriceByPractitioner.get(pid);
-      if (prev === undefined || major < prev)
-        minPriceByPractitioner.set(pid, major);
+      if (pence != null) {
+        const major = pence / 100;
+        const prev = minPriceByPractitioner.get(pid);
+        if (prev === undefined || major < prev)
+          minPriceByPractitioner.set(pid, major);
+      }
+      const list = productsByPractitioner.get(pid) ?? [];
+      list.push({
+        is_active: row.is_active,
+        service_type: row.service_type,
+      });
+      productsByPractitioner.set(pid, list);
     }
 
     const { data: reviewsData, error: reviewsError } = await supabase
@@ -142,6 +189,10 @@ export async function fetchMarketplacePractitioners(): Promise<{
         specializations: p.specializations,
         user_role: p.user_role,
         therapist_type: p.therapist_type,
+        mobile_service_radius_km: p.mobile_service_radius_km ?? null,
+        base_latitude: p.base_latitude ?? null,
+        base_longitude: p.base_longitude ?? null,
+        products: productsByPractitioner.get(p.id) ?? [],
         bio: p.bio?.trim() || null,
         average_rating,
         total_reviews,
@@ -156,5 +207,105 @@ export async function fetchMarketplacePractitioners(): Promise<{
     return { data: result, error: null };
   } catch (e) {
     return { data: [], error: unknownToError(e) };
+  }
+}
+
+/** Single practitioner for `/book/:slug` and `/therapist/:id/public`. */
+export async function fetchMarketplacePractitionerById(
+  practitionerId: string,
+): Promise<{
+  data: MarketplacePractitioner | null;
+  error: Error | null;
+}> {
+  try {
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select(
+        "id, first_name, last_name, location, hourly_rate, specializations, user_role, therapist_type, mobile_service_radius_km, base_latitude, base_longitude, bio, is_verified, profile_photo_url, accept_in_person_payment, experience_years",
+      )
+      .eq("id", practitionerId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (userError) throw userError;
+    if (!userData) return { data: null, error: null };
+
+    const p = userData as unknown as UserRow;
+
+    const { data: productsData, error: productsError } = await supabase
+      .from("practitioner_products")
+      .select("practitioner_id, price_amount, is_active, service_type")
+      .eq("practitioner_id", practitionerId)
+      .eq("is_active", true);
+
+    if (productsError) throw productsError;
+
+    type ProductRow = {
+      practitioner_id: string;
+      price_amount: number | null;
+      is_active: boolean;
+      service_type: string | null;
+    };
+    const productRows = (productsData || []) as ProductRow[];
+    const products: MarketplaceProductSummary[] = productRows.map((row) => ({
+      is_active: row.is_active,
+      service_type: row.service_type,
+    }));
+
+    let from_price: number | null =
+      p.hourly_rate != null ? p.hourly_rate : null;
+    for (const row of productRows) {
+      if (row.price_amount == null) continue;
+      const major = row.price_amount / 100;
+      if (from_price === null || major < from_price) from_price = major;
+    }
+
+    const { data: reviewsData, error: reviewsError } = await supabase
+      .from("reviews")
+      .select("overall_rating")
+      .eq("therapist_id", practitionerId)
+      .eq("review_status", "approved");
+
+    if (reviewsError) throw reviewsError;
+
+    type ReviewRow = { overall_rating: number | null };
+    const reviewRows = (reviewsData || []) as ReviewRow[];
+    let sum = 0;
+    let count = 0;
+    for (const r of reviewRows) {
+      const rating = Number(r.overall_rating);
+      if (Number.isNaN(rating)) continue;
+      sum += rating;
+      count += 1;
+    }
+    const average_rating = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+
+    return {
+      data: {
+        id: p.id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        location: p.location,
+        hourly_rate: p.hourly_rate,
+        specializations: p.specializations,
+        user_role: p.user_role,
+        therapist_type: p.therapist_type,
+        mobile_service_radius_km: p.mobile_service_radius_km ?? null,
+        base_latitude: p.base_latitude ?? null,
+        base_longitude: p.base_longitude ?? null,
+        products,
+        bio: p.bio?.trim() || null,
+        average_rating,
+        total_reviews: count,
+        verified: p.is_verified === true,
+        profile_photo_url: p.profile_photo_url?.trim() || null,
+        from_price,
+        accept_in_person_payment: p.accept_in_person_payment === true,
+        experience_years: p.experience_years ?? null,
+      },
+      error: null,
+    };
+  } catch (e) {
+    return { data: null, error: unknownToError(e) };
   }
 }

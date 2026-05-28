@@ -33,4 +33,4 @@ Examples:
 
 ## Deeper narrative
 
-Exact minute rules per transition (clinic↔mobile, mobile↔mobile) live in SQL and in legacy **`PRACTITIONER_TYPE_HYBRID.md`** / **`slot-generation-utils`** discussions (`peer-care-connect`). Treat **`get_directional_booking_buffer_minutes`** in **`supabase/migrations`** as **source of truth** when debugging conflicts.
+Exact minute rules per transition (clinic↔mobile, mobile↔mobile) live in SQL and in [`PRACTITIONER_TYPE_HYBRID.md`](../../../product/PRACTITIONER_TYPE_HYBRID.md) (product narrative). Treat **`get_directional_booking_buffer_minutes`** in **`supabase/migrations`** as **source of truth** when debugging conflicts; search repo-root **`src/`** for slot-picker helpers by filename if UI behaviour needs tracing.

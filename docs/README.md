@@ -47,9 +47,16 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 - [How Credits Work](./features/how-credits-work.md) 🆕 - Credit system explained
 - [How Treatment Exchange Works](./features/how-treatment-exchange-works.md) — Backend flow (two legs, RPCs)
 - [Treatment Exchange — Mobile screen flows](./product/TREATMENT_EXCHANGE_MOBILE_SCREEN_FLOWS.md) — Native UI diagrams and QA
+- [**App release readiness (CTO/PM blueprint)**](./product/APP_RELEASE_READINESS.md) — Architecture, release gates; run `npm run test:readiness`
+- [**App release backlog (CTO/PM + diagrams)**](./product/APP_RELEASE_BACKLOG_CTO_PM.md) — Waves, sprint board, QA matrix, sign-off checklist
+- [**App release todo (CTO/PM living)**](./product/APP_RELEASE_TODO_CTO_PM.md) — Ship blockers, bypass logic, payment/Connect QA, safe messaging
+- [**Wave 1 QA release sign-off pack**](./testing/WAVE1_QA_RELEASE_SIGNOFF.md) — Manual smoke steps W1-1–W1-9 for TestFlight gate
+- [**Production payment smoke (device)**](./testing/WAVE1_PROD_PAYMENT_SMOKE.md) — Live Stripe paths + MCP verification checklist
+- [**App / web / mobile drift audit**](./product/APP_WEB_MOBILE_DRIFT_AUDIT.md) — Parity matrix, realtime, route gaps
 - [Treatment Notes](./features/treatment-notes.md)
 - [Pre-Assessment Form: Practitioner View UX Plan](./features/pre-assessment-practitioner-ux-plan.md) 🆕 - UX placement and integration guide
 - [Feature-by-feature gaps index](./product/FEATURE_BY_FEATURE_GAPS_INDEX.md) 🆕 - Current missing items and parity gaps tracker
+- [**Web ↔ App feature parity (CTO/PM)**](./product/WEB_APP_FEATURE_PARITY.md) 🆕 - Mermaid maps, backlog P0–P3, route matrix
 
 ### Integrations
 

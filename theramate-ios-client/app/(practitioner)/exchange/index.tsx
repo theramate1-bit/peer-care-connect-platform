@@ -28,8 +28,11 @@ import {
   acceptExchangeRequest,
   fetchAcceptedExchangesNeedingReciprocal,
   fetchAcceptedExchangesAwaitingReciprocalByRequester,
+  fetchRecentTerminalExchangeRequestsForParticipant,
+  fetchRecentCompletedExchangesForParticipant,
   formatExchangeConflictMessage,
   type ExchangeNeedingReciprocalRow,
+  type ExchangeRequestRow,
 } from "@/lib/api/practitionerExchange";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +44,25 @@ function formatExchangeTime(t: string | null | undefined): string {
   if (t == null) return "";
   const s = String(t);
   return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
+function terminalStatusLabel(
+  status: string | null | undefined,
+  complete?: boolean,
+): string {
+  if (complete) return "Complete";
+  const s = (status || "").toLowerCase();
+  if (s === "declined") return "Different time requested";
+  if (s === "cancelled") return "Cancelled";
+  if (s === "expired") return "Expired";
+  return status || "Closed";
+}
+
+function counterpartName(row: ExchangeRequestRow, userId: string): string {
+  if (row.requester_id === userId) {
+    return row.recipient_name ?? "Practitioner";
+  }
+  return row.requester_name ?? "Practitioner";
 }
 
 type ExchangeSegment = "discover" | "inbox";
@@ -109,11 +131,37 @@ export default function PractitionerExchangeScreen() {
     enabled: !!userId,
   });
 
+  const terminalQuery = useQuery({
+    queryKey: ["exchange_terminal_history", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } =
+        await fetchRecentTerminalExchangeRequestsForParticipant(userId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
+  const completedQuery = useQuery({
+    queryKey: ["exchange_completed_history", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } =
+        await fetchRecentCompletedExchangesForParticipant(userId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
   const inboxLoading =
     loadingPending ||
     reciprocalQuery.isLoading ||
     sentQuery.isLoading ||
-    awaitingReciprocalQuery.isLoading;
+    awaitingReciprocalQuery.isLoading ||
+    terminalQuery.isLoading ||
+    completedQuery.isLoading;
 
   const [pullRefreshing, setPullRefreshing] = useState(false);
 
@@ -125,6 +173,8 @@ export default function PractitionerExchangeScreen() {
         reciprocalQuery.refetch(),
         sentQuery.refetch(),
         awaitingReciprocalQuery.refetch(),
+        terminalQuery.refetch(),
+        completedQuery.refetch(),
         queryClient.invalidateQueries({
           queryKey: ["exchange_eligible", userId],
         }),
@@ -146,6 +196,8 @@ export default function PractitionerExchangeScreen() {
     reciprocalQuery,
     sentQuery,
     awaitingReciprocalQuery,
+    terminalQuery,
+    completedQuery,
   ]);
 
   const openSlotModal = (row: ExchangeNeedingReciprocalRow) => {
@@ -167,8 +219,12 @@ export default function PractitionerExchangeScreen() {
     await queryClient.invalidateQueries({
       queryKey: ["practitioner_dashboard", userId],
     });
+    await queryClient.invalidateQueries({
+      queryKey: ["exchange_completed_history", userId],
+    });
     void reciprocalQuery.refetch();
     void awaitingReciprocalQuery.refetch();
+    void completedQuery.refetch();
   };
 
   const onCancelSent = (id: string) => {
@@ -196,9 +252,13 @@ export default function PractitionerExchangeScreen() {
                 queryKey: ["exchange_sent", userId],
               });
               await queryClient.invalidateQueries({
+                queryKey: ["exchange_terminal_history", userId],
+              });
+              await queryClient.invalidateQueries({
                 queryKey: ["practitioner_dashboard", userId],
               });
               void sentQuery.refetch();
+              void terminalQuery.refetch();
             } finally {
               setBusy(null);
             }
@@ -288,9 +348,13 @@ export default function PractitionerExchangeScreen() {
                 queryKey: ["exchange_pending"],
               });
               await queryClient.invalidateQueries({
+                queryKey: ["exchange_terminal_history", userId],
+              });
+              await queryClient.invalidateQueries({
                 queryKey: ["practitioner_dashboard"],
               });
               void refetchPending();
+              void terminalQuery.refetch();
             } finally {
               setBusy(null);
             }
@@ -760,6 +824,98 @@ export default function PractitionerExchangeScreen() {
                       </Button>
                     </Card>
                   ))
+                )}
+
+                <Text className="text-charcoal-900 font-semibold text-base mt-4 mb-2">
+                  Past requests
+                </Text>
+                <Text className="text-charcoal-500 text-sm mb-3">
+                  Declined, cancelled, or expired — open for details.
+                </Text>
+                {terminalQuery.data && terminalQuery.data.length > 0 ? (
+                  terminalQuery.data.map((r) => (
+                    <Card
+                      key={r.id}
+                      variant="default"
+                      padding="md"
+                      className="mb-3 opacity-90"
+                    >
+                      <Text className="text-charcoal-900 font-semibold">
+                        With{" "}
+                        {userId ? counterpartName(r, userId) : "Practitioner"}
+                      </Text>
+                      <Text className="text-charcoal-600 text-sm mt-1">
+                        {terminalStatusLabel(r.status)}
+                        {r.requested_session_date
+                          ? ` · ${r.requested_session_date}`
+                          : ""}
+                        {r.requested_start_time
+                          ? ` · ${formatExchangeTime(r.requested_start_time)}`
+                          : ""}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push(
+                            tabPath(tabRoot, `exchange/${r.id}`) as Href,
+                          )
+                        }
+                        className="mt-2 self-start"
+                      >
+                        <Text className="text-sage-600 text-sm font-medium">
+                          View request details
+                        </Text>
+                      </TouchableOpacity>
+                    </Card>
+                  ))
+                ) : (
+                  <Text className="text-charcoal-500 mb-4">
+                    No past requests in the last 20 closed items.
+                  </Text>
+                )}
+
+                <Text className="text-charcoal-900 font-semibold text-base mt-4 mb-2">
+                  Completed swaps
+                </Text>
+                <Text className="text-charcoal-500 text-sm mb-3">
+                  Both practitioners booked — credits applied when leg 2
+                  confirmed.
+                </Text>
+                {completedQuery.data && completedQuery.data.length > 0 ? (
+                  completedQuery.data.map((r) => (
+                    <Card
+                      key={r.id}
+                      variant="default"
+                      padding="md"
+                      className="mb-3 opacity-90"
+                    >
+                      <Text className="text-charcoal-900 font-semibold">
+                        With{" "}
+                        {userId ? counterpartName(r, userId) : "Practitioner"}
+                      </Text>
+                      <Text className="text-charcoal-600 text-sm mt-1">
+                        {terminalStatusLabel(r.status, true)}
+                        {r.requested_session_date
+                          ? ` · ${r.requested_session_date}`
+                          : ""}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push(
+                            tabPath(tabRoot, `exchange/${r.id}`) as Href,
+                          )
+                        }
+                        className="mt-2 self-start"
+                      >
+                        <Text className="text-sage-600 text-sm font-medium">
+                          View request details
+                        </Text>
+                      </TouchableOpacity>
+                    </Card>
+                  ))
+                ) : (
+                  <Text className="text-charcoal-500 mb-4">
+                    No completed swaps yet.
+                  </Text>
                 )}
               </>
             )}

@@ -1,30 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { 
-  Building2, 
-  User, 
-  CreditCard, 
-  CheckCircle, 
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { createConnectHostedOnboardingLink } from "@/lib/stripeConnectHosted";
+import {
+  Building2,
+  User,
+  CreditCard,
+  CheckCircle,
   AlertCircle,
   Loader2,
   ExternalLink,
   Shield,
-  Banknote
-} from 'lucide-react';
+  Banknote,
+} from "lucide-react";
 
 interface ConnectAccount {
   id: string;
   stripe_account_id: string;
-  account_status: 'pending' | 'active' | 'restricted' | 'disabled';
+  account_status: "pending" | "active" | "restricted" | "disabled";
   charges_enabled: boolean;
   payouts_enabled: boolean;
   details_submitted: boolean;
@@ -38,41 +51,64 @@ const ConnectAccountSetup: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [connectAccount, setConnectAccount] = useState<ConnectAccount | null>(null);
+  const [hostedLoading, setHostedLoading] = useState(false);
+  const [connectAccount, setConnectAccount] = useState<ConnectAccount | null>(
+    null,
+  );
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    business_type: 'individual',
+    business_type: "individual",
     company: {
-      name: '',
-      tax_id: '',
+      name: "",
+      tax_id: "",
       address: {
-        line1: '',
-        city: '',
-        state: '',
-        postal_code: '',
-        country: 'GB'
-      }
+        line1: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        country: "GB",
+      },
     },
     individual: {
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
       address: {
-        line1: '',
-        city: '',
-        state: '',
-        postal_code: '',
-        country: 'GB'
+        line1: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        country: "GB",
       },
       dob: {
-        day: '',
-        month: '',
-        year: ''
+        day: "",
+        month: "",
+        year: "",
       },
-      ssn_last_4: ''
-    }
+      ssn_last_4: "",
+    },
   });
+
+  const startHostedOnboarding = async () => {
+    setHostedLoading(true);
+    try {
+      const { url, error } = await createConnectHostedOnboardingLink({
+        stripeAccountId: connectAccount?.stripe_account_id,
+      });
+      if (error || !url) {
+        toast({
+          title: "Could not start setup",
+          description: error ?? "No onboarding URL returned",
+          variant: "destructive",
+        });
+        return;
+      }
+      window.location.href = url;
+    } finally {
+      setHostedLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -83,13 +119,13 @@ const ConnectAccountSetup: React.FC = () => {
   const loadConnectAccount = async () => {
     try {
       const { data, error } = await supabase
-        .from('connect_accounts')
-        .select('*')
-        .eq('user_id', user?.id)
+        .from("connect_accounts")
+        .select("*")
+        .eq("user_id", user?.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading connect account:', error);
+      if (error && error.code !== "PGRST116") {
+        console.error("Error loading connect account:", error);
       }
 
       if (data) {
@@ -99,7 +135,7 @@ const ConnectAccountSetup: React.FC = () => {
         setShowForm(true);
       }
     } catch (error) {
-      console.error('Error loading connect account:', error);
+      console.error("Error loading connect account:", error);
     }
   };
 
@@ -109,31 +145,37 @@ const ConnectAccountSetup: React.FC = () => {
 
     try {
       // Create Connect account
-      const { data, error } = await supabase.functions.invoke('stripe-payment', {
-        body: {
-          action: 'create-connect-account',
-          business_type: formData.business_type,
-          company: formData.business_type === 'company' ? formData.company : undefined,
-          individual: formData.individual
-        }
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "stripe-payment",
+        {
+          body: {
+            action: "create-connect-account",
+            business_type: formData.business_type,
+            company:
+              formData.business_type === "company"
+                ? formData.company
+                : undefined,
+            individual: formData.individual,
+          },
+        },
+      );
 
       if (error) throw error;
 
       toast({
         title: "Connect Account Created",
-        description: "Your Stripe Connect account has been created successfully. Please complete the verification process.",
+        description:
+          "Your Stripe Connect account has been created successfully. Please complete the verification process.",
       });
 
       // Reload the account
       await loadConnectAccount();
-
     } catch (error) {
-      console.error('Error creating connect account:', error);
+      console.error("Error creating connect account:", error);
       toast({
         title: "Error",
         description: "Failed to create Connect account. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -141,51 +183,58 @@ const ConnectAccountSetup: React.FC = () => {
   };
 
   const handleInputChange = (section: string, field: string, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [section]: {
         ...prev[section as keyof typeof prev],
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
   };
 
-  const handleAddressChange = (section: string, field: string, value: string) => {
-    setFormData(prev => ({
+  const handleAddressChange = (
+    section: string,
+    field: string,
+    value: string,
+  ) => {
+    setFormData((prev) => ({
       ...prev,
       [section]: {
         ...prev[section as keyof typeof prev],
         address: {
           ...prev[section as keyof typeof prev].address,
-          [field]: value
-        }
-      }
+          [field]: value,
+        },
+      },
     }));
   };
 
   const handleDateChange = (field: string, value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       individual: {
         ...prev.individual,
         dob: {
           ...prev.individual.dob,
-          [field]: value
-        }
-      }
+          [field]: value,
+        },
+      },
     }));
   };
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      active: 'bg-green-100 text-green-800',
-      restricted: 'bg-red-100 text-red-800',
-      disabled: 'bg-gray-100 text-gray-800'
+      pending: "bg-yellow-100 text-yellow-800",
+      active: "bg-green-100 text-green-800",
+      restricted: "bg-red-100 text-red-800",
+      disabled: "bg-gray-100 text-gray-800",
     };
 
     return (
-      <Badge variant="secondary" className={variants[status as keyof typeof variants]}>
+      <Badge
+        variant="secondary"
+        className={variants[status as keyof typeof variants]}
+      >
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
@@ -193,11 +242,11 @@ const ConnectAccountSetup: React.FC = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active':
+      case "active":
         return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case 'pending':
+      case "pending":
         return <AlertCircle className="h-5 w-5 text-yellow-600" />;
-      case 'restricted':
+      case "restricted":
         return <AlertCircle className="h-5 w-5 text-red-600" />;
       default:
         return <AlertCircle className="h-5 w-5 text-gray-600" />;
@@ -207,7 +256,9 @@ const ConnectAccountSetup: React.FC = () => {
   if (!user) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">Please log in to set up your Connect account.</p>
+        <p className="text-muted-foreground">
+          Please log in to set up your Connect account.
+        </p>
       </div>
     );
   }
@@ -221,6 +272,37 @@ const ConnectAccountSetup: React.FC = () => {
           Set up your account to receive payments from clients
         </p>
       </div>
+
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader>
+          <CardTitle className="text-lg">
+            Recommended: Stripe hosted setup
+          </CardTitle>
+          <CardDescription>
+            Same flow as the mobile app — complete verification on Stripe, then
+            return here automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={() => void startHostedOnboarding()}
+            disabled={hostedLoading}
+            className="w-full sm:w-auto"
+          >
+            {hostedLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Opening Stripe…
+              </>
+            ) : (
+              <>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Continue with Stripe
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Existing Account Status */}
       {connectAccount && (
@@ -241,9 +323,9 @@ const ConnectAccountSetup: React.FC = () => {
                 <div>
                   <p className="font-medium">Account Status</p>
                   <p className="text-sm text-muted-foreground">
-                    {connectAccount.account_status === 'active' 
-                      ? 'Your account is fully verified and ready to receive payments'
-                      : 'Your account is pending verification'}
+                    {connectAccount.account_status === "active"
+                      ? "Your account is fully verified and ready to receive payments"
+                      : "Your account is pending verification"}
                   </p>
                 </div>
               </div>
@@ -254,36 +336,42 @@ const ConnectAccountSetup: React.FC = () => {
               <div className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
                 <span className="text-sm">
-                  Charges: {connectAccount.charges_enabled ? 'Enabled' : 'Disabled'}
+                  Charges:{" "}
+                  {connectAccount.charges_enabled ? "Enabled" : "Disabled"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Banknote className="h-4 w-4" />
                 <span className="text-sm">
-                  Payouts: {connectAccount.payouts_enabled ? 'Enabled' : 'Disabled'}
+                  Payouts:{" "}
+                  {connectAccount.payouts_enabled ? "Enabled" : "Disabled"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 <span className="text-sm">
-                  Details: {connectAccount.details_submitted ? 'Submitted' : 'Pending'}
+                  Details:{" "}
+                  {connectAccount.details_submitted ? "Submitted" : "Pending"}
                 </span>
               </div>
             </div>
 
-            {connectAccount.account_status === 'pending' && (
+            {connectAccount.account_status === "pending" && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
                   <div>
-                    <h4 className="font-medium text-yellow-800">Verification Required</h4>
+                    <h4 className="font-medium text-yellow-800">
+                      Verification Required
+                    </h4>
                     <p className="text-sm text-yellow-700 mt-1">
-                      To complete your account setup, you need to verify your identity and business details 
-                      with Stripe. This process typically takes 1-2 business days.
+                      To complete your account setup, you need to verify your
+                      identity and business details with Stripe. This process
+                      typically takes 1-2 business days.
                     </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="mt-3"
                       onClick={() => setShowForm(true)}
                     >
@@ -294,15 +382,18 @@ const ConnectAccountSetup: React.FC = () => {
               </div>
             )}
 
-            {connectAccount.account_status === 'active' && (
+            {connectAccount.account_status === "active" && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                   <div>
-                    <h4 className="font-medium text-green-800">Account Verified!</h4>
+                    <h4 className="font-medium text-green-800">
+                      Account Verified!
+                    </h4>
                     <p className="text-sm text-green-700 mt-1">
-                      Your account is fully verified and ready to receive payments. 
-                      You can now start accepting payments from clients.
+                      Your account is fully verified and ready to receive
+                      payments. You can now start accepting payments from
+                      clients.
                     </p>
                   </div>
                 </div>
@@ -317,11 +408,18 @@ const ConnectAccountSetup: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {connectAccount ? <Building2 className="h-5 w-5" /> : <User className="h-5 w-5" />}
-              {connectAccount ? 'Update Account Details' : 'Create Connect Account'}
+              {connectAccount ? (
+                <Building2 className="h-5 w-5" />
+              ) : (
+                <User className="h-5 w-5" />
+              )}
+              {connectAccount
+                ? "Update Account Details"
+                : "Create Connect Account"}
             </CardTitle>
             <CardDescription>
-              Provide your business information to set up your Stripe Connect account
+              Provide your business information to set up your Stripe Connect
+              account
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -329,9 +427,11 @@ const ConnectAccountSetup: React.FC = () => {
               {/* Business Type Selection */}
               <div className="space-y-2">
                 <Label>Business Type</Label>
-                <Select 
-                  value={formData.business_type} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value }))}
+                <Select
+                  value={formData.business_type}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, business_type: value }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -344,17 +444,19 @@ const ConnectAccountSetup: React.FC = () => {
               </div>
 
               {/* Company Information */}
-              {formData.business_type === 'company' && (
+              {formData.business_type === "company" && (
                 <div className="space-y-4 border rounded-lg p-4">
                   <h4 className="font-medium">Company Information</h4>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="companyName">Company Name</Label>
                       <Input
                         id="companyName"
                         value={formData.company.name}
-                        onChange={(e) => handleInputChange('company', 'name', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("company", "name", e.target.value)
+                        }
                         placeholder="Your Company Ltd"
                         required
                       />
@@ -364,7 +466,9 @@ const ConnectAccountSetup: React.FC = () => {
                       <Input
                         id="taxId"
                         value={formData.company.tax_id}
-                        onChange={(e) => handleInputChange('company', 'tax_id', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("company", "tax_id", e.target.value)
+                        }
                         placeholder="GB123456789"
                       />
                     </div>
@@ -376,25 +480,45 @@ const ConnectAccountSetup: React.FC = () => {
                       <Input
                         placeholder="Street Address"
                         value={formData.company.address.line1}
-                        onChange={(e) => handleAddressChange('company', 'line1', e.target.value)}
+                        onChange={(e) =>
+                          handleAddressChange(
+                            "company",
+                            "line1",
+                            e.target.value,
+                          )
+                        }
                         required
                       />
                       <Input
                         placeholder="City"
                         value={formData.company.address.city}
-                        onChange={(e) => handleAddressChange('company', 'city', e.target.value)}
+                        onChange={(e) =>
+                          handleAddressChange("company", "city", e.target.value)
+                        }
                         required
                       />
                       <Input
                         placeholder="State/County"
                         value={formData.company.address.state}
-                        onChange={(e) => handleAddressChange('company', 'state', e.target.value)}
+                        onChange={(e) =>
+                          handleAddressChange(
+                            "company",
+                            "state",
+                            e.target.value,
+                          )
+                        }
                         required
                       />
                       <Input
                         placeholder="Postal Code"
                         value={formData.company.address.postal_code}
-                        onChange={(e) => handleAddressChange('company', 'postal_code', e.target.value)}
+                        onChange={(e) =>
+                          handleAddressChange(
+                            "company",
+                            "postal_code",
+                            e.target.value,
+                          )
+                        }
                         required
                       />
                     </div>
@@ -405,14 +529,20 @@ const ConnectAccountSetup: React.FC = () => {
               {/* Individual Information */}
               <div className="space-y-4 border rounded-lg p-4">
                 <h4 className="font-medium">Personal Information</h4>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name</Label>
                     <Input
                       id="firstName"
                       value={formData.individual.first_name}
-                      onChange={(e) => handleInputChange('individual', 'first_name', e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "individual",
+                          "first_name",
+                          e.target.value,
+                        )
+                      }
                       placeholder="John"
                       required
                     />
@@ -422,7 +552,13 @@ const ConnectAccountSetup: React.FC = () => {
                     <Input
                       id="lastName"
                       value={formData.individual.last_name}
-                      onChange={(e) => handleInputChange('individual', 'last_name', e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "individual",
+                          "last_name",
+                          e.target.value,
+                        )
+                      }
                       placeholder="Doe"
                       required
                     />
@@ -436,7 +572,9 @@ const ConnectAccountSetup: React.FC = () => {
                       id="email"
                       type="email"
                       value={formData.individual.email}
-                      onChange={(e) => handleInputChange('individual', 'email', e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("individual", "email", e.target.value)
+                      }
                       placeholder="john.doe@example.com"
                       required
                     />
@@ -446,7 +584,9 @@ const ConnectAccountSetup: React.FC = () => {
                     <Input
                       id="phone"
                       value={formData.individual.phone}
-                      onChange={(e) => handleInputChange('individual', 'phone', e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("individual", "phone", e.target.value)
+                      }
                       placeholder="+44 20 1234 5678"
                       required
                     />
@@ -456,33 +596,57 @@ const ConnectAccountSetup: React.FC = () => {
                 <div className="space-y-2">
                   <Label>Date of Birth</Label>
                   <div className="grid grid-cols-3 gap-4">
-                    <Select value={formData.individual.dob.day} onValueChange={(value) => handleDateChange('day', value)}>
+                    <Select
+                      value={formData.individual.dob.day}
+                      onValueChange={(value) => handleDateChange("day", value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Day" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                          <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
-                        ))}
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                          (day) => (
+                            <SelectItem key={day} value={day.toString()}>
+                              {day}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
-                    <Select value={formData.individual.dob.month} onValueChange={(value) => handleDateChange('month', value)}>
+                    <Select
+                      value={formData.individual.dob.month}
+                      onValueChange={(value) =>
+                        handleDateChange("month", value)
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Month" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                          <SelectItem key={month} value={month.toString()}>{month}</SelectItem>
-                        ))}
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(
+                          (month) => (
+                            <SelectItem key={month} value={month.toString()}>
+                              {month}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
-                    <Select value={formData.individual.dob.year} onValueChange={(value) => handleDateChange('year', value)}>
+                    <Select
+                      value={formData.individual.dob.year}
+                      onValueChange={(value) => handleDateChange("year", value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Year" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 50 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                        {Array.from(
+                          { length: 50 },
+                          (_, i) => new Date().getFullYear() - i,
+                        ).map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -495,36 +659,68 @@ const ConnectAccountSetup: React.FC = () => {
                     <Input
                       placeholder="Street Address"
                       value={formData.individual.address.line1}
-                      onChange={(e) => handleAddressChange('individual', 'line1', e.target.value)}
+                      onChange={(e) =>
+                        handleAddressChange(
+                          "individual",
+                          "line1",
+                          e.target.value,
+                        )
+                      }
                       required
                     />
                     <Input
                       placeholder="City"
                       value={formData.individual.address.city}
-                      onChange={(e) => handleAddressChange('individual', 'city', e.target.value)}
+                      onChange={(e) =>
+                        handleAddressChange(
+                          "individual",
+                          "city",
+                          e.target.value,
+                        )
+                      }
                       required
                     />
                     <Input
                       placeholder="State/County"
                       value={formData.individual.address.state}
-                      onChange={(e) => handleAddressChange('individual', 'state', e.target.value)}
+                      onChange={(e) =>
+                        handleAddressChange(
+                          "individual",
+                          "state",
+                          e.target.value,
+                        )
+                      }
                       required
                     />
                     <Input
                       placeholder="Postal Code"
                       value={formData.individual.address.postal_code}
-                      onChange={(e) => handleAddressChange('individual', 'postal_code', e.target.value)}
+                      onChange={(e) =>
+                        handleAddressChange(
+                          "individual",
+                          "postal_code",
+                          e.target.value,
+                        )
+                      }
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="ssn">Last 4 digits of SSN/National ID (Optional)</Label>
+                  <Label htmlFor="ssn">
+                    Last 4 digits of SSN/National ID (Optional)
+                  </Label>
                   <Input
                     id="ssn"
                     value={formData.individual.ssn_last_4}
-                    onChange={(e) => handleInputChange('individual', 'ssn_last_4', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "individual",
+                        "ssn_last_4",
+                        e.target.value,
+                      )
+                    }
                     placeholder="1234"
                     maxLength={4}
                   />
@@ -533,27 +729,23 @@ const ConnectAccountSetup: React.FC = () => {
 
               {/* Submit Button */}
               <div className="flex items-center gap-4">
-                <Button 
-                  type="submit" 
-                  disabled={loading}
-                  className="flex-1"
-                >
+                <Button type="submit" disabled={loading} className="flex-1">
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {connectAccount ? 'Updating...' : 'Creating...'}
+                      {connectAccount ? "Updating..." : "Creating..."}
                     </>
                   ) : (
                     <>
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      {connectAccount ? 'Update Account' : 'Create Account'}
+                      {connectAccount ? "Update Account" : "Create Account"}
                     </>
                   )}
                 </Button>
-                
+
                 {connectAccount && (
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     variant="outline"
                     onClick={() => setShowForm(false)}
                   >
@@ -567,10 +759,13 @@ const ConnectAccountSetup: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
                   <div>
-                    <h4 className="font-medium text-blue-800">Security & Privacy</h4>
+                    <h4 className="font-medium text-blue-800">
+                      Security & Privacy
+                    </h4>
                     <p className="text-sm text-blue-700 mt-1">
-                      Your information is encrypted and securely transmitted to Stripe. 
-                      We do not store sensitive financial information on our servers.
+                      Your information is encrypted and securely transmitted to
+                      Stripe. We do not store sensitive financial information on
+                      our servers.
                     </p>
                   </div>
                 </div>
@@ -593,19 +788,20 @@ const ConnectAccountSetup: React.FC = () => {
             <div className="space-y-2">
               <h4 className="font-medium">Verification Process</h4>
               <p className="text-sm text-muted-foreground">
-                After submitting your information, Stripe will review and verify your account. 
-                This typically takes 1-2 business days.
+                After submitting your information, Stripe will review and verify
+                your account. This typically takes 1-2 business days.
               </p>
             </div>
             <div className="space-y-2">
               <h4 className="font-medium">Required Documents</h4>
               <p className="text-sm text-muted-foreground">
-                You may be asked to provide additional documents such as government-issued ID, 
-                business registration, or proof of address.
+                You may be asked to provide additional documents such as
+                government-issued ID, business registration, or proof of
+                address.
               </p>
             </div>
           </div>
-          
+
           <Button variant="outline" className="w-full">
             <ExternalLink className="h-4 w-4 mr-2" />
             View Stripe Documentation

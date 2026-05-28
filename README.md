@@ -6,23 +6,23 @@ A comprehensive platform connecting clients with verified therapists through a c
 
 This repository contains multiple projects:
 
-- **[peer-care-connect](./peer-care-connect/)** - Main therapy platform (React + Vite + Supabase)
+- **Web (Theramate / Peer Care Connect)** — React app under repo-root **`src/`**, Supabase under **`supabase/`**. Older docs called this app **`peer-care-connect/`**; root **`package.json`** may still list a `peer-care-connect` **npm workspace** — that directory can be empty in some checkouts. If `npm run dev` fails, use `npm install` at the repo root and follow [docs/getting-started](./docs/getting-started/); search **`src/components/booking`** for booking UI.
 - **[ai-ugc-creator](./ai-ugc-creator/)** - AI video generation tool (Next.js + InstantDB)
 - **[theramate-ios-client](./theramate-ios-client/)** - **Theramate customer** Expo app (iOS + Android); `npm run typecheck:mobile` targets this package
 
 ## 🚀 Quick Start
 
-### Main Platform (Peer Care Connect)
+### Main platform (web + API)
 
 ```bash
-cd peer-care-connect
+# Repository root
 npm install
-cp .env.example .env.local
-# Edit .env.local with your credentials
+cp env.production.example .env.local
+# Edit .env.local — see docs/getting-started/environment-setup.md
 npm run dev
 ```
 
-See [peer-care-connect/README.md](./peer-care-connect/README.md) for detailed setup.
+If `npm run dev` errors on a missing `peer-care-connect` workspace, open an issue or align workspaces with your branch; meanwhile run whichever dev script your branch documents in **`package.json`**.
 
 ### Documentation
 

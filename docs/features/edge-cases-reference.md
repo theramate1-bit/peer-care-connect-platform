@@ -2,6 +2,8 @@
 
 **Audience:** Junior developers
 
+> **Repo paths:** Several “Where” links below still use a legacy **`peer-care-connect/...`** prefix. In this monorepo the web app lives under **`src/`** (e.g. `src/components/booking/BookingFlow.tsx`). If a link 404s, search `src/` or follow the adjacent product doc link.
+
 This document consolidates edge cases across booking, treatment exchange, notifications, messaging, and other flows. It answers: "In scenario X, what happens, and where is it handled?"
 
 ---
@@ -22,7 +24,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **Edge case:** Wrong-flow recovery – if clinic flow opens for mobile-only practitioner (stale data), user is auto-redirected to mobile flow with message.
 
-**Where:** [peer-care-connect/src/lib/booking-flow-type.ts](../../peer-care-connect/src/lib/booking-flow-type.ts), [peer-care-connect/src/components/marketplace/BookingFlow.tsx](../../peer-care-connect/src/components/marketplace/BookingFlow.tsx)
+**Where:** [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx), [docs/features/clinic-mobile-hybrid-flows.md](../features/clinic-mobile-hybrid-flows.md)
 
 ---
 
@@ -36,7 +38,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 | Pre-assessment                                | Required every time (email-based skip for repeat) | Required first session; skip for returning |
 | Rebooking practitioner who became mobile-only | Redirect to mobile flow                           | Redirect to mobile flow                    |
 
-**Where:** [peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx](../../peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx), [docs/product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](../product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md)
+**Where:** [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (guest vs signed-in), [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx) (`?guest=1`), [docs/product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](../product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md)
 
 ---
 
@@ -46,7 +48,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Explicit message: "No clinic services available." CTA: "Request Visit to My Location" if mobile eligible; otherwise fallback guidance.
 
-**Where:** [peer-care-connect/src/components/marketplace/BookingFlow.tsx](../../peer-care-connect/src/components/marketplace/BookingFlow.tsx) (or HybridBookingChooser)
+**Where:** [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (or HybridBookingChooser)
 
 ---
 
@@ -56,7 +58,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Validation blocks submit. Message: address outside service area.
 
-**Where:** [peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx](../../peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx), backend `create_mobile_booking_request`
+**Where:** [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts) (native); search `src/` for any web mobile-request UI, backend `create_mobile_booking_request`
 
 ---
 
@@ -66,7 +68,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** `pending_payment` hold ~5 min. Second user's checkout fails; return to step 1. `expire_pending_payment_bookings` cleans expired holds.
 
-**Where:** [peer-care-connect/src/components/dashboards/TherapistDashboard.tsx](../../peer-care-connect/src/components/dashboards/TherapistDashboard.tsx) (calls `expire_pending_payment_bookings`), Stripe webhook
+**Where:** `theramate-ios-client` practitioner tabs + `src/pages/practice/` (search `expire_pending_payment` / same-day) (calls `expire_pending_payment_bookings`), Stripe webhook
 
 ---
 
@@ -78,7 +80,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Slot hold may expire. Accept can fail with "slot no longer available." Recipient should select another time or requester resends.
 
-**Where:** [peer-care-connect/src/lib/treatment-exchange.ts](../../peer-care-connect/src/lib/treatment-exchange.ts) – `SlotHoldingService.holdSlot`, [peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx](../../peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx)
+**Where:** [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts) – `SlotHoldingService.holdSlot`, `theramate-ios-client/app/(practitioner)/exchange/` (search `exchange` + `practitionerExchange`)
 
 ---
 
@@ -88,7 +90,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Backend rejects. UI should re-check status and show "Request expired."
 
-**Where:** [peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx](../../peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx) – `checkRequestStatus`
+**Where:** `theramate-ios-client/app/(practitioner)/exchange/` (search `exchange` + `practitionerExchange`) – `checkRequestStatus`
 
 ---
 
@@ -98,7 +100,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Reciprocal booking fails. Accept may have already created `mutual_exchange_sessions`. Recipient gets reminder to book later; requester can top up credits.
 
-**Where:** [peer-care-connect/src/lib/treatment-exchange.ts](../../peer-care-connect/src/lib/treatment-exchange.ts), [peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx](../../peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx)
+**Where:** [theramate-ios-client/lib/api/practitionerExchange.ts](../../theramate-ios-client/lib/api/practitionerExchange.ts), `theramate-ios-client/app/(practitioner)/exchange/` (search `exchange` + `practitionerExchange`)
 
 ---
 
@@ -108,7 +110,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Accept-only mode: "You can book your return session later when they've added a service." No reciprocal booking step.
 
-**Where:** [peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx](../../peer-care-connect/src/components/treatment-exchange/ExchangeAcceptanceModal.tsx) – `services.length === 0`
+**Where:** `theramate-ios-client/app/(practitioner)/exchange/` (search `exchange` + `practitionerExchange`) – `services.length === 0`
 
 ---
 
@@ -118,7 +120,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Appears in New Bookings and Exchange Requests page. Does **not** appear in Today's Schedule (filter: session_date = today).
 
-**Where:** [peer-care-connect/src/components/dashboards/TherapistDashboard.tsx](../../peer-care-connect/src/components/dashboards/TherapistDashboard.tsx), [docs/product/DASHBOARD_AND_TREATMENT_EXCHANGE_FLOW.md](../product/DASHBOARD_AND_TREATMENT_EXCHANGE_FLOW.md)
+**Where:** `theramate-ios-client` practitioner tabs + `src/pages/practice/` (search `expire_pending_payment` / same-day), [docs/product/DASHBOARD_AND_TREATMENT_EXCHANGE_FLOW.md](../product/DASHBOARD_AND_TREATMENT_EXCHANGE_FLOW.md)
 
 ---
 
@@ -150,7 +152,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** `create_session_from_mobile_request` may fail (conflict). UI shows "Slot no longer available"; recipient can try another time.
 
-**Where:** [peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx](../../peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx)
+**Where:** `theramate-ios-client/app/(practitioner)/mobile-requests/` + [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts)
 
 ---
 
@@ -162,7 +164,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Frontend treats `read_at` as canonical. "Mark all read" updates both.
 
-**Where:** [peer-care-connect/src/lib/notification-utils.ts](../../peer-care-connect/src/lib/notification-utils.ts), [docs/product/NOTIFICATIONS_AUDIT_AND_FIXES.md](../product/NOTIFICATIONS_AUDIT_AND_FIXES.md)
+**Where:** [theramate-ios-client/lib/api/notifications.ts](../../theramate-ios-client/lib/api/notifications.ts); search `src/` for web notification UI, [docs/product/NOTIFICATIONS_AUDIT_AND_FIXES.md](../product/NOTIFICATIONS_AUDIT_AND_FIXES.md)
 
 ---
 
@@ -172,7 +174,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** `dismissed_at` set. Row not deleted. All fetches exclude `dismissed_at IS NOT NULL`.
 
-**Where:** [peer-care-connect/src/lib/notification-utils.ts](../../peer-care-connect/src/lib/notification-utils.ts) – `dismissNotification`
+**Where:** [theramate-ios-client/lib/api/notifications.ts](../../theramate-ios-client/lib/api/notifications.ts); search `src/` for web notification UI – `dismissNotification`
 
 ---
 
@@ -182,7 +184,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Frontend must use `source_type` and payload for routing, not `type` alone.
 
-**Where:** [peer-care-connect/src/lib/notification-utils.ts](../../peer-care-connect/src/lib/notification-utils.ts) – `formatNotificationPreview`, `handleNotificationNavigation`
+**Where:** [theramate-ios-client/lib/api/notifications.ts](../../theramate-ios-client/lib/api/notifications.ts); search `src/` for web notification UI – `formatNotificationPreview`, `handleNotificationNavigation`
 
 ---
 
@@ -194,7 +196,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Message stored. `notify-guest-message` Edge Function sends email. Link = `/login`. Guest has no inbox until signup.
 
-**Where:** [peer-care-connect/src/lib/messaging.ts](../../peer-care-connect/src/lib/messaging.ts) – `sendMessageToGuest`, [supabase/functions/notify-guest-message/index.ts](../../supabase/functions/notify-guest-message/index.ts)
+**Where:** [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx) – `sendMessageToGuest`, [supabase/functions/notify-guest-message/index.ts](../../supabase/functions/notify-guest-message/index.ts)
 
 ---
 
@@ -204,7 +206,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** `AuthCallback` calls `linkGuestConversationsToUser`. RPC reassigns conversations to new user id. New client sees prior messages in inbox.
 
-**Where:** [peer-care-connect/src/components/auth/AuthCallback.tsx](../../peer-care-connect/src/components/auth/AuthCallback.tsx), [peer-care-connect/src/lib/messaging.ts](../../peer-care-connect/src/lib/messaging.ts)
+**Where:** Search `src/` for OAuth / guest conversation linking; [src/components/messaging/RealTimeMessaging.tsx](../../src/components/messaging/RealTimeMessaging.tsx)
 
 ---
 
@@ -216,7 +218,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Should use `session.is_guest_booking === true` for "Guest" label. Fix: prefer `is_guest_booking` over inferring from `client_id`.
 
-**Where:** [peer-care-connect/src/components/BookingCalendar.tsx](../../peer-care-connect/src/components/BookingCalendar.tsx), [docs/product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](../product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md)
+**Where:** [theramate-ios-client/app/(practitioner)/(ptabs)/schedule/index.tsx](<../../theramate-ios-client/app/(practitioner)/(ptabs)/schedule/index.tsx>); [src/pages/practice/UpcomingSessions.tsx](../../src/pages/practice/UpcomingSessions.tsx), [docs/product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md](../product/GUEST_VS_CLIENT_SYSTEM_LOGIC_TABLE.md)
 
 ---
 
@@ -226,7 +228,7 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **What happens:** Excluded from calendar. Only `scheduled`, `confirmed`, `in_progress`, `completed` shown.
 
-**Where:** [peer-care-connect/src/components/BookingCalendar.tsx](../../peer-care-connect/src/components/BookingCalendar.tsx)
+**Where:** [theramate-ios-client/app/(practitioner)/(ptabs)/schedule/index.tsx](<../../theramate-ios-client/app/(practitioner)/(ptabs)/schedule/index.tsx>); [src/pages/practice/UpcomingSessions.tsx](../../src/pages/practice/UpcomingSessions.tsx)
 
 ---
 
@@ -234,13 +236,13 @@ This document consolidates edge cases across booking, treatment exchange, notifi
 
 **Critical distinction:**
 
-|               | Same-day approval                                      | Mobile request                                                    |
-| ------------- | ------------------------------------------------------ | ----------------------------------------------------------------- |
-| **Flow**      | Clinic only                                            | Mobile (and hybrid mobile)                                        |
-| **When**      | Client books clinic for today                          | Client requests mobile visit                                      |
-| **Component** | SameDayBookingApproval                                 | MobileRequestManagement                                           |
-| **RPC**       | get_pending_same_day_bookings, accept/decline same-day | create_mobile_booking_request, create_session_from_mobile_request |
-| **Never**     | Used for mobile                                        | Used for clinic                                                   |
+|               | Same-day approval                                      | Mobile request                                                             |
+| ------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **Flow**      | Clinic only                                            | Mobile (and hybrid mobile)                                                 |
+| **When**      | Client books clinic for today                          | Client requests mobile visit                                               |
+| **Component** | Same-day approval UI (search `src/` / native practice) | Mobile request queue (`theramate-ios-client/.../mobile-requests/`, native) |
+| **RPC**       | get_pending_same_day_bookings, accept/decline same-day | create_mobile_booking_request, create_session_from_mobile_request          |
+| **Never**     | Used for mobile                                        | Used for clinic                                                            |
 
 **Where:** [docs/features/clinic-mobile-hybrid-flows.md](./clinic-mobile-hybrid-flows.md)
 

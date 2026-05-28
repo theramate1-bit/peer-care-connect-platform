@@ -338,14 +338,11 @@ Run these before every deploy:
 4. Email integration tests
 5. Security tests
 
-**Existing scripts (peer-care-connect)**
+**Existing scripts** — authoritative lists live in root [`package.json`](../../package.json) and [`backend/package.json`](../../backend/package.json). On **this** checkout:
 
-- `npm run test:unit` – Jest unit tests
-- `npm run test:integration` – Jest integration tests
-- `npm run test:e2e` – Playwright e2e
-- `npm run test:user-journey` – Playwright user journey
-- `npm run test:oauth` – Playwright OAuth flows
-- `npm run test:ci` – unit + integration + e2e (CI)
+- **Backend:** `cd backend && npm run test:unit` · `npm run test:integration` · `npm run test:ci`
+- **Web:** root `npm run test:web` / `npm run test:ci` target the **`peer-care-connect` npm workspace** when that package exists; if the workspace folder is missing, use whatever web test script your branch defines next to repo-root `src/`.
+- **Playwright / e2e:** not present in the default tree — add or restore specs, then document the exact directory and `npm` script here.
 
 The example tests in this checklist can be implemented as Playwright or Jest specs over time.
 

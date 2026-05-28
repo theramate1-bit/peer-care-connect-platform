@@ -43,8 +43,6 @@
     }
   ],
   "env": {
-    "VITE_STRIPE_PUBLISHABLE_KEY": "@stripe-publishable-key",
-    "VITE_STRIPE_CONNECT_CLIENT_ID": "@stripe-connect-client-id",
     "VITE_SUPABASE_URL": "@supabase-url",
     "VITE_SUPABASE_ANON_KEY": "@supabase-anon-key"
   },

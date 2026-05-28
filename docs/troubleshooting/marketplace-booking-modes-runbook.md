@@ -15,13 +15,13 @@ It is also the first-stop troubleshooting guide for booking errors involving RPC
 
 ## Therapist Type Comparison (Marketplace)
 
-| Therapist type                    | Marketplace CTA behavior                                    | User choice | Main journey                                              |
-| --------------------------------- | ----------------------------------------------------------- | ----------- | --------------------------------------------------------- |
-| `clinic_based`                    | Single CTA: `Book`                                          | No          | Clinic booking modal (`BookingFlow` / `GuestBookingFlow`) |
-| `mobile`                          | Single CTA: `Request`                                       | No          | Mobile request modal (`MobileBookingRequestFlow`)         |
-| `hybrid` (both valid)             | Two CTAs: `Book at Clinic` + `Request Visit to My Location` | Yes         | User chooses clinic or mobile path                        |
-| `hybrid` (only clinic configured) | Single CTA: `Book`                                          | No          | Clinic path only                                          |
-| `hybrid` (only mobile configured) | Single CTA: `Request`                                       | No          | Mobile path only                                          |
+| Therapist type                    | Marketplace CTA behavior                                    | User choice | Main journey                                                                                                         |
+| --------------------------------- | ----------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `clinic_based`                    | Single CTA: `Book`                                          | No          | Clinic booking modal ([`BookingFlow`](../../src/components/booking/BookingFlow.tsx) with `guestMode` when anonymous) |
+| `mobile`                          | Single CTA: `Request`                                       | No          | Mobile request flow (native + RPC; search `mobile_booking_requests` in `theramate-ios-client` / `src`)               |
+| `hybrid` (both valid)             | Two CTAs: `Book at Clinic` + `Request Visit to My Location` | Yes         | User chooses clinic or mobile path                                                                                   |
+| `hybrid` (only clinic configured) | Single CTA: `Book`                                          | No          | Clinic path only                                                                                                     |
+| `hybrid` (only mobile configured) | Single CTA: `Request`                                       | No          | Mobile path only                                                                                                     |
 
 Notes:
 
@@ -32,12 +32,12 @@ Notes:
 
 ## User State Comparison (Guest vs Authenticated)
 
-| Path                                                | Authenticated client                                                                        | Guest user                                                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Clinic booking (`BookingFlow` / `GuestBookingFlow`) | Service/time -> review/policy -> pre-assessment (required for new users) -> Stripe checkout | Service/time -> contact info/policy -> pre-assessment (required for new users) -> Stripe checkout |
-| Mobile request (`MobileBookingRequestFlow`)         | Service/time -> location -> pre-assessment step -> review -> Stripe hold checkout           | Service/time -> location -> contact + pre-assessment step -> review -> Stripe hold checkout       |
-| Post-payment state                                  | Clinic: session is created directly                                                         | Clinic: session is created directly                                                               |
-| Post-payment state (mobile)                         | Request is created first, then practitioner accepts/declines; session created on acceptance | Same as authenticated flow                                                                        |
+| Path                                                   | Authenticated client                                                                        | Guest user                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Clinic booking (`BookingFlow`, `guestMode` when guest) | Service/time -> review/policy -> pre-assessment (if required) -> Stripe checkout            | Service/time -> contact info/policy -> pre-assessment (if required) -> Stripe checkout      |
+| Mobile request                                         | Service/time -> location -> pre-assessment (if required) -> review -> Stripe hold           | Service/time -> location -> contact + pre-assessment (if required) -> review -> Stripe hold |
+| Post-payment state                                     | Clinic: session is created directly                                                         | Clinic: session is created directly                                                         |
+| Post-payment state (mobile)                            | Request is created first, then practitioner accepts/declines; session created on acceptance | Same as authenticated flow                                                                  |
 
 ---
 
@@ -57,18 +57,10 @@ When a practitioner is `hybrid` and correctly configured for both modalities:
 
 ## Booking Decision Logic (Code Pointers)
 
-- Shared booking mode rules:
-  - `peer-care-connect/src/lib/booking-flow-type.ts`
-  - `canBookClinic(...)`
-  - `canRequestMobile(...)`
-  - `defaultBookingFlowType(...)`
-- Marketplace CTA rendering:
-  - `peer-care-connect/src/pages/Marketplace.tsx`
-- Clinic flows:
-  - `peer-care-connect/src/components/marketplace/BookingFlow.tsx`
-  - `peer-care-connect/src/components/marketplace/GuestBookingFlow.tsx`
-- Mobile flow:
-  - `peer-care-connect/src/components/marketplace/MobileBookingRequestFlow.tsx`
+- **Therapist type + product rules (conceptual “booking-flow-type”):** [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md); native practitioner detail: `theramate-ios-client/app/(tabs)/explore/[id].tsx` (`canBookClinic` / `canRequestMobile`).
+- **Web clinic booking UI:** [src/components/booking/BookingFlow.tsx](../../src/components/booking/BookingFlow.tsx) (`guestMode` for guests).
+- **Marketplace / discovery entry:** [src/pages/client/ClientBooking.tsx](../../src/pages/client/ClientBooking.tsx), [src/pages/discovery/TherapistSearch.tsx](../../src/pages/discovery/TherapistSearch.tsx), [src/lib/marketplacePractitioners.ts](../../src/lib/marketplacePractitioners.ts).
+- **Mobile requests (native):** [theramate-ios-client/lib/api/mobileRequests.ts](../../theramate-ios-client/lib/api/mobileRequests.ts), `theramate-ios-client/app/(practitioner)/mobile-requests/`.
 
 ---
 

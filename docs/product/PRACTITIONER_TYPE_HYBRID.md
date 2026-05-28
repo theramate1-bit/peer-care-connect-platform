@@ -2,9 +2,11 @@
 
 **Definition:** Practitioner offers both clinic and mobile. Clients can “Book at clinic” or “Request mobile session.” Hybrid must have clinic location for clinic bookings and, for mobile requests, **base** location plus radius (no clinic fallback in backend or eligibility).
 
+> **Repo paths:** Mentions of `peer-care-connect/src/...` below are **historical**. Live code: **`src/`**, **`theramate-ios-client/`**, **`supabase/`**. See [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md).
+
 ---
 
-## 1. booking-flow-type.ts – eligibility and product normalization
+## 1. Eligibility and product normalization (historic `booking-flow-type.ts` name)
 
 - **`canBookClinic(practitioner)`**  
   True when `therapist_type === 'hybrid'` and at least one product is clinic-bookable (product `service_type` clinic or both). So hybrid can offer clinic bookings when they have clinic/both products and a clinic location.
@@ -18,7 +20,7 @@
 - **`defaultBookingFlowType(practitioner)`**  
   When both clinic and mobile are available: returns `'clinic'` as the default; UI shows both options (e.g. HybridBookingChooser). When only one flow is available, that one is used.
 
-**Relevant file:** `peer-care-connect/src/lib/booking-flow-type.ts`
+**Implementation:** [Clinic, mobile & hybrid flows](../features/clinic-mobile-hybrid-flows.md); search `src/components/booking` and `theramate-ios-client/app/(tabs)/explore/[id].tsx`.
 
 ---
 
@@ -30,7 +32,7 @@
 
 - **HybridBookingChooser:** Shown when **both** `canBookClinic` and `canRequestMobile` are true. Two CTAs: “Book at clinic” (opens BookingFlow/GuestBookingFlow) and “Request mobile session” (opens MobileBookingRequestFlow). If only one flow is available, the single “Book” CTA opens that flow.
 
-**Relevant file:** `peer-care-connect/src/pages/Marketplace.tsx`
+**Relevant file:** `src/pages/discovery/TherapistSearch.tsx + src/pages/client/ClientBooking.tsx`
 
 ---
 
@@ -40,7 +42,7 @@
 
 - **Filtering:** When shown as mobile-eligible (e.g. filter by “mobile” or “hybrid”), a hybrid is included only if search location is within their **mobile_service_radius_km** from **base**. No clinic fallback for this check.
 
-**Relevant file:** `peer-care-connect/src/lib/geo-search-service.ts`
+**Relevant file:** `search src/ + supabase RPC find_practitioners_by_distance`
 
 ---
 
@@ -50,7 +52,7 @@
 
 - **MobileBookingRequestFlow (mobile):** Used when the client chooses “Request mobile session.” Distance from practitioner **base** only; if base is missing, “Practitioner must set base address for mobile bookings” is shown. Slot generation uses `requestedAppointmentType="mobile"` and `therapistType="hybrid"`. Buffers: **30 min** between mobile sessions (mobile→mobile), **30 min** clinic→mobile, **30 min** mobile→clinic; 15 min between clinic slots. Backend `get_directional_booking_buffer_minutes` and frontend `slot-generation-utils` both apply these rules.
 
-**Relevant files:** `peer-care-connect/src/components/marketplace/BookingFlow.tsx`, `GuestBookingFlow.tsx`, `MobileBookingRequestFlow.tsx`, `peer-care-connect/src/lib/slot-generation-utils.ts`
+**Relevant files:** `src/components/booking/BookingFlow.tsx`, `GuestBookingFlow.tsx`, `MobileBookingRequestFlow.tsx`, `search src/ + theramate-ios-client/lib/api/booking.ts for slot logic`
 
 ---
 
@@ -62,7 +64,7 @@
 
 - **Onboarding:** Location step requires **clinic address** only for hybrid; radius step requires `mobileServiceRadiusKm`. Base is not a separate step; it is synced from clinic on save.
 
-**Relevant files:** `peer-care-connect/src/pages/Profile.tsx`, `peer-care-connect/src/pages/auth/Onboarding.tsx`
+**Relevant files:** `search src/ + native profile screens`, `src/pages/onboarding/ClientOnboarding.tsx (client); native app/(auth)/`
 
 ---
 
@@ -70,7 +72,7 @@
 
 - **Service delivery type:** Shown when `therapist_type === 'hybrid'` (or mobile). For **hybrid**, the dropdown offers: “Clinic-Based Only”, “Mobile Only”, “Both (Clinic & Mobile)”. So each product can be clinic-only, mobile-only, or both. This drives whether the practitioner shows one or both CTAs on the marketplace for that product.
 
-**Relevant file:** `peer-care-connect/src/components/practitioner/ProductForm.tsx`
+**Relevant file:** `search theramate-ios-client for practitioner products UI`
 
 ---
 
@@ -78,7 +80,7 @@
 
 - **Appointment type:** Practitioner can create clinic or mobile bookings. When **clinic** is selected, slot picker gets `therapistType="hybrid"` and `requestedAppointmentType="clinic"`; when **mobile** is selected, `requestedAppointmentType="mobile"` and visit address is required. Buffers match slot-generation-utils: 30 min for clinic↔mobile and mobile↔mobile; 15 min for clinic↔clinic. Backend rejects mobile bookings without `p_visit_address`.
 
-**Relevant file:** `peer-care-connect/src/pages/practice/PracticeClientManagement.tsx`
+**Relevant file:** `search src/pages/practice and native practitioner clients`
 
 ---
 
@@ -88,7 +90,7 @@
 
 - **Today’s schedule / This week:** Same “Clinic” / “Mobile” and location summary on session rows for hybrid (and mobile). Mobile request cards show “Review request” and link to MobileRequestManagement.
 
-**Relevant file:** `peer-care-connect/src/components/dashboards/TherapistDashboard.tsx`, `peer-care-connect/src/utils/sessionLocation.ts`
+**Relevant file:** `theramate-ios-client practitioner tabs + src/pages/practice/`, `theramate-ios-client/lib/sessionLocation.ts (native); search src/ for web session location`
 
 ---
 
@@ -96,7 +98,7 @@
 
 - **Fully applicable.** Hybrid practitioners receive mobile booking requests like mobile-only. Pending requests appear in the list; practitioner can **Accept** (capture payment, create session) or **Decline** (with optional reason/alternates). After accept, the request has a `session_id`; the UI shows **View session** linking to `/practice/clients?session=<session_id>&tab=sessions`. Dashboard “Today’s Schedule” shows pending mobile requests with “Review request” linking to this page. RPC `get_practitioner_mobile_requests` returns requests for the practitioner regardless of therapist_type (mobile or hybrid).
 
-**Relevant file:** `peer-care-connect/src/components/practitioner/MobileRequestManagement.tsx`
+**Relevant file:** `theramate-ios-client/app/(practitioner)/mobile-requests/`
 
 ---
 
@@ -104,4 +106,4 @@
 
 - **Buffer logic:** When rescheduling a session for a hybrid practitioner, `therapistType` is `'hybrid'`. `requestedAppointmentType` is taken from the session’s `appointment_type` (clinic or mobile). Slot conflict check uses the **same** directional buffers as slot-generation-utils: 30 min for mobile→clinic, clinic→mobile, and mobile→mobile; 15 min for clinic→clinic. Backend `get_directional_booking_buffer_minutes` matches. This keeps reschedule consistent with initial booking and accept flows.
 
-**Relevant files:** `peer-care-connect/src/lib/reschedule-service.ts`, `peer-care-connect/src/lib/slot-generation-utils.ts`
+**Relevant files:** `src/components/booking/RescheduleSessionButton.tsx + native session APIs`, `search src/ + theramate-ios-client/lib/api/booking.ts for slot logic`
