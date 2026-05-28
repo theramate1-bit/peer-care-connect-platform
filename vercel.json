@@ -1,88 +1,42 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "name": "peer-care-connect",
+  "installCommand": "npm ci --workspace=peer-care-connect --include-workspace-root",
+  "buildCommand": "npm run build --workspace=peer-care-connect",
+  "outputDirectory": "peer-care-connect/dist",
   "rewrites": [
     { "source": "/dpa", "destination": "/dpa.html" },
     { "source": "/dpa/", "destination": "/dpa.html" },
     { "source": "/subprocessors", "destination": "/subprocessors.html" },
-    { "source": "/subprocessors/", "destination": "/subprocessors.html" }
-  ],
-  "builds": [
+    { "source": "/subprocessors/", "destination": "/subprocessors.html" },
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "source": "/:path((?!api|sitemap\\.xml|sitemap_index\\.xml|sitemapindex\\.xml|sitemap-1\\.xml|robots\\.txt).*)",
+      "destination": "/index.html"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/dpa",
-      "dest": "/dpa.html"
-    },
-    {
-      "src": "/dpa/",
-      "dest": "/dpa.html"
-    },
-    {
-      "src": "/subprocessors",
-      "dest": "/subprocessors.html"
-    },
-    {
-      "src": "/subprocessors/",
-      "dest": "/subprocessors.html"
-    },
-    {
-      "src": "/:path((?!api|sitemap\\.xml|sitemap_index\\.xml|sitemapindex\\.xml|sitemap-1\\.xml|robots\\.txt).*)",
-      "dest": "/index.html"
-    }
-  ],
-  "env": {
-    "VITE_SUPABASE_URL": "@supabase-url",
-    "VITE_SUPABASE_ANON_KEY": "@supabase-anon-key"
-  },
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=()"
-        }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
       ]
     },
     {
       "source": "/api/(.*)",
       "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
-        }
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
   ],

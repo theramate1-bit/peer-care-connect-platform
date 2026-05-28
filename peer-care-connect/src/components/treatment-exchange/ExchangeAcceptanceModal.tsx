@@ -1,0 +1,863 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Clock, CreditCard, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { getPractitionerProducts, PractitionerProduct } from '@/lib/stripe-products';
+import { TreatmentExchangeService } from '@/lib/treatment-exchange';
+import { calculateRequiredCredits } from '@/lib/treatment-exchange/credits';
+import { createInAppNotification } from '@/lib/notification-utils';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { getOverlappingBlocks } from '@/lib/block-time-utils';
+import { CalendarTimeSelector } from '@/components/booking/CalendarTimeSelector';
+
+interface ExchangeAcceptanceModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  requestId: string;
+  requesterId: string;
+  requesterName: string;
+  requestedSessionDate: string;
+  requestedStartTime: string;
+  requestedDuration: number;
+  recipientId: string;
+  onAccepted: () => void;
+  isAlreadyAccepted?: boolean;
+}
+
+export const ExchangeAcceptanceModal: React.FC<ExchangeAcceptanceModalProps> = ({
+  open,
+  onOpenChange,
+  requestId,
+  requesterId,
+  requesterName,
+  requestedSessionDate,
+  requestedStartTime,
+  requestedDuration,
+  recipientId,
+  onAccepted,
+  isAlreadyAccepted = false
+}) => {
+  const [services, setServices] = useState<PractitionerProduct[]>([]);
+  const [selectedService, setSelectedService] = useState<PractitionerProduct | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [creditBalance, setCreditBalance] = useState<number>(0);
+  const [creditCost, setCreditCost] = useState<number | null>(null);
+  const [checkingCredits, setCheckingCredits] = useState(false);
+  
+  // Reciprocal booking date/time selection (uses CalendarTimeSelector - same data source and UI as rest of app)
+  const [reciprocalBookingDate, setReciprocalBookingDate] = useState<string>('');
+  const [reciprocalBookingTime, setReciprocalBookingTime] = useState<string>('');
+  const [requesterTherapistType, setRequesterTherapistType] = useState<'clinic_based' | 'mobile' | 'hybrid' | null>(null);
+  const [requestStatus, setRequestStatus] = useState<string | null>(null);
+  const [checkingRequestStatus, setCheckingRequestStatus] = useState(false);
+  const [hasReciprocalBooking, setHasReciprocalBooking] = useState<boolean | null>(null);
+  const [checkingReciprocalBooking, setCheckingReciprocalBooking] = useState(false);
+
+  // Debug: Log when modal opens
+  useEffect(() => {
+    console.log('🔍 ExchangeAcceptanceModal render:', {
+      open,
+      requestId,
+      requesterId,
+      requesterName,
+      recipientId,
+      isAlreadyAccepted,
+      requestStatus,
+      hasReciprocalBooking,
+      checkingRequestStatus,
+      checkingReciprocalBooking
+    });
+  }, [open, requestId, requesterId, requesterName, recipientId, isAlreadyAccepted, requestStatus, hasReciprocalBooking, checkingRequestStatus, checkingReciprocalBooking]);
+
+  // Check request status when modal opens and set up real-time subscriptions
+  useEffect(() => {
+    if (open && requestId && recipientId) {
+      console.log('🔍 useEffect triggered - checking request status:', { isAlreadyAccepted, requestId, recipientId });
+      checkRequestStatus();
+      checkReciprocalBooking();
+      
+      // Set up real-time subscription for mutual_exchange_sessions
+      const channel = supabase
+        .channel(`mutual-exchange-${requestId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'mutual_exchange_sessions',
+            filter: `exchange_request_id=eq.${requestId}`
+          },
+          () => {
+            // Refresh reciprocal booking status when mutual session changes
+            checkReciprocalBooking();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'client_sessions',
+            filter: `is_peer_booking=eq.true`
+          },
+          (payload) => {
+            // Only refresh if the change is relevant to this exchange
+            // We'll check if it's related by refreshing the check
+            checkReciprocalBooking();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } else {
+      setRequestStatus(null);
+      setHasReciprocalBooking(null);
+    }
+  }, [open, requestId, recipientId, isAlreadyAccepted]);
+
+  // Fetch requester's therapist_type for CalendarTimeSelector (buffer context)
+  useEffect(() => {
+    if (open && requesterId) {
+      supabase
+        .from('users')
+        .select('therapist_type')
+        .eq('id', requesterId)
+        .maybeSingle()
+        .then(({ data }) => setRequesterTherapistType((data?.therapist_type as 'clinic_based' | 'mobile' | 'hybrid') ?? null));
+    }
+  }, [open, requesterId]);
+
+  const checkReciprocalBooking = async () => {
+    if (!requestId || !recipientId) return;
+    
+    try {
+      setCheckingReciprocalBooking(true);
+      
+      // Check if a mutual_exchange_sessions record exists
+      const { data: mutualSession, error } = await supabase
+        .from('mutual_exchange_sessions')
+        .select('id, practitioner_b_booked, practitioner_b_id, practitioner_a_id, created_at')
+        .eq('exchange_request_id', requestId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking reciprocal booking:', error);
+        setHasReciprocalBooking(null);
+        return;
+      }
+
+      // If no mutual session exists, reciprocal booking hasn't been made
+      if (!mutualSession) {
+        setHasReciprocalBooking(false);
+        return;
+      }
+
+      // Check if the current user (recipient) is practitioner_b
+      // In the exchange: requester is practitioner_a, recipient is practitioner_b
+      if (mutualSession.practitioner_b_id === recipientId) {
+        // Check if there's an ACTIVE (non-cancelled) reciprocal booking session
+        // The reciprocal booking would be: practitioner_b (recipient) as client, practitioner_a (requester) as therapist
+        // IMPORTANT: We need to check sessions created AFTER the mutual session was created to ensure it's for THIS exchange
+        const { data: reciprocalSessions, error: sessionError } = await supabase
+          .from('client_sessions')
+          .select('id, status, created_at')
+          .eq('is_peer_booking', true)
+          .eq('therapist_id', mutualSession.practitioner_a_id) // Original requester provides service
+          .eq('client_id', mutualSession.practitioner_b_id) // Original recipient receives service
+          .in('status', ['scheduled', 'confirmed', 'in_progress', 'completed'])
+          .gte('created_at', mutualSession.created_at || '1970-01-01') // Only sessions created after mutual session
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (sessionError) {
+          console.error('Error checking reciprocal sessions:', sessionError);
+          // Fallback to flag check
+          setHasReciprocalBooking(mutualSession.practitioner_b_booked === true);
+          return;
+        }
+
+        // If there's an active session, reciprocal booking exists
+        // If no active session but flag is true, it might have been cancelled - allow rebooking
+        const hasActiveReciprocalBooking = reciprocalSessions && reciprocalSessions.length > 0;
+        
+        console.log('🔍 Real-time reciprocal booking check:', {
+          requestId,
+          recipientId,
+          mutualSessionId: mutualSession.id,
+          practitioner_b_id: mutualSession.practitioner_b_id,
+          practitioner_a_id: mutualSession.practitioner_a_id,
+          practitioner_b_booked: mutualSession.practitioner_b_booked,
+          activeSessionsFound: reciprocalSessions?.length || 0,
+          hasActiveReciprocalBooking,
+          timestamp: new Date().toISOString()
+        });
+        
+        setHasReciprocalBooking(hasActiveReciprocalBooking);
+      } else {
+        // If they're not practitioner_b, they can't book the reciprocal
+        setHasReciprocalBooking(true);
+      }
+    } catch (error) {
+      console.error('Error checking reciprocal booking:', error);
+      setHasReciprocalBooking(null);
+    } finally {
+      setCheckingReciprocalBooking(false);
+    }
+  };
+
+  const checkRequestStatus = useCallback(async () => {
+    if (!requestId || !recipientId) return;
+    
+    console.log('🔍 checkRequestStatus called with:', { isAlreadyAccepted, requestId, recipientId });
+    
+    try {
+      setCheckingRequestStatus(true);
+      const { data: request, error } = await supabase
+        .from('treatment_exchange_requests')
+        .select('status, expires_at, accepted_at, declined_at')
+        .eq('id', requestId)
+        .eq('recipient_id', recipientId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking request status:', error);
+        return;
+      }
+
+      if (!request) {
+        setRequestStatus('not_found');
+        toast.error('Request not found');
+        return;
+      }
+
+      setRequestStatus(request.status);
+
+      // If we're in "booking only" mode (already accepted), ignore the accepted status
+      if (isAlreadyAccepted && request.status === 'accepted') {
+          console.log('✅ Request is already accepted and we are in booking mode - skipping error toast');
+        return;
+      }
+
+      if (request.status === 'pending' && request.expires_at && new Date(request.expires_at) < new Date()) {
+        setRequestStatus('expired');
+        toast.error('This request has expired');
+      } else if (request.status !== 'pending') {
+        const statusMessages: Record<string, string> = {
+          'accepted': 'This request has already been accepted',
+          'declined': 'This request has already been declined',
+          'expired': 'This request has expired',
+          'cancelled': 'This request has been cancelled'
+        };
+        toast.error(statusMessages[request.status] || 'This request is no longer available');
+      }
+    } catch (error) {
+      console.error('Error checking request status:', error);
+    } finally {
+      setCheckingRequestStatus(false);
+    }
+  }, [requestId, recipientId, isAlreadyAccepted]);
+
+  // Load requester's services
+  useEffect(() => {
+    if (open && requesterId) {
+      console.log('📦 Loading services for requester:', requesterId);
+      loadServices();
+      loadCreditBalance();
+    } else if (open && !requesterId) {
+      console.error('❌ Modal opened but requesterId is missing!');
+    }
+  }, [open, requesterId]);
+
+  // Calculate credit cost when service is selected
+  useEffect(() => {
+    if (selectedService) {
+      calculateCreditCost();
+    } else {
+      setCreditCost(null);
+    }
+  }, [selectedService]);
+
+  const loadServices = async () => {
+    try {
+      setLoadingServices(true);
+      const result = await getPractitionerProducts(requesterId, false);
+      if (result.success && result.products) {
+        setServices(result.products);
+        
+        // Auto-select first service if available
+        if (result.products.length > 0) {
+          setSelectedService(result.products[0]);
+        }
+      } else {
+        console.error('Error loading products:', result.error);
+        toast.error('Failed to load services');
+      }
+    } catch (error) {
+      console.error('Error loading services:', error);
+      toast.error('Failed to load services');
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
+  const loadCreditBalance = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('credits')
+        .select('balance')
+        .eq('user_id', recipientId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error loading credit balance:', error);
+        return;
+      }
+
+      setCreditBalance(data?.balance || 0);
+    } catch (error) {
+      console.error('Error loading credit balance:', error);
+    }
+  };
+
+  const calculateCreditCost = async () => {
+    if (!selectedService) return;
+
+    try {
+      setCheckingCredits(true);
+      // Use same calculation as backend (treatment-exchange/credits)
+      const duration = selectedService.duration_minutes ?? 60;
+      const cost = calculateRequiredCredits(duration);
+      setCreditCost(cost);
+    } catch (error) {
+      console.error('Error calculating credit cost:', error);
+      toast.error('Failed to calculate credit cost');
+    } finally {
+      setCheckingCredits(false);
+    }
+  };
+
+  const handleAccept = async () => {
+    // First, verify request is still pending (unless we're just booking return session)
+    if (!isAlreadyAccepted && requestStatus !== 'pending') {
+      // Re-check status in case it changed
+      await checkRequestStatus();
+      if (requestStatus !== 'pending') {
+        toast.error('This request is no longer available. Please refresh the page.');
+        return;
+      }
+    }
+
+    const acceptOnlyNoService = services.length === 0;
+    if (!acceptOnlyNoService && !selectedService) {
+      toast.error('Please select a service');
+      return;
+    }
+
+    if (!acceptOnlyNoService && creditCost === null) {
+      toast.error('Calculating credit cost...');
+      return;
+    }
+
+    // Re-check credit balance before accept (only when booking reciprocal - credits deducted when both book)
+    if (!acceptOnlyNoService) {
+      const { data: creditRow } = await supabase
+        .from('credits')
+        .select('balance')
+        .eq('user_id', recipientId)
+        .single();
+      const currentBalance = creditRow?.balance ?? 0;
+      if (currentBalance < (creditCost ?? 0)) {
+        setCreditBalance(currentBalance);
+        toast.error(`Insufficient credits. You have ${currentBalance} credits but need ${creditCost}.`);
+        return;
+      }
+    }
+
+    // Validate date/time selection BEFORE accepting (skip when accept-only, no service)
+    if (!acceptOnlyNoService && (!reciprocalBookingDate || !reciprocalBookingTime)) {
+      toast.error('Please select a date and time for your treatment');
+      return;
+    }
+
+    // Validate that selected time slot is in the future (skip when accept-only)
+    if (!acceptOnlyNoService) {
+      const selectedDateTime = new Date(`${reciprocalBookingDate}T${reciprocalBookingTime}`);
+      const now = new Date();
+      if (selectedDateTime <= now) {
+        toast.error('Please select a future date and time for your treatment');
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+
+      // Only accept if not already accepted
+      if (!isAlreadyAccepted) {
+        await TreatmentExchangeService.acceptExchangeRequest(
+          requestId,
+          recipientId
+        );
+
+        // Accept-only (no service): done – they can book reciprocal later from dashboard
+        if (acceptOnlyNoService) {
+          toast.success('Request accepted. You can book your return session later from your dashboard once they\'ve added a service.');
+          try {
+            await createInAppNotification({
+              recipientId,
+              type: 'exchange_reciprocal_booking_reminder',
+              title: 'Book your return session',
+              body: `You accepted a treatment exchange with ${requesterName}. Book your return session from your dashboard to complete the exchange.`,
+              payload: { requestId, requesterId, requesterName },
+              sourceType: 'treatment_exchange_request',
+              sourceId: requestId,
+            });
+          } catch (e) {
+            console.warn('Failed to create reciprocal booking reminder:', e);
+          }
+          onAccepted();
+          onOpenChange(false);
+          return;
+        }
+
+        // Poll for mutual_exchange_sessions instead of fixed delay (TREATMENT_EXCHANGE_LOGIC_GAPS #4)
+        const maxAttempts = 15;
+        const intervalMs = 200;
+        for (let i = 0; i < maxAttempts; i++) {
+          const { data: mes } = await supabase
+            .from('mutual_exchange_sessions')
+            .select('id')
+            .eq('exchange_request_id', requestId)
+            .maybeSingle();
+          if (mes?.id) break;
+          if (i < maxAttempts - 1) await new Promise(resolve => setTimeout(resolve, intervalMs));
+        }
+      }
+
+      // Re-validate availability before booking (race condition protection)
+      // Convert time to HH:mm:ss format for comparison (database stores TIME as HH:mm:ss)
+      const startTimeForCheck = reciprocalBookingTime.includes(':') && reciprocalBookingTime.split(':').length === 2
+        ? `${reciprocalBookingTime}:00` // Convert HH:mm to HH:mm:ss
+        : reciprocalBookingTime; // Already in HH:mm:ss format
+      
+      const { data: lastMinuteCheck } = await supabase
+        .from('client_sessions')
+        .select('id')
+        .eq('session_date', reciprocalBookingDate)
+        .eq('start_time', startTimeForCheck)
+        .in('status', ['scheduled', 'confirmed', 'in_progress', 'pending_payment'])
+        .or(`therapist_id.eq.${requesterId},client_id.eq.${requesterId}`)
+        .limit(1);
+
+      if (lastMinuteCheck && lastMinuteCheck.length > 0) {
+        toast.error('This time slot was just booked by someone else. Please select another time.');
+        return;
+      }
+
+      // Calculate duration BEFORE using it in getOverlappingBlocks (required here - we're booking reciprocal)
+      const duration = selectedService!.duration_minutes || 60;
+
+      // Check for blocked/unavailable time on requester's calendar (they're providing the service)
+      const blocks = await getOverlappingBlocks(
+        requesterId,
+        reciprocalBookingDate,
+        reciprocalBookingTime,
+        duration
+      );
+
+      if (blocks.length > 0) {
+        const blockType = blocks[0].event_type === 'block' ? 'blocked' : 'unavailable';
+        const blockMessage = blocks[0].title 
+          ? `This time slot is ${blockType}: ${blocks[0].title}. Please select another time.`
+          : `This time slot is ${blockType}. Please select another time.`;
+        toast.error(blockMessage);
+        return;
+      }
+
+      // Create reciprocal booking with SELECTED date/time
+      const startTime = new Date(`${reciprocalBookingDate}T${reciprocalBookingTime}`);
+      const endTime = new Date(startTime.getTime() + duration * 60000);
+      const endTimeString = format(endTime, 'HH:mm:ss');
+      const startTimeString = reciprocalBookingTime!.includes(':') && reciprocalBookingTime!.split(':').length === 2
+        ? `${reciprocalBookingTime}:00`
+        : reciprocalBookingTime;
+
+      await TreatmentExchangeService.bookReciprocalExchange(
+        requestId,
+        recipientId,
+        {
+          session_date: reciprocalBookingDate, // Use selected date, not requested date
+          start_time: startTimeString,        // Use consistent HH:mm:ss format
+          end_time: endTimeString,            // Use consistent HH:mm:ss format
+          duration_minutes: duration > 0 ? duration : 60, // Consistent fallback
+          session_type: selectedService.name,
+          notes: `Treatment exchange - ${selectedService.name}`
+        }
+      );
+
+      toast.success(isAlreadyAccepted ? 'Return session booked successfully!' : 'Treatment exchange accepted! Reciprocal booking created.');
+      onAccepted();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error accepting exchange:', error);
+      const msg = error?.message || 'Failed to accept exchange request';
+      const isSlotError = /slot|booked|another time|no longer available/i.test(msg);
+      toast.error(
+        isSlotError
+          ? `${msg} Select another time and try again, or book your return session from your dashboard later.`
+          : msg
+      );
+      // Partial success: accept succeeded but reciprocal failed – create reminder to book later
+      if (isSlotError && !isAlreadyAccepted) {
+        try {
+          await createInAppNotification({
+            recipientId,
+            type: 'exchange_reciprocal_booking_reminder',
+            title: 'Book your return session',
+            body: `You accepted a treatment exchange with ${requesterName}. Select another time from your dashboard to complete your return booking.`,
+            payload: { requestId, requesterId, requesterName },
+            sourceType: 'treatment_exchange_request',
+            sourceId: requestId,
+          });
+        } catch (e) {
+          console.warn('Failed to create reciprocal booking reminder:', e);
+        }
+      }
+      onAccepted(); // Refresh parent so dashboard shows correct state (e.g. accepted, action needed)
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const hasSufficientCredits = creditCost !== null && creditBalance >= creditCost;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isAlreadyAccepted ? 'Book Your Return Session' : 'Accept Treatment Exchange Request'}</DialogTitle>
+          <DialogDescription>
+            {isAlreadyAccepted 
+              ? `The exchange request has been accepted. Choose when you'd like to receive your treatment from ${requesterName}. You can select any available date and time that works for you.`
+              : `Select a service from ${requesterName} to complete the exchange. Credits will be deducted when both sessions are confirmed.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Request Status Warning */}
+          {checkingRequestStatus && (
+            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />
+                <span className="text-sm text-yellow-900 dark:text-yellow-100">Checking request status...</span>
+              </div>
+            </div>
+          )}
+          {/* Show error only if NOT in booking mode OR if there's a real problem */}
+          {/* Hide error if: already accepted AND status is accepted (regardless of reciprocal booking status) */}
+          {(() => {
+            const shouldShowError = requestStatus && requestStatus !== 'pending' && !checkingRequestStatus && 
+             !(isAlreadyAccepted && requestStatus === 'accepted');
+            console.log('🔍 Error banner condition:', {
+              requestStatus,
+              checkingRequestStatus,
+              isAlreadyAccepted,
+              shouldShowError,
+              condition: !(isAlreadyAccepted && requestStatus === 'accepted')
+            });
+            return shouldShowError;
+          })() && (
+            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <div className="text-sm text-red-900 dark:text-red-100">
+                  <p className="font-medium">This request is no longer available</p>
+                  <p className="text-xs mt-1">
+                    {requestStatus === 'declined' && 'This request has already been declined.'}
+                    {requestStatus === 'expired' && 'This request has expired.'}
+                    {requestStatus === 'cancelled' && 'This request has been cancelled.'}
+                    {requestStatus === 'not_found' && 'This request could not be found.'}
+                    {!['declined', 'expired', 'cancelled', 'not_found'].includes(requestStatus) && `Request status: ${requestStatus}`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Show success message if reciprocal booking is already done */}
+          {isAlreadyAccepted && requestStatus === 'accepted' && hasReciprocalBooking === true && !checkingReciprocalBooking && (
+            <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <div className="text-sm text-green-900 dark:text-green-100">
+                  <p className="font-medium">Return Session Already Booked ✓</p>
+                  <p className="text-xs mt-1">
+                    Your return session has already been booked. The exchange is now fully confirmed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Show info message if accepted but reciprocal booking not done yet */}
+          {isAlreadyAccepted && requestStatus === 'accepted' && hasReciprocalBooking === false && !checkingReciprocalBooking && (
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                <div className="text-sm text-blue-900 dark:text-blue-100">
+                  <p className="font-medium">Ready to Book Your Return Session</p>
+                  <p className="text-xs mt-1">
+                    The exchange has been accepted. Select a service, date, and time below when you're ready. You can close this and return later if needed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Request Details */}
+          {isAlreadyAccepted ? (
+            <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+              <CardContent className="pt-6">
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-100">Original Request</h3>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                    {requesterName} requested a {requestedDuration}-minute session with you on:
+                  </p>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      <span>
+                        {format(new Date(requestedSessionDate), 'MMM dd, yyyy')} at {format(new Date(`2000-01-01T${requestedStartTime}`), 'h:mm a')}
+                      </span>
+                    </div>
+                    <div>
+                      Duration: {requestedDuration} minutes
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm">Requested Session</h3>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {format(new Date(requestedSessionDate), 'MMM dd, yyyy')} at {format(new Date(`2000-01-01T${requestedStartTime}`), 'h:mm a')}
+                    </span>
+                  </div>
+                  <div>
+                    Duration: {requestedDuration} minutes
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          )}
+
+          {/* Service Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="service">Select Service *</Label>
+            {loadingServices ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading services...</span>
+              </div>
+            ) : services.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-4">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      {requesterName} has no active services available.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You can still accept the request, but you'll need to book a service later.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Select
+                value={selectedService?.id || ''}
+                onValueChange={(value) => {
+                  const service = services.find(s => s.id === value);
+                  setSelectedService(service || null);
+                }}
+              >
+                <SelectTrigger id="service">
+                  <SelectValue placeholder="Select a service" />
+                </SelectTrigger>
+                <SelectContent>
+                  {services.map((service) => (
+                    <SelectItem key={service.id} value={service.id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{service.name}</span>
+                        <Badge variant="secondary" className="ml-2">
+                          {service.duration_minutes || 60} min
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Reciprocal Booking Date/Time Selection - same UI as rest of app */}
+          {selectedService && (
+            <div className="space-y-4">
+              <div>
+                <Label>Select Date & Time for Your Treatment *</Label>
+                <p className="text-xs text-muted-foreground mt-1 mb-2">
+                  {isAlreadyAccepted 
+                    ? `Choose any date and time that works for you. This is when you'll receive your treatment from ${requesterName}.`
+                    : `Select when you'd like to receive your treatment from ${requesterName}`}
+                </p>
+                <CalendarTimeSelector
+                  therapistId={requesterId}
+                  duration={selectedService.duration_minutes || 60}
+                  requestedAppointmentType="clinic"
+                  therapistType={requesterTherapistType ?? undefined}
+                  selectedDate={reciprocalBookingDate || undefined}
+                  selectedTime={reciprocalBookingTime}
+                  onDateTimeSelect={(dateStr, timeStr) => {
+                    setReciprocalBookingDate(dateStr);
+                    setReciprocalBookingTime(timeStr);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Selected Service Details */}
+          {selectedService && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  {((selectedService.duration_minutes ?? 60) !== requestedDuration) && (
+                    <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>Duration differs from request: they asked for {requestedDuration} min, you selected {(selectedService.duration_minutes ?? 60)} min.</span>
+                    </div>
+                  )}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold">{selectedService.name}</h3>
+                      {selectedService.description && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {selectedService.description}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant="outline">
+                      {selectedService.duration_minutes || 60} min
+                    </Badge>
+                  </div>
+
+                  {/* Credit Cost Display */}
+                  {checkingCredits ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-muted-foreground">Calculating credit cost...</span>
+                    </div>
+                  ) : creditCost !== null && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Credit Cost:</span>
+                        <span className="font-semibold">{creditCost} credits</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Your Balance:</span>
+                        <span className="font-semibold">{creditBalance} credits</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm pt-1">
+                        <span className="text-muted-foreground">After Exchange:</span>
+                        <span className={`font-semibold ${hasSufficientCredits ? 'text-green-600' : 'text-red-600'}`}>
+                          {creditBalance - creditCost} credits
+                        </span>
+                      </div>
+                      {!hasSufficientCredits && (
+                        <div className="flex items-center gap-2 text-sm text-red-600 mt-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>Insufficient credits. You need {creditCost - creditBalance} more credits.</span>
+                        </div>
+                      )}
+                      {hasSufficientCredits && (
+                        <div className="flex items-center gap-2 text-sm text-green-600 mt-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>You have sufficient credits for this exchange.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Info Note */}
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+              <div className="text-sm text-blue-900 dark:text-blue-100">
+                <p className="font-medium mb-1">How Treatment Exchange Works:</p>
+                <ul className="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-200">
+                  <li>Credits are only deducted when both practitioners have confirmed their sessions</li>
+                  <li>You're booking a {selectedService?.duration_minutes || requestedDuration}-minute session with {requesterName}</li>
+                  <li>They've requested a {requestedDuration}-minute session with you on {format(new Date(requestedSessionDate), 'MMM dd, yyyy')} at {format(new Date(`2000-01-01T${requestedStartTime}`), 'h:mm a')}</li>
+                  <li>{isAlreadyAccepted ? 'Choose any date and time that works for you (doesn\'t have to be the same day as the original request)' : 'Select when you\'d like to receive your treatment (doesn\'t have to be the same day)'}</li>
+                  <li>{isAlreadyAccepted ? 'Your return session will be scheduled when you confirm below' : 'Both sessions will be scheduled once you accept'}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAccept} 
+            disabled={
+              loading || checkingRequestStatus || checkingReciprocalBooking ||
+              (!isAlreadyAccepted && requestStatus !== 'pending') ||
+              (isAlreadyAccepted && hasReciprocalBooking === true) ||
+              (services.length > 0 && (
+                !selectedService || !hasSufficientCredits || checkingCredits ||
+                !reciprocalBookingDate || !reciprocalBookingTime
+              ))
+            }
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                {isAlreadyAccepted ? 'Booking...' : 'Accepting...'}
+              </>
+            ) : (
+              isAlreadyAccepted
+                ? 'Confirm Return Session Booking'
+                : services.length === 0
+                  ? 'Accept Request'
+                  : 'Accept & Book Service'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+

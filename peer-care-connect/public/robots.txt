@@ -1,0 +1,60 @@
+# Robots.txt for Theramate - AI Crawler Optimized
+# Allow AI crawlers to access content for better visibility
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /client/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /ping-search-engines.html
+
+# AI Crawler Permissions - Explicitly allow AI bots
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Gemini
+Allow: /
+
+User-agent: Bard
+Allow: /
+
+User-agent: BingBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: YouBot
+Allow: /
+
+User-agent: MetaBot
+Allow: /
+
+# Crawl delay for faster indexing
+Crawl-delay: 1
+
+# Sitemap
+Sitemap: https://theramate.co.uk/sitemap.xml

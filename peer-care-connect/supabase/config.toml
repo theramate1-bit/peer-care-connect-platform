@@ -1,0 +1,79 @@
+project_id = "aikqnvltuwwgifuocvto"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/**",
+  "https://localhost:3000/**",
+  "http://localhost:8080/**",
+  "https://localhost:8080/**",
+  "http://localhost:5173/**",
+  "https://localhost:5173/**",
+  "https://aikqnvltuwwgifuocvto.supabase.co/auth/v1/callback",
+  "http://localhost:3000/auth/callback",
+  "https://localhost:3000/auth/callback",
+  "http://localhost:8080/auth/callback",
+  "https://localhost:8080/auth/callback",
+  "http://localhost:5173/auth/callback",
+  "https://localhost:5173/auth/callback",
+  "http://localhost:3000/auth/verify-email",
+  "https://localhost:3000/auth/verify-email",
+  "http://localhost:8080/auth/verify-email",
+  "https://localhost:8080/auth/verify-email",
+  "http://localhost:5173/auth/verify-email",
+  "https://localhost:5173/auth/verify-email",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app/**",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app/auth/callback",
+  "https://theramate-ffr8yo2uu-theras-projects-6dfd5a34.vercel.app/auth/verify-email",
+  "https://theramate.co.uk",
+  "https://theramate.co.uk/**",
+  "https://theramate.co.uk/auth/callback",
+  "https://theramate.co.uk/auth/verify-email"
+]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+[functions.create-checkout]
+verify_jwt = true
+
+[functions.check-subscription] 
+verify_jwt = true
+
+[functions.stripe-payment]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.customer-portal]
+verify_jwt = true
+
+# Admin/Service Functions (use service role key, no JWT required)
+# These functions are called by cron jobs or admin tools
+[functions.process-reminders]
+verify_jwt = false
+# Note: Uses SUPABASE_SERVICE_ROLE_KEY for authentication
+
+[functions.email-health-check]
+verify_jwt = false
+# Note: Uses SUPABASE_SERVICE_ROLE_KEY for authentication
+# Should be restricted to admin access only
+
+[functions.retry-failed-emails]
+verify_jwt = false
+# Note: Uses SUPABASE_SERVICE_ROLE_KEY for authentication
+# Should be restricted to admin access only
