@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { FileText, LayoutList } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -30,7 +29,7 @@ import {
 } from "@/lib/api/practitionerPayments";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function PractitionerAnalyticsScreen() {
   const tabRoot = useTabRoot();
@@ -100,10 +99,7 @@ export default function PractitionerAnalyticsScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Text className="text-charcoal-900 text-xl font-semibold text-center">
             Practitioner sign-in required
@@ -127,15 +123,17 @@ export default function PractitionerAnalyticsScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
+      <AppStackHeader
+        title="Analytics"
+        subtitle="Revenue, engagement, and performance — live in this app."
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
       <ScrollView
         className="flex-1 px-6 pt-4"
         refreshControl={
@@ -169,25 +167,30 @@ export default function PractitionerAnalyticsScreen() {
         }
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Business"
-          title="Analytics"
-          subtitle="Revenue, engagement, and performance — live in this app."
-        />
-
         {isLoading ? (
           <ActivityIndicator color={Colors.sage[500]} className="py-10" />
         ) : dash ? (
           <View className="flex-row flex-wrap gap-3 mb-4">
-            <Card variant="default" padding="md" className="flex-1 min-w-[140px]">
-              <Text className="text-charcoal-500 text-xs uppercase">Month sessions</Text>
+            <Card
+              variant="default"
+              padding="md"
+              className="flex-1 min-w-[140px]"
+            >
+              <Text className="text-charcoal-500 text-xs uppercase">
+                Month sessions
+              </Text>
               <Text className="text-charcoal-900 text-2xl font-bold mt-1">
                 {dash.monthSessionCount}
               </Text>
             </Card>
-            <Card variant="default" padding="md" className="flex-1 min-w-[140px]">
-              <Text className="text-charcoal-500 text-xs uppercase">Est. revenue</Text>
+            <Card
+              variant="default"
+              padding="md"
+              className="flex-1 min-w-[140px]"
+            >
+              <Text className="text-charcoal-500 text-xs uppercase">
+                Est. revenue
+              </Text>
               <Text className="text-charcoal-900 text-2xl font-bold mt-1">
                 £{(dash.monthRevenuePence / 100).toFixed(0)}
               </Text>
@@ -200,8 +203,8 @@ export default function PractitionerAnalyticsScreen() {
             This month (live payments)
           </Text>
           <Text className="text-charcoal-400 text-xs mb-2">
-            From Supabase `payments` this calendar month (excludes failed, cancelled,
-            refunded). Session-linked rows included.
+            From Supabase `payments` this calendar month (excludes failed,
+            cancelled, refunded). Session-linked rows included.
           </Text>
           {livePaymentsMonthQuery.isLoading ? (
             <ActivityIndicator color={Colors.sage[500]} className="py-4" />
@@ -251,21 +254,27 @@ export default function PractitionerAnalyticsScreen() {
           ) : financialQuery.data ? (
             <View className="gap-2 mt-2">
               <Text className="text-charcoal-700">
-                Revenue: £{Number(financialQuery.data.total_revenue ?? 0).toFixed(0)}
+                Revenue: £
+                {Number(financialQuery.data.total_revenue ?? 0).toFixed(0)}
               </Text>
               <Text className="text-charcoal-700">
-                Net profit: £{Number(financialQuery.data.net_profit ?? 0).toFixed(0)}{" "}
+                Net profit: £
+                {Number(financialQuery.data.net_profit ?? 0).toFixed(0)}{" "}
                 {financialQuery.data.profit_margin != null
                   ? `(${Number(financialQuery.data.profit_margin).toFixed(1)}%)`
                   : ""}
               </Text>
               <Text className="text-charcoal-700">
-                Outstanding invoices: £{Number(financialQuery.data.outstanding_invoices ?? 0).toFixed(0)}
+                Outstanding invoices: £
+                {Number(financialQuery.data.outstanding_invoices ?? 0).toFixed(
+                  0,
+                )}
               </Text>
             </View>
           ) : (
             <Text className="text-charcoal-500 text-sm mt-2">
-              No financial analytics row yet — data may appear after activity is recorded.
+              No financial analytics row yet — data may appear after activity is
+              recorded.
             </Text>
           )}
         </Card>
@@ -302,7 +311,9 @@ export default function PractitionerAnalyticsScreen() {
               <Text className="text-charcoal-700">
                 Satisfaction score:{" "}
                 {performanceQuery.data.client_satisfaction_score != null
-                  ? Number(performanceQuery.data.client_satisfaction_score).toFixed(2)
+                  ? Number(
+                      performanceQuery.data.client_satisfaction_score,
+                    ).toFixed(2)
                   : "—"}
               </Text>
               <Text className="text-charcoal-700">
@@ -312,7 +323,8 @@ export default function PractitionerAnalyticsScreen() {
                   : "—"}
               </Text>
               <Text className="text-charcoal-700">
-                Projects completed: {performanceQuery.data.total_projects_completed ?? "—"}
+                Projects completed:{" "}
+                {performanceQuery.data.total_projects_completed ?? "—"}
               </Text>
             </View>
           ) : (
@@ -347,6 +359,6 @@ export default function PractitionerAnalyticsScreen() {
           Billing and payouts
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

@@ -1,13 +1,12 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { ControlledHostedWebView } from "@/components/web/ControlledHostedWebView";
 import { Colors } from "@/constants/colors";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { createCustomerPortalSession } from "@/lib/api/subscription";
 import { useAuth } from "@/hooks/useAuth";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function StripeCustomerPortalScreen() {
   const { isAuthenticated, isInitialized } = useAuth();
@@ -39,7 +38,7 @@ export default function StripeCustomerPortalScreen() {
   }, [isAuthenticated, isInitialized, load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="Billing & payment methods"
         fallbackHref={defaultSignedInProfileHref()}
@@ -54,7 +53,9 @@ export default function StripeCustomerPortalScreen() {
         </View>
       ) : error ? (
         <View className="flex-1 px-6 pt-10">
-          <Text className="text-charcoal-800 text-center leading-6">{error}</Text>
+          <Text className="text-charcoal-800 text-center leading-6">
+            {error}
+          </Text>
           <TouchableOpacity
             onPress={() => void load()}
             className="mt-6 self-center bg-sage-500 px-6 py-3 rounded-xl"
@@ -62,8 +63,8 @@ export default function StripeCustomerPortalScreen() {
             <Text className="text-white font-semibold">Retry</Text>
           </TouchableOpacity>
           <Text className="text-charcoal-400 text-xs text-center mt-8 leading-5">
-            If you have not subscribed or paid yet, your Stripe customer record may
-            not exist. Complete checkout first, or contact support.
+            If you have not subscribed or paid yet, your Stripe customer record
+            may not exist. Complete checkout first, or contact support.
           </Text>
         </View>
       ) : url ? (
@@ -74,6 +75,6 @@ export default function StripeCustomerPortalScreen() {
           onClose={() => router.back()}
         />
       ) : null}
-    </SafeAreaView>
+    </AppScreen>
   );
 }

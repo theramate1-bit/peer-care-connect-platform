@@ -6,17 +6,20 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react-native";
 import { format } from "date-fns";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyReviews } from "@/lib/api/reviews";
 import { PressableCard } from "@/components/ui/Card";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 
 export default function MyReviewsScreen() {
   const { userId } = useAuth();
@@ -40,8 +43,11 @@ export default function MyReviewsScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="My reviews" fallbackHref={defaultSignedInProfileHref()} />
+    <TabScreen>
+      <AppStackHeader
+        title="My reviews"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -60,11 +66,10 @@ export default function MyReviewsScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={data}
           keyExtractor={(item) => item.id}
           className="px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 24 }}
           refreshing={isFetching && !isLoading}
           onRefresh={() => void refetch()}
           renderItem={({ item }) => (
@@ -120,6 +125,6 @@ export default function MyReviewsScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

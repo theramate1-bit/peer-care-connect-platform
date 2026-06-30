@@ -12,18 +12,21 @@ import {
   Pressable,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { CalendarClock, CalendarDays, ChevronLeft } from "lucide-react-native";
+import { CalendarClock, CalendarDays } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchPractitionerProducts } from "@/lib/api/practitionerProducts";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function PractitionerServicesScreen() {
   const tabRoot = useTabRoot();
@@ -47,10 +50,7 @@ export default function PractitionerServicesScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Text className="text-charcoal-900 text-xl font-semibold text-center">
             Practitioner sign-in required
@@ -74,36 +74,20 @@ export default function PractitionerServicesScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "profile"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">
-            Services & availability
-          </Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            Hours, diary, and catalogue
-          </Text>
-        </View>
-      </View>
+    <TabScreen>
+      <AppStackHeader
+        title="Services & availability"
+        subtitle="Hours, diary, and catalogue"
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
 
-      <ScrollView
+      <TabScreenScroll
         className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !isLoading}
@@ -228,7 +212,7 @@ export default function PractitionerServicesScreen() {
             </Pressable>
           ))
         )}
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

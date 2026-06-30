@@ -4,15 +4,17 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 import { fetchPublicTherapistBySlugOrId } from "@/lib/guestBooking";
 
 /**
  * Web parity with `theramate-ios-client/app/book/[slug].tsx`.
- * Resolves `users.booking_slug` (or legacy UUID) then opens guest booking.
+ * Resolves `users.booking_slug` (or legacy UUID); guest vs signed-in choice.
  */
 const DirectBooking: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState<string | null>(null);
   const [practitionerId, setPractitionerId] = useState<string | null>(null);
@@ -47,20 +49,22 @@ const DirectBooking: React.FC = () => {
     };
   }, [slug]);
 
-  useEffect(() => {
-    if (!practitionerId || loading) return;
-    navigate(
-      `/client/booking?therapistId=${encodeURIComponent(practitionerId)}&guest=1`,
-      { replace: true },
-    );
-  }, [practitionerId, loading, navigate]);
+  const bookingBase = practitionerId
+    ? `/client/booking?therapistId=${encodeURIComponent(practitionerId)}`
+    : null;
 
-  const continueBooking = () => {
-    if (!practitionerId) return;
-    navigate(
-      `/client/booking?therapistId=${encodeURIComponent(practitionerId)}&guest=1`,
-      { replace: true },
-    );
+  const continueAsGuest = () => {
+    if (!bookingBase) return;
+    navigate(`${bookingBase}&guest=1`);
+  };
+
+  const continueSignedIn = () => {
+    if (!bookingBase) return;
+    if (!user) {
+      navigate(`/auth?redirect=${encodeURIComponent(bookingBase)}`);
+      return;
+    }
+    navigate(bookingBase);
   };
 
   return (
@@ -85,9 +89,22 @@ const DirectBooking: React.FC = () => {
           ) : null}
 
           {practitionerId ? (
-            <Button className="w-full" onClick={continueBooking}>
-              Continue to booking
-            </Button>
+            <>
+              <Button
+                className="w-full"
+                variant="default"
+                onClick={continueAsGuest}
+              >
+                Book as guest
+              </Button>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={continueSignedIn}
+              >
+                {user ? "Book signed in" : "Sign in to book"}
+              </Button>
+            </>
           ) : null}
 
           <Button variant="outline" className="w-full" asChild>

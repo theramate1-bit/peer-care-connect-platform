@@ -1,15 +1,14 @@
 import React from "react";
 import { View, Text, Alert, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { APP_CONFIG } from "@/constants/config";
 import { supabase } from "@/lib/supabase";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function PractitionerDirectBookingLinkScreen() {
   const { userProfile } = useAuth();
@@ -66,7 +65,7 @@ export default function PractitionerDirectBookingLinkScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Direct booking link"
         fallbackHref={defaultSignedInProfileHref()}
@@ -110,6 +109,6 @@ export default function PractitionerDirectBookingLinkScreen() {
           )}
         </Card>
       </View>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

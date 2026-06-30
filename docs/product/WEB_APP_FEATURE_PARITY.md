@@ -1,6 +1,6 @@
 # Web ↔ App feature parity (CTO / PM)
 
-**Last updated:** 2026-05-26 (guest booking, platform sub checkout, voice SOAP, `stripe-payment` deploy)  
+**Last updated:** 2026-06-04 (automated `npm run check:platform-drift`, `/book/:slug` guest+signed-in on web)  
 **Web (canonical):** repo-root `src/` + Vite shell `peer-care-connect/` — routes in `peer-care-connect/src/components/AppContent.tsx`  
 **App:** `theramate-ios-client/` — Expo Router under `app/`  
 **Backend:** `supabase/` — shared RPCs, RLS, Edge Functions
@@ -310,15 +310,15 @@ flowchart LR
 
 ### Guest / public
 
-| Feature                   | Web                        | App                                               | Status                                                |
-| ------------------------- | -------------------------- | ------------------------------------------------- | ----------------------------------------------------- |
-| Direct book               | `/book/:slug`              | `book/[slug]`                                     | ✅ `booking_slug` + UUID; → `/client/booking?guest=1` |
-| Public profile            | `/therapist/:id/public`    | (via explore / book)                              | ✅ `PublicTherapistProfile` + `HybridBookingChooser`  |
-| Clinic checkout return    | `/booking-success`         | `booking-success`                                 | ✅                                                    |
-| Guest mobile requests     | `/guest/mobile-requests`   | `guest/mobile-requests`                           | ✅                                                    |
-| Guest session view        | `/booking/view/:sessionId` | `booking/view/[sessionId]`                        | ✅                                                    |
-| Find booking              | `/booking/find`            | `booking/find`                                    | ✅                                                    |
-| Guest pay without account | `/client/booking?guest=1`  | `booking/index?guest=1` + `openGuestBookingOnWeb` | 🟡 pay-at-clinic native; card via in-app WebView      |
+| Feature                   | Web                        | App                                                | Status                                                |
+| ------------------------- | -------------------------- | -------------------------------------------------- | ----------------------------------------------------- |
+| Direct book               | `/book/:slug`              | `book/[slug]`                                      | ✅ slug resolve; guest **or** signed-in CTAs (both)   |
+| Public profile            | `/therapist/:id/public`    | (via explore / book)                               | ✅ `PublicTherapistProfile` + `HybridBookingChooser`  |
+| Clinic checkout return    | `/booking-success`         | `booking-success`                                  | ✅                                                    |
+| Guest mobile requests     | `/guest/mobile-requests`   | `guest/mobile-requests`                            | ✅                                                    |
+| Guest session view        | `/booking/view/:sessionId` | `booking/view/[sessionId]`                         | ✅                                                    |
+| Find booking              | `/booking/find`            | `booking/find`                                     | ✅                                                    |
+| Guest pay without account | `/client/booking?guest=1`  | `booking/index?guest=1` + `mobile-request?guest=1` | ✅ native booking UI; card via in-app Stripe checkout |
 
 ### Admin
 

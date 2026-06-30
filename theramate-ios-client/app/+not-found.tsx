@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { Stack, router } from "expo-router";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -24,10 +24,7 @@ export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, animation: "fade" }} />
-      <SafeAreaView
-        className="flex-1 bg-cream-50 px-6"
-        edges={["top", "bottom"]}
-      >
+      <AppScreen edges={["top", "bottom"]} className="flex-1 bg-cream-50 px-6">
         <View className="flex-1 justify-center">
           <Text className="text-charcoal-900 text-xl font-bold text-center">
             Screen not found
@@ -47,7 +44,7 @@ export default function NotFoundScreen() {
             </Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { TabScreenScroll } from "@/components/navigation";
 /**
  * Client hub — tabs aligned with web /practice/clients (Sessions, Progress, Goals,
  * Exercise programs, History requests). Treatment notes: same route as web hub modal
@@ -434,10 +435,7 @@ export function ClientHubScreen({
         })}
       </ScrollView>
 
-      <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
+      <TabScreenScroll className="flex-1 px-6">
         {tab === "sessions" ? (
           <SessionsTabContent
             loading={loadingSessions}
@@ -512,7 +510,7 @@ export function ClientHubScreen({
             }}
           />
         ) : null}
-      </ScrollView>
+      </TabScreenScroll>
     </View>
   );
 }

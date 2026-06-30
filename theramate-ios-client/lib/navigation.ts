@@ -12,8 +12,8 @@ export function goBackOrReplace(fallbackHref: Href | string) {
 }
 
 /** Default in-app back target when a stack screen has no history (signed-in profile hub). */
-export function defaultSignedInProfileHref(): string {
-  return signedInTabPath("profile");
+export function defaultSignedInProfileHref(): Href {
+  return signedInTabPath("profile") as Href;
 }
 
 /** Practitioner primary tab shell (Home, Diary, Sessions, Messages, Profile). */

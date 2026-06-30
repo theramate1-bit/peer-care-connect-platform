@@ -14,13 +14,16 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenList,
+  useTabComposerPadding,
+} from "@/components/navigation";
 
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
-import { ChevronLeft, Paperclip, Send } from "lucide-react-native";
+import { Paperclip, Send } from "lucide-react-native";
 
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,11 +44,9 @@ import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import type { ConversationMessageRow } from "@/lib/api/messages";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
-
 export default function ConversationThreadScreen() {
   const tabRoot = useTabRoot();
-  /** Tabs use an absolute tab bar; without bottom padding it covers the composer and steals taps. */
-  const tabBarHeight = useBottomTabBarHeight();
+  const composerPaddingBottom = useTabComposerPadding();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId, isInitialized, isAuthenticated } = useAuth();
   const composerPlaceholder =
@@ -67,7 +68,11 @@ export default function ConversationThreadScreen() {
     if (!id || !userId) return;
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await getMessages(id, { limit: 80, offset: 0 }, userId);
+    const { data, error } = await getMessages(
+      id,
+      { limit: 80, offset: 0 },
+      userId,
+    );
     if (error) {
       setMessages([]);
       setAttachments([]);
@@ -104,7 +109,10 @@ export default function ConversationThreadScreen() {
         .eq("id", id)
         .single();
       if (cancelled || !conv) return;
-      const c = conv as { participant1_id: string; participant2_id: string | null };
+      const c = conv as {
+        participant1_id: string;
+        participant2_id: string | null;
+      };
       const otherId =
         c.participant1_id === userId ? c.participant2_id : c.participant1_id;
       if (!otherId) return;
@@ -254,19 +262,11 @@ export default function ConversationThreadScreen() {
 
   if (isInitialized && !isAuthenticated) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-        <View className="flex-row items-center px-4 pt-2 pb-3 border-b border-cream-200">
-          <TouchableOpacity
-            onPress={() => goBackOrReplace(tabPath(tabRoot, "messages"))}
-            className="p-2 -ml-2"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <ChevronLeft size={28} color={Colors.charcoal[800]} />
-          </TouchableOpacity>
-          <Text className="text-charcoal-900 font-semibold text-lg ml-2">
-            Messages
-          </Text>
-        </View>
+      <TabScreen>
+        <AppStackHeader
+          title="Messages"
+          fallbackHref={tabPath(tabRoot, "messages")}
+        />
         <View className="flex-1 px-6 justify-center">
           <Text className="text-charcoal-600 text-center leading-6">
             Sign in to open this conversation.
@@ -279,33 +279,22 @@ export default function ConversationThreadScreen() {
             Sign in
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <View className="flex-row items-center px-4 pt-2 pb-3 border-b border-cream-200">
-          <TouchableOpacity
-            onPress={() => goBackOrReplace(tabPath(tabRoot, "messages"))}
-            className="p-2 -ml-2"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <ChevronLeft size={28} color={Colors.charcoal[800]} />
-          </TouchableOpacity>
-          <Avatar name={peerName} size="md" className="ml-1" />
-          <Text
-            className="text-charcoal-900 font-semibold text-lg ml-3 flex-1"
-            numberOfLines={1}
-          >
-            {peerName}
-          </Text>
-        </View>
+        <AppStackHeader
+          title={peerName}
+          fallbackHref={tabPath(tabRoot, "messages")}
+          leading={<Avatar name={peerName} size="md" />}
+        />
 
         {loading ? (
           <View className="flex-1 items-center justify-center">
@@ -325,7 +314,7 @@ export default function ConversationThreadScreen() {
             </Button>
           </View>
         ) : (
-          <FlatList
+          <TabScreenList
             className="flex-1 px-4 pt-4"
             data={messages}
             keyExtractor={(m) => m.id}
@@ -353,12 +342,18 @@ export default function ConversationThreadScreen() {
                       {atts.map((att) => (
                         <TouchableOpacity
                           key={att.id}
-                          onPress={() => void onOpenAttachment(att.encrypted_file_path)}
+                          onPress={() =>
+                            void onOpenAttachment(att.encrypted_file_path)
+                          }
                           className={`px-3 py-2 rounded-xl border ${
                             mine ? "border-sage-500" : "border-cream-200"
                           }`}
                         >
-                          <Text className={mine ? "text-sage-700" : "text-charcoal-700"}>
+                          <Text
+                            className={
+                              mine ? "text-sage-700" : "text-charcoal-700"
+                            }
+                          >
                             {att.file_name}
                           </Text>
                           <Text className="text-charcoal-400 text-xs mt-1">
@@ -385,7 +380,7 @@ export default function ConversationThreadScreen() {
         <View
           className="flex-row items-end px-4 pt-3 border-t border-cream-200 bg-cream-50"
           style={{
-            paddingBottom: Math.max(tabBarHeight, 12) + 8,
+            paddingBottom: composerPaddingBottom,
           }}
         >
           <TouchableOpacity
@@ -424,6 +419,6 @@ export default function ConversationThreadScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

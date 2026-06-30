@@ -6,15 +6,16 @@ import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import {
   Calendar,
   Clock,
@@ -31,7 +32,6 @@ import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { usePractitionerSessions } from "@/hooks/usePractitionerSessions";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import {
   isSessionUpcoming,
   type SessionWithClient,
@@ -242,13 +242,9 @@ export default function PractitionerBookingsScreen() {
 
   const sessions = activeTab === "upcoming" ? upcoming : past;
 
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
-
   if (!userId) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Calendar size={48} color={Colors.charcoal[300]} />
           <Text className="text-charcoal-800 text-lg font-semibold text-center mt-6">
@@ -273,16 +269,13 @@ export default function PractitionerBookingsScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScreenHeader
+    <TabScreen>
+      <MainTabHeader
         eyebrow="Practice"
         title="Sessions"
         subtitle="Upcoming and past — open one for notes, care plans, and messages."
@@ -354,9 +347,8 @@ export default function PractitionerBookingsScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView
+        <TabScreenScroll
           className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -401,8 +393,8 @@ export default function PractitionerBookingsScreen() {
               </View>
             ))
           )}
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

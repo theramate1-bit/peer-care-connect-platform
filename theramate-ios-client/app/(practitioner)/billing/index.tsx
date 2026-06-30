@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ChevronRight, Wallet } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -17,9 +16,13 @@ import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import { fetchConnectAccountStatus } from "@/lib/api/stripeConnect";
 import { fetchMyPayouts } from "@/lib/api/payouts";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import {
   fetchPaymentsReceivedByTherapist,
   formatMinorCurrency,
@@ -84,10 +87,7 @@ export default function PractitionerBillingScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Text className="text-charcoal-900 text-xl font-semibold text-center">
             Practitioner sign-in required
@@ -111,16 +111,18 @@ export default function PractitionerBillingScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView
+    <TabScreen>
+      <AppStackHeader
+        title="Billing & payouts"
+        subtitle="Payments, payouts, and Stripe Connect status."
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
+      <TabScreenScroll
         className="flex-1 px-6 pt-4"
         refreshControl={
           <RefreshControl
@@ -137,15 +139,7 @@ export default function PractitionerBillingScreen() {
             tintColor={Colors.sage[500]}
           />
         }
-        contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Business"
-          title="Billing & payouts"
-          subtitle="Payments, payouts, and Stripe Connect status."
-        />
-
         <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
           In this app
         </Text>
@@ -357,7 +351,7 @@ export default function PractitionerBillingScreen() {
         >
           Subscription and plan (in app)
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

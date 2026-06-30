@@ -1,16 +1,19 @@
 import React from "react";
 import { View, Text, Alert, ActivityIndicator, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { Avatar } from "@/components/ui/Avatar";
 import { supabase } from "@/lib/supabase";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function EditProfileScreen() {
   const { userProfile, updateProfile, refreshProfile } = useAuth();
@@ -127,16 +130,13 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Edit profile"
         fallbackHref={defaultSignedInProfileHref()}
       />
 
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 24 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <View className="items-center mb-4">
           <Avatar
             name={
@@ -201,7 +201,7 @@ export default function EditProfileScreen() {
             <Text className="text-white font-semibold">Save changes</Text>
           )}
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

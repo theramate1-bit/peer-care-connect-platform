@@ -11,10 +11,8 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { goBackOrReplace } from "@/lib/navigation";
@@ -27,6 +25,11 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PRACTITIONER_PTABS_HREF } from "@/lib/navigation";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function PatientHistoryRequestsScreen() {
   const tabRoot = useTabRoot();
@@ -86,20 +89,16 @@ export default function PatientHistoryRequestsScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      />
+      <TabScreen>
+        <View className="flex-1" />
+      </TabScreen>
     );
   }
 
   const rows = q.data || [];
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <AppStackHeader
         title="History requests"
         fallbackHref={PRACTITIONER_PTABS_HREF}
@@ -116,9 +115,8 @@ export default function PatientHistoryRequestsScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <TabScreenScroll
           className="flex-1 px-6 pt-2"
-          contentContainerStyle={{ paddingBottom: 100 }}
           refreshControl={
             <RefreshControl
               refreshing={q.isFetching && !q.isLoading}
@@ -166,8 +164,8 @@ export default function PatientHistoryRequestsScreen() {
               </Card>
             ))
           )}
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

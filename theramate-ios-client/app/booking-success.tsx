@@ -1,12 +1,12 @@
 import React from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
 import { getSignedInTabRoot, signedInTabPath } from "@/lib/signedInRoutes";
+import { AppScreen } from "@/components/navigation";
 
 export default function BookingSuccessScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();
@@ -57,7 +57,7 @@ export default function BookingSuccessScreen() {
   }, [session_id]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <View className="flex-1 px-6 items-center justify-center">
         <Text className="text-charcoal-900 text-3xl font-bold text-center">
           Booking confirmed
@@ -90,9 +90,7 @@ export default function BookingSuccessScreen() {
           <Button
             variant="primary"
             className="mt-8 w-full"
-            onPress={() =>
-              router.replace(signedInTabPath("bookings") as never)
-            }
+            onPress={() => router.replace(signedInTabPath("bookings") as never)}
           >
             Go to sessions
           </Button>
@@ -105,6 +103,6 @@ export default function BookingSuccessScreen() {
           Back to home
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

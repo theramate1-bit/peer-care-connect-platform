@@ -19,10 +19,13 @@ import {
   ActivityIndicator,
   Switch,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  ChevronLeft,
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
+import {
   Check,
   Banknote,
   Calendar as CalendarIcon,
@@ -238,31 +241,15 @@ export default function ManualBookingScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "bookings"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">
-            New manual booking
-          </Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            Pay-at-clinic session. Mark as paid after the appointment.
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView
+    <TabScreen>
+      <AppStackHeader
+        title="New manual booking"
+        subtitle="Pay-at-clinic session. Mark as paid after the appointment."
+        fallbackHref={tabPath(tabRoot, "bookings")}
+      />
+      <TabScreenScroll
         className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 48 }}
+        extraBottomPadding={48}
         keyboardShouldPersistTaps="handled"
       >
         <Text className="text-charcoal-900 font-semibold mb-2">Client</Text>
@@ -502,7 +489,7 @@ export default function ManualBookingScreen() {
         <Text className="text-charcoal-500 text-xs mt-4 text-center">
           No platform commission on pay-at-clinic bookings.
         </Text>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

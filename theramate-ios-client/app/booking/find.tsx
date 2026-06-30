@@ -7,12 +7,12 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { format } from "date-fns";
 
 import { Colors } from "@/constants/colors";
 import { Button } from "@/components/ui/Button";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 import {
   findBookingsByEmail,
   type GuestBookingLookupRow,
@@ -55,15 +55,13 @@ export default function FindBookingScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader title="Find my booking" fallbackHref="/find-therapists" />
       <ScrollView
-        className="flex-1 px-6 pt-4"
+        className="flex-1 px-6 pt-2"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Text className="text-charcoal-900 text-2xl font-bold">
-          Find my booking
-        </Text>
-        <Text className="text-charcoal-500 mt-2">
+        <Text className="text-charcoal-500">
           Enter the email used at checkout to see recent bookings.
         </Text>
 
@@ -130,6 +128,6 @@ export default function FindBookingScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

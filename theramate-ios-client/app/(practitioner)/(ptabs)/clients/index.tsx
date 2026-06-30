@@ -13,11 +13,14 @@ import {
   RefreshControl,
   TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
 import { ChevronRight, Users } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,10 +62,7 @@ export default function PractitionerClientsScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Text className="text-charcoal-900 text-xl font-semibold text-center">
             Practitioner sign-in required
@@ -86,15 +86,12 @@ export default function PractitionerClientsScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <AppStackHeader title="Clients" fallbackHref={PRACTITIONER_PTABS_HREF} />
       {isLoading ? (
         <View className="flex-1 items-center justify-center py-20">
@@ -107,9 +104,8 @@ export default function PractitionerClientsScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <TabScreenScroll
           className="flex-1 px-6 pt-2"
-          contentContainerStyle={{ paddingBottom: 100 }}
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
@@ -249,8 +245,8 @@ export default function PractitionerClientsScreen() {
               </TouchableOpacity>
             ))
           )}
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

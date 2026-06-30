@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { Colors } from "@/constants/colors";
@@ -8,6 +7,7 @@ import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchConnectAccountStatus } from "@/lib/api/stripeConnect";
 import { openConnectHostedOnboarding } from "@/lib/openConnectHostedOnboarding";
+import { TabScreen } from "@/components/navigation";
 
 /**
  * Legacy route — redirects to Stripe-hosted Connect onboarding (no publishable key).
@@ -42,16 +42,13 @@ export default function StripeConnectEmbeddedScreen() {
   }, [tabRoot, userId]);
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <View className="flex-1 items-center justify-center px-6">
         <ActivityIndicator color={Colors.sage[500]} />
         <Text className="text-charcoal-600 mt-4 text-center">
           Opening Stripe setup…
         </Text>
       </View>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

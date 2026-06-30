@@ -1,12 +1,12 @@
 import React from "react";
 import { View, Text, TextInput, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { format } from "date-fns";
 
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { fetchGuestSessionByToken } from "@/lib/api/guestBooking";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 export default function GuestBookingViewScreen() {
   const params = useLocalSearchParams<{ sessionId: string; token?: string }>();
@@ -55,15 +55,13 @@ export default function GuestBookingViewScreen() {
   }, [token, load]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader title="Booking details" fallbackHref="/booking/find" />
       <ScrollView
-        className="flex-1 px-6 pt-4"
+        className="flex-1 px-6 pt-2"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Text className="text-charcoal-900 text-2xl font-bold">
-          Booking details
-        </Text>
-        <Text className="text-charcoal-500 mt-2">
+        <Text className="text-charcoal-500">
           Use the secure token from your confirmation email to view booking
           details.
         </Text>
@@ -133,6 +131,6 @@ export default function GuestBookingViewScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

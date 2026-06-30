@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -8,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 import { isPractitionerPortalRole } from "@/lib/authRoles";
 import { getSignedInTabRoot, signedInTabPath } from "@/lib/signedInRoutes";
+import { AppScreen } from "@/components/navigation";
 
 export default function OnboardingStripeReturnScreen() {
   const { userId, userProfile } = useAuth();
@@ -33,7 +33,7 @@ export default function OnboardingStripeReturnScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <View className="flex-1 px-6 items-center justify-center">
         <Text className="text-charcoal-900 text-3xl font-bold text-center">
           Stripe setup received
@@ -64,6 +64,6 @@ export default function OnboardingStripeReturnScreen() {
           {isPractitioner ? "Go to practice home" : "Go to dashboard"}
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

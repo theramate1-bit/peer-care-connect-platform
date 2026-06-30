@@ -1,0 +1,34 @@
+name: Pre-deploy check
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  pre-deploy:
+    name: Pre-deploy (automated)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Run pre-deploy checks
+        env:
+          GUARD_BASE_SHA: ${{ github.event.before || 'HEAD~20' }}
+          GUARD_HEAD_SHA: ${{ github.sha }}
+          RECONCILE_STRICT: "1"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/pre-deploy-check.mjs

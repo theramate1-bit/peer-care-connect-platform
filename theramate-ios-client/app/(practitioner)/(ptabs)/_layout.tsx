@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { View, Text, Platform, StyleSheet } from "react-native";
+import { Platform } from "react-native";
 import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import {
@@ -16,102 +16,23 @@ import {
 } from "lucide-react-native";
 
 import { TabRootProvider } from "@/contexts/TabRootContext";
-import { Colors } from "@/constants/colors";
-
-type TabIconComponent = typeof LayoutDashboard;
-
-interface TabIconProps {
-  icon: TabIconComponent;
-  label: string;
-  focused: boolean;
-}
-
-const tabIconStyles = StyleSheet.create({
-  outer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 8,
-    width: "100%",
-    maxWidth: "100%",
-  },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrapFocused: {
-    backgroundColor: "rgba(122, 158, 126, 0.1)",
-  },
-  label: {
-    fontSize: 9,
-    lineHeight: 11,
-    marginTop: 2,
-    textAlign: "center",
-    alignSelf: "stretch",
-    width: "100%",
-    ...(Platform.OS === "android" ? { includeFontPadding: false } : null),
-  },
-  labelFocused: {
-    color: Colors.sage[500],
-    fontWeight: "600",
-  },
-  labelIdle: {
-    color: Colors.charcoal[400],
-    fontWeight: "400",
-  },
-});
-
-function TabIcon({ icon: Icon, label, focused }: TabIconProps) {
-  return (
-    <View style={tabIconStyles.outer}>
-      <View
-        style={[
-          tabIconStyles.iconWrap,
-          focused ? tabIconStyles.iconWrapFocused : null,
-        ]}
-      >
-        <Icon
-          size={22}
-          color={focused ? Colors.sage[500] : Colors.charcoal[400]}
-          strokeWidth={focused ? 2.5 : 2}
-        />
-      </View>
-      <Text
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.55}
-        style={[
-          tabIconStyles.label,
-          focused ? tabIconStyles.labelFocused : tabIconStyles.labelIdle,
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
+import { TabBarIcon } from "@/components/navigation/TabBarIcon";
+import { useTabLayoutScreenOptions } from "@/hooks/useTabLayoutScreenOptions";
 
 export default function PractitionerTabsLayout() {
+  const tabScreenOptions = useTabLayoutScreenOptions();
+
   return (
     <TabRootProvider value="/(practitioner)/(ptabs)">
       <Tabs
         screenOptions={{
-          headerShown: false,
-          tabBarStyle: {
-            position: "absolute",
-            backgroundColor:
-              Platform.OS === "ios" ? "transparent" : Colors.white,
-            borderTopWidth: 0,
-            elevation: 0,
-            height: Platform.OS === "ios" ? 88 : 70,
-            paddingBottom: Platform.OS === "ios" ? 24 : 8,
-          },
+          ...tabScreenOptions,
           tabBarItemStyle: {
             flex: 1,
             minWidth: 0,
             paddingHorizontal: 0,
+            height: "100%",
+            justifyContent: "center",
           },
           tabBarBackground: () =>
             Platform.OS === "ios" ? (
@@ -127,7 +48,6 @@ export default function PractitionerTabsLayout() {
                 }}
               />
             ) : null,
-          tabBarShowLabel: false,
         }}
       >
         <Tabs.Screen
@@ -135,7 +55,7 @@ export default function PractitionerTabsLayout() {
           options={{
             href: "/(practitioner)/(ptabs)",
             tabBarIcon: ({ focused }) => (
-              <TabIcon
+              <TabBarIcon
                 icon={LayoutDashboard}
                 label="Home"
                 focused={focused}
@@ -149,7 +69,7 @@ export default function PractitionerTabsLayout() {
           options={{
             href: "/schedule",
             tabBarIcon: ({ focused }) => (
-              <TabIcon icon={Calendar} label="Diary" focused={focused} />
+              <TabBarIcon icon={Calendar} label="Diary" focused={focused} />
             ),
           }}
         />
@@ -159,7 +79,7 @@ export default function PractitionerTabsLayout() {
           options={{
             href: "/bookings",
             tabBarIcon: ({ focused }) => (
-              <TabIcon icon={List} label="Sessions" focused={focused} />
+              <TabBarIcon icon={List} label="Sessions" focused={focused} />
             ),
           }}
         />
@@ -169,7 +89,7 @@ export default function PractitionerTabsLayout() {
           options={{
             href: "/messages",
             tabBarIcon: ({ focused }) => (
-              <TabIcon
+              <TabBarIcon
                 icon={MessageCircle}
                 label="Messages"
                 focused={focused}
@@ -183,7 +103,7 @@ export default function PractitionerTabsLayout() {
           options={{
             href: "/profile",
             tabBarIcon: ({ focused }) => (
-              <TabIcon icon={User} label="Profile" focused={focused} />
+              <TabBarIcon icon={User} label="Profile" focused={focused} />
             ),
           }}
         />

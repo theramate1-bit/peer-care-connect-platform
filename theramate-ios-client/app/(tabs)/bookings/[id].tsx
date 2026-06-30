@@ -4,20 +4,20 @@ import {
   Text,
   ActivityIndicator,
   TouchableOpacity,
-  ScrollView,
   Alert,
-  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronLeft,
   Calendar,
+  CalendarPlus,
   Clock,
   User,
   CreditCard,
@@ -35,6 +35,8 @@ import {
   cancelClientSession,
   isSessionUpcoming,
 } from "@/lib/api/clientSessions";
+import { canRescheduleClientSession } from "@/lib/api/clientReschedule";
+import { addSessionToDeviceCalendar } from "@/lib/calendar/sessionCalendar";
 import { getOrCreateConversation } from "@/lib/api/messages";
 
 function statusLabel(status: string | null): string {
@@ -56,14 +58,12 @@ function paymentLabel(status: string | null): string {
 
 export default function BookingDetailScreen() {
   const tabRoot = useTabRoot();
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useAuthStore((s) => s.session);
   const clientId = session?.user?.id;
   const queryClient = useQueryClient();
   const [cancelling, setCancelling] = React.useState(false);
+  const [addingToCalendar, setAddingToCalendar] = React.useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["client_session_detail", clientId, id],
@@ -77,6 +77,12 @@ export default function BookingDetailScreen() {
       return row;
     },
     enabled: !!clientId && !!id,
+  });
+
+  const rescheduleEligibility = useQuery({
+    queryKey: ["reschedule_eligibility", id],
+    queryFn: () => canRescheduleClientSession(id!),
+    enabled: !!id && !!data,
   });
 
   if (!clientId) {
@@ -101,6 +107,26 @@ export default function BookingDetailScreen() {
       return;
     }
     router.push(tabPath(tabRoot, `messages/${conversation}`) as never);
+  };
+
+  const onAddToCalendar = async () => {
+    if (!data) return;
+    setAddingToCalendar(true);
+    try {
+      const res = await addSessionToDeviceCalendar({
+        title: `${data.session_type || "Session"} with ${data.therapist_name}`,
+        sessionDate: data.session_date,
+        startTime: data.start_time,
+        durationMinutes: data.duration_minutes ?? 60,
+      });
+      if (!res.ok) {
+        Alert.alert("Calendar", res.error);
+        return;
+      }
+      Alert.alert("Added", "Session added to your device calendar.");
+    } finally {
+      setAddingToCalendar(false);
+    }
   };
 
   const onRebook = () => {
@@ -167,20 +193,11 @@ export default function BookingDetailScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "bookings"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Session details
-        </Text>
-      </View>
-
+    <TabScreen>
+      <AppStackHeader
+        title="Session details"
+        fallbackHref={tabPath(tabRoot, "bookings")}
+      />
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={Colors.sage[500]} />
@@ -204,10 +221,7 @@ export default function BookingDetailScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
-        >
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Card variant="default" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
               {data.session_type || "Session"}
@@ -276,6 +290,40 @@ export default function BookingDetailScreen() {
               </Text>
             </Button>
 
+            {isSessionUpcoming(data) &&
+              (data.status || "").toLowerCase() !== "cancelled" && (
+                <Button
+                  variant="outline"
+                  className="mt-3"
+                  onPress={() => void onAddToCalendar()}
+                  disabled={addingToCalendar}
+                >
+                  <View className="flex-row items-center justify-center">
+                    <CalendarPlus size={18} color={Colors.charcoal[700]} />
+                    <Text className="text-charcoal-700 font-medium ml-2">
+                      {addingToCalendar ? "Adding…" : "Add to calendar"}
+                    </Text>
+                  </View>
+                </Button>
+              )}
+
+            {rescheduleEligibility.data?.canReschedule ? (
+              <Button
+                variant="outline"
+                className="mt-3"
+                onPress={() =>
+                  router.push({
+                    pathname: tabPath(tabRoot, "bookings/reschedule") as any,
+                    params: { sessionId: data.id },
+                  })
+                }
+              >
+                <Text className="text-charcoal-700 font-medium">
+                  Reschedule session
+                </Text>
+              </Button>
+            ) : null}
+
             {(data.status || "").toLowerCase() === "completed" && (
               <Button
                 variant="outline"
@@ -309,8 +357,8 @@ export default function BookingDetailScreen() {
                 </Button>
               )}
           </View>
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

@@ -1,20 +1,31 @@
 import React from "react";
-import { View, Text, Alert, ScrollView, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  View,
+  Text,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+} from "react-native";
 import { router } from "expo-router";
-import { FileText, Globe, Shield } from "lucide-react-native";
+import { FileText, Globe, MapPin, Shield } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 import {
   buildUsersPreferencesUpdate,
   loadProfilePreferences,
   type ProfilePreferencesViewModel,
 } from "@/lib/userPreferences";
+import {
+  fetchLocationConsent,
+  submitDsarRequest,
+  withdrawLocationConsent,
+} from "@/lib/api/dsar";
 
 function PrivacyRow({
   label,
@@ -41,8 +52,16 @@ function PrivacyRow({
 }
 
 export function PrivacySecurityContent() {
-  const { signOut, userProfile, updateProfile, refreshProfile } = useAuth();
+  const { signOut, userProfile, updateProfile, refreshProfile, user } =
+    useAuth();
   const [saving, setSaving] = React.useState(false);
+  const [dsarNotes, setDsarNotes] = React.useState("");
+  const [dsarLoading, setDsarLoading] = React.useState<
+    "access" | "erasure" | "location" | null
+  >(null);
+  const [locationConsented, setLocationConsented] = React.useState<
+    boolean | null
+  >(null);
   const [privacyPrefs, setPrivacyPrefs] = React.useState<
     Pick<ProfilePreferencesViewModel, "profileVisible" | "showContactInfo">
   >({
@@ -57,6 +76,74 @@ export function PrivacySecurityContent() {
       showContactInfo: merged.showContactInfo,
     });
   }, [userProfile?.preferences]);
+
+  React.useEffect(() => {
+    if (!user?.id) {
+      setLocationConsented(null);
+      return;
+    }
+    void fetchLocationConsent(user.id).then(({ consented }) => {
+      setLocationConsented(consented);
+    });
+  }, [user?.id]);
+
+  const submitDsar = async (type: "access" | "erasure") => {
+    if (!user?.id) {
+      Alert.alert("Sign in required", "Please sign in to submit a request.");
+      return;
+    }
+    setDsarLoading(type);
+    try {
+      const res = await submitDsarRequest({
+        userId: user.id,
+        requestType: type,
+        notes: dsarNotes,
+      });
+      if (!res.ok) {
+        Alert.alert("Request failed", res.error);
+        return;
+      }
+      setDsarNotes("");
+      Alert.alert(
+        "Request submitted",
+        "We will respond by email. We may contact you to verify your identity.",
+      );
+    } finally {
+      setDsarLoading(null);
+    }
+  };
+
+  const onWithdrawLocation = () => {
+    if (!user?.id) return;
+    Alert.alert(
+      "Withdraw location consent?",
+      "Location-based matching will be disabled. You can still enter addresses manually.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: async () => {
+            setDsarLoading("location");
+            try {
+              const res = await withdrawLocationConsent(user.id);
+              if (!res.ok) {
+                Alert.alert("Could not withdraw", res.error);
+                return;
+              }
+              setLocationConsented(false);
+              Alert.alert(
+                "Consent withdrawn",
+                "Location tracking has been disabled for your account.",
+              );
+            } finally {
+              setDsarLoading(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const signOutEverywhere = async () => {
     Alert.alert(
@@ -107,7 +194,7 @@ export function PrivacySecurityContent() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="Privacy & security"
         fallbackHref={defaultSignedInProfileHref()}
@@ -178,14 +265,75 @@ export function PrivacySecurityContent() {
           </Button>
         </Card>
 
-        <Button
-          variant="outline"
-          className="mt-3"
-          leftIcon={<FileText size={16} color={Colors.charcoal[700]} />}
-          onPress={() => router.push("/settings/privacy" as never)}
-        >
-          Privacy settings hub
-        </Button>
+        <Card variant="default" padding="md" className="mt-4">
+          <Text className="text-charcoal-900 font-semibold mb-1">
+            Your data rights
+          </Text>
+          <Text className="text-charcoal-500 text-sm mb-3 leading-5">
+            Request a copy of your data or account deletion (subject to legal
+            exemptions). Optional notes help us locate your records.
+          </Text>
+          <TextInput
+            value={dsarNotes}
+            onChangeText={setDsarNotes}
+            placeholder="Additional details (optional)"
+            placeholderTextColor={Colors.charcoal[400]}
+            className="bg-cream-50 border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
+            multiline
+          />
+          <Button
+            variant="primary"
+            className="mb-2"
+            disabled={dsarLoading !== null}
+            onPress={() => void submitDsar("access")}
+          >
+            {dsarLoading === "access" ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              "Request data export"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={dsarLoading !== null}
+            onPress={() => void submitDsar("erasure")}
+          >
+            {dsarLoading === "erasure" ? (
+              <ActivityIndicator color={Colors.sage[500]} />
+            ) : (
+              "Request account deletion"
+            )}
+          </Button>
+        </Card>
+
+        <Card variant="default" padding="md" className="mt-4">
+          <View className="flex-row items-center mb-2">
+            <MapPin size={18} color={Colors.charcoal[500]} />
+            <Text className="text-charcoal-900 font-semibold ml-2">
+              Location consent
+            </Text>
+          </View>
+          <Text className="text-charcoal-500 text-sm mb-3 leading-5">
+            {locationConsented === null
+              ? "Checking consent status…"
+              : locationConsented
+                ? "Location consent is active for marketplace matching."
+                : "Location consent is not granted. Matching uses manual address entry."}
+          </Text>
+          {locationConsented === true ? (
+            <Button
+              variant="outline"
+              disabled={dsarLoading !== null}
+              onPress={onWithdrawLocation}
+            >
+              {dsarLoading === "location" ? (
+                <ActivityIndicator color={Colors.sage[500]} />
+              ) : (
+                "Withdraw location consent"
+              )}
+            </Button>
+          ) : null}
+        </Card>
 
         <Button
           variant="outline"
@@ -223,6 +371,6 @@ export function PrivacySecurityContent() {
           Data processing (practitioners)
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

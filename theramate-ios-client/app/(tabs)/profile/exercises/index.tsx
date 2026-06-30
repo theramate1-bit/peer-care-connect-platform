@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Dumbbell, CalendarDays } from "lucide-react-native";
@@ -17,12 +16,16 @@ import {
   fetchHomeExercisePrograms,
   fetchProgramCompletionCount,
 } from "@/lib/api/exercises";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PressableCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 
 export default function ExercisesListScreen() {
   const tabRoot = useTabRoot();
@@ -46,8 +49,11 @@ export default function ExercisesListScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="My exercises" fallbackHref={defaultSignedInProfileHref()} />
+    <TabScreen>
+      <AppStackHeader
+        title="My exercises"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -68,11 +74,10 @@ export default function ExercisesListScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={data}
           keyExtractor={(item) => item.id}
           className="px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 24 }}
           refreshing={isFetching && !isLoading}
           onRefresh={() => void refetch()}
           renderItem={({ item }) => (
@@ -106,7 +111,7 @@ export default function ExercisesListScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }
 

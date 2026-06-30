@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
 import { ChevronRight, MapPin, RefreshCw } from "lucide-react-native";
 
@@ -28,7 +27,11 @@ import {
 } from "@/lib/api/practitionerExchange";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 function fmtTime(t: string | null | undefined): string {
   if (t == null) return "";
@@ -129,10 +132,12 @@ export default function PractitionerMobileRequestsListScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
+      <AppStackHeader
+        title="Mobile requests"
+        subtitle="On-location bookings plus treatment exchange activity."
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
       {loading ? (
         <View className="flex-1 px-6 items-center justify-center py-20">
           <Card
@@ -149,9 +154,8 @@ export default function PractitionerMobileRequestsListScreen() {
           </Card>
         </View>
       ) : (
-        <ScrollView
+        <TabScreenScroll
           className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 48 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -160,13 +164,6 @@ export default function PractitionerMobileRequestsListScreen() {
             />
           }
         >
-          <ScreenHeader
-            className="-mx-6 -mt-4 mb-2"
-            eyebrow="Practice"
-            title="Mobile requests"
-            subtitle="On-location bookings plus a snapshot of treatment exchange activity."
-          />
-
           {reciprocal.length > 0 ? (
             <View className="mb-8">
               <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
@@ -425,8 +422,8 @@ export default function PractitionerMobileRequestsListScreen() {
           >
             Refresh lists
           </Button>
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

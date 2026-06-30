@@ -7,13 +7,13 @@ import {
   Alert,
   TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { format } from "date-fns";
 
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 import {
   fetchGuestMobileRequestsByEmail,
   fetchGuestMobileRequestSessionLink,
@@ -139,15 +139,16 @@ export default function GuestMobileRequestsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader
+        title="Guest mobile requests"
+        fallbackHref="/find-therapists"
+      />
       <ScrollView
-        className="flex-1 px-6 pt-4"
+        className="flex-1 px-6 pt-2"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Text className="text-charcoal-900 text-2xl font-bold">
-          Guest mobile requests
-        </Text>
-        <Text className="text-charcoal-500 mt-2">
+        <Text className="text-charcoal-500">
           Manage a mobile request using the email and request ID from your
           confirmation message.
         </Text>
@@ -274,6 +275,6 @@ export default function GuestMobileRequestsScreen() {
           Centre in the app.
         </Text>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

@@ -12,9 +12,7 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, type Href } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
@@ -35,8 +33,12 @@ import {
 } from "@/lib/api/practitionerExchange";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import { ExchangeReciprocalSlotModal } from "@/components/practitioner/ExchangeReciprocalSlotModal";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -336,22 +338,19 @@ export default function PractitionerExchangeRequestDetailScreen() {
     );
   };
 
-  return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <View className="px-4 pt-2 pb-1 flex-row items-center">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-      </View>
+  const exchangeSubtitle = detail
+    ? detail.viewerRole === "recipient"
+      ? `From ${detail.requester_name}`
+      : `To ${detail.recipient_name}`
+    : undefined;
 
+  return (
+    <TabScreen>
+      <AppStackHeader
+        title="Exchange request"
+        subtitle={exchangeSubtitle}
+        fallbackHref={tabPath(tabRoot, "exchange")}
+      />
       {!idOk ? (
         <View className="flex-1 px-6 justify-center">
           <Text className="text-charcoal-600 text-center">
@@ -388,21 +387,7 @@ export default function PractitionerExchangeRequestDetailScreen() {
           </Button>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-2"
-          contentContainerStyle={{ paddingBottom: 40 }}
-        >
-          <ScreenHeader
-            className="-mx-6 -mt-2 mb-2"
-            eyebrow="Practice"
-            title="Exchange request"
-            subtitle={
-              detail.viewerRole === "recipient"
-                ? `From ${detail.requester_name}`
-                : `To ${detail.recipient_name}`
-            }
-          />
-
+        <TabScreenScroll className="flex-1 px-6 pt-2">
           <Card variant="elevated" padding="md" className="mb-4">
             <Text className="text-charcoal-500 text-xs uppercase font-semibold">
               Status
@@ -592,7 +577,7 @@ export default function PractitionerExchangeRequestDetailScreen() {
               Back to list
             </Button>
           ) : null}
-        </ScrollView>
+        </TabScreenScroll>
       )}
 
       {detail && userId && needsReciprocalBook ? (
@@ -609,6 +594,6 @@ export default function PractitionerExchangeRequestDetailScreen() {
           }}
         />
       ) : null}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

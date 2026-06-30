@@ -1,36 +1,19 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  TextInput,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Target,
-  CheckCircle2,
-  PauseCircle,
-  PlayCircle,
-} from "lucide-react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useQuery } from "@tanstack/react-query";
+import { Target } from "lucide-react-native";
 import { format } from "date-fns";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/colors";
-import { PressableCard } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import {
-  createGoal,
-  fetchGoals,
-  updateGoalStatus,
-  type GoalItem,
-} from "@/lib/api/progress";
+import { Card } from "@/components/ui/Card";
+import { fetchGoals } from "@/lib/api/progress";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 
 function StatusPill({ status }: { status: string }) {
   const key = status.toLowerCase();
@@ -47,19 +30,9 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+/** Client view — goals are assigned by practitioners; read-only list. */
 export default function ProgressGoalsScreen() {
   const { userId } = useAuth();
-  const queryClient = useQueryClient();
-
-  const [creating, setCreating] = React.useState(false);
-  const [title, setTitle] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [targetValue, setTargetValue] = React.useState("6");
-  const [targetUnit, setTargetUnit] = React.useState("sessions");
-  const [targetDate, setTargetDate] = React.useState(
-    format(new Date(), "yyyy-MM-dd"),
-  );
-  const [saving, setSaving] = React.useState(false);
 
   const {
     data = [],
@@ -79,82 +52,18 @@ export default function ProgressGoalsScreen() {
     enabled: !!userId,
   });
 
-  const submitNewGoal = async () => {
-    if (!userId) return;
-    if (!title.trim() || !description.trim()) {
-      Alert.alert("Missing details", "Please add a title and description.");
-      return;
-    }
-    const n = Number(targetValue);
-    if (!Number.isFinite(n) || n <= 0) {
-      Alert.alert("Invalid target", "Target value must be greater than 0.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await createGoal({
-        clientId: userId,
-        practitionerId: userId,
-        title,
-        description,
-        targetValue: n,
-        targetUnit,
-        targetDate,
-      });
-      if (!res.ok) {
-        Alert.alert(
-          "Could not create goal",
-          res.error?.message || "Please try again.",
-        );
-        return;
-      }
-      await queryClient.invalidateQueries({
-        queryKey: ["progress_goals", userId],
-      });
-      setCreating(false);
-      setTitle("");
-      setDescription("");
-      setTargetValue("6");
-      setTargetUnit("sessions");
-      setTargetDate(format(new Date(), "yyyy-MM-dd"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const setStatus = async (
-    goal: GoalItem,
-    status: "active" | "completed" | "paused",
-  ) => {
-    if (!userId) return;
-    const res = await updateGoalStatus({
-      goalId: goal.id,
-      clientId: userId,
-      status,
-    });
-    if (!res.ok) {
-      Alert.alert(
-        "Could not update goal",
-        res.error?.message || "Please try again.",
-      );
-      return;
-    }
-    await queryClient.invalidateQueries({
-      queryKey: ["progress_goals", userId],
-    });
-  };
-
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Progress & goals"
         fallbackHref={defaultSignedInProfileHref()}
       />
 
-      <View className="px-6 pt-4">
-        <Button variant="primary" onPress={() => setCreating(true)}>
-          <Text className="text-white font-semibold">Create new goal</Text>
-        </Button>
+      <View className="px-6 pt-4 pb-2">
+        <Text className="text-charcoal-500 text-sm leading-5">
+          Goals shared by your care team. You can view progress here; your
+          practitioner updates goals in session.
+        </Text>
       </View>
 
       {isLoading ? (
@@ -174,15 +83,14 @@ export default function ProgressGoalsScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={data}
           keyExtractor={(item) => item.id}
-          className="px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 24 }}
+          className="px-6 pt-2"
           refreshing={isFetching && !isLoading}
           onRefresh={() => void refetch()}
           renderItem={({ item }) => (
-            <PressableCard variant="default" padding="md" className="mb-3">
+            <Card variant="default" padding="md" className="mb-3">
               <View className="flex-row items-start justify-between">
                 <Text className="text-charcoal-900 font-semibold flex-1 mr-3">
                   {item.goal_title}
@@ -199,113 +107,21 @@ export default function ProgressGoalsScreen() {
                   {format(new Date(item.target_date), "d MMM yyyy")}
                 </Text>
               </View>
-              <View className="flex-row mt-3">
-                <TouchableOpacity
-                  onPress={() => void setStatus(item, "active")}
-                  className="mr-3 flex-row items-center"
-                >
-                  <PlayCircle size={16} color={Colors.info} />
-                  <Text className="text-info text-sm ml-1">Active</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => void setStatus(item, "paused")}
-                  className="mr-3 flex-row items-center"
-                >
-                  <PauseCircle size={16} color={Colors.warning} />
-                  <Text className="text-warning text-sm ml-1">Pause</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => void setStatus(item, "completed")}
-                  className="flex-row items-center"
-                >
-                  <CheckCircle2 size={16} color={Colors.success} />
-                  <Text className="text-success text-sm ml-1">Complete</Text>
-                </TouchableOpacity>
-              </View>
-            </PressableCard>
+            </Card>
           )}
           ListEmptyComponent={
             <View className="py-14">
               <Text className="text-charcoal-500 text-center">
                 No goals yet.
               </Text>
-              <Text className="text-charcoal-400 text-center text-sm mt-2">
-                Create your first goal to track progress.
+              <Text className="text-charcoal-400 text-center text-sm mt-2 px-4">
+                When your practitioner sets goals for you, they will appear
+                here.
               </Text>
             </View>
           }
         />
       )}
-
-      <Modal visible={creating} animationType="slide" transparent>
-        <View className="flex-1 bg-black/30 justify-end">
-          <View className="bg-cream-50 rounded-t-3xl p-6">
-            <Text className="text-charcoal-900 text-lg font-semibold mb-4">
-              Create goal
-            </Text>
-            <TextInput
-              className="bg-white border border-cream-300 rounded-xl p-3 text-charcoal-900 mb-3"
-              placeholder="Goal title"
-              placeholderTextColor={Colors.charcoal[300]}
-              value={title}
-              onChangeText={setTitle}
-            />
-            <TextInput
-              className="bg-white border border-cream-300 rounded-xl p-3 text-charcoal-900 mb-3 min-h-[90px]"
-              placeholder="What are you aiming for?"
-              placeholderTextColor={Colors.charcoal[300]}
-              multiline
-              textAlignVertical="top"
-              value={description}
-              onChangeText={setDescription}
-            />
-            <View className="flex-row">
-              <TextInput
-                className="flex-1 bg-white border border-cream-300 rounded-xl p-3 text-charcoal-900 mr-2"
-                placeholder="Target value"
-                placeholderTextColor={Colors.charcoal[300]}
-                keyboardType="numeric"
-                value={targetValue}
-                onChangeText={setTargetValue}
-              />
-              <TextInput
-                className="flex-1 bg-white border border-cream-300 rounded-xl p-3 text-charcoal-900"
-                placeholder="Unit"
-                placeholderTextColor={Colors.charcoal[300]}
-                value={targetUnit}
-                onChangeText={setTargetUnit}
-              />
-            </View>
-            <TextInput
-              className="bg-white border border-cream-300 rounded-xl p-3 text-charcoal-900 mt-3"
-              placeholder="Target date (YYYY-MM-DD)"
-              placeholderTextColor={Colors.charcoal[300]}
-              value={targetDate}
-              onChangeText={setTargetDate}
-            />
-            <Button
-              variant="primary"
-              className="mt-5"
-              onPress={() => void submitNewGoal()}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-white font-semibold">Save goal</Text>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              className="mt-3"
-              onPress={() => setCreating(false)}
-              disabled={saving}
-            >
-              <Text className="text-charcoal-700 font-medium">Cancel</Text>
-            </Button>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

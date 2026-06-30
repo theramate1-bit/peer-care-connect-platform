@@ -6,16 +6,15 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { supabase } from "@/lib/supabase";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 import {
   buildNotificationPreferencesUpsert,
   buildUsersPreferencesUpdate,
@@ -165,7 +164,7 @@ export default function NotificationSettingsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Notification preferences"
         fallbackHref={defaultSignedInProfileHref()}
@@ -236,6 +235,6 @@ export default function NotificationSettingsScreen() {
           Open notifications inbox
         </Button>
       </View>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

@@ -1,0 +1,6 @@
+Archived 2026-06-04 — do not apply from this tree.
+
+Canonical column: supabase/migrations/20251229_add_treatment_exchange_opt_in.sql
+Index + comment:  supabase/migrations/20260604120000_treatment_exchange_opt_in_supplement.sql
+
+The former duplicate SQL file was removed to resolve content drift between trees.

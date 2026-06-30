@@ -1,13 +1,12 @@
 import React from "react";
 import { View, Text, TouchableOpacity, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 type AppPrefs = {
   dark_mode: boolean;
@@ -109,8 +108,11 @@ export default function AppSettingsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="App preferences" fallbackHref={defaultSignedInProfileHref()} />
+    <TabScreen>
+      <AppStackHeader
+        title="App preferences"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       <View className="px-6 pt-4">
         <Card variant="default" padding="md">
@@ -152,6 +154,6 @@ export default function AppSettingsScreen() {
           Open diagnostics
         </Button>
       </View>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

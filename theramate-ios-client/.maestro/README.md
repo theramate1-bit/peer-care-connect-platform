@@ -29,8 +29,11 @@ RPC-level staging tests (no UI): from repo root run `npm run test:exchange:e2e`.
 
 From repo root (loads `EXCHANGE_*` from `.env`):
 
-```powershell
+```bash
 npm run verify:exchange:staging
+# macOS/Linux:
+npm run test:maestro:exchange:sh
+# Windows:
 npm run test:maestro:exchange
 ```
 

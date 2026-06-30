@@ -10,15 +10,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronLeft } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function PractitionerCalendarSyncScreen() {
   const tabRoot = useTabRoot();
@@ -59,32 +61,14 @@ export default function PractitionerCalendarSyncScreen() {
   });
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "schedule"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">
-            Calendar tools
-          </Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            Inbuilt calendar only
-          </Text>
-        </View>
-      </View>
+    <TabScreen>
+      <AppStackHeader
+        title="Calendar tools"
+        subtitle="Inbuilt calendar only"
+        fallbackHref={tabPath(tabRoot, "schedule")}
+      />
 
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <Text className="text-charcoal-600 leading-6 mb-5">
           Google Calendar sync is currently disabled. Use Theramate's inbuilt
           diary, blocked-time tools, and availability settings as the single
@@ -125,7 +109,7 @@ export default function PractitionerCalendarSyncScreen() {
             </View>
           )}
         </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

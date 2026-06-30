@@ -7,15 +7,15 @@
 
 ## Verdict
 
-| Layer                                                                             | Status                                                                                |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| **Shared libs** (booking-flow-type, guestBooking slug, practitionerExchange RPCs) | **Aligned**                                                                           |
-| **Edge `stripe-payment` success URLs**                                            | **Aligned** with mobile WebView redirects                                             |
-| **Production web routes**                                                         | **Was drifted** — fixed 2026-05-27 (see below)                                        |
-| **Platform subscribe UX**                                                         | **Drift** — mobile can start checkout; web pricing is portal-only                     |
-| **Connect onboarding UX**                                                         | **Drift** — mobile hosted Account Links; web legacy embedded setup                    |
-| **Realtime**                                                                      | **Partial** — DB publications OK; mobile diary/messages; web messaging only in `@web` |
-| **Prod payment proof**                                                            | **Open** — 0 payments in 7d (MCP)                                                     |
+| Layer                                                                             | Status                                                                                           |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Shared libs** (booking-flow-type, guestBooking slug, practitionerExchange RPCs) | **Aligned**                                                                                      |
+| **Edge `stripe-payment` success URLs**                                            | **Aligned** with mobile WebView redirects                                                        |
+| **Production web routes**                                                         | **Was drifted** — fixed 2026-05-27 (see below)                                                   |
+| **Platform subscribe UX**                                                         | **Drift** — mobile can start checkout; web pricing is portal-only                                |
+| **Connect onboarding UX**                                                         | **Mostly aligned** — hosted Account Links on web + mobile; legacy embedded form remains on web   |
+| **Realtime**                                                                      | **Partial** — DB publications OK; mobile diary/messages; web messaging only in `@web`            |
+| **Prod payment proof**                                                            | **Open** — run `npm run test:payment-smoke:check` + device script in WAVE1_PROD_PAYMENT_SMOKE.md |
 
 **Not “all done”** — backend + mobile logic are close; web had **dead routes** and product gaps remain.
 
@@ -85,16 +85,16 @@ quadrantChart
   Exchange E2E: [0.6, 0.5]
 ```
 
-| #   | Area                    | Mobile                                      | Web                                            | Risk                                        |
-| --- | ----------------------- | ------------------------------------------- | ---------------------------------------------- | ------------------------------------------- |
-| 1   | **Platform subscribe**  | ☑ Same checkout action                      | ☑ Subscribe on `/pricing`                      | **Aligned** — deploy web build              |
-| 2   | **Subscription verify** | `verify-checkout` + poll fallback           | ☑ verify then `get-subscription` poll          | **Aligned**                                 |
-| 3   | **Connect onboarding**  | Hosted Account Links primary                | ☑ Hosted CTA + legacy form below               | **Mostly aligned** — QA both paths          |
-| 4   | **Guest `/book/:slug`** | Guest + signed-in choice on native          | `DirectBooking` auto `guest=1` redirect        | Web always guest path                       |
-| 5   | **Guest card checkout** | Opens web in WebView (`guestBookingWeb.ts`) | Full flow on web                               | Intentional; keep success URLs aligned      |
-| 6   | **Env**                 | `EXPO_PUBLIC_WEB_URL`                       | Stripe returns use Supabase `APP_URL`          | Must match (documented in `.env.example`)   |
-| 7   | **Realtime tables**     | Diary, messages, notifications hooks        | Messaging realtime in `@web`; shell may differ | Slot/booking freshness — test hybrid cancel |
-| 8   | **Prod charges**        | —                                           | 0 `payments` / `checkout_sessions` (7d)        | No live proof                               |
+| #   | Area                    | Mobile                                         | Web                                                 | Risk                                           |
+| --- | ----------------------- | ---------------------------------------------- | --------------------------------------------------- | ---------------------------------------------- |
+| 1   | **Platform subscribe**  | ☑ Same checkout action                         | ☑ Subscribe on `/pricing`                           | **Aligned** — deploy web build                 |
+| 2   | **Subscription verify** | `verify-checkout` + poll fallback              | ☑ verify then `get-subscription` poll               | **Aligned**                                    |
+| 3   | **Connect onboarding**  | Hosted Account Links + `HOSTED_CHECKOUT_PATHS` | ☑ Hosted CTA + legacy form below                    | **Aligned** on return paths — QA both UX paths |
+| 4   | **Guest `/book/:slug`** | Guest + signed-in choice on native             | ☑ `DirectBooking` guest + sign-in CTAs (2026-06-04) | **Aligned**                                    |
+| 5   | **Guest card checkout** | Opens web in WebView (`guestBookingWeb.ts`)    | Full flow on web                                    | Intentional; keep success URLs aligned         |
+| 6   | **Env**                 | `EXPO_PUBLIC_WEB_URL`                          | Stripe returns use Supabase `APP_URL`               | Must match (documented in `.env.example`)      |
+| 7   | **Realtime tables**     | Diary, messages, notifications hooks           | Messaging realtime in `@web`; shell may differ      | Slot/booking freshness — test hybrid cancel    |
+| 8   | **Prod charges**        | —                                              | 0 `payments` / `checkout_sessions` (7d)             | No live proof                                  |
 
 ---
 
@@ -118,7 +118,9 @@ quadrantChart
 | Notifications        | hooks / invalidation           | Notifications page        | `notifications`                                                   |
 | Booking availability | 25s poll + diary               | Web booking flows         | `practitioner_availability`                                       |
 
-**QA:** Change a session on web → practitioner diary on app updates without manual refresh.
+**QA:** [REALTIME_CROSS_SURFACE_QA.md](../testing/REALTIME_CROSS_SURFACE_QA.md) — R1–R5 manual matrix.
+
+**Checkout URLs:** `HOSTED_CHECKOUT_PATHS` synced across web, mobile, and `supabase/functions/_shared/hosted-checkout-paths.ts` (enforced by `npm run check:platform-drift`).
 
 ---
 
@@ -132,13 +134,21 @@ quadrantChart
 
 ---
 
+## Automated drift check
+
+```bash
+npm run check:platform-drift
+```
+
+Compares normalized logic in `booking-flow-type`, `guestBooking`, `platformSubscriptionCheckout`, `hostedCheckoutPaths`, Connect hosted return paths (`stripeConnectHosted` / mobile `stripeConnect` + `openConnectHostedOnboarding`), and RPC names in `practitionerExchange`. Runs in `pre-deploy` and `test:readiness`.
+
 ## Next actions
 
-| Owner | Action                                                                              |
-| ----- | ----------------------------------------------------------------------------------- |
-| Eng   | Deploy web build (pricing subscribe + Connect hosted + success routes)              |
-| QA    | [WAVE1_PROD_PAYMENT_SMOKE.md](../testing/WAVE1_PROD_PAYMENT_SMOKE.md) on prod build |
-| Ops   | Confirm `APP_URL` + `sk_live_*` in Supabase secrets                                 |
+| Owner | Action                                                                                 |
+| ----- | -------------------------------------------------------------------------------------- |
+| Eng   | Deploy web build (pricing subscribe + Connect hosted + success routes + `/book/:slug`) |
+| QA    | [WAVE1_PROD_PAYMENT_SMOKE.md](../testing/WAVE1_PROD_PAYMENT_SMOKE.md) on prod build    |
+| Ops   | Confirm `APP_URL` + `sk_live_*` in Supabase secrets                                    |
 
 ---
 

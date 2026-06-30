@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Paperclip, Trash2, Calendar } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -34,7 +33,7 @@ import {
 } from "@/lib/api/treatmentPlanAttachments";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 const STATUSES = ["active", "paused", "completed", "cancelled"] as const;
 
@@ -119,7 +118,9 @@ export default function TreatmentPlanDetailScreen() {
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["treatment_plans"] });
-      await queryClient.invalidateQueries({ queryKey: ["treatment_plan", planId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["treatment_plan", planId],
+      });
       await queryClient.invalidateQueries({
         queryKey: ["treatment_plan_linked_sessions", planId],
       });
@@ -162,14 +163,17 @@ export default function TreatmentPlanDetailScreen() {
         Alert.alert("Upload failed", res.error?.message ?? "Try again.");
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: ["treatment_plan", planId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["treatment_plan", planId],
+      });
     } finally {
       setAttachBusy(false);
     }
   };
 
   const onOpenAttachment = async (objectPath: string) => {
-    const { url, error } = await getTreatmentPlanAttachmentSignedUrl(objectPath);
+    const { url, error } =
+      await getTreatmentPlanAttachmentSignedUrl(objectPath);
     if (error || !url) {
       Alert.alert("Could not open file", error?.message ?? "");
       return;
@@ -184,58 +188,57 @@ export default function TreatmentPlanDetailScreen() {
       {
         text: "Remove",
         style: "destructive",
-        onPress: () => void (async () => {
-          setAttachBusy(true);
-          try {
-            const res = await removeTreatmentPlanAttachment({
-              planId,
-              practitionerId: userId,
-              objectPath,
-            });
-            if (!res.ok) {
-              Alert.alert("Error", res.error?.message ?? "");
-              return;
+        onPress: () =>
+          void (async () => {
+            setAttachBusy(true);
+            try {
+              const res = await removeTreatmentPlanAttachment({
+                planId,
+                practitionerId: userId,
+                objectPath,
+              });
+              if (!res.ok) {
+                Alert.alert("Error", res.error?.message ?? "");
+                return;
+              }
+              await queryClient.invalidateQueries({
+                queryKey: ["treatment_plan", planId],
+              });
+            } finally {
+              setAttachBusy(false);
             }
-            await queryClient.invalidateQueries({
-              queryKey: ["treatment_plan", planId],
-            });
-          } finally {
-            setAttachBusy(false);
-          }
-        })(),
+          })(),
       },
     ]);
   };
 
   if (planQuery.isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50 items-center justify-center">
+      <TabScreen className="flex-1 bg-cream-50 items-center justify-center">
         <ActivityIndicator color={Colors.sage[500]} />
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   if (!planQuery.data) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50 px-6 pt-10">
+      <TabScreen className="flex-1 bg-cream-50 px-6 pt-10">
         <Text className="text-charcoal-600">Plan not found.</Text>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Practice"
-          title="Edit care plan"
-          subtitle="Care plan details, linked sessions, and attachments."
-        />
-
+    <TabScreen>
+      <AppStackHeader
+        title="Edit care plan"
+        subtitle="Care plan details, linked sessions, and attachments."
+        fallbackHref={tabPath(tabRoot, "treatment-plans")}
+      />
+      <ScrollView
+        className="flex-1 px-6 pt-4"
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         <Text className="text-charcoal-700 text-sm mb-1">Title</Text>
         <TextInput
           className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-4"
@@ -256,7 +259,11 @@ export default function TreatmentPlanDetailScreen() {
               }`}
             >
               <Text
-                className={status === s ? "text-white capitalize" : "text-charcoal-800 capitalize"}
+                className={
+                  status === s
+                    ? "text-white capitalize"
+                    : "text-charcoal-800 capitalize"
+                }
               >
                 {s}
               </Text>
@@ -264,7 +271,9 @@ export default function TreatmentPlanDetailScreen() {
           ))}
         </View>
 
-        <Text className="text-charcoal-700 text-sm mb-1">Goals (one per line)</Text>
+        <Text className="text-charcoal-700 text-sm mb-1">
+          Goals (one per line)
+        </Text>
         <TextInput
           className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-4 min-h-[120px]"
           multiline
@@ -315,7 +324,9 @@ export default function TreatmentPlanDetailScreen() {
             )}
           </Button>
           {attachments.length === 0 ? (
-            <Text className="text-charcoal-400 text-sm mb-3">No files yet.</Text>
+            <Text className="text-charcoal-400 text-sm mb-3">
+              No files yet.
+            </Text>
           ) : (
             <View className="mb-3">
               {attachments.map((att) => (
@@ -354,9 +365,7 @@ export default function TreatmentPlanDetailScreen() {
           <Button
             variant="outline"
             leftIcon={<Calendar size={16} color={Colors.sage[600]} />}
-            onPress={() =>
-              router.push(tabPath(tabRoot, "bookings") as never)
-            }
+            onPress={() => router.push(tabPath(tabRoot, "bookings") as never)}
           >
             Sessions
           </Button>
@@ -366,8 +375,8 @@ export default function TreatmentPlanDetailScreen() {
           Linked sessions
         </Text>
         <Text className="text-charcoal-500 text-sm mb-3">
-          Sessions attached to this plan from the diary. Link more from a session
-          detail screen.
+          Sessions attached to this plan from the diary. Link more from a
+          session detail screen.
         </Text>
         {linkedSessionsQuery.isLoading ? (
           <ActivityIndicator color={Colors.sage[500]} className="mb-6" />
@@ -403,7 +412,11 @@ export default function TreatmentPlanDetailScreen() {
           </View>
         )}
 
-        <Button variant="primary" disabled={saving} onPress={() => void onSave()}>
+        <Button
+          variant="primary"
+          disabled={saving}
+          onPress={() => void onSave()}
+        >
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -411,6 +424,6 @@ export default function TreatmentPlanDetailScreen() {
           )}
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

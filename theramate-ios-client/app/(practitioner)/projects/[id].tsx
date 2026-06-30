@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { FolderKanban } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +26,7 @@ import {
 } from "@/lib/api/practitionerProjects";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 const PROJECT_STATUSES = [
   "planning",
@@ -58,9 +57,8 @@ export default function PractitionerProjectDetailScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [projectType, setProjectType] = useState("");
-  const [status, setStatus] = useState<(typeof PROJECT_STATUSES)[number]>(
-    "planning",
-  );
+  const [status, setStatus] =
+    useState<(typeof PROJECT_STATUSES)[number]>("planning");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -168,7 +166,9 @@ export default function PractitionerProjectDetailScreen() {
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["legacy_project_phases", id] });
+      await queryClient.invalidateQueries({
+        queryKey: ["legacy_project_phases", id],
+      });
       setPhaseEditorOpen(false);
     } finally {
       setPhaseSaving(false);
@@ -251,10 +251,12 @@ export default function PractitionerProjectDetailScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
+      <AppStackHeader
+        title="Project"
+        subtitle="Project details, milestones, and phase tracking."
+        fallbackHref={tabPath(tabRoot, "projects")}
+      />
       {isLoading ? (
         <View className="flex-1 items-center py-20">
           <ActivityIndicator color={Colors.sage[500]} />
@@ -262,16 +264,14 @@ export default function PractitionerProjectDetailScreen() {
       ) : !data ? (
         <Text className="text-charcoal-500 px-6 py-8">Not found.</Text>
       ) : (
-        <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 40 }}>
-          <ScreenHeader
-            className="-mx-6 -mt-4 mb-2"
-            eyebrow="Practice"
-            title="Project"
-            subtitle="Project details, milestones, and phase tracking."
-          />
-
+        <ScrollView
+          className="flex-1 px-6 pt-4"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           <Card variant="elevated" padding="md" className="mb-4">
-            <Text className="text-charcoal-600 text-sm">{data.client_name}</Text>
+            <Text className="text-charcoal-600 text-sm">
+              {data.client_name}
+            </Text>
           </Card>
 
           <Text className="text-charcoal-700 text-sm mb-1">Name</Text>
@@ -369,7 +369,9 @@ export default function PractitionerProjectDetailScreen() {
                 onChangeText={setPhaseName}
               />
 
-              <Text className="text-charcoal-700 text-sm mb-1">Description</Text>
+              <Text className="text-charcoal-700 text-sm mb-1">
+                Description
+              </Text>
               <TextInput
                 className="bg-white border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3 min-h-[80px]"
                 multiline
@@ -400,7 +402,9 @@ export default function PractitionerProjectDetailScreen() {
                   >
                     <Text
                       className={
-                        phaseStatus === s ? "text-white capitalize" : "text-charcoal-800 capitalize"
+                        phaseStatus === s
+                          ? "text-white capitalize"
+                          : "text-charcoal-800 capitalize"
                       }
                     >
                       {statusLabel(s)}
@@ -479,14 +483,18 @@ export default function PractitionerProjectDetailScreen() {
                         size="sm"
                         onPress={() => openEditPhase(ph)}
                       >
-                        <Text className="text-charcoal-800 font-semibold">Edit</Text>
+                        <Text className="text-charcoal-800 font-semibold">
+                          Edit
+                        </Text>
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onPress={() => confirmDeletePhase(ph)}
                       >
-                        <Text className="text-charcoal-800 font-semibold">Delete</Text>
+                        <Text className="text-charcoal-800 font-semibold">
+                          Delete
+                        </Text>
                       </Button>
                     </View>
                   </View>
@@ -517,14 +525,12 @@ export default function PractitionerProjectDetailScreen() {
             variant="primary"
             className="mt-3"
             leftIcon={<FolderKanban size={18} color="#fff" />}
-            onPress={() =>
-              router.push(tabPath(tabRoot, "projects") as never)
-            }
+            onPress={() => router.push(tabPath(tabRoot, "projects") as never)}
           >
             Back to projects
           </Button>
         </ScrollView>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

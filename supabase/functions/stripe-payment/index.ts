@@ -4,6 +4,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Import Stripe
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { calculatePlatformFeePence } from "../_shared/platform-fee.ts";
+import {
+  HOSTED_CHECKOUT_PATHS,
+  joinAppUrl,
+} from "../_shared/hosted-checkout-paths.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -486,8 +490,12 @@ async function handleCreatePaymentIntent(
       payment_intent_data: paymentIntentData,
       customer: stripeCustomerId || undefined,
       customer_email: stripeCustomerId ? undefined : metadata.client_email,
-      success_url: `${Deno.env.get("APP_URL")}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${Deno.env.get("APP_URL")}/marketplace`,
+      success_url: joinAppUrl(
+        Deno.env.get("APP_URL") || "",
+        HOSTED_CHECKOUT_PATHS.bookingSuccess,
+        "?session_id={CHECKOUT_SESSION_ID}",
+      ),
+      cancel_url: joinAppUrl(Deno.env.get("APP_URL") || "", "/marketplace"),
       metadata: {
         session_id: session_id, // Required - validated above
         therapist_id: therapist_id || "",
@@ -1950,7 +1958,7 @@ async function handleCreateConnectHostedOnboardingLink(
     const returnPath =
       typeof body.return_path === "string" && body.return_path.startsWith("/")
         ? body.return_path
-        : "/onboarding/stripe-return";
+        : HOSTED_CHECKOUT_PATHS.connectStripeReturn;
     const returnUrl =
       typeof body.return_url === "string" && body.return_url.startsWith("http")
         ? body.return_url
@@ -2222,8 +2230,12 @@ async function handleCreateCheckoutSession(
         platform: "peer-care-connect",
         original_price_id: price_id, // Keep reference for tracking
       },
-      success_url: `${Deno.env.get("APP_URL")}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${Deno.env.get("APP_URL")}/marketplace`,
+      success_url: joinAppUrl(
+        Deno.env.get("APP_URL") || "",
+        HOSTED_CHECKOUT_PATHS.bookingSuccess,
+        "?session_id={CHECKOUT_SESSION_ID}",
+      ),
+      cancel_url: joinAppUrl(Deno.env.get("APP_URL") || "", "/marketplace"),
     });
 
     console.log("[CREATE-CHECKOUT-SESSION] Created session:", session.id);
@@ -2456,7 +2468,11 @@ async function handleCreateMobileCheckoutSession(
       "https://theramate.co.uk"
     ).replace(/\/$/, "");
     const encodedRequestId = encodeURIComponent(request_id);
-    const successUrl = `${appUrl}/mobile-booking/success?mobile_checkout_success=1&mobile_request_id=${encodedRequestId}&mobile_checkout_session_id={CHECKOUT_SESSION_ID}`;
+    const successUrl = joinAppUrl(
+      appUrl,
+      HOSTED_CHECKOUT_PATHS.mobileBookingSuccess,
+      `?mobile_checkout_success=1&mobile_request_id=${encodedRequestId}&mobile_checkout_session_id={CHECKOUT_SESSION_ID}`,
+    );
     const cancelUrl = `${appUrl}/marketplace?mobile_checkout_canceled=1&mobile_request_id=${encodedRequestId}`;
     const platformFee = Number.isFinite(
       Number(mobileRequest.platform_fee_pence),
@@ -3951,8 +3967,12 @@ async function handleCreatePlatformSubscriptionCheckout(
       subscription_data: {
         metadata: { user_id: authData.user.id },
       },
-      success_url: `${appUrl}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/pricing`,
+      success_url: joinAppUrl(
+        appUrl,
+        HOSTED_CHECKOUT_PATHS.subscriptionSuccess,
+        "?session_id={CHECKOUT_SESSION_ID}",
+      ),
+      cancel_url: joinAppUrl(appUrl, "/pricing"),
     });
 
     if (!session.url) {

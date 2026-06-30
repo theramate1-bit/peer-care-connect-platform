@@ -23,6 +23,8 @@ import PublicTherapistProfile from "@web/pages/therapist/PublicTherapistProfile"
 import BookingSuccess from "@web/pages/BookingSuccess";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import StripeReturn from "@/pages/onboarding/StripeReturn";
+import { RoleAwareProfileRedirect } from "@/components/routing/CanonicalRouteRedirects";
+import { LegalStaticPageRedirect } from "@/components/legal/LegalStaticPageRedirect";
 
 /** Heavy / optional surfaces — lazy so booking core can ship if a dep is missing. */
 const MyBookings = lazy(() => import("@/pages/MyBookings"));
@@ -42,9 +44,7 @@ const PracticeDashboard = lazy(
 );
 const CreditsPage = lazy(() => import("@web/pages/credits/CreditsPage"));
 const ClientSessions = lazy(() => import("@web/pages/client/ClientSessions"));
-const NotificationsPage = lazy(
-  () => import("@web/pages/NotificationsPage"),
-);
+const NotificationsPage = lazy(() => import("@web/pages/NotificationsPage"));
 const PricingPage = lazy(() => import("@web/pages/PricingPage"));
 const AdminVerification = lazy(
   () => import("@web/pages/admin/AdminVerification"),
@@ -96,6 +96,24 @@ const HelpCentre = lazy(() => import("@web/pages/marketing/HelpCentre"));
 const TermsPage = lazy(() => import("@web/pages/legal/TermsPage"));
 const PrivacyPage = lazy(() => import("@web/pages/legal/PrivacyPage"));
 const CookiesPage = lazy(() => import("@web/pages/legal/CookiesPage"));
+const PracticeSchedule = lazy(
+  () => import("@/pages/practice/PracticeSchedule"),
+);
+const CalendarSettings = lazy(
+  () => import("@/pages/practice/CalendarSettings"),
+);
+const ClientProfile = lazy(() => import("@/pages/client/ClientProfile"));
+const ProfilePage = lazy(() => import("@/pages/Profile"));
+const SettingsPrivacyTools = lazy(
+  () => import("@/pages/settings/SettingsPrivacyTools"),
+);
+const FindTherapists = lazy(() => import("@/pages/FindTherapists"));
+const RoleSelection = lazy(() => import("@/pages/auth/RoleSelection"));
+const VerifyEmail = lazy(() => import("@/pages/auth/VerifyEmail"));
+const OAuthCompletion = lazy(() => import("@/pages/auth/OAuthCompletion"));
+const GoogleCalendarCallback = lazy(
+  () => import("@/pages/auth/google-calendar-callback"),
+);
 
 function Lazy({ children }: { children: React.ReactNode }) {
   return (
@@ -115,6 +133,12 @@ export default function AppContent() {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/login" element={<Navigate to="/login" replace />} />
+        <Route path="/sign-in" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/auth/sign-in"
+          element={<Navigate to="/login" replace />}
+        />
         <Route
           path="/register"
           element={
@@ -148,6 +172,38 @@ export default function AppContent() {
           element={
             <Lazy>
               <AuthCallback />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/auth/verify-email"
+          element={
+            <Lazy>
+              <VerifyEmail />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/auth/role-selection"
+          element={
+            <Lazy>
+              <RoleSelection />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/auth/oauth-completion"
+          element={
+            <Lazy>
+              <OAuthCompletion />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/auth/google-calendar-callback"
+          element={
+            <Lazy>
+              <GoogleCalendarCallback />
             </Lazy>
           }
         />
@@ -208,9 +264,17 @@ export default function AppContent() {
             </Lazy>
           }
         />
+        <Route path="/dpa" element={<LegalStaticPageRedirect doc="dpa" />} />
+        <Route
+          path="/subprocessors"
+          element={<LegalStaticPageRedirect doc="subprocessors" />}
+        />
 
         <Route path="/marketplace" element={<TherapistSearch />} />
-        <Route path="/explore" element={<Navigate to="/marketplace" replace />} />
+        <Route
+          path="/explore"
+          element={<Navigate to="/marketplace" replace />}
+        />
 
         <Route path="/client/booking" element={<ClientBooking />} />
         <Route
@@ -225,10 +289,7 @@ export default function AppContent() {
         />
 
         <Route path="/booking/find" element={<FindBooking />} />
-        <Route
-          path="/booking/view/:sessionId"
-          element={<GuestBookingView />}
-        />
+        <Route path="/booking/view/:sessionId" element={<GuestBookingView />} />
         <Route
           path="/mobile-booking/success"
           element={<MobileBookingSuccess />}
@@ -278,6 +339,60 @@ export default function AppContent() {
             </AppRoute>
           }
         />
+        <Route
+          path="/client/exercises"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientExercises />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/progress"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientProgressGoals />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/goals"
+          element={<Navigate to="/client/progress" replace />}
+        />
+        <Route
+          path="/client/favorites"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientFavorites />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/treatment-plans"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientTreatmentPlans />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/client/profile"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ClientProfile />
+              </Lazy>
+            </AppRoute>
+          }
+        />
 
         <Route
           path="/dashboard"
@@ -295,6 +410,16 @@ export default function AppContent() {
             <AppRoute>
               <Lazy>
                 <MyBookings />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/find-therapists"
+          element={
+            <AppRoute>
+              <Lazy>
+                <FindTherapists />
               </Lazy>
             </AppRoute>
           }
@@ -380,6 +505,26 @@ export default function AppContent() {
           }
         />
         <Route
+          path="/practice/schedule"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <PracticeSchedule />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/practice/calendar"
+          element={
+            <AppRoute requireSubscription>
+              <Lazy>
+                <CalendarSettings />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
           path="/practice/treatment-plans"
           element={
             <AppRoute requireSubscription>
@@ -439,6 +584,14 @@ export default function AppContent() {
               </Lazy>
             </AppRoute>
           }
+        />
+        <Route
+          path="/dashboard/projects"
+          element={<Navigate to="/projects" replace />}
+        />
+        <Route
+          path="/dashboard/projects/create"
+          element={<Navigate to="/projects/new" replace />}
         />
         <Route
           path="/projects"
@@ -537,6 +690,56 @@ export default function AppContent() {
               </Lazy>
             </AppRoute>
           }
+        />
+        <Route
+          path="/profile"
+          element={
+            <AppRoute>
+              <Lazy>
+                <ProfilePage />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={<Navigate to="/settings/privacy" replace />}
+        />
+        <Route
+          path="/settings/profile"
+          element={
+            <AppRoute>
+              <RoleAwareProfileRedirect />
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/settings/subscription"
+          element={
+            <AppRoute>
+              <Lazy>
+                <SubscriptionSettings />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/settings/privacy"
+          element={
+            <AppRoute>
+              <Lazy>
+                <SettingsPrivacyTools />
+              </Lazy>
+            </AppRoute>
+          }
+        />
+        <Route
+          path="/settings/notifications"
+          element={<Navigate to="/notifications" replace />}
+        />
+        <Route
+          path="/settings/help"
+          element={<Navigate to="/help" replace />}
         />
         <Route
           path="/pricing"

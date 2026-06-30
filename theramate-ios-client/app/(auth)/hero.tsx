@@ -8,13 +8,13 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
 import { User, Briefcase } from "lucide-react-native";
 
 import { HeroIllustration } from "@/components/auth/HeroIllustration";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
+import { AppScreen } from "@/components/navigation";
 
 /**
  * First screen after auth bootstrap: choose client vs practitioner, then continue to sign-up.
@@ -119,7 +119,7 @@ export default function HeroScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <AppScreen edges={["top", "bottom"]}>
       {compact ? (
         <ScrollView
           style={styles.scroll}
@@ -134,7 +134,7 @@ export default function HeroScreen() {
           <View style={styles.inner}>{body}</View>
         </View>
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 

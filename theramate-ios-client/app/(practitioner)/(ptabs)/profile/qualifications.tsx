@@ -1,8 +1,6 @@
 import React from "react";
 import { View, Text, Alert, ActivityIndicator, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -10,6 +8,11 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { isDuplicateQualification } from "@/lib/practitionerProfile";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import {
   pickQualificationDocument,
   uploadQualificationDocumentForPractitioner,
@@ -166,15 +169,12 @@ export default function PractitionerQualificationsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Qualifications"
         fallbackHref={defaultSignedInProfileHref()}
       />
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 24 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <Card variant="default" padding="md" className="mb-4">
           <Text className="text-charcoal-900 font-semibold mb-2">
             Add qualification
@@ -246,7 +246,7 @@ export default function PractitionerQualificationsScreen() {
             ))
           )}
         </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

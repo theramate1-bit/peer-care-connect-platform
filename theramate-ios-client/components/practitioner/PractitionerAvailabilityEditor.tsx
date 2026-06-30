@@ -1,3 +1,4 @@
+import { TabScreenScroll } from "@/components/navigation";
 /**
  * Shared weekly availability + blocked time editor (web parity: `AvailabilitySettings`
  * opened from practice schedule as a modal).
@@ -274,10 +275,7 @@ export function PractitionerAvailabilityEditor({
       ) : null}
 
       {section === "hours" && wh && !q.isLoading ? (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 120 }}
-        >
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
             Quick presets (weekdays)
           </Text>
@@ -460,7 +458,7 @@ export function PractitionerAvailabilityEditor({
               Open diary
             </Button>
           ) : null}
-        </ScrollView>
+        </TabScreenScroll>
       ) : null}
     </View>
   );

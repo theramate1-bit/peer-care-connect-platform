@@ -4,8 +4,9 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { HOSTED_CHECKOUT_PATHS } from "@/lib/hostedCheckoutPaths";
 
-const DEFAULT_RETURN_PATH = "/onboarding/stripe-return";
+const DEFAULT_RETURN_PATH = HOSTED_CHECKOUT_PATHS.connectStripeReturn;
 
 export async function createConnectHostedOnboardingLink(params?: {
   stripeAccountId?: string;

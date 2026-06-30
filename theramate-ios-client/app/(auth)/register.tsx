@@ -7,8 +7,12 @@ import {
   Platform,
   TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, router, useLocalSearchParams } from "expo-router";
+import {
+  Link,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -19,6 +23,7 @@ import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
+import { AppScreen } from "@/components/navigation";
 
 type SignupRole = "client" | "practitioner";
 
@@ -48,13 +53,20 @@ export default function RegisterScreen() {
   const signupRole = parseSignupRole(roleParam);
   const { signUp, signInWithOAuth, clearError, error, isLoading } = useAuth();
 
-  const handleOAuth = async (provider: "google" | "apple") => {
+  const handleGoogleSignIn = async () => {
     clearError();
-    const result = await signInWithOAuth(provider, { signupRole });
+    const result = await signInWithOAuth("google", { signupRole });
     if (result.success) {
       router.replace("/oauth-completion");
     }
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      clearError();
+    }, [clearError]),
+  );
+
   const {
     control,
     handleSubmit,
@@ -85,7 +97,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
@@ -208,24 +220,15 @@ export default function RegisterScreen() {
             <View className="flex-1 h-px bg-charcoal-100" />
           </View>
 
-          <View className="space-y-3 mb-2">
+          <View className="mb-2">
             <Button
               variant="outline"
-              onPress={() => void handleOAuth("google")}
+              onPress={() => void handleGoogleSignIn()}
               fullWidth
-              className="mb-3"
+              isLoading={isLoading}
             >
               Continue with Google
             </Button>
-            {Platform.OS === "ios" ? (
-              <Button
-                variant="outline"
-                onPress={() => void handleOAuth("apple")}
-                fullWidth
-              >
-                Continue with Apple
-              </Button>
-            ) : null}
           </View>
 
           <View className="flex-row justify-center mt-6">
@@ -238,6 +241,6 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

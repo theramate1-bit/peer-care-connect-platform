@@ -1,16 +1,15 @@
 import React from "react";
 import { Text, ScrollView, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { CircleHelp, Mail } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { APP_CONFIG } from "@/constants/config";
 import { useAuth } from "@/hooks/useAuth";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function ContactScreen() {
   const { userId, isAuthenticated } = useAuth();
@@ -19,7 +18,7 @@ export default function ContactScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="Contact"
         fallbackHref={defaultSignedInProfileHref()}
@@ -67,6 +66,6 @@ export default function ContactScreen() {
           </Button>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

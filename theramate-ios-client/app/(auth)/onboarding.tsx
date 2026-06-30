@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   AppState,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/Input";
@@ -696,7 +696,7 @@ export default function ClientOnboardingScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="px-6 pt-2">
         <AuthBackHeader fallbackHref="/role-selection" label="Role" />
       </View>
@@ -767,6 +767,6 @@ export default function ClientOnboardingScreen() {
           </Text>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

@@ -352,9 +352,19 @@ async function main() {
   log("Treatment exchange staging E2E", "info");
   log(`URL: ${SUPABASE_URL}`);
 
+  const credsStrict =
+    process.env.RELEASE_GATES_STRICT === "1" ||
+    process.env.EXCHANGE_E2E_STRICT === "1";
+
   if (!SUPABASE_ANON_KEY || !SERVICE_KEY) {
-    log("Missing SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY", "err");
-    process.exit(1);
+    const msg =
+      "Skipped: set SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in .env for exchange E2E (see .env.example).";
+    if (credsStrict) {
+      log("Missing SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY", "err");
+      process.exit(1);
+    }
+    log(msg, "warn");
+    process.exit(0);
   }
   if (
     !REQUESTER_EMAIL ||

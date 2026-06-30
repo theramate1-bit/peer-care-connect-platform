@@ -7,13 +7,11 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, MapPin, CreditCard, CircleAlert } from "lucide-react-native";
 import { format } from "date-fns";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchClientMobileRequestById } from "@/lib/api/mobileRequests";
 import { Colors } from "@/constants/colors";
@@ -24,6 +22,11 @@ import { Button } from "@/components/ui/Button";
 import { resumeMobileRequestCheckout } from "@/lib/api/booking";
 import { stashMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 function statusLabel(status: string | null): string {
   const s = (status || "pending").toLowerCase();
@@ -64,7 +67,7 @@ export default function MobileRequestDetailScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Request details"
         fallbackHref={defaultSignedInProfileHref()}
@@ -93,10 +96,7 @@ export default function MobileRequestDetailScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 32 }}
-        >
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Card variant="default" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
               {data.product_name}
@@ -258,8 +258,8 @@ export default function MobileRequestDetailScreen() {
               Payment help
             </Button>
           ) : null}
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

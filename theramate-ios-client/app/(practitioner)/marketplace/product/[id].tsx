@@ -8,9 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
@@ -24,6 +22,7 @@ import {
   updatePractitionerProductStripe,
 } from "@/lib/api/practitionerProducts";
 import { Button } from "@/components/ui/Button";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 const SERVICE_TYPES = ["clinic", "mobile", "both"] as const;
 
@@ -170,25 +169,12 @@ export default function EditPractitionerProductScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "marketplace"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">
-            Edit service
-          </Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            Price, duration, and visibility for your public listings.
-          </Text>
-        </View>
-      </View>
-
+    <AppScreen>
+      <AppStackHeader
+        title="Edit service"
+        subtitle="Price, duration, and visibility for your public listings."
+        fallbackHref={tabPath(tabRoot, "marketplace")}
+      />
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={Colors.sage[500]} />
@@ -201,9 +187,7 @@ export default function EditPractitionerProductScreen() {
           <Button
             variant="outline"
             className="mt-4"
-            onPress={() =>
-              goBackOrReplace(tabPath(tabRoot, "marketplace"))
-            }
+            onPress={() => goBackOrReplace(tabPath(tabRoot, "marketplace"))}
           >
             <Text className="text-charcoal-800 font-medium">Back</Text>
           </Button>
@@ -296,13 +280,19 @@ export default function EditPractitionerProductScreen() {
             onPress={() => setIsActive(!isActive)}
             className="flex-row items-center justify-between bg-white border border-cream-200 rounded-xl px-4 py-3 mb-6"
           >
-            <Text className="text-charcoal-800 font-medium">Active listing</Text>
+            <Text className="text-charcoal-800 font-medium">
+              Active listing
+            </Text>
             <Text className={isActive ? "text-sage-600" : "text-charcoal-400"}>
               {isActive ? "On" : "Off"}
             </Text>
           </TouchableOpacity>
 
-          <Button variant="primary" disabled={busy} onPress={() => void onSave()}>
+          <Button
+            variant="primary"
+            disabled={busy}
+            onPress={() => void onSave()}
+          >
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
@@ -322,6 +312,6 @@ export default function EditPractitionerProductScreen() {
           </Button>
         </ScrollView>
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }

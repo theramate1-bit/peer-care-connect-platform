@@ -1,0 +1,24 @@
+{
+  "project_ref": "aikqnvltuwwgifuocvto",
+  "functions": [
+    "ai-soap-transcribe",
+    "auth-gateway",
+    "cleanup-recordings",
+    "customer-portal",
+    "ensure-qualifications-bucket",
+    "google-calendar-sync",
+    "location-proxy",
+    "mobile-payment",
+    "mobile-payment-v2",
+    "notify-guest-message",
+    "report-export",
+    "send-booking-notification",
+    "send-email",
+    "send-sms",
+    "soap-notes",
+    "stripe-payment",
+    "stripe-webhooks",
+    "transcribe-file",
+    "verify-checkout"
+  ]
+}

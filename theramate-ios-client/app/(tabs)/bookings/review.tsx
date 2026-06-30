@@ -6,14 +6,15 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  ScrollView,
-  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Star } from "lucide-react-native";
+import { Star } from "lucide-react-native";
 
 import { Colors } from "@/constants/colors";
 import { Button } from "@/components/ui/Button";
@@ -27,10 +28,6 @@ export default function SessionReviewScreen() {
   const authSession = useAuthStore((s) => s.session);
   const clientId = authSession?.user?.id;
   const queryClient = useQueryClient();
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
-
   const [rating, setRating] = React.useState(5);
   const [comment, setComment] = React.useState("");
   const [isPublic, setIsPublic] = React.useState(true);
@@ -104,16 +101,8 @@ export default function SessionReviewScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Leave a review
-        </Text>
-      </View>
-
+    <TabScreen>
+      <AppStackHeader title="Leave a review" />
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={Colors.sage[500]} />
@@ -152,12 +141,11 @@ export default function SessionReviewScreen() {
           </Button>
         </View>
       ) : (
-        <ScrollView
+        <TabScreenScroll
           className="flex-1"
           contentContainerStyle={{
             paddingHorizontal: 24,
             paddingTop: 16,
-            paddingBottom: tabBarHeight + 24,
           }}
           keyboardShouldPersistTaps="handled"
         >
@@ -228,8 +216,8 @@ export default function SessionReviewScreen() {
               <Text className="text-white font-semibold">Submit review</Text>
             )}
           </Button>
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

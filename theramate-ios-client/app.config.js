@@ -244,9 +244,26 @@ const androidIntentFiltersWithScheme = hasSchemeIntentFilter(
       },
     ];
 
+/** Native crash reporting when EAS secrets provide org + project (see docs/operations/OBSERVABILITY.md). */
+const sentryPlugins = [];
+if (
+  process.env.SENTRY_ORG &&
+  process.env.SENTRY_PROJECT &&
+  process.env.EXPO_PUBLIC_SENTRY_DSN
+) {
+  sentryPlugins.push([
+    "@sentry/react-native/expo",
+    {
+      organization: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+    },
+  ]);
+}
+
 module.exports = {
   expo: {
     ...baseExpo,
+    plugins: [...baseExpo.plugins, ...sentryPlugins],
     ios: {
       ...(baseExpo.ios || {}),
       associatedDomains: updatedIosAssociatedDomains,

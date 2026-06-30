@@ -6,16 +6,18 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { MapPin, Star, Heart } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 import { PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Colors } from "@/constants/colors";
@@ -119,10 +121,14 @@ export default function SavedTherapistsScreen() {
                     </Text>
                   </>
                 ) : (
-                  <Text className="text-charcoal-400 text-sm">Location TBC</Text>
+                  <Text className="text-charcoal-400 text-sm">
+                    Location TBC
+                  </Text>
                 )}
               </View>
-              <Text className="text-sage-600 font-semibold">{displayPrice}</Text>
+              <Text className="text-sage-600 font-semibold">
+                {displayPrice}
+              </Text>
             </View>
           </View>
         </View>
@@ -132,7 +138,7 @@ export default function SavedTherapistsScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+      <TabScreen>
         <AppStackHeader title="Saved therapists" />
         <View className="flex-1 px-6 justify-center items-center">
           <Text className="text-charcoal-600 text-center">
@@ -145,23 +151,23 @@ export default function SavedTherapistsScreen() {
             <Text className="text-white font-semibold">Sign in</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader title="Saved therapists" />
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={Colors.sage[500]} />
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={saved}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 24 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -195,6 +201,6 @@ export default function SavedTherapistsScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

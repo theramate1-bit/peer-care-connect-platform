@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, ActivityIndicator, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { router } from "expo-router";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -60,7 +60,7 @@ export default function VerifyEmailScreen() {
   }, [autoChecking, checkNow]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="px-6 pt-2 pb-2">
         <AuthBackHeader fallbackHref="/login" label="Sign in" />
       </View>
@@ -108,6 +108,6 @@ export default function VerifyEmailScreen() {
           <Text className="text-charcoal-700 font-medium">Back to sign in</Text>
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

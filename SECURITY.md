@@ -4,10 +4,16 @@
 
 We actively support and provide security updates for the following versions:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| Latest  | :white_check_mark: |
+| Version  | Supported          |
+| -------- | ------------------ |
+| Latest   | :white_check_mark: |
 | < Latest | :x:                |
+
+## Credential hygiene
+
+- Never commit `SUPABASE_SERVICE_ROLE_KEY`, Stripe `sk_*`, or webhook `whsec_*`.
+- If a service role key was ever committed to git, **rotate it immediately** in [Supabase Dashboard → API](https://supabase.com/dashboard/project/aikqnvltuwwgifuocvto/settings/api) and update CI secrets. See `SECURITY_ROTATION_NOTE.md`.
+- PRs are scanned with Gitleaks (`.gitleaks.toml`).
 
 ## Reporting a Vulnerability
 
@@ -22,6 +28,7 @@ Security vulnerabilities should be reported privately to protect users until a f
 Send an email to: **security@peercareconnect.com** (or your security contact email)
 
 Include the following information:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -36,6 +43,7 @@ Include the following information:
 ### 4. Severity Levels
 
 #### Critical
+
 - Remote code execution
 - SQL injection
 - Authentication bypass
@@ -44,6 +52,7 @@ Include the following information:
 **Response:** Immediate investigation, fix within 24-48 hours
 
 #### High
+
 - Privilege escalation
 - Sensitive data exposure
 - CSRF with significant impact
@@ -51,6 +60,7 @@ Include the following information:
 **Response:** Investigation within 7 days, fix within 2 weeks
 
 #### Medium
+
 - Information disclosure
 - Denial of service
 - XSS vulnerabilities
@@ -58,6 +68,7 @@ Include the following information:
 **Response:** Investigation within 14 days, fix within 1 month
 
 #### Low
+
 - Minor information disclosure
 - Best practice violations
 
@@ -102,22 +113,26 @@ Include the following information:
 ## Known Security Measures
 
 ### Authentication & Authorization
+
 - Supabase Auth with secure session management
 - Row Level Security (RLS) policies
 - Role-based access control (RBAC)
 
 ### Data Protection
+
 - Encrypted connections (HTTPS/TLS)
 - Secure password hashing
 - Environment variable protection
 - No secrets in client-side code
 
 ### Payment Security
+
 - Stripe integration (PCI compliant)
 - No card data stored locally
 - Secure webhook validation
 
 ### API Security
+
 - Rate limiting on endpoints
 - Input validation and sanitization
 - CORS configuration
@@ -126,6 +141,7 @@ Include the following information:
 ## Security Updates
 
 Security updates are released as needed. We recommend:
+
 - Keeping dependencies updated
 - Monitoring security advisories
 - Following our release notes
@@ -133,6 +149,7 @@ Security updates are released as needed. We recommend:
 ## Disclosure Policy
 
 When a security vulnerability is fixed:
+
 1. We will credit the reporter (if they wish)
 2. We will publish a security advisory
 3. We will update the CHANGELOG
@@ -141,6 +158,7 @@ When a security vulnerability is fixed:
 ## Security Contact
 
 For security concerns:
+
 - **Email:** security@peercareconnect.com
 - **GitHub Security Advisories:** Use the "Report a vulnerability" button on the repository
 

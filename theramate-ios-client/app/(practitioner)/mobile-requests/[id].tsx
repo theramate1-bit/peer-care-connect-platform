@@ -12,7 +12,6 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { MapPin } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +27,11 @@ import {
 } from "@/lib/api/practitionerMobileRequests";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function PractitionerMobileRequestDetailScreen() {
   const tabRoot = useTabRoot();
@@ -138,10 +141,12 @@ export default function PractitionerMobileRequestDetailScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
+      <AppStackHeader
+        title="Mobile request"
+        subtitle="Review details and accept or decline."
+        fallbackHref={tabPath(tabRoot, "mobile-requests")}
+      />
       {isLoading || !req ? (
         <View className="flex-1 items-center justify-center py-20">
           <ActivityIndicator size="large" color={Colors.sage[500]} />
@@ -152,17 +157,7 @@ export default function PractitionerMobileRequestDetailScreen() {
           ) : null}
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 40 }}
-        >
-          <ScreenHeader
-            className="-mx-6 -mt-4 mb-2"
-            eyebrow="Practice"
-            title="Mobile request"
-            subtitle="Review details and accept or decline."
-          />
-
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Card variant="elevated" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
               {req.client_name}
@@ -230,8 +225,8 @@ export default function PractitionerMobileRequestDetailScreen() {
               Decline
             </Text>
           </Button>
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

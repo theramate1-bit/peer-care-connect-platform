@@ -1,7 +1,8 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import React, { Component, ErrorInfo, ReactNode } from "react";
+import { captureException } from "@/lib/errorTracking";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -25,10 +26,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
     this.setState({
       error,
-      errorInfo
+      errorInfo,
     });
 
     // Log error to monitoring service
@@ -36,12 +37,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   logErrorToService = (error: Error, errorInfo: ErrorInfo) => {
-    // In production, this would send to a monitoring service like Sentry
-    console.error('Error logged to service:', {
-      message: error.message,
-      stack: error.stack,
+    captureException(error, {
       componentStack: errorInfo.componentStack,
-      timestamp: new Date().toISOString()
     });
   };
 
@@ -66,10 +63,11 @@ export class ErrorBoundary extends Component<Props, State> {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground text-center">
-                We're sorry, but something unexpected happened. Our team has been notified.
+                We're sorry, but something unexpected happened. Our team has
+                been notified.
               </p>
-              
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+
+              {process.env.NODE_ENV === "development" && this.state.error && (
                 <details className="mt-4 p-3 bg-muted rounded-md">
                   <summary className="cursor-pointer font-medium text-sm">
                     Error Details (Development)
@@ -95,10 +93,10 @@ export class ErrorBoundary extends Component<Props, State> {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Try Again
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
-                  onClick={() => window.location.href = '/'}
+                  onClick={() => (window.location.href = "/")}
                 >
                   <Home className="h-4 w-4 mr-2" />
                   Go Home
@@ -117,15 +115,9 @@ export class ErrorBoundary extends Component<Props, State> {
 // Hook for functional components to handle errors
 export const useErrorHandler = () => {
   const handleError = (error: Error, errorInfo?: string) => {
-    console.error('Error caught by useErrorHandler:', error, errorInfo);
-    
-    // Log to monitoring service
-    console.error('Error logged to service:', {
-      message: error.message,
-      stack: error.stack,
-      additionalInfo: errorInfo,
-      timestamp: new Date().toISOString()
-    });
+    console.error("Error caught by useErrorHandler:", error, errorInfo);
+
+    captureException(error, { additionalInfo: errorInfo });
   };
 
   return { handleError };
@@ -134,7 +126,7 @@ export const useErrorHandler = () => {
 // Higher-order component for error handling
 export const withErrorBoundary = <P extends object>(
   Component: React.ComponentType<P>,
-  fallback?: ReactNode
+  fallback?: ReactNode,
 ) => {
   const WrappedComponent = (props: P) => (
     <ErrorBoundary fallback={fallback}>
@@ -143,6 +135,6 @@ export const withErrorBoundary = <P extends object>(
   );
 
   WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`;
-  
+
   return WrappedComponent;
 };

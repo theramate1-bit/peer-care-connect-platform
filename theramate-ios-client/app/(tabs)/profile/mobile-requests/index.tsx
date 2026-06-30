@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, Clock, CircleAlert } from "lucide-react-native";
@@ -17,12 +16,16 @@ import {
   fetchClientMobileRequests,
   type ClientMobileRequest,
 } from "@/lib/api/mobileRequests";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PressableCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 
 function StatusPill({ status }: { status: string | null }) {
   const key = (status || "pending").toLowerCase();
@@ -122,7 +125,7 @@ export default function ClientMobileRequestsScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Mobile requests"
         fallbackHref={defaultSignedInProfileHref()}
@@ -147,11 +150,10 @@ export default function ClientMobileRequestsScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={data}
           keyExtractor={(item) => item.id}
           className="px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 24 }}
           refreshing={isFetching && !isLoading}
           onRefresh={() => void refetch()}
           renderItem={({ item }) => <RequestCard item={item} />}
@@ -176,6 +178,6 @@ export default function ClientMobileRequestsScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

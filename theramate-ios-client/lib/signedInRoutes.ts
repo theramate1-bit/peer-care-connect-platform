@@ -11,3 +11,12 @@ export function getSignedInTabRoot(): TabRootHref {
 export function signedInTabPath(segment: string): string {
   return tabPath(getSignedInTabRoot(), segment);
 }
+
+/** Client `(tabs)` shell — not practitioner `(ptabs)`. */
+export function isClientTabRoot(tabRoot: TabRootHref): boolean {
+  return tabRoot === "/(tabs)";
+}
+
+export function isPractitionerTabRoot(tabRoot: TabRootHref): boolean {
+  return tabRoot === "/(practitioner)/(ptabs)";
+}

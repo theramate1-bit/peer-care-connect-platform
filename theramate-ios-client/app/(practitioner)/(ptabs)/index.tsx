@@ -6,15 +6,17 @@ import React from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import {
   Bell,
   ChevronRight,
@@ -28,7 +30,6 @@ import { usePractitionerDashboard } from "@/hooks/usePractitionerDashboard";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { PressableCard } from "@/components/ui/Card";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import type { SessionWithClient } from "@/lib/api/practitionerSessions";
 
 function SessionRow({
@@ -91,18 +92,10 @@ export default function PractitionerHomeScreen() {
     (dash?.exchangeAwaitingReciprocalCount ?? 0);
   const hasActionRequired = mobilePending > 0 || exchangePending > 0;
 
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
-
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView
+    <TabScreen>
+      <TabScreenScroll
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -112,7 +105,7 @@ export default function PractitionerHomeScreen() {
           />
         }
       >
-        <ScreenHeader
+        <MainTabHeader
           eyebrow="Practice"
           title={`Hello, ${name}`}
           subtitle="Today's work first — diary and clients are one tap away in the tab bar."
@@ -296,7 +289,7 @@ export default function PractitionerHomeScreen() {
             </>
           ) : null}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

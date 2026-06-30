@@ -6,12 +6,10 @@ import React from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { MessageCircle, Search } from "lucide-react-native";
 import { PressableCard } from "@/components/ui/Card";
@@ -21,7 +19,11 @@ import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import type { ConversationSummary } from "@/lib/api/conversations";
-import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { isPractitionerPortalRole } from "@/lib/authRoles";
 
@@ -128,10 +130,7 @@ export default function MessagesScreen() {
 
   if (isInitialized && !isAuthenticated) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <MainTabHeader title="Messages" />
         <View className="flex-1 items-center justify-center px-8 pb-24">
           <MessageCircle size={48} color={Colors.charcoal[300]} />
@@ -155,18 +154,17 @@ export default function MessagesScreen() {
             className="mt-3"
             onPress={() => router.push("/register" as never)}
           >
-            {isPractitionerUi ? "Create practitioner account" : "Create account"}
+            {isPractitionerUi
+              ? "Create practitioner account"
+              : "Create account"}
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <MainTabHeader
         title="Messages"
         right={
@@ -195,7 +193,7 @@ export default function MessagesScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={conversations ?? []}
           keyExtractor={(item) => item.id}
           refreshControl={
@@ -210,7 +208,6 @@ export default function MessagesScreen() {
               <ConversationItem conversation={item} />
             </View>
           )}
-          contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View className="items-center justify-center py-16 px-6">
@@ -227,6 +224,6 @@ export default function MessagesScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

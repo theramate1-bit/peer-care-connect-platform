@@ -4,19 +4,20 @@ import {
   Text,
   ActivityIndicator,
   TouchableOpacity,
-  ScrollView,
   Alert,
   Modal,
-  FlatList,
   Platform,
   TextInput,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  AppScreen,
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+  TabScreenList,
+} from "@/components/navigation";
 
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +40,6 @@ import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import {
   fetchPractitionerSessionById,
   markSessionPaidInPerson,
@@ -84,10 +84,6 @@ function paymentLabel(
 
 export default function PractitionerBookingDetailScreen() {
   const tabRoot = useTabRoot();
-  /** Absolute tab bar would cover the last actions without extra scroll padding. */
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
   const queryClient = useQueryClient();
@@ -379,8 +375,25 @@ export default function PractitionerBookingDetailScreen() {
     return null;
   }
 
+  const diaryShortcut = (
+    <TouchableOpacity
+      onPress={() => router.push(tabPath(tabRoot, "schedule") as Href)}
+      className="w-11 h-11 rounded-2xl bg-white border border-cream-200 items-center justify-center"
+      accessibilityRole="button"
+      accessibilityLabel="Diary"
+    >
+      <Calendar size={22} color={Colors.sage[600]} />
+    </TouchableOpacity>
+  );
+
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
+      <AppStackHeader
+        title="Session details"
+        subtitle="Message, notes, and care plans."
+        fallbackHref={tabPath(tabRoot, "bookings")}
+        right={diaryShortcut}
+      />
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={Colors.sage[500]} />
@@ -404,29 +417,7 @@ export default function PractitionerBookingDetailScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
-        >
-          <ScreenHeader
-            className="-mx-6 -mt-4 mb-2"
-            eyebrow="Practice"
-            title="Session details"
-            subtitle="Message, notes, and care plans — diary is one tap away."
-            right={
-              <TouchableOpacity
-                onPress={() =>
-                  router.push(tabPath(tabRoot, "schedule") as Href)
-                }
-                className="w-11 h-11 rounded-2xl bg-white border border-cream-200 items-center justify-center"
-                accessibilityRole="button"
-                accessibilityLabel="Diary"
-              >
-                <Calendar size={22} color={Colors.sage[600]} />
-              </TouchableOpacity>
-            }
-          />
-
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Card variant="default" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
               {data.session_type || "Session"}
@@ -864,7 +855,7 @@ export default function PractitionerBookingDetailScreen() {
               </Text>
             </Card>
           ) : null}
-        </ScrollView>
+        </TabScreenScroll>
       )}
 
       <Modal
@@ -873,21 +864,18 @@ export default function PractitionerBookingDetailScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setPlanModalOpen(false)}
       >
-        <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-cream-200">
-            <Text className="text-charcoal-900 text-lg font-semibold">
-              Link session to plan
-            </Text>
-            <TouchableOpacity onPress={() => setPlanModalOpen(false)}>
-              <Text className="text-sage-600 font-medium">Cancel</Text>
-            </TouchableOpacity>
-          </View>
+        <AppScreen edges={["top", "bottom"]}>
+          <AppStackHeader
+            title="Link session to plan"
+            showBack
+            onBackPress={() => setPlanModalOpen(false)}
+          />
           {linkingPlan ? (
             <View className="flex-1 items-center justify-center">
               <ActivityIndicator color={Colors.sage[500]} />
             </View>
           ) : (
-            <FlatList
+            <TabScreenList
               data={plansToLink}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{
@@ -914,8 +902,8 @@ export default function PractitionerBookingDetailScreen() {
               )}
             />
           )}
-        </SafeAreaView>
+        </AppScreen>
       </Modal>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

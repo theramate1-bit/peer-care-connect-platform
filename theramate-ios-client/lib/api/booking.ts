@@ -271,6 +271,7 @@ async function filterCandidatesByBlocks(
   date: string,
   durationMin: number,
   practitionerTimeZone: string,
+  excludeSessionId?: string,
 ): Promise<string[]> {
   if (candidates.length === 0) return [];
 
@@ -278,7 +279,7 @@ async function filterCandidatesByBlocks(
 
   const { data: sessions, error: sErr } = await supabase
     .from("client_sessions")
-    .select("start_time, duration_minutes, status, expires_at")
+    .select("id, start_time, duration_minutes, status, expires_at")
     .eq("therapist_id", practitionerId)
     .eq("session_date", date);
 
@@ -294,6 +295,7 @@ async function filterCandidatesByBlocks(
   ]);
 
   for (const s of sessions || []) {
+    if (excludeSessionId && String(s.id) === excludeSessionId) continue;
     const st = String(s.status ?? "").toLowerCase();
     if (terminalStatuses.has(st)) continue;
     if (st === "pending_payment") {
@@ -420,6 +422,8 @@ export async function fetchAvailableStartTimes(params: {
   practitionerId: string;
   date: string;
   durationMinutes: number;
+  /** When rescheduling, omit this session from conflict checks. */
+  excludeSessionId?: string;
 }): Promise<{ data: string[]; error: Error | null }> {
   try {
     const requestedDuration = Math.max(15, params.durationMinutes);
@@ -499,6 +503,7 @@ export async function fetchAvailableStartTimes(params: {
       params.date,
       requestedDuration,
       practitionerTz,
+      params.excludeSessionId,
     );
 
     const cutoff =

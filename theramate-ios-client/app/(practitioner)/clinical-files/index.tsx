@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ChevronRight, FileText } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -21,15 +20,23 @@ import {
 } from "@/lib/api/practitionerTreatmentNotes";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
-function SessionRow({ s, onPress }: { s: SessionClinicalNotesSummary; onPress: () => void }) {
+function SessionRow({
+  s,
+  onPress,
+}: {
+  s: SessionClinicalNotesSummary;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity onPress={onPress}>
       <Card variant="default" padding="md" className="mb-3">
         <View className="flex-row justify-between">
           <View className="flex-1 pr-2">
-            <Text className="text-charcoal-900 font-semibold">{s.client_name}</Text>
+            <Text className="text-charcoal-900 font-semibold">
+              {s.client_name}
+            </Text>
             <Text className="text-charcoal-500 text-sm mt-1">
               {s.session_date} · {s.start_time?.slice(0, 5)}
             </Text>
@@ -53,7 +60,13 @@ export default function PractitionerClinicalFilesScreen() {
   const { userId } = useAuth();
   const [showAll, setShowAll] = useState(false);
 
-  const { data = [], isLoading, error, refetch, isFetching } = useQuery({
+  const {
+    data = [],
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ["practitioner_clinical_files", userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -73,7 +86,12 @@ export default function PractitionerClinicalFilesScreen() {
   }, [data, showAll]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.cream[50] }} edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader
+        title="Clinical files"
+        subtitle="Session notes and attachments vault."
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
       <ScrollView
         className="flex-1 px-6 pt-4"
         refreshControl={
@@ -85,20 +103,15 @@ export default function PractitionerClinicalFilesScreen() {
         }
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Practice"
-          title="Clinical files"
-          subtitle="Session notes and attachments vault."
-        />
-
         <Card variant="default" padding="md" className="mb-4">
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">
-              <Text className="text-charcoal-900 font-semibold">Notes & files vault</Text>
+              <Text className="text-charcoal-900 font-semibold">
+                Notes & files vault
+              </Text>
               <Text className="text-charcoal-500 text-sm mt-1">
-                Browse sessions with notes or clinical file attachments. Open a session to
-                edit SOAP/DAP or upload files.
+                Browse sessions with notes or clinical file attachments. Open a
+                session to edit SOAP/DAP or upload files.
               </Text>
             </View>
             <View className="w-10 h-10 rounded-full items-center justify-center bg-cream-100">
@@ -107,7 +120,11 @@ export default function PractitionerClinicalFilesScreen() {
           </View>
         </Card>
 
-        <Button variant="outline" className="mb-4" onPress={() => setShowAll((v) => !v)}>
+        <Button
+          variant="outline"
+          className="mb-4"
+          onPress={() => setShowAll((v) => !v)}
+        >
           <Text className="text-charcoal-800 font-semibold">
             {showAll
               ? "Show only sessions with notes or files"
@@ -121,7 +138,9 @@ export default function PractitionerClinicalFilesScreen() {
           </View>
         ) : error ? (
           <Text className="text-charcoal-600">
-            {error instanceof Error ? error.message : "Could not load clinical files."}
+            {error instanceof Error
+              ? error.message
+              : "Could not load clinical files."}
           </Text>
         ) : visible.length === 0 ? (
           <Text className="text-charcoal-500 py-8">
@@ -139,7 +158,6 @@ export default function PractitionerClinicalFilesScreen() {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
-

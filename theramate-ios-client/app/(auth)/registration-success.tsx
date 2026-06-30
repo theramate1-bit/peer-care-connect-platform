@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { router } from "expo-router";
 
 import { AuthBackHeader } from "@/components/AuthBackHeader";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 
 export default function RegistrationSuccessScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="px-6 pt-2">
         <AuthBackHeader fallbackHref="/hero" label="Home" />
       </View>
@@ -37,6 +37,6 @@ export default function RegistrationSuccessScreen() {
           </Text>
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

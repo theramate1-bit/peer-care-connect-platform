@@ -1,0 +1,60 @@
+# Payment + migration preflight — main branch / manual
+name: Release smoke preflight
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - scripts/run-prod-payment-smoke-check.mjs
+      - scripts/reconcile-supabase-migrations.mjs
+      - supabase/migrations/**
+
+jobs:
+  preflight:
+    name: Payment & migration preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Migration reconciliation report
+        run: npm run supabase:migrations:reconcile
+
+      - name: Edge function name inventory
+        run: npm run supabase:functions:compare
+
+      - name: Payment smoke preflight (requires secrets)
+        if: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.SUPABASE_URL != '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EXPO_PUBLIC_WEB_URL: ${{ vars.EXPO_PUBLIC_WEB_URL || 'https://theramate.co.uk' }}
+          PAYMENT_SMOKE_WRITE_REPORT: "1"
+        run: npm run test:payment-smoke:report
+
+      - name: Upload preflight reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-preflight-reports
+          path: |
+            docs/architecture/reports/
+            docs/testing/reports/
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Note missing secrets
+        if: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY == '' }}
+        run: |
+          echo "::warning::SUPABASE_SERVICE_ROLE_KEY not set — payment table probe skipped."
+          echo "Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY repo secrets for full preflight."

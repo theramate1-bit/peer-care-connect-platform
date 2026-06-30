@@ -28,12 +28,15 @@ import { canRequestMobile } from "@/lib/booking-flow-type";
 import { marketplacePractitionerToBookingFlow } from "@/lib/practitionerBookingProfile";
 import { stashMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
-import { openGuestBookingOnWeb } from "@/lib/guestBookingWeb";
+import { ensureGuestUserForBooking } from "@/lib/api/guestUser";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 export default function MobileRequestBookingScreen() {
-  const { practitionerId } = useLocalSearchParams<{
+  const { practitionerId, guest } = useLocalSearchParams<{
     practitionerId?: string;
+    guest?: string;
   }>();
+  const isGuestMode = guest === "1" || guest === "true" || guest === "yes";
   const { userId, user } = useAuth();
   const queryClient = useQueryClient();
   const { data: practitioners } = useMarketplacePractitioners();
@@ -50,6 +53,9 @@ export default function MobileRequestBookingScreen() {
   const [startTime, setStartTime] = useState("10:00");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const bookingFlowProfile = useMemo(
@@ -127,20 +133,43 @@ export default function MobileRequestBookingScreen() {
   }, [availableTimes, startTime]);
 
   const submit = async () => {
-    if (!userId || !user?.email) {
-      if (practitionerId) {
-        openGuestBookingOnWeb({ practitionerId, mode: "mobile" });
-      } else {
-        Alert.alert(
-          "Sign in or use web",
-          "Mobile visit checkout for guests runs on the website. Sign in to pay in the app.",
-        );
-      }
-      return;
-    }
     if (!practitionerId || !selectedProduct || !address || !startTime) {
       return;
     }
+
+    let clientId = userId;
+    let clientEmail = user?.email ?? "";
+
+    if (!clientId || !clientEmail) {
+      if (!isGuestMode) {
+        Alert.alert(
+          "Sign in required",
+          "Sign in to request a mobile visit, or continue as a guest from the booking link.",
+        );
+        return;
+      }
+      if (!guestName.trim() || !guestEmail.trim()) {
+        Alert.alert(
+          "Your details",
+          "Name and email are required for guest checkout.",
+        );
+        return;
+      }
+      const guestRes = await ensureGuestUserForBooking({
+        email: guestEmail,
+        name: guestName,
+      });
+      if (guestRes.error || !guestRes.userId) {
+        Alert.alert(
+          "Could not continue",
+          guestRes.error?.message ?? "Guest profile error",
+        );
+        return;
+      }
+      clientId = guestRes.userId;
+      clientEmail = guestEmail.trim();
+    }
+
     setSubmitting(true);
     try {
       const geocode = await Location.geocodeAsync(address);
@@ -153,8 +182,8 @@ export default function MobileRequestBookingScreen() {
       }
       const result = await createMobileRequestAndOpenCheckout({
         practitionerId,
-        clientId: userId,
-        clientEmail: user.email,
+        clientId,
+        clientEmail,
         product: selectedProduct,
         requestedDate: sessionDate,
         requestedStartTime: startTime,
@@ -171,13 +200,16 @@ export default function MobileRequestBookingScreen() {
         return;
       }
 
-      await queryClient.invalidateQueries({
-        queryKey: ["client_mobile_requests", userId],
-      });
+      if (userId) {
+        await queryClient.invalidateQueries({
+          queryKey: ["client_mobile_requests", userId],
+        });
+      }
       stashMobileCheckoutUrl(result.requestId, result.checkoutUrl);
       openHostedWebSession({
         kind: "stripe_checkout",
         url: result.checkoutUrl,
+        dismissPath: isGuestMode ? "/booking/find" : undefined,
       });
     } finally {
       setSubmitting(false);
@@ -185,12 +217,10 @@ export default function MobileRequestBookingScreen() {
   };
 
   return (
-    <View className="flex-1 bg-cream-50">
-      <View className="px-6 pt-4 pb-3 border-b border-cream-200">
-        <Text className="text-charcoal-900 text-xl font-bold">
-          Mobile visit
-        </Text>
-        <Text className="text-charcoal-500 text-sm mt-1">
+    <AppScreen>
+      <AppStackHeader title="Mobile visit" />
+      <View className="px-6 pb-3 border-b border-cream-200">
+        <Text className="text-charcoal-500 text-sm">
           {therapist
             ? `${therapist.first_name} ${therapist.last_name}`
             : "Therapist"}
@@ -204,29 +234,52 @@ export default function MobileRequestBookingScreen() {
         className="flex-1 px-6 pt-5"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {!userId ? (
+        {!userId && isGuestMode ? (
           <View className="mb-5 p-4 rounded-xl border border-cream-200 bg-white">
-            <Text className="text-charcoal-900 font-semibold">
-              Guest mobile visit
+            <Text className="text-charcoal-900 font-semibold mb-3">
+              Your details
             </Text>
-            <Text className="text-charcoal-500 text-sm mt-2 leading-5">
-              Card checkout for guests runs on the website (same as web). Sign
-              in to request and pay inside the app.
+            <TextInput
+              value={guestName}
+              onChangeText={setGuestName}
+              placeholder="Full name"
+              placeholderTextColor={Colors.charcoal[400]}
+              className="bg-cream-50 border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
+              autoCapitalize="words"
+            />
+            <TextInput
+              value={guestEmail}
+              onChangeText={setGuestEmail}
+              placeholder="Email"
+              placeholderTextColor={Colors.charcoal[400]}
+              className="bg-cream-50 border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900 mb-3"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              value={guestPhone}
+              onChangeText={setGuestPhone}
+              placeholder="Phone (optional)"
+              placeholderTextColor={Colors.charcoal[400]}
+              className="bg-cream-50 border border-cream-200 rounded-xl px-4 py-3 text-charcoal-900"
+              keyboardType="phone-pad"
+            />
+            <Button
+              variant="outline"
+              className="mt-4"
+              onPress={() => router.replace("/login" as never)}
+            >
+              Sign in instead
+            </Button>
+          </View>
+        ) : !userId ? (
+          <View className="mb-5 p-4 rounded-xl border border-cream-200 bg-white">
+            <Text className="text-charcoal-500 text-sm leading-5">
+              Sign in to request a mobile visit and pay in the app.
             </Text>
             <Button
               variant="primary"
               className="mt-4"
-              onPress={() =>
-                practitionerId &&
-                openGuestBookingOnWeb({ practitionerId, mode: "mobile" })
-              }
-              disabled={!practitionerId}
-            >
-              Continue on website
-            </Button>
-            <Button
-              variant="outline"
-              className="mt-3"
               onPress={() => router.replace("/login" as never)}
             >
               Sign in
@@ -385,6 +438,6 @@ export default function MobileRequestBookingScreen() {
           <Text className="text-charcoal-700 font-medium">Cancel</Text>
         </Button>
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }

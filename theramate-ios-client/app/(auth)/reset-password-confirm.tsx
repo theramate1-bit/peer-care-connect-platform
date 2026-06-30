@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { router } from "expo-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,7 +57,7 @@ export default function ResetPasswordConfirmScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="flex-1 px-6 pt-4">
         <AuthBackHeader fallbackHref="/login" label="Sign in" />
         <Text className="text-charcoal-900 text-2xl font-bold mt-2">
@@ -104,6 +104,6 @@ export default function ResetPasswordConfirmScreen() {
           Save new password
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

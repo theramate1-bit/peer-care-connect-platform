@@ -1,11 +1,9 @@
 import React from "react";
 import { View, Text, Alert, ActivityIndicator, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +14,11 @@ import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { supabase } from "@/lib/supabase";
 import { PROFILE_IMAGE_MAX_BYTES } from "@/constants/config";
 import { openSignedDocumentUrl } from "@/lib/openSignedDocument";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 const PROFESSIONAL_BODY_OPTIONS = [
   { id: "society_of_sports_therapists", label: "Society of Sports Therapists" },
@@ -339,16 +342,13 @@ export default function PractitionerEditProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Edit profile"
         fallbackHref={defaultSignedInProfileHref()}
       />
 
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 24 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <Card variant="default" padding="md" className="mb-4">
           <Text className="text-charcoal-900 font-semibold mb-3">
             Profile photo
@@ -577,7 +577,7 @@ export default function PractitionerEditProfileScreen() {
             <Text className="text-white font-semibold">Save changes</Text>
           )}
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

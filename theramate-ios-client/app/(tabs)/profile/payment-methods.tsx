@@ -1,16 +1,9 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { Redirect, router, useFocusEffect, type Href } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { CreditCard, ShieldCheck, Wallet } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
@@ -21,6 +14,9 @@ import {
   type PaymentMethodSummary,
 } from "@/lib/api/paymentMethods";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { isClientTabRoot } from "@/lib/signedInRoutes";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 function PaymentMethodRow({ item }: { item: PaymentMethodSummary }) {
   return (
@@ -34,6 +30,7 @@ function PaymentMethodRow({ item }: { item: PaymentMethodSummary }) {
 }
 
 export default function PaymentMethodsScreen() {
+  const tabRoot = useTabRoot();
   const { userId, isAuthenticated, isInitialized } = useAuth();
   const back = defaultSignedInProfileHref();
 
@@ -87,9 +84,13 @@ export default function PaymentMethodsScreen() {
     (methodsErrObj instanceof Error ? methodsErrObj.message : "") ||
     "Could not load payment methods.";
 
+  if (isClientTabRoot(tabRoot)) {
+    return <Redirect href={tabPath(tabRoot, "profile") as Href} />;
+  }
+
   if (isInitialized && (!isAuthenticated || !userId)) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+      <TabScreen>
         <AppStackHeader title="Payment methods" fallbackHref={back} />
         <View className="flex-1 px-6 pt-10">
           <Text className="text-charcoal-900 text-xl font-bold">
@@ -106,12 +107,12 @@ export default function PaymentMethodsScreen() {
             Sign in
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader title="Payment methods" fallbackHref={back} />
 
       {loading ? (
@@ -201,6 +202,6 @@ export default function PaymentMethodsScreen() {
           </Button>
         </View>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

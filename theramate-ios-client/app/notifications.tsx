@@ -6,13 +6,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, ChevronLeft } from "lucide-react-native";
+import { Bell } from "lucide-react-native";
 import { formatDistanceToNowStrict } from "date-fns";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
@@ -29,6 +27,7 @@ import {
   type AppNotification,
 } from "@/lib/api/notifications";
 import { formatNotificationForInbox } from "@/lib/notificationDisplay";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 function payloadRecord(item: AppNotification): Record<string, unknown> {
   const d = item.data;
@@ -143,7 +142,7 @@ export default function NotificationsInboxScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="Notifications"
         fallbackHref={defaultSignedInProfileHref()}
@@ -212,6 +211,6 @@ export default function NotificationsInboxScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }

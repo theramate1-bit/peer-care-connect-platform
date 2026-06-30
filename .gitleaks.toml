@@ -1,0 +1,23 @@
+# Gitleaks — https://github.com/gitleaks/gitleaks
+title = "Theramate / Peer Care Connect"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-service-role-fallback"
+description = "Block committed Supabase service_role JWT fallbacks"
+regex = '''service_role['"]?\s*\|\|\s*['"]eyJ'''
+tags = ["key", "supabase"]
+
+[[allowlists]]
+description = "Public anon JWT in mobile client config (RLS-bound)"
+paths = ['''theramate-ios-client/constants/config\.ts''']
+
+[[allowlists]]
+description = "Quarantined legacy ops scripts — do not add new secrets here"
+paths = ['''scripts/legacy/''']
+
+[[allowlists]]
+description = "Env examples use placeholders only"
+paths = ['''\.env\.example$''', '''theramate-ios-client/\.env\.example$''']

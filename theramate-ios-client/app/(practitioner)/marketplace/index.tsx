@@ -12,7 +12,6 @@ import {
   Switch,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -26,7 +25,7 @@ import {
 } from "@/lib/api/practitionerProducts";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function MarketplaceSellerScreen() {
   const tabRoot = useTabRoot();
@@ -93,17 +92,14 @@ export default function MarketplaceSellerScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Text className="text-charcoal-900 text-xl font-semibold text-center">
             Practitioner sign-in required
           </Text>
           <Text className="text-charcoal-500 text-center mt-3 leading-6">
-            Sign in with your practitioner account to manage marketplace listings,
-            services, and visibility.
+            Sign in with your practitioner account to manage marketplace
+            listings, services, and visibility.
           </Text>
           <Button
             variant="primary"
@@ -120,25 +116,24 @@ export default function MarketplaceSellerScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 48 }}>
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Practice"
-          title="Marketplace"
-          subtitle="Seller hub for visibility, listings, and service catalogue."
-        />
+    <TabScreen>
+      <AppStackHeader
+        title="Marketplace"
+        subtitle="Seller hub for visibility, listings, and service catalogue."
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
+      <ScrollView
+        className="flex-1 px-6 pt-4"
+        contentContainerStyle={{ paddingBottom: 48 }}
+      >
         <Text className="text-charcoal-600 leading-6 mb-4">
-          Control how you appear in search and manage listed services. Create and
-          edit services and profile tools directly in app.
+          Control how you appear in search and manage listed services. Create
+          and edit services and profile tools directly in app.
         </Text>
 
         <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
@@ -162,12 +157,15 @@ export default function MarketplaceSellerScreen() {
           </Text>
         ) : (
           <Card variant="default" padding="md" className="mb-6">
-            <Text className="text-charcoal-900 font-semibold">Listing health</Text>
+            <Text className="text-charcoal-900 font-semibold">
+              Listing health
+            </Text>
             <Text className="text-charcoal-600 text-sm mt-2">
               Profile: {tp.profile_completion_status || "—"}
             </Text>
             <Text className="text-charcoal-600 text-sm mt-1">
-              Rating: {tp.average_rating ?? "—"} ({tp.total_reviews ?? 0} reviews)
+              Rating: {tp.average_rating ?? "—"} ({tp.total_reviews ?? 0}{" "}
+              reviews)
             </Text>
             <Text className="text-charcoal-600 text-sm mt-1">
               Discoverable: {tp.is_active ? "Yes" : "No"}
@@ -185,7 +183,9 @@ export default function MarketplaceSellerScreen() {
         {productsQuery.isLoading ? (
           <ActivityIndicator color={Colors.sage[500]} />
         ) : (productsQuery.data?.length ?? 0) === 0 ? (
-          <Text className="text-charcoal-500">No products yet — add a service above.</Text>
+          <Text className="text-charcoal-500">
+            No products yet — add a service above.
+          </Text>
         ) : (
           productsQuery.data?.map((p) => (
             <Card key={p.id} variant="default" padding="md" className="mb-3">
@@ -195,14 +195,13 @@ export default function MarketplaceSellerScreen() {
                   activeOpacity={0.85}
                   onPress={() =>
                     router.push(
-                      tabPath(
-                        tabRoot,
-                        `marketplace/product/${p.id}`,
-                      ) as never,
+                      tabPath(tabRoot, `marketplace/product/${p.id}`) as never,
                     )
                   }
                 >
-                  <Text className="text-charcoal-900 font-medium">{p.name}</Text>
+                  <Text className="text-charcoal-900 font-medium">
+                    {p.name}
+                  </Text>
                   <Text className="text-charcoal-500 text-sm mt-1">
                     {p.duration_minutes ?? "—"} min ·{" "}
                     {p.price_amount != null
@@ -221,6 +220,6 @@ export default function MarketplaceSellerScreen() {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

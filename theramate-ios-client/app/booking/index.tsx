@@ -12,7 +12,6 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { addDays, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,7 +34,7 @@ import { signedInTabPath } from "@/lib/signedInRoutes";
 import { useAuthStore } from "@/stores/authStore";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
 import { ensureGuestUserForBooking } from "@/lib/api/guestUser";
-import { openGuestBookingOnWeb } from "@/lib/guestBookingWeb";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 const BASE_STEP_LABELS = [
   "Service",
@@ -74,7 +73,9 @@ export default function BookingModalScreen() {
     if (canRequestMobile(bookingFlowProfile)) {
       router.replace({
         pathname: "/booking/mobile-request",
-        params: { practitionerId },
+        params: isGuestMode
+          ? { practitionerId, guest: "1" }
+          : { practitionerId },
       });
     }
   }, [practitionerId, bookingFlowProfile]);
@@ -125,11 +126,6 @@ export default function BookingModalScreen() {
 
   const supportsInPerson = therapist?.accept_in_person_payment === true;
 
-  React.useEffect(() => {
-    if (isGuestMode) {
-      setPaymentCollection("in_person");
-    }
-  }, [isGuestMode]);
   const stepLabels = supportsInPerson
     ? BASE_STEP_LABELS
     : (BASE_STEP_LABELS.filter(
@@ -188,11 +184,6 @@ export default function BookingModalScreen() {
 
   const openCheckout = async () => {
     if (!practitionerId || !selectedProduct) {
-      return;
-    }
-
-    if (isGuestMode && paymentCollection === "online") {
-      openGuestBookingOnWeb({ practitionerId, mode: "clinic" });
       return;
     }
 
@@ -332,7 +323,8 @@ Goals: ${goals || "Not provided"}`,
 
   if (!practitionerId) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top", "bottom"]}>
+      <AppScreen edges={["top", "bottom"]}>
+        <AppStackHeader title="Book session" />
         <View className="flex-1 px-6 pt-4 pb-8 justify-center">
           <Text className="text-charcoal-900 text-xl font-semibold">
             Choose a practitioner first
@@ -363,21 +355,25 @@ Goals: ${goals || "Not provided"}`,
             Go back
           </Button>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
   if (loadingList && !therapist) {
     return (
-      <View className="flex-1 bg-cream-50 items-center justify-center">
-        <ActivityIndicator color={Colors.sage[500]} />
-      </View>
+      <AppScreen>
+        <AppStackHeader title="Book session" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color={Colors.sage[500]} />
+        </View>
+      </AppScreen>
     );
   }
 
   if (!therapist) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top", "bottom"]}>
+      <AppScreen edges={["top", "bottom"]}>
+        <AppStackHeader title="Book session" />
         <View className="flex-1 px-6 pt-4 pb-8 justify-center">
           <Text className="text-charcoal-900 text-xl font-semibold">
             Practitioner not found
@@ -401,17 +397,15 @@ Goals: ${goals || "Not provided"}`,
             Go back
           </Button>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
   return (
-    <View className="flex-1 bg-cream-50">
-      <View className="px-6 pt-4 pb-3 border-b border-cream-200">
-        <Text className="text-charcoal-900 text-xl font-bold">
-          Book session
-        </Text>
-        <Text className="text-charcoal-500 text-sm mt-1">
+    <AppScreen>
+      <AppStackHeader title="Book session" />
+      <View className="px-6 pb-3 border-b border-cream-200">
+        <Text className="text-charcoal-500 text-sm">
           {therapist.first_name} {therapist.last_name}
         </Text>
         <Text className="text-charcoal-600 text-sm font-medium mt-2">
@@ -712,42 +706,24 @@ Goals: ${goals || "Not provided"}`,
               Payment method
             </Text>
             <Text className="text-charcoal-500 text-sm mb-4">
-              {isGuestMode
-                ? "Guests can confirm pay-at-clinic here. Pay online on the website."
-                : "Choose whether to pay online now or at the clinic."}
+              Choose whether to pay online now or at the clinic.
             </Text>
 
-            {!isGuestMode ? (
-              <TouchableOpacity
-                onPress={() => setPaymentCollection("online")}
-                className={`mb-3 p-4 rounded-xl border ${
-                  paymentCollection === "online"
-                    ? "border-sage-500 bg-sage-500/10"
-                    : "border-cream-200 bg-white"
-                }`}
-              >
-                <Text className="text-charcoal-900 font-semibold">
-                  Pay online
-                </Text>
-                <Text className="text-charcoal-500 text-sm mt-1">
-                  Secure card payment now via Stripe.
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <Button
-                variant="outline"
-                className="mb-3"
-                onPress={() =>
-                  practitionerId &&
-                  openGuestBookingOnWeb({
-                    practitionerId,
-                    mode: "clinic",
-                  })
-                }
-              >
-                Pay online on website (guest)
-              </Button>
-            )}
+            <TouchableOpacity
+              onPress={() => setPaymentCollection("online")}
+              className={`mb-3 p-4 rounded-xl border ${
+                paymentCollection === "online"
+                  ? "border-sage-500 bg-sage-500/10"
+                  : "border-cream-200 bg-white"
+              }`}
+            >
+              <Text className="text-charcoal-900 font-semibold">
+                Pay online
+              </Text>
+              <Text className="text-charcoal-500 text-sm mt-1">
+                Secure card payment in the app (Stripe checkout).
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setPaymentCollection("in_person")}
@@ -877,6 +853,6 @@ Goals: ${goals || "Not provided"}`,
           <Text className="text-charcoal-700 font-medium">Close</Text>
         </Button>
       </View>
-    </View>
+    </AppScreen>
   );
 }

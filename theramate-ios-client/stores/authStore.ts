@@ -11,6 +11,7 @@ import {
   clearPendingOAuthSignupRole,
   setPendingOAuthSignupRole,
 } from "@/lib/oauthPendingRole";
+import { formatOAuthErrorMessage } from "@/lib/oauthCallback";
 import type { SignupRole } from "@/lib/oauthPendingRole";
 import type { User, UserRole } from "@/types/database";
 import type { Session, User as AuthUser } from "@supabase/supabase-js";
@@ -283,14 +284,16 @@ export const useAuthStore = create<AuthState>()(
           const { data, error } = await authHelpers.signInWithOAuth(provider);
 
           if (error) {
-            set({ isLoading: false, error: error.message });
-            return { success: false, error: error.message };
+            const message = formatOAuthErrorMessage(error.message);
+            set({ isLoading: false, error: message });
+            return { success: false, error: message };
           }
 
           const session = data?.session ?? null;
           if (!session?.user) {
-            set({ isLoading: false, error: "Sign-in did not complete" });
-            return { success: false, error: "Sign-in did not complete" };
+            const message = formatOAuthErrorMessage("Sign-in did not complete");
+            set({ isLoading: false, error: message });
+            return { success: false, error: message };
           }
 
           const { data: profile } = await supabase

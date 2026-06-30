@@ -4,11 +4,9 @@
 
 import React from "react";
 import { View, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +15,7 @@ import {
   parseClientHubTabParam,
 } from "@/components/practitioner/ClientHubScreen";
 import { supabase } from "@/lib/supabase";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function PractitionerClientDetailScreen() {
   const tabRoot = useTabRoot();
@@ -55,18 +54,14 @@ export default function PractitionerClientDetailScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      />
+      <TabScreen>
+        <View className="flex-1" />
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <AppStackHeader title={name} fallbackHref={clientsListHref} />
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -80,6 +75,6 @@ export default function PractitionerClientDetailScreen() {
           initialTab={initialTab}
         />
       ) : null}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

@@ -10,16 +10,18 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Search, MapPin, Filter, Star, Heart } from "lucide-react-native";
 
 import { AuthBackHeader } from "@/components/AuthBackHeader";
-import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenList,
+} from "@/components/navigation";
 import { PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Colors } from "@/constants/colors";
@@ -69,6 +71,8 @@ function TherapistCard({
       variant="default"
       padding="md"
       className="mb-3"
+      accessibilityRole="button"
+      accessibilityLabel={`View profile for ${therapist.first_name} ${therapist.last_name}`}
       onPress={() =>
         router.push(tabPath(tabRoot, `explore/${therapist.id}`) as never)
       }
@@ -229,10 +233,7 @@ export default function ExploreScreen() {
   }, [practitioners, searchQuery, selectedSpecialization, filters]);
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <MainTabHeader title="Explore" />
       <View
         style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}
@@ -391,7 +392,7 @@ export default function ExploreScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <TabScreenList
           data={filtered}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -436,7 +437,6 @@ export default function ExploreScreen() {
               />
             </View>
           )}
-          contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           refreshing={isFetching && !isLoading}
           onRefresh={() => refetch()}
@@ -460,6 +460,6 @@ export default function ExploreScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

@@ -3,21 +3,13 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateConversation } from "@/lib/api/messages";
-import {
-  ChevronLeft,
-  Heart,
-  MapPin,
-  MessageCircle,
-  Star,
-} from "lucide-react-native";
+import { Heart, MapPin, MessageCircle, Star } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
@@ -32,6 +24,13 @@ import {
 } from "@/hooks/useFavoriteTherapists";
 import { fetchTherapistPublicReviews } from "@/lib/api/reviews";
 import { bookingEligibilityForMarketplacePractitioner } from "@/lib/practitionerBookingProfile";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+  StickyBottomActionBar,
+  STICKY_MULTI_ACTION_BAR_EXTRA,
+} from "@/components/navigation";
 
 export default function PractitionerDetailScreen() {
   const tabRoot = useTabRoot();
@@ -163,7 +162,6 @@ export default function PractitionerDetailScreen() {
     }
   };
 
-  const therapistMode = (therapist?.therapist_type || "").toLowerCase();
   const clinicBookingAvailable = bookingEligibility.clinic;
   const mobileBookingAvailable = bookingEligibility.mobile;
 
@@ -181,50 +179,51 @@ export default function PractitionerDetailScreen() {
     enabled: !!therapist?.id,
   });
 
+  const bookingHint =
+    clinicBookingAvailable && mobileBookingAvailable
+      ? "Clinic or mobile visits available."
+      : mobileBookingAvailable
+        ? "Mobile visits — request and pay when accepted."
+        : clinicBookingAvailable
+          ? "Clinic-based sessions."
+          : null;
+
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-row items-center justify-between px-4 pt-2 pb-4">
-        <View className="flex-row items-center flex-1 min-w-0">
-          <TouchableOpacity
-            onPress={() => goBackOrReplace(tabPath(tabRoot, "explore"))}
-            className="p-2 -ml-2"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <ChevronLeft size={28} color={Colors.charcoal[800]} />
-          </TouchableOpacity>
-          <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-            Profile
-          </Text>
-        </View>
-        {therapist ? (
-          <TouchableOpacity
-            onPress={onToggleFavorite}
-            disabled={
-              favoriteMutation.isPending &&
-              favoriteMutation.variables?.therapistId === therapist.id
-            }
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              favoriteSet.has(therapist.id)
-                ? "Remove from saved"
-                : "Save therapist"
-            }
-          >
-            <Heart
-              size={24}
-              color={
+    <TabScreen>
+      <AppStackHeader
+        title="Profile"
+        fallbackHref={tabPath(tabRoot, "explore")}
+        right={
+          therapist ? (
+            <TouchableOpacity
+              onPress={onToggleFavorite}
+              disabled={
+                favoriteMutation.isPending &&
+                favoriteMutation.variables?.therapistId === therapist.id
+              }
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={
                 favoriteSet.has(therapist.id)
-                  ? Colors.error
-                  : Colors.charcoal[400]
+                  ? "Remove from saved"
+                  : "Save therapist"
               }
-              fill={
-                favoriteSet.has(therapist.id) ? Colors.error : "transparent"
-              }
-            />
-          </TouchableOpacity>
-        ) : null}
-      </View>
+            >
+              <Heart
+                size={24}
+                color={
+                  favoriteSet.has(therapist.id)
+                    ? Colors.error
+                    : Colors.charcoal[400]
+                }
+                fill={
+                  favoriteSet.has(therapist.id) ? Colors.error : "transparent"
+                }
+              />
+            </TouchableOpacity>
+          ) : null
+        }
+      />
 
       {isLoading && !therapist ? (
         <Text className="text-center text-charcoal-500 mt-8">Loading…</Text>
@@ -233,148 +232,149 @@ export default function PractitionerDetailScreen() {
           Could not load this practitioner. Go back and try again.
         </Text>
       ) : (
-        <ScrollView
-          className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: 120 }}
-        >
-          <View className="flex-row items-start">
-            <Avatar
-              source={therapist.profile_photo_url ?? undefined}
-              name={`${therapist.first_name} ${therapist.last_name}`}
-              size="xl"
-              verified={therapist.verified}
-            />
-            <View className="flex-1 ml-4">
-              <Text className="text-charcoal-900 text-xl font-bold">
-                {therapist.first_name} {therapist.last_name}
-              </Text>
-              {!!specLabels && (
-                <Text className="text-charcoal-600 text-sm mt-1">
-                  {specLabels}
+        <View className="flex-1">
+          <TabScreenScroll
+            className="flex-1 px-6"
+            extraBottomPadding={STICKY_MULTI_ACTION_BAR_EXTRA}
+            showsVerticalScrollIndicator={false}
+          >
+            <View className="flex-row items-start">
+              <Avatar
+                source={therapist.profile_photo_url ?? undefined}
+                name={`${therapist.first_name} ${therapist.last_name}`}
+                size="xl"
+                verified={therapist.verified}
+              />
+              <View className="flex-1 ml-4">
+                <Text className="text-charcoal-900 text-xl font-bold">
+                  {therapist.first_name} {therapist.last_name}
                 </Text>
-              )}
-              <View className="flex-row items-center mt-2">
-                <Star size={16} color={Colors.warning} fill={Colors.warning} />
-                <Text className="text-charcoal-700 text-sm ml-1 font-medium">
-                  {therapist.average_rating.toFixed(1)}
-                </Text>
-                <Text className="text-charcoal-400 text-sm ml-1">
-                  ({therapist.total_reviews} reviews)
-                </Text>
-              </View>
-              {therapist.location ? (
+                {!!specLabels && (
+                  <Text className="text-charcoal-600 text-sm mt-1">
+                    {specLabels}
+                  </Text>
+                )}
                 <View className="flex-row items-center mt-2">
-                  <MapPin size={14} color={Colors.charcoal[400]} />
-                  <Text className="text-charcoal-500 text-sm ml-1">
-                    {therapist.location}
+                  <Star
+                    size={16}
+                    color={Colors.warning}
+                    fill={Colors.warning}
+                  />
+                  <Text className="text-charcoal-700 text-sm ml-1 font-medium">
+                    {therapist.average_rating.toFixed(1)}
+                  </Text>
+                  <Text className="text-charcoal-400 text-sm ml-1">
+                    ({therapist.total_reviews} reviews)
                   </Text>
                 </View>
-              ) : null}
-              <Text className="text-sage-600 font-semibold text-lg mt-3">
-                {therapist.from_price != null
-                  ? `From £${therapist.from_price.toFixed(0)}`
-                  : therapist.hourly_rate != null
-                    ? `£${therapist.hourly_rate}/hr`
-                    : ""}
-              </Text>
+                {therapist.location ? (
+                  <View className="flex-row items-center mt-2">
+                    <MapPin size={14} color={Colors.charcoal[400]} />
+                    <Text className="text-charcoal-500 text-sm ml-1">
+                      {therapist.location}
+                    </Text>
+                  </View>
+                ) : null}
+                <Text className="text-sage-600 font-semibold text-lg mt-3">
+                  {therapist.from_price != null
+                    ? `From £${therapist.from_price.toFixed(0)}`
+                    : therapist.hourly_rate != null
+                      ? `£${therapist.hourly_rate}/hr`
+                      : ""}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {clinicBookingAvailable ? (
-            <Button variant="primary" className="mt-8" onPress={openBooking}>
-              <Text className="text-white font-semibold">
+            {!clinicBookingAvailable && !mobileBookingAvailable ? (
+              <Text className="text-charcoal-500 text-sm mt-6">
+                Online booking is not available for this profile yet. You can
+                still send a message.
+              </Text>
+            ) : null}
+
+            <View className="mt-8">
+              <Text className="text-charcoal-900 text-lg font-semibold mb-3">
+                Recent reviews
+              </Text>
+              {reviewSnippets.length === 0 ? (
+                <Text className="text-charcoal-500">
+                  No public written reviews yet.
+                </Text>
+              ) : (
+                reviewSnippets.map((r) => (
+                  <View
+                    key={r.id}
+                    className="bg-white border border-cream-200 rounded-xl p-4 mb-3"
+                  >
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star
+                            key={`${r.id}-${n}`}
+                            size={14}
+                            color={
+                              n <= r.rating
+                                ? Colors.warning
+                                : Colors.charcoal[300]
+                            }
+                            fill={
+                              n <= r.rating ? Colors.warning : "transparent"
+                            }
+                          />
+                        ))}
+                      </View>
+                      <Text className="text-charcoal-400 text-xs">
+                        {r.created_at
+                          ? format(new Date(r.created_at), "d MMM yyyy")
+                          : ""}
+                      </Text>
+                    </View>
+                    <Text className="text-charcoal-600 mt-2" numberOfLines={4}>
+                      {r.comment}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+          </TabScreenScroll>
+
+          <StickyBottomActionBar>
+            {bookingHint ? (
+              <Text className="text-charcoal-500 text-xs mb-3 text-center">
+                {bookingHint}
+              </Text>
+            ) : null}
+            {clinicBookingAvailable ? (
+              <Button variant="primary" fullWidth onPress={openBooking}>
                 {clinicBookingAvailable && mobileBookingAvailable
                   ? "Choose booking mode"
                   : "Book at clinic"}
-              </Text>
-            </Button>
-          ) : null}
-          {mobileBookingAvailable ? (
-            <Button
-              variant={clinicBookingAvailable ? "outline" : "primary"}
-              className={clinicBookingAvailable ? "mt-3" : "mt-8"}
-              onPress={openMobileRequest}
-            >
-              <Text
-                className={
-                  clinicBookingAvailable
-                    ? "text-charcoal-700 font-semibold"
-                    : "text-white font-semibold"
-                }
+              </Button>
+            ) : null}
+            {mobileBookingAvailable ? (
+              <Button
+                variant={clinicBookingAvailable ? "outline" : "primary"}
+                fullWidth
+                className={clinicBookingAvailable ? "mt-3" : undefined}
+                onPress={openMobileRequest}
               >
                 Request mobile session
-              </Text>
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              fullWidth
+              className="mt-3"
+              onPress={() => void onMessageTherapist()}
+              isLoading={messageBusy}
+              disabled={messageBusy}
+              leftIcon={<MessageCircle size={18} color={Colors.sage[600]} />}
+            >
+              Message
             </Button>
-          ) : null}
-          {!clinicBookingAvailable && !mobileBookingAvailable && therapist ? (
-            <Text className="text-charcoal-500 text-sm mt-8">
-              Online booking is not available for this profile yet.
-            </Text>
-          ) : null}
-          <Button
-            variant="outline"
-            className="mt-3"
-            onPress={() => void onMessageTherapist()}
-            isLoading={messageBusy}
-            disabled={messageBusy}
-            leftIcon={<MessageCircle size={18} color={Colors.sage[600]} />}
-          >
-            Message
-          </Button>
-          <Text className="text-charcoal-500 text-sm mt-3">
-            {clinicBookingAvailable && mobileBookingAvailable
-              ? "Choose clinic for in-practice sessions, or mobile for visits at your address."
-              : mobileBookingAvailable
-                ? "This practitioner offers mobile visits. Submit a request and hold payment until accepted."
-                : clinicBookingAvailable
-                  ? "This practitioner offers clinic-based sessions."
-                  : ""}
-          </Text>
-
-          <View className="mt-8">
-            <Text className="text-charcoal-900 text-lg font-semibold mb-3">
-              Recent reviews
-            </Text>
-            {reviewSnippets.length === 0 ? (
-              <Text className="text-charcoal-500">
-                No public written reviews yet.
-              </Text>
-            ) : (
-              reviewSnippets.map((r) => (
-                <View
-                  key={r.id}
-                  className="bg-white border border-cream-200 rounded-xl p-4 mb-3"
-                >
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <Star
-                          key={`${r.id}-${n}`}
-                          size={14}
-                          color={
-                            n <= r.rating
-                              ? Colors.warning
-                              : Colors.charcoal[300]
-                          }
-                          fill={n <= r.rating ? Colors.warning : "transparent"}
-                        />
-                      ))}
-                    </View>
-                    <Text className="text-charcoal-400 text-xs">
-                      {r.created_at
-                        ? format(new Date(r.created_at), "d MMM yyyy")
-                        : ""}
-                    </Text>
-                  </View>
-                  <Text className="text-charcoal-600 mt-2" numberOfLines={4}>
-                    {r.comment}
-                  </Text>
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
+          </StickyBottomActionBar>
+        </View>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

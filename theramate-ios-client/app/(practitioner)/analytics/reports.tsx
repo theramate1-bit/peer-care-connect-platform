@@ -8,14 +8,12 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ChevronLeft, FileText } from "lucide-react-native";
+import { FileText } from "lucide-react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +24,8 @@ import {
 } from "@/lib/api/customReports";
 import { getReportExportSignedUrl } from "@/lib/api/reportExports";
 import { generateReportExport } from "@/lib/api/reportExport";
-import { openHostedWebSession } from "@/lib/openHostedWeb";
+import { openExportInShareSheet } from "@/lib/openNativeExport";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 function prettyDate(d: string | null | undefined) {
   if (!d) return "—";
@@ -37,22 +36,21 @@ function prettyDate(d: string | null | undefined) {
 async function openMaybeUrl(path: string) {
   const p = (path || "").trim();
   if (!p) return;
-  if (/^https?:\/\//i.test(p)) {
-    openHostedWebSession({ kind: "signed_document", url: p });
-    return;
+
+  let downloadUrl = p;
+  if (!/^https?:\/\//i.test(p)) {
+    const { url, error } = await getReportExportSignedUrl(p);
+    if (!url || error) {
+      Alert.alert(
+        "Export unavailable",
+        "Could not open this export file yet. Generate again and retry from Latest delivery.",
+      );
+      return;
+    }
+    downloadUrl = url;
   }
 
-  // Treat as Storage object path in bucket `report-exports`.
-  const { url, error } = await getReportExportSignedUrl(p);
-  if (url && !error) {
-    openHostedWebSession({ kind: "signed_document", url });
-    return;
-  }
-
-  Alert.alert(
-    "Export unavailable",
-    "Could not open this export file yet. Generate again and retry from Latest delivery.",
-  );
+  await openExportInShareSheet(downloadUrl);
 }
 
 export default function PractitionerAnalyticsReportsScreen() {
@@ -92,22 +90,12 @@ export default function PractitionerAnalyticsReportsScreen() {
   }, [deliveriesQuery.data]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.cream[50] }} edges={["top"]}>
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "analytics"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">Reports</Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            Deliveries and template workflows are in app.
-          </Text>
-        </View>
-      </View>
+    <AppScreen>
+      <AppStackHeader
+        title="Reports"
+        subtitle="Deliveries and template workflows are in app."
+        fallbackHref={tabPath(tabRoot, "analytics")}
+      />
 
       <ScrollView
         className="flex-1 px-6 pt-4"
@@ -115,8 +103,12 @@ export default function PractitionerAnalyticsReportsScreen() {
           <RefreshControl
             refreshing={reportsQuery.isFetching || deliveriesQuery.isFetching}
             onRefresh={() => {
-              void queryClient.invalidateQueries({ queryKey: ["custom_reports", userId] });
-              void queryClient.invalidateQueries({ queryKey: ["report_deliveries", userId] });
+              void queryClient.invalidateQueries({
+                queryKey: ["custom_reports", userId],
+              });
+              void queryClient.invalidateQueries({
+                queryKey: ["report_deliveries", userId],
+              });
             }}
             tintColor={Colors.sage[500]}
           />
@@ -151,9 +143,7 @@ export default function PractitionerAnalyticsReportsScreen() {
             <ActivityIndicator color={Colors.sage[500]} />
           </View>
         ) : (reportsQuery.data || []).length === 0 ? (
-          <Text className="text-charcoal-500 py-8">
-            No saved reports yet.
-          </Text>
+          <Text className="text-charcoal-500 py-8">No saved reports yet.</Text>
         ) : (
           ((reportsQuery.data || []) as CustomReportRow[]).map((r) => {
             const deliveries = deliveriesByReport.get(r.id) || [];
@@ -196,7 +186,9 @@ export default function PractitionerAnalyticsReportsScreen() {
                         <Button
                           variant="outline"
                           className="mt-3"
-                          onPress={() => void openMaybeUrl(latest.file_path || "")}
+                          onPress={() =>
+                            void openMaybeUrl(latest.file_path || "")
+                          }
                         >
                           <Text className="text-charcoal-800 font-semibold">
                             Open exported file
@@ -235,10 +227,7 @@ export default function PractitionerAnalyticsReportsScreen() {
                             res.file_path,
                           );
                           if (signed.url && !signed.error) {
-                            openHostedWebSession({
-                              kind: "signed_document",
-                              url: signed.url,
-                            });
+                            await openExportInShareSheet(signed.url);
                             return;
                           }
                         }
@@ -249,7 +238,9 @@ export default function PractitionerAnalyticsReportsScreen() {
                       })()
                     }
                   >
-                    <Text className="text-white font-semibold">Generate export now</Text>
+                    <Text className="text-white font-semibold">
+                      Generate export now
+                    </Text>
                   </Button>
                 </View>
               </Card>
@@ -257,7 +248,6 @@ export default function PractitionerAnalyticsReportsScreen() {
           })
         )}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
-

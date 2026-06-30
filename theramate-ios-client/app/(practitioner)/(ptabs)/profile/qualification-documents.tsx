@@ -1,8 +1,6 @@
 import React from "react";
 import { View, Text, Alert, ActivityIndicator, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +12,11 @@ import {
   validateQualificationDocumentSize,
 } from "@/lib/qualificationDocuments";
 import { openSignedDocumentUrl } from "@/lib/openSignedDocument";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 type QualificationDocument = {
   id: string;
@@ -103,15 +106,12 @@ export default function PractitionerQualificationDocumentsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Qualification documents"
         fallbackHref={defaultSignedInProfileHref()}
       />
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 24 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <Card variant="default" padding="md" className="mb-4">
           <Text className="text-charcoal-900 font-semibold mb-2">
             Upload document
@@ -170,7 +170,7 @@ export default function PractitionerQualificationDocumentsScreen() {
             ))
           )}
         </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

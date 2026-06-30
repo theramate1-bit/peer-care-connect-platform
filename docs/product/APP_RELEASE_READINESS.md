@@ -63,17 +63,19 @@ flowchart LR
   J --> K["TestFlight / App Store"]
 ```
 
-| Gate                | Command                                                                                                | Owner                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| Mobile types        | `npm run typecheck:mobile`                                                                             | Eng                                     |
-| Mobile unit         | `npm run test:mobile`                                                                                  | Eng                                     |
-| Exchange dry        | `npm run test:exchange:e2e:dry`                                                                        | Eng (needs `SUPABASE_SERVICE_ROLE_KEY`) |
-| Exchange pair check | `npm run verify:exchange:staging`                                                                      | QA (needs `EXCHANGE_*` in `.env`)       |
-| Exchange full       | `npm run test:exchange:e2e`                                                                            | QA (after pair verify)                  |
-| Maestro exchange    | `npm run test:maestro:exchange`                                                                        | QA (device + Maestro CLI)               |
-| Edge deploy         | `npx supabase@2.101.0 functions deploy stripe-payment`                                                 | Eng                                     |
-| Manual payment      | [STRIPE_CHECKOUT_MOBILE_PRODUCTION_READINESS.md](STRIPE_CHECKOUT_MOBILE_PRODUCTION_READINESS.md)       | QA                                      |
-| Manual exchange     | [TREATMENT_EXCHANGE_MOBILE_PRODUCTION_READINESS.md](TREATMENT_EXCHANGE_MOBILE_PRODUCTION_READINESS.md) | QA                                      |
+| Gate                | Command                                                                                                | Owner                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| Mobile types        | `npm run typecheck:mobile`                                                                             | Eng                                      |
+| Mobile unit         | `npm run test:mobile`                                                                                  | Eng                                      |
+| Migration reconcile | `npm run supabase:migrations:reconcile` (strict in CI)                                                 | Eng                                      |
+| Payment preflight   | `npm run test:payment-smoke:check`                                                                     | QA (service role in `.env` for DB probe) |
+| Exchange dry        | `npm run test:exchange:e2e:dry`                                                                        | Eng (needs `SUPABASE_SERVICE_ROLE_KEY`)  |
+| Exchange pair check | `npm run verify:exchange:staging`                                                                      | QA (needs `EXCHANGE_*` in `.env`)        |
+| Exchange full       | `npm run test:exchange:e2e`                                                                            | QA (after pair verify)                   |
+| Maestro exchange    | `npm run test:maestro:exchange`                                                                        | QA (device + Maestro CLI)                |
+| Edge deploy         | `npx supabase@2.101.0 functions deploy stripe-payment`                                                 | Eng                                      |
+| Manual payment      | [STRIPE_CHECKOUT_MOBILE_PRODUCTION_READINESS.md](STRIPE_CHECKOUT_MOBILE_PRODUCTION_READINESS.md)       | QA                                       |
+| Manual exchange     | [TREATMENT_EXCHANGE_MOBILE_PRODUCTION_READINESS.md](TREATMENT_EXCHANGE_MOBILE_PRODUCTION_READINESS.md) | QA                                       |
 
 ---
 

@@ -1,24 +1,32 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { Redirect, router, type Href } from "expo-router";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { CreditsContent } from "@/components/profile/CreditsContent";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import { isClientTabRoot } from "@/lib/signedInRoutes";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function ClientCreditsScreen() {
+  const tabRoot = useTabRoot();
   const { userId, isAuthenticated, isInitialized } = useAuth();
   const back = defaultSignedInProfileHref();
 
+  if (isClientTabRoot(tabRoot)) {
+    return <Redirect href={tabPath(tabRoot, "profile") as Href} />;
+  }
+
   if (isInitialized && (!isAuthenticated || !userId)) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+      <TabScreen>
         <AppStackHeader title="Credits" fallbackHref={back} />
         <View className="flex-1 px-6 pt-10">
-          <Text className="text-charcoal-900 text-xl font-bold">Sign in required</Text>
+          <Text className="text-charcoal-900 text-xl font-bold">
+            Sign in required
+          </Text>
           <Text className="text-charcoal-500 mt-3 leading-6">
             Sign in to view your credit balance and activity.
           </Text>
@@ -30,12 +38,12 @@ export default function ClientCreditsScreen() {
             Sign in
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader title="Credits" fallbackHref={back} />
       {userId ? (
         <CreditsContent
@@ -45,6 +53,6 @@ export default function ClientCreditsScreen() {
           refetchOnFocus
         />
       ) : null}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

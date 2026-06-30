@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { router } from "expo-router";
 
 import { AuthBackHeader } from "@/components/AuthBackHeader";
@@ -49,7 +49,7 @@ export default function RoleSelectionScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="px-6 pt-2">
         <AuthBackHeader fallbackHref="/hero" label="Home" />
       </View>
@@ -82,6 +82,6 @@ export default function RoleSelectionScreen() {
           Continue as practitioner
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

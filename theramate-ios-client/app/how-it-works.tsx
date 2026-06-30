@@ -1,6 +1,5 @@
 import React from "react";
 import { Text, ScrollView, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
   Calendar,
@@ -9,15 +8,15 @@ import {
   Search,
 } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function HowItWorksScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="How it works"
         fallbackHref={defaultSignedInProfileHref()}
@@ -124,6 +123,6 @@ export default function HowItWorksScreen() {
           Track a mobile request (guest)
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

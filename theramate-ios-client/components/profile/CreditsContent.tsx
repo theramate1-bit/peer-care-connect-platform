@@ -14,7 +14,6 @@ import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import { useCreditsQueries } from "@/hooks/useCreditsQueries";
 import type { CreditTransactionRow } from "@/lib/api/credits";
 
@@ -27,7 +26,9 @@ function CreditTransactionRows({
 }) {
   if (!rows.length) {
     return (
-      <Text className="text-charcoal-500 mb-6">No credit transactions yet.</Text>
+      <Text className="text-charcoal-500 mb-6">
+        No credit transactions yet.
+      </Text>
     );
   }
   return (
@@ -35,7 +36,9 @@ function CreditTransactionRows({
       {rows.map((t) => {
         const debit =
           t.amount < 0 ||
-          ["session_payment", "spend", "deduction"].includes(t.transaction_type);
+          ["session_payment", "spend", "deduction"].includes(
+            t.transaction_type,
+          );
         const Row = t.session_id ? TouchableOpacity : View;
         return (
           <Row
@@ -57,7 +60,9 @@ function CreditTransactionRows({
                     {t.description || "—"}
                   </Text>
                   <Text className="text-charcoal-400 text-xs mt-1">
-                    {t.created_at ? new Date(t.created_at).toLocaleString() : ""}
+                    {t.created_at
+                      ? new Date(t.created_at).toLocaleString()
+                      : ""}
                   </Text>
                   {t.session_id ? (
                     <Text className="text-sage-700 text-xs mt-1">
@@ -103,14 +108,8 @@ export function CreditsContent({
   refetchOnFocus = false,
 }: CreditsContentProps) {
   const tabRoot = useTabRoot();
-  const {
-    creditsQuery,
-    txQuery,
-    loading,
-    hasError,
-    errMsg,
-    refetchAll,
-  } = useCreditsQueries(userId, queryEnabled);
+  const { creditsQuery, txQuery, loading, hasError, errMsg, refetchAll } =
+    useCreditsQueries(userId, queryEnabled);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -144,7 +143,11 @@ export function CreditsContent({
       return (
         <View className="flex-1 px-6 pt-6">
           <Text className="text-charcoal-700 text-center">{errMsg}</Text>
-          <Button variant="primary" className="mt-6" onPress={() => refetchAll()}>
+          <Button
+            variant="primary"
+            className="mt-6"
+            onPress={() => refetchAll()}
+          >
             Retry
           </Button>
         </View>
@@ -157,14 +160,16 @@ export function CreditsContent({
         refreshControl={refreshControl}
       >
         <Text className="text-charcoal-600 leading-6 mb-4">
-          Theramate credits for peer treatment and promotions. Sessions linked below
-          open in your bookings.
+          Theramate credits for peer treatment and promotions. Sessions linked
+          below open in your bookings.
         </Text>
 
         <Card variant="elevated" padding="lg" className="mb-4">
           <Text className="text-charcoal-500 text-sm">Current balance</Text>
           <Text className="text-charcoal-900 text-3xl font-bold mt-1">
-            {creditsQuery.data?.current_balance ?? creditsQuery.data?.balance ?? 0}
+            {creditsQuery.data?.current_balance ??
+              creditsQuery.data?.balance ??
+              0}
           </Text>
           <Text className="text-charcoal-500 text-sm mt-2">
             Earned: {creditsQuery.data?.total_earned ?? 0} · Spent:{" "}
@@ -181,7 +186,9 @@ export function CreditsContent({
           Refresh
         </Button>
 
-        <Text className="text-charcoal-900 font-semibold mb-2">Recent activity</Text>
+        <Text className="text-charcoal-900 font-semibold mb-2">
+          Recent activity
+        </Text>
         <CreditTransactionRows
           rows={txQuery.data ?? []}
           onSessionPress={onSessionPress}
@@ -207,13 +214,6 @@ export function CreditsContent({
       refreshControl={refreshControl}
       contentContainerStyle={{ paddingBottom: 32 }}
     >
-      <ScreenHeader
-        className="-mx-6 -mt-4 mb-2"
-        eyebrow="Business"
-        title="Credits"
-        subtitle="Balance, activity, and exchange shortcuts."
-      />
-
       <Text className="text-charcoal-800 text-xs font-semibold uppercase tracking-wide mb-2">
         In this app
       </Text>
@@ -225,7 +225,9 @@ export function CreditsContent({
           </View>
         ) : (
           <Text className="text-charcoal-900 text-3xl font-bold mt-1">
-            {creditsQuery.data?.current_balance ?? creditsQuery.data?.balance ?? 0}
+            {creditsQuery.data?.current_balance ??
+              creditsQuery.data?.balance ??
+              0}
           </Text>
         )}
         <Text className="text-charcoal-500 text-sm mt-2">
@@ -241,7 +243,9 @@ export function CreditsContent({
         </Button>
       </Card>
 
-      <Text className="text-charcoal-900 font-semibold mb-2">Recent activity</Text>
+      <Text className="text-charcoal-900 font-semibold mb-2">
+        Recent activity
+      </Text>
       {txQuery.isLoading ? (
         <View className="py-8 items-center">
           <ActivityIndicator color={Colors.sage[500]} />
@@ -260,8 +264,8 @@ export function CreditsContent({
       ) : null}
 
       <Text className="text-charcoal-600 leading-6 mb-4">
-        Use treatment exchange for peer swaps; subscription and billing are under
-        Subscription & billing.
+        Use treatment exchange for peer swaps; subscription and billing are
+        under Subscription & billing.
       </Text>
       <Button
         variant="outline"

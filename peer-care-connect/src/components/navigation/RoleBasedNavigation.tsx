@@ -1,13 +1,13 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { 
-  Home, 
-  Calendar, 
-  Users, 
-  BarChart3, 
-  MessageSquare, 
-  Settings, 
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import {
+  Home,
+  Calendar,
+  Users,
+  BarChart3,
+  MessageSquare,
+  Settings,
   Heart,
   Activity,
   Bone,
@@ -29,12 +29,12 @@ import {
   ArrowLeftRight,
   Package,
   Inbox,
-  MapPin
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
-import { isPractitioner } from '@/types/roles';
+  MapPin,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { isPractitioner } from "@/types/roles";
 
 interface NavigationItem {
   label: string;
@@ -47,12 +47,12 @@ interface NavigationItem {
 
 interface RoleBasedNavigationProps {
   className?: string;
-  variant?: 'sidebar' | 'header' | 'mobile';
+  variant?: "sidebar" | "header" | "mobile";
 }
 
-export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({ 
-  className, 
-  variant = 'sidebar' 
+export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
+  className,
+  variant = "sidebar",
 }) => {
   const { userProfile, signOut } = useAuth();
   const location = useLocation();
@@ -62,266 +62,245 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
   const getRoleSpecificItems = (): NavigationItem[] => {
     const baseItems: NavigationItem[] = [
       {
-        label: 'Dashboard',
-        href: userProfile.user_role === 'client' ? '/client/dashboard' : '/dashboard',
+        label: "Dashboard",
+        href:
+          userProfile.user_role === "client"
+            ? "/client/dashboard"
+            : "/dashboard",
         icon: Home,
-        description: 'Main dashboard'
-      }
+        description: "Main dashboard",
+      },
     ];
 
     switch (userProfile.user_role) {
-      case 'client':
+      case "client":
         return [
           ...baseItems,
           {
-            label: 'Sessions',
-            href: '/client/sessions',
+            label: "Sessions",
+            href: "/client/sessions",
             icon: Calendar,
-            description: 'View your sessions and progress metrics'
+            description: "View your sessions and progress metrics",
           },
           {
-            label: 'My Exercises',
-            href: '/client/exercises',
+            label: "My Exercises",
+            href: "/client/exercises",
             icon: Target,
-            description: 'View your exercise programs from your practitioner'
+            description: "View your exercise programs from your practitioner",
           },
           {
-            label: 'Progress',
-            href: '/client/progress',
+            label: "Progress & goals",
+            href: "/client/progress",
             icon: Activity,
-            description: 'Track your progress and metrics'
+            description: "Track progress and treatment goals",
           },
           {
-            label: 'Goals',
-            href: '/client/goals',
-            icon: Target,
-            description: 'View and track your treatment goals'
-          },
-          {
-            label: 'Profile',
-            href: '/client/profile',
+            label: "Profile",
+            href: "/client/profile",
             icon: Settings,
-            description: 'Manage your profile'
-          }
+            description: "Manage your profile",
+          },
         ];
 
-      case 'sports_therapist':
+      case "sports_therapist":
         return [
           ...baseItems,
           {
-            label: 'Diary',
-            href: '/practice/schedule',
+            label: "Diary",
+            href: "/practice/schedule",
             icon: Calendar,
-            description: 'Manage your schedule'
+            description: "Manage your schedule",
           },
           {
-            label: 'Client Management',
-            href: '/practice/clients',
+            label: "Client Management",
+            href: "/practice/clients",
             icon: Users,
-            description: 'Manage your clients and session notes'
+            description: "Manage your clients and session notes",
           },
           {
-            label: 'Services & Pricing',
-            href: '/practice/scheduler',
+            label: "Services & Pricing",
+            href: "/practice/scheduler",
             icon: Package,
-            description: 'Configure services and packages'
+            description: "Configure services and packages",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
+            label: "Treatment Exchange",
+            href: "/credits",
             icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
+            description: "Exchange treatments with other practitioners",
           },
           {
-            label: 'Exchange Requests',
-            href: '/practice/exchange-requests',
+            label: "Exchange Requests",
+            href: "/practice/exchange-requests",
             icon: Inbox,
-            description: 'Review and respond to treatment exchange requests'
+            description: "Review and respond to treatment exchange requests",
           },
           {
-            label: 'Mobile requests',
-            href: '/practice/mobile-requests',
+            label: "Mobile requests",
+            href: "/practice/mobile-requests",
             icon: MapPin,
-            description: 'Review and respond to mobile booking requests'
+            description: "Review and respond to mobile booking requests",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
-            icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
-          },
-          {
-            label: 'Analytics',
-            href: '/practice/analytics',
+            label: "Analytics",
+            href: "/practice/analytics",
             icon: BarChart3,
-            description: 'View performance data'
+            description: "View performance data",
           },
           {
-            label: 'Reviews',
-            href: '/reviews',
+            label: "Reviews",
+            href: "/reviews",
             icon: Star,
-            description: 'View client reviews and ratings'
+            description: "View client reviews and ratings",
           },
           {
-            label: 'Profile',
-            href: '/profile',
+            label: "Profile",
+            href: "/profile",
             icon: Settings,
-            description: 'Update your profile'
-          }
+            description: "Update your profile",
+          },
         ];
 
-      case 'massage_therapist':
+      case "massage_therapist":
         return [
           ...baseItems,
           {
-            label: 'Diary',
-            href: '/practice/schedule',
+            label: "Diary",
+            href: "/practice/schedule",
             icon: Calendar,
-            description: 'Manage your schedule'
+            description: "Manage your schedule",
           },
           {
-            label: 'Client Management',
-            href: '/practice/clients',
+            label: "Client Management",
+            href: "/practice/clients",
             icon: Users,
-            description: 'Manage your clients and session notes'
+            description: "Manage your clients and session notes",
           },
           {
-            label: 'Relaxation Programs',
-            href: '/dashboard/projects',
+            label: "Relaxation Programs",
+            href: "/dashboard/projects",
             icon: Leaf,
-            description: 'Create wellness programs'
+            description: "Create wellness programs",
           },
           {
-            label: 'Wellness Tracking',
-            href: '/analytics',
+            label: "Wellness Tracking",
+            href: "/analytics",
             icon: Sparkles,
-            description: 'Monitor improvements'
+            description: "Monitor improvements",
           },
           {
-            label: 'Services & Pricing',
-            href: '/practice/scheduler',
+            label: "Services & Pricing",
+            href: "/practice/scheduler",
             icon: Package,
-            description: 'Configure services and packages'
+            description: "Configure services and packages",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
+            label: "Treatment Exchange",
+            href: "/credits",
             icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
+            description: "Exchange treatments with other practitioners",
           },
           {
-            label: 'Exchange Requests',
-            href: '/practice/exchange-requests',
+            label: "Exchange Requests",
+            href: "/practice/exchange-requests",
             icon: Inbox,
-            description: 'Review and respond to treatment exchange requests'
+            description: "Review and respond to treatment exchange requests",
           },
           {
-            label: 'Mobile requests',
-            href: '/practice/mobile-requests',
+            label: "Mobile requests",
+            href: "/practice/mobile-requests",
             icon: MapPin,
-            description: 'Review and respond to mobile booking requests'
+            description: "Review and respond to mobile booking requests",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
-            icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
-          },
-          {
-            label: 'Analytics',
-            href: '/practice/analytics',
+            label: "Analytics",
+            href: "/practice/analytics",
             icon: BarChart3,
-            description: 'View wellness data'
+            description: "View wellness data",
           },
           {
-            label: 'Reviews',
-            href: '/reviews',
+            label: "Reviews",
+            href: "/reviews",
             icon: Star,
-            description: 'View client reviews and ratings'
+            description: "View client reviews and ratings",
           },
           {
-            label: 'Profile',
-            href: '/profile',
+            label: "Profile",
+            href: "/profile",
             icon: Settings,
-            description: 'Update your profile'
-          }
+            description: "Update your profile",
+          },
         ];
 
-      case 'osteopath':
+      case "osteopath":
         return [
           ...baseItems,
           {
-            label: 'Diary',
-            href: '/practice/schedule',
+            label: "Diary",
+            href: "/practice/schedule",
             icon: Calendar,
-            description: 'Manage your schedule'
+            description: "Manage your schedule",
           },
           {
-            label: 'Patient Management',
-            href: '/practice/clients',
+            label: "Patient Management",
+            href: "/practice/clients",
             icon: Users,
-            description: 'Manage patient cases'
+            description: "Manage patient cases",
           },
           {
-            label: 'Treatment Planning',
-            href: '/dashboard/projects',
+            label: "Treatment Planning",
+            href: "/dashboard/projects",
             icon: Target,
-            description: 'Create treatment plans'
+            description: "Create treatment plans",
           },
           {
-            label: 'Pain Management',
-            href: '/analytics',
+            label: "Pain Management",
+            href: "/analytics",
             icon: Shield,
-            description: 'Monitor pain reduction'
+            description: "Monitor pain reduction",
           },
           {
-            label: 'Services & Pricing',
-            href: '/practice/scheduler',
+            label: "Services & Pricing",
+            href: "/practice/scheduler",
             icon: Package,
-            description: 'Configure services and packages'
+            description: "Configure services and packages",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
+            label: "Treatment Exchange",
+            href: "/credits",
             icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
+            description: "Exchange treatments with other practitioners",
           },
           {
-            label: 'Exchange Requests',
-            href: '/practice/exchange-requests',
+            label: "Exchange Requests",
+            href: "/practice/exchange-requests",
             icon: Inbox,
-            description: 'Review and respond to treatment exchange requests'
+            description: "Review and respond to treatment exchange requests",
           },
           {
-            label: 'Mobile requests',
-            href: '/practice/mobile-requests',
+            label: "Mobile requests",
+            href: "/practice/mobile-requests",
             icon: MapPin,
-            description: 'Review and respond to mobile booking requests'
+            description: "Review and respond to mobile booking requests",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
-            icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
-          },
-          {
-            label: 'Analytics',
-            href: '/analytics',
+            label: "Analytics",
+            href: "/analytics",
             icon: BarChart3,
-            description: 'View treatment data'
+            description: "View treatment data",
           },
           {
-            label: 'Reviews',
-            href: '/reviews',
+            label: "Reviews",
+            href: "/reviews",
             icon: Star,
-            description: 'View client reviews and ratings'
+            description: "View client reviews and ratings",
           },
           {
-            label: 'Profile',
-            href: '/profile',
+            label: "Profile",
+            href: "/profile",
             icon: Settings,
-            description: 'Update your profile'
-          }
+            description: "Update your profile",
+          },
         ];
 
       default:
@@ -329,59 +308,59 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         return [
           ...baseItems,
           {
-            label: 'Diary',
-            href: '/practice/schedule',
+            label: "Diary",
+            href: "/practice/schedule",
             icon: Calendar,
-            description: 'Manage your schedule'
+            description: "Manage your schedule",
           },
           {
-            label: 'Client Management',
-            href: '/practice/clients',
+            label: "Client Management",
+            href: "/practice/clients",
             icon: Users,
-            description: 'Manage your clients'
+            description: "Manage your clients",
           },
           {
-            label: 'Services & Pricing',
-            href: '/practice/scheduler',
+            label: "Services & Pricing",
+            href: "/practice/scheduler",
             icon: Package,
-            description: 'Configure services and packages'
+            description: "Configure services and packages",
           },
           {
-            label: 'Treatment Exchange',
-            href: '/credits',
+            label: "Treatment Exchange",
+            href: "/credits",
             icon: ArrowLeftRight,
-            description: 'Exchange treatments with other practitioners'
+            description: "Exchange treatments with other practitioners",
           },
           {
-            label: 'Exchange Requests',
-            href: '/practice/exchange-requests',
+            label: "Exchange Requests",
+            href: "/practice/exchange-requests",
             icon: Inbox,
-            description: 'Review and respond to treatment exchange requests'
+            description: "Review and respond to treatment exchange requests",
           },
           {
-            label: 'Mobile requests',
-            href: '/practice/mobile-requests',
+            label: "Mobile requests",
+            href: "/practice/mobile-requests",
             icon: MapPin,
-            description: 'Review and respond to mobile booking requests'
+            description: "Review and respond to mobile booking requests",
           },
           {
-            label: 'Analytics',
-            href: '/analytics',
+            label: "Analytics",
+            href: "/analytics",
             icon: BarChart3,
-            description: 'View practice data'
+            description: "View practice data",
           },
           {
-            label: 'Reviews',
-            href: '/reviews',
+            label: "Reviews",
+            href: "/reviews",
             icon: Star,
-            description: 'View client reviews and ratings'
+            description: "View client reviews and ratings",
           },
           {
-            label: 'Profile',
-            href: '/profile',
+            label: "Profile",
+            href: "/profile",
             icon: Settings,
-            description: 'Update your profile'
-          }
+            description: "Update your profile",
+          },
         ];
     }
   };
@@ -391,18 +370,20 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
   const filteredItems = navigationItems;
 
   const isActive = (href: string) => {
-    return location.pathname === href || location.pathname.startsWith(href + '/');
+    return (
+      location.pathname === href || location.pathname.startsWith(href + "/")
+    );
   };
 
   const getRoleIcon = () => {
     switch (userProfile.user_role) {
-      case 'client':
+      case "client":
         return <Heart className="h-5 w-5 text-primary" />;
-      case 'sports_therapist':
+      case "sports_therapist":
         return <Activity className="h-5 w-5 text-primary" />;
-      case 'massage_therapist':
+      case "massage_therapist":
         return <Heart className="h-5 w-5 text-primary" />;
-      case 'osteopath':
+      case "osteopath":
         return <Bone className="h-5 w-5 text-primary" />;
       default:
         return <Users className="h-5 w-5 text-primary" />;
@@ -411,37 +392,53 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
 
   const getRoleTitle = () => {
     switch (userProfile.user_role) {
-      case 'client':
-        return 'TheraMate';
-      case 'sports_therapist':
-        return 'Sports Therapy Portal';
-      case 'massage_therapist':
-        return 'Massage Therapy Portal';
-      case 'osteopath':
-        return 'Osteopathy Portal';
+      case "client":
+        return "TheraMate";
+      case "sports_therapist":
+        return "Sports Therapy Portal";
+      case "massage_therapist":
+        return "Massage Therapy Portal";
+      case "osteopath":
+        return "Osteopathy Portal";
       default:
-        return 'Professional Portal';
+        return "Professional Portal";
     }
   };
 
-  if (variant === 'header') {
+  if (variant === "header") {
     // For practitioners, include Treatment Exchange in the header navigation
     // Order: Dashboard, Diary, Client Management (or Patient Management), Services & Pricing, Treatment Exchange
     // For clients, show: Dashboard, Sessions, Progress
-    const headerItems = isPractitioner(userProfile.user_role) 
-      ? filteredItems.filter(item => 
-          ['Dashboard', 'Diary', 'Client Management', 'Patient Management', 'Services & Pricing', 'Treatment Exchange'].includes(item.label)
-        ).slice(0, 5)
-      : filteredItems.filter(item => 
-          ['Dashboard', 'Sessions', 'My Exercises', 'Progress'].includes(item.label)
-        ).slice(0, 4);
-    
+    const headerItems = isPractitioner(userProfile.user_role)
+      ? filteredItems
+          .filter((item) =>
+            [
+              "Dashboard",
+              "Diary",
+              "Client Management",
+              "Patient Management",
+              "Services & Pricing",
+              "Treatment Exchange",
+            ].includes(item.label),
+          )
+          .slice(0, 5)
+      : filteredItems
+          .filter((item) =>
+            [
+              "Dashboard",
+              "Sessions",
+              "My Exercises",
+              "Progress & goals",
+            ].includes(item.label),
+          )
+          .slice(0, 4);
+
     return (
       <nav className={cn("flex items-center space-x-1", className)}>
         {headerItems.map((item) => (
           <Button
             key={item.href}
-            variant={isActive(item.href) ? 'default' : 'ghost'}
+            variant={isActive(item.href) ? "default" : "ghost"}
             size="sm"
             asChild
             className="relative"
@@ -450,8 +447,8 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
               <item.icon className="h-4 w-4 mr-2" />
               {item.label}
               {item.badge && (
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="secondary"
                   className={cn("ml-2 text-xs", item.badgeColor)}
                 >
                   {item.badge}
@@ -464,61 +461,74 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
     );
   }
 
-  if (variant === 'mobile') {
+  if (variant === "mobile") {
     // Filter items for mobile view - only show specific items
     // Strict filter: only these exact labels are allowed
     const mobileAllowedLabels = [
-      'Dashboard',
-      'Diary',
-      'Patient Management',
-      'Client Management',
-      'Services & Pricing',
-      'Treatment Exchange',
-      'Messages',
-      'Profile'
+      "Dashboard",
+      "Diary",
+      "Patient Management",
+      "Client Management",
+      "Services & Pricing",
+      "Treatment Exchange",
+      "Messages",
+      "Profile",
     ];
-    
+
     // Strictly filter - remove everything else (explicitly exclude unwanted items)
-    let mobileItems = filteredItems.filter(item => {
+    let mobileItems = filteredItems.filter((item) => {
       // Only include items that are explicitly in the allowed list
       return mobileAllowedLabels.includes(item.label);
     });
-    
+
     // Ensure proper order: Dashboard, Diary, Patient Management, Services & Pricing, Treatment Exchange, Messages, Profile
     const orderedItems: NavigationItem[] = [];
-    const order = ['Dashboard', 'Diary', 'Patient Management', 'Client Management', 'Services & Pricing', 'Treatment Exchange', 'Messages', 'Profile'];
-    
-    order.forEach(label => {
-      const item = mobileItems.find(i => i.label === label);
+    const order = [
+      "Dashboard",
+      "Diary",
+      "Patient Management",
+      "Client Management",
+      "Services & Pricing",
+      "Treatment Exchange",
+      "Messages",
+      "Profile",
+    ];
+
+    order.forEach((label) => {
+      const item = mobileItems.find((i) => i.label === label);
       if (item) {
         orderedItems.push(item);
       }
     });
-    
+
     // Add Messages if it doesn't exist and user is practitioner
-    const hasMessages = orderedItems.find(item => item.label === 'Messages');
+    const hasMessages = orderedItems.find((item) => item.label === "Messages");
     if (!hasMessages && isPractitioner(userProfile.user_role)) {
       orderedItems.push({
-        label: 'Messages',
-        href: '/messages',
+        label: "Messages",
+        href: "/messages",
         icon: MessageSquare,
-        description: 'View and send messages'
+        description: "View and send messages",
       });
     }
-    
+
     mobileItems = orderedItems;
-    
+
     return (
-      <nav className={cn("space-y-2", className)} role="navigation" aria-label="Mobile navigation">
+      <nav
+        className={cn("space-y-2", className)}
+        role="navigation"
+        aria-label="Mobile navigation"
+      >
         <div className="space-y-1">
           {mobileItems.map((item) => (
             <Button
               key={item.href}
-              variant={isActive(item.href) ? 'default' : 'ghost'}
+              variant={isActive(item.href) ? "default" : "ghost"}
               className="w-full justify-start h-auto min-h-[44px] px-4 py-3"
               asChild
             >
-              <Link 
+              <Link
                 to={item.href}
                 onClick={() => {
                   // Close mobile menu on navigation (handled by parent)
@@ -534,9 +544,12 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
                   )}
                 </div>
                 {item.badge && (
-                  <Badge 
-                    variant="secondary" 
-                    className={cn("text-xs ml-2 flex-shrink-0", item.badgeColor)}
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "text-xs ml-2 flex-shrink-0",
+                      item.badgeColor,
+                    )}
                   >
                     {item.badge}
                   </Badge>
@@ -568,7 +581,7 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
         {filteredItems.map((item) => (
           <Button
             key={item.href}
-            variant={isActive(item.href) ? 'default' : 'ghost'}
+            variant={isActive(item.href) ? "default" : "ghost"}
             className="w-full justify-start h-auto p-3"
             asChild
           >
@@ -583,8 +596,8 @@ export const RoleBasedNavigation: React.FC<RoleBasedNavigationProps> = ({
                 )}
               </div>
               {item.badge && (
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="secondary"
                   className={cn("text-xs", item.badgeColor)}
                 >
                   {item.badge}

@@ -1,11 +1,11 @@
 import React from "react";
 import { View, Text, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 export default function GuestReviewEntryScreen() {
   const { sessionId, token } = useLocalSearchParams<{
@@ -26,15 +26,13 @@ export default function GuestReviewEntryScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader title="Leave a review" fallbackHref="/find-therapists" />
       <ScrollView
-        className="flex-1 px-6 pt-6"
+        className="flex-1 px-6 pt-2"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Text className="text-charcoal-900 text-2xl font-bold">
-          Leave a review
-        </Text>
-        <Text className="text-charcoal-500 mt-2">
+        <Text className="text-charcoal-500">
           You can leave feedback for your session directly in app.
         </Text>
 
@@ -61,6 +59,6 @@ export default function GuestReviewEntryScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

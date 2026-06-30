@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import MapView, {
   Marker,
   type MapPressEvent,
@@ -592,7 +592,7 @@ export default function PractitionerOnboardingScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50">
+      <AppScreen className="flex-1 bg-cream-50">
         <View className="flex-1 px-6 justify-center items-center">
           <Text className="text-charcoal-700">Sign in required.</Text>
           <Button
@@ -603,7 +603,7 @@ export default function PractitionerOnboardingScreen() {
             Sign in
           </Button>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
@@ -615,16 +615,16 @@ export default function PractitionerOnboardingScreen() {
 
   if (userProfile?.onboarding_status === "completed") {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50 items-center justify-center">
+      <AppScreen className="flex-1 bg-cream-50 items-center justify-center">
         <ActivityIndicator color={Colors.sage[500]} />
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
   const radiusValue = loc.mobileServiceRadiusKm ?? 25;
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen className="flex-1 bg-cream-50">
       <View className="px-6 pt-2">
         <AuthBackHeader fallbackHref="/role-selection" label="Role" />
       </View>
@@ -980,6 +980,6 @@ export default function PractitionerOnboardingScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

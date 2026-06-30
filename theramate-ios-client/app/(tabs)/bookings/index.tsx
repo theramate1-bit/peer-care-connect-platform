@@ -7,15 +7,16 @@ import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import {
   Calendar,
   Clock,
@@ -35,7 +36,6 @@ import {
   isSessionUpcoming,
   type SessionWithTherapist,
 } from "@/lib/api/clientSessions";
-import { MainTabHeader } from "@/components/navigation/AppStackHeader";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 
 type TabType = "upcoming" | "past";
@@ -204,9 +204,7 @@ function SessionCard({
 export default function BookingsScreen() {
   const tabRoot = useTabRoot();
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
-  const clientId = useAuthStore(
-    (s) => s.authUser?.id ?? s.session?.user?.id,
-  );
+  const clientId = useAuthStore((s) => s.authUser?.id ?? s.session?.user?.id);
 
   const {
     data: allSessions = [],
@@ -229,13 +227,9 @@ export default function BookingsScreen() {
 
   const sessions = activeTab === "upcoming" ? upcoming : past;
 
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
-
   if (!clientId) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+      <TabScreen>
         <MainTabHeader title="Sessions" />
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Calendar size={48} color={Colors.charcoal[300]} />
@@ -243,8 +237,8 @@ export default function BookingsScreen() {
             My sessions
           </Text>
           <Text className="text-charcoal-500 text-center mt-3 leading-6">
-            Sign in to see upcoming and past bookings, manage sessions in the app,
-            and message your practitioner.
+            Sign in to see upcoming and past bookings, manage sessions in the
+            app, and message your practitioner.
           </Text>
           <Button
             variant="primary"
@@ -261,22 +255,17 @@ export default function BookingsScreen() {
             Create account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <MainTabHeader
         title="Sessions"
         right={
           <TouchableOpacity
-            onPress={() =>
-              router.push(tabPath(tabRoot, "explore") as never)
-            }
+            onPress={() => router.push(tabPath(tabRoot, "explore") as never)}
             className="w-10 h-10 rounded-2xl bg-cream-100 items-center justify-center"
             accessibilityRole="button"
             accessibilityLabel="Find a therapist"
@@ -285,7 +274,9 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         }
       />
-      <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}>
+      <View
+        style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}
+      >
         <View className="flex-row bg-cream-100 p-1 rounded-xl mb-1">
           {(["upcoming", "past"] as TabType[]).map((tab) => (
             <TouchableOpacity
@@ -327,9 +318,8 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView
+        <TabScreenScroll
           className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -362,8 +352,8 @@ export default function BookingsScreen() {
               </View>
             ))
           )}
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

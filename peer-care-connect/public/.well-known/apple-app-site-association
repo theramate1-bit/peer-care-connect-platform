@@ -1,0 +1,39 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["X3GU2G68AL.com.theramate.client"],
+        "components": [
+          { "/": "/book/*", "comment": "Guest direct booking slug" },
+          { "/": "/booking/*", "comment": "Booking flows and session view" },
+          { "/": "/booking-success", "comment": "Stripe checkout return" },
+          { "/": "/mobile-booking/*", "comment": "Mobile request checkout" },
+          { "/": "/review", "comment": "Post-session review" },
+          { "/": "/review/*", "comment": "Review with query params" },
+          { "/": "/notifications", "comment": "Notification centre deep link" },
+          { "/": "/onboarding/*", "comment": "Onboarding including Stripe return" },
+          { "/": "/stripe-return", "comment": "Stripe Connect return alias" },
+          { "/": "/subscription-success", "comment": "Platform subscription return" },
+          { "/": "/guest/*", "comment": "Guest mobile requests" },
+          { "/": "/therapist/*/public", "comment": "Public therapist profile" },
+          { "/": "/practice/exchange-requests", "comment": "Treatment exchange inbox" },
+          { "/": "/practice/exchange-requests/*", "comment": "Treatment exchange detail" },
+          { "/": "/auth/verify-email", "comment": "Email verification" },
+          { "/": "/auth/registration-success", "comment": "Registration complete" },
+          { "/": "/auth/role-selection", "comment": "Role selection" },
+          { "/": "/auth/oauth-completion", "comment": "OAuth profile completion" },
+          { "/": "/auth/onboarding", "comment": "Auth onboarding" },
+          { "/": "/auth/reset-password-confirm", "comment": "Password reset confirm" },
+          { "/": "/auth/callback", "comment": "OAuth Universal Link fallback" },
+          { "/": "/oauth-callback", "comment": "OAuth callback alias" },
+          { "/": "/verify-email", "comment": "Verify email alias" },
+          { "/": "/registration-success", "comment": "Registration alias" },
+          { "/": "/role-selection", "comment": "Role selection alias" },
+          { "/": "/oauth-completion", "comment": "OAuth completion alias" },
+          { "/": "/reset-password-confirm", "comment": "Reset password alias" }
+        ]
+      }
+    ]
+  }
+}

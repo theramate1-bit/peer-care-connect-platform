@@ -1,11 +1,10 @@
 import React from "react";
 import { Text, ScrollView, Linking, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { APP_CONFIG } from "@/constants/config";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 function randomId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -38,15 +37,16 @@ export default function DiagnosticsScreen() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader
+        title="Diagnostics"
+        fallbackHref={signedInTabPath("profile")}
+      />
       <ScrollView
-        className="flex-1 px-6 pt-4"
+        className="flex-1 px-6 pt-2"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Text className="text-charcoal-900 text-2xl font-bold">
-          Diagnostics
-        </Text>
-        <Text className="text-charcoal-500 mt-2">
+        <Text className="text-charcoal-500">
           Use this screen to validate deep-link return routes on device builds.
         </Text>
 
@@ -81,8 +81,7 @@ export default function DiagnosticsScreen() {
             </Text>
           </Button>
         ))}
-
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

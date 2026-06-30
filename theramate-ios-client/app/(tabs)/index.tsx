@@ -4,61 +4,36 @@
  */
 
 import React, { useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, RefreshControl, ActivityIndicator } from "react-native";
 import { Link, Redirect } from "expo-router";
-import { format, isToday, isTomorrow } from "date-fns";
 import {
-  Calendar,
-  Clock,
   ChevronRight,
   Search,
   Star,
   Heart,
   MessageCircle,
   Ticket,
+  Calendar,
 } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useClientSessions } from "@/hooks/useClientSessions";
 import { useMarketplacePractitioners } from "@/hooks/useMarketplacePractitioners";
-import { Button } from "@/components/ui/Button";
-import { Card, PressableCard } from "@/components/ui/Card";
+import { PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Colors } from "@/constants/colors";
 import { SPECIALIZATIONS } from "@/constants/config";
-import {
-  isSessionUpcoming,
-  getSessionStartDate,
-  type SessionWithTherapist,
-} from "@/lib/api/clientSessions";
-
-function formatSessionWhen(s: SessionWithTherapist): string {
-  const d = getSessionStartDate(s);
-  const t = format(d, "HH:mm");
-  if (isToday(d)) return `Today · ${t}`;
-  if (isTomorrow(d)) return `Tomorrow · ${t}`;
-  return `${format(d, "EEE d MMM")} · ${t}`;
-}
 
 export default function HomeScreen() {
   const tabRoot = useTabRoot();
   const { userProfile, userId, isAuthenticated, isInitialized } = useAuth();
   const queryClient = useQueryClient();
-  const {
-    data: sessions,
-    isLoading: loadingSessions,
-    refetch: refetchSessions,
-  } = useClientSessions(userId);
   const {
     data: practitioners,
     isPending: marketplacePending,
@@ -66,17 +41,6 @@ export default function HomeScreen() {
   } = useMarketplacePractitioners();
 
   const [refreshing, setRefreshing] = React.useState(false);
-
-  const nextSession = useMemo(() => {
-    if (!sessions?.length) return null;
-    const upcoming = sessions
-      .filter(isSessionUpcoming)
-      .sort(
-        (a, b) =>
-          getSessionStartDate(a).getTime() - getSessionStartDate(b).getTime(),
-      );
-    return upcoming[0] ?? null;
-  }, [sessions]);
 
   const suggested = useMemo(() => {
     if (!practitioners?.length) return [];
@@ -88,29 +52,24 @@ export default function HomeScreen() {
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      refetchSessions(),
       refetchPractitioners(),
       queryClient.invalidateQueries({ queryKey: ["conversations", userId] }),
+      queryClient.invalidateQueries({ queryKey: ["client_sessions", userId] }),
     ]);
     setRefreshing(false);
-  }, [refetchSessions, refetchPractitioners, queryClient, userId]);
+  }, [refetchPractitioners, queryClient, userId]);
 
   if (isInitialized && !isAuthenticated) {
     return <Redirect href="/explore" />;
   }
 
   const firstName = userProfile?.first_name || "there";
-  const loadingHome = loadingSessions && !sessions;
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <MainTabHeader title="Home" />
-      <ScrollView
+      <TabScreenScroll
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -136,72 +95,6 @@ export default function HomeScreen() {
               size="lg"
             />
           </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 24, marginBottom: 24 }}>
-          <Card variant="elevated" className="bg-sage-500 p-5">
-            <Text className="text-white/80 text-sm mb-2">Next session</Text>
-            {loadingHome ? (
-              <ActivityIndicator color="#fff" />
-            ) : nextSession ? (
-              <>
-                <View className="flex-row items-center mb-3">
-                  <Avatar name={nextSession.therapist_name} size="md" />
-                  <View className="ml-3 flex-1">
-                    <Text className="text-white font-semibold text-lg">
-                      {nextSession.therapist_name}
-                    </Text>
-                    <Text className="text-white/80 text-sm">
-                      {nextSession.session_type || "Session"}
-                    </Text>
-                  </View>
-                </View>
-                <View className="flex-row items-center flex-wrap gap-3">
-                  <View className="flex-row items-center mr-4">
-                    <Calendar size={16} color="white" />
-                    <Text className="text-white ml-2 text-sm">
-                      {formatSessionWhen(nextSession)}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center">
-                    <Clock size={16} color="white" />
-                    <Text className="text-white ml-2 text-sm">
-                      {nextSession.duration_minutes} min
-                    </Text>
-                  </View>
-                </View>
-                <Link href={tabPath(tabRoot, "bookings") as never} asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4 border-white/30"
-                  >
-                    <Text className="text-white font-medium">
-                      View sessions
-                    </Text>
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Text className="text-white/90 text-base mb-4">
-                  You have no upcoming bookings. Explore therapists to get
-                  started.
-                </Text>
-                <Link href={tabPath(tabRoot, "explore") as never} asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-white/30"
-                  >
-                    <Text className="text-white font-medium">
-                      Find a therapist
-                    </Text>
-                  </Button>
-                </Link>
-              </>
-            )}
-          </Card>
         </View>
 
         <View style={{ paddingHorizontal: 24, marginBottom: 24 }}>
@@ -373,7 +266,7 @@ export default function HomeScreen() {
             })
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

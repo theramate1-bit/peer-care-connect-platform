@@ -8,19 +8,22 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Check } from "lucide-react-native";
+import { Check } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePractitionerClients } from "@/hooks/usePractitionerClients";
 import { createTreatmentPlanRpc } from "@/lib/api/practitionerTreatmentPlans";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function NewTreatmentPlanScreen() {
   const tabRoot = useTabRoot();
@@ -99,32 +102,14 @@ export default function NewTreatmentPlanScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "bookings"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">
-            New care plan
-          </Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            After saving, link this plan from the client's session detail.
-          </Text>
-        </View>
-      </View>
+    <TabScreen>
+      <AppStackHeader
+        title="New care plan"
+        subtitle="After saving, link this plan from the client's session detail."
+        fallbackHref={tabPath(tabRoot, "treatment-plans")}
+      />
 
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <Text className="text-charcoal-900 font-semibold mb-2">Client</Text>
         {loadingClients ? (
           <ActivityIndicator color={Colors.sage[500]} className="my-4" />
@@ -261,7 +246,7 @@ export default function NewTreatmentPlanScreen() {
             <Text className="text-white font-semibold">Create care plan</Text>
           )}
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

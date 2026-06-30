@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
+import { initErrorTracking } from "@/lib/errorTracking";
 import { useAuthStore } from "@/stores/authStore";
 import { authHelpers, supabase } from "@/lib/supabase";
 import { Colors } from "@/constants/colors";
@@ -58,6 +59,10 @@ type AuthAutoRefresh = {
 
 export default function RootLayout() {
   const rootNavigation = useRootNavigationState();
+
+  useEffect(() => {
+    initErrorTracking();
+  }, []);
 
   useEffect(() => {
     void useAuthStore.getState().initialize();
@@ -107,9 +112,20 @@ export default function RootLayout() {
     const handleUrl = async (url: string) => {
       if (!url) return;
       if (isOAuthCallbackUrl(url)) {
+        const { session } = await authHelpers.getSession();
+        if (session?.user) {
+          router.replace("/oauth-completion");
+          return;
+        }
         const { error } = await authHelpers.completeOAuthFromUrl(url);
         if (!error) {
           router.replace("/oauth-completion");
+        } else {
+          useAuthStore.getState().clearError();
+          useAuthStore.setState({
+            error: error.message ?? "Google sign-in failed",
+          });
+          router.replace("/login");
         }
         return;
       }

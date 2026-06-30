@@ -1,5 +1,6 @@
 import { APP_CONFIG } from "@/constants/config";
 import { createConnectHostedOnboardingLink } from "@/lib/api/stripeConnect";
+import { HOSTED_CHECKOUT_PATHS } from "@/lib/hostedCheckoutPaths";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
 
 /**
@@ -9,7 +10,8 @@ export async function openConnectHostedOnboarding(params?: {
   stripeAccountId?: string;
   returnPath?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const returnPath = params?.returnPath ?? "/onboarding/stripe-return";
+  const returnPath =
+    params?.returnPath ?? HOSTED_CHECKOUT_PATHS.connectStripeReturn;
   const { url, error } = await createConnectHostedOnboardingLink({
     stripeAccountId: params?.stripeAccountId,
     returnPath,
@@ -26,7 +28,7 @@ export async function openConnectHostedOnboarding(params?: {
 
 /** Default return path after Connect onboarding on web (matches APP_URL). */
 export function connectOnboardingReturnPath(): string {
-  return "/onboarding/stripe-return";
+  return HOSTED_CHECKOUT_PATHS.connectStripeReturn;
 }
 
 export function connectOnboardingReturnUrl(): string {

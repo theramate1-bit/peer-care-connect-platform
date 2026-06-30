@@ -6,13 +6,12 @@ import {
   TouchableOpacity,
   Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Mail } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { APP_CONFIG } from "@/constants/config";
 import type { LegalDocument } from "@/constants/legal/types";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 type LegalDocumentScreenProps = {
   title: string;
@@ -22,13 +21,16 @@ type LegalDocumentScreenProps = {
 /**
  * Renders static legal / help copy shipped with the app (no WebView).
  */
-export function LegalDocumentScreen({ title, document }: LegalDocumentScreenProps) {
+export function LegalDocumentScreen({
+  title,
+  document,
+}: LegalDocumentScreenProps) {
   const mailSupport = () => {
     void Linking.openURL(`mailto:${APP_CONFIG.SUPPORT_EMAIL}`);
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader title={title} />
       <ScrollView
         className="flex-1"
@@ -39,7 +41,9 @@ export function LegalDocumentScreen({ title, document }: LegalDocumentScreenProp
         }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-charcoal-400 text-xs mb-6">{document.lastUpdated}</Text>
+        <Text className="text-charcoal-400 text-xs mb-6">
+          {document.lastUpdated}
+        </Text>
 
         {document.sections.map((section, i) => (
           <View key={i} className="mb-6">
@@ -75,6 +79,6 @@ export function LegalDocumentScreen({ title, document }: LegalDocumentScreenProp
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

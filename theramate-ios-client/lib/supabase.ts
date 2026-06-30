@@ -5,17 +5,18 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { API_CONFIG, APP_CONFIG } from "@/constants/config";
+import {
+  formatOAuthErrorMessage,
+  getOAuthRedirectUrl,
+  parseOAuthCallbackUrl,
+} from "@/lib/oauthCallback";
+
+export { getOAuthRedirectUrl } from "@/lib/oauthCallback";
 
 /** Dismisses stray auth tabs when Universal Links / deep links complete the same session. */
 WebBrowser.maybeCompleteAuthSession();
-
-/** Redirect URL for Supabase OAuth and `openAuthSessionAsync` (must match dashboard allow list). */
-export function getOAuthRedirectUrl(): string {
-  return Linking.createURL(`/${APP_CONFIG.OAUTH_CALLBACK_PATH}`);
-}
 
 type OAuthCallbackResult = {
   data: {
@@ -137,16 +138,20 @@ export const authHelpers = {
       };
     }
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
+      showInRecents: false,
+    });
     if (result.type === "success" && result.url) {
       return authHelpers.completeOAuthFromUrl(result.url);
     }
-    if (result.type === "cancel") {
+    if (result.type === "cancel" || result.type === "dismiss") {
       return { data: null, error: new Error("Sign-in was cancelled") };
     }
     return {
       data: null,
-      error: new Error("OAuth sign-in did not complete"),
+      error: new Error(
+        formatOAuthErrorMessage("OAuth sign-in did not complete"),
+      ),
     };
   },
 
@@ -178,42 +183,82 @@ export const authHelpers = {
 
     const run = async (): Promise<OAuthCallbackResult> => {
       try {
-        // PKCE callbacks: theramate://oauth-callback?code=...
-        const parsed = new URL(url);
-        const code = parsed.searchParams.get("code");
-        const callbackError =
-          parsed.searchParams.get("error_description") ||
-          parsed.searchParams.get("error");
+        const {
+          code,
+          error: callbackError,
+          accessToken,
+          refreshToken,
+        } = parseOAuthCallbackUrl(url);
+
         if (callbackError) {
-          return { data: null, error: new Error(callbackError) };
+          return {
+            data: null,
+            error: new Error(formatOAuthErrorMessage(callbackError)),
+          };
         }
+
         if (code) {
           const { data, error } =
             await supabase.auth.exchangeCodeForSession(code);
-          return { data, error };
+          if (!error) {
+            return { data, error };
+          }
+          // In-app browser + Universal Link can both deliver the same code once.
+          const { data: existing } = await supabase.auth.getSession();
+          if (existing.session?.user) {
+            return {
+              data: {
+                session: existing.session,
+                user: existing.session.user,
+              },
+              error: null,
+            };
+          }
+          return {
+            data: null,
+            error: new Error(formatOAuthErrorMessage(error.message)),
+          };
         }
 
-        // Implicit callbacks may return tokens in the hash.
-        const hash = url.includes("#") ? url.split("#")[1] : "";
-        const hashParams = new URLSearchParams(hash);
-        const access_token = hashParams.get("access_token");
-        const refresh_token = hashParams.get("refresh_token");
-        if (access_token && refresh_token) {
+        if (accessToken && refreshToken) {
           const { data, error } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
+            access_token: accessToken,
+            refresh_token: refreshToken,
           });
+          if (error) {
+            return {
+              data: null,
+              error: new Error(formatOAuthErrorMessage(error.message)),
+            };
+          }
           return { data, error };
+        }
+
+        const { data: existing } = await supabase.auth.getSession();
+        if (existing.session?.user) {
+          return {
+            data: {
+              session: existing.session,
+              user: existing.session.user,
+            },
+            error: null,
+          };
         }
 
         return {
           data: null,
-          error: new Error("No auth code or tokens found in callback URL"),
+          error: new Error(
+            formatOAuthErrorMessage(
+              "No auth code or tokens found in callback URL",
+            ),
+          ),
         };
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error ? e.message : "OAuth callback handling failed";
         return {
           data: null,
-          error: new Error(e?.message || "OAuth callback handling failed"),
+          error: new Error(formatOAuthErrorMessage(message)),
         };
       }
     };

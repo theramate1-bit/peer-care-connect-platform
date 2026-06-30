@@ -17,7 +17,6 @@ import {
   Pressable,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { MapPin, Paperclip, Sparkles, Trash2 } from "lucide-react-native";
@@ -44,9 +43,13 @@ import { generateSoapNotesFromTranscript } from "@/lib/api/soapNotes";
 import { transcribeSessionVoiceRecording } from "@/lib/api/aiSoapTranscribe";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
 import { VoiceSoapCapture } from "@/components/clinical/VoiceSoapCapture";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { PRACTITIONER_PTABS_HREF } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 const SECTIONS: { key: TreatmentNoteType; label: string; hint: string }[] = [
   { key: "subjective", label: "Subjective", hint: "What the client reports" },
@@ -342,10 +345,7 @@ export default function ClinicalNotesEditorScreen() {
   const loading = sessionQuery.isLoading || notesQuery.isLoading;
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <AppStackHeader
         title="Session notes"
         fallbackHref={PRACTITIONER_PTABS_HREF}
@@ -364,9 +364,8 @@ export default function ClinicalNotesEditorScreen() {
             Session not found.
           </Text>
         ) : (
-          <ScrollView
+          <TabScreenScroll
             className="flex-1 px-6 pt-4"
-            contentContainerStyle={{ paddingBottom: 120 }}
             keyboardShouldPersistTaps="handled"
           >
             <Text className="text-charcoal-500 text-sm mb-4">
@@ -527,7 +526,7 @@ export default function ClinicalNotesEditorScreen() {
                 {saving ? "Saving…" : "Save notes"}
               </Text>
             </Button>
-          </ScrollView>
+          </TabScreenScroll>
         )}
       </KeyboardAvoidingView>
 
@@ -594,6 +593,6 @@ export default function ClinicalNotesEditorScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

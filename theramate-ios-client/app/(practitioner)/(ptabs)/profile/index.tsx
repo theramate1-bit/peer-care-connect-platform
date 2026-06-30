@@ -11,7 +11,6 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import {
@@ -33,7 +32,6 @@ import {
   FolderKanban,
   Store,
   Clock,
-  Globe,
   LayoutList,
   CreditCard,
   Link2,
@@ -45,7 +43,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, PressableCard } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Colors } from "@/constants/colors";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   calculateProfileActivationStatus,
@@ -241,16 +243,9 @@ export default function PractitionerProfileScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <ScreenHeader
+    <TabScreen>
+      <TabScreenScroll style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <MainTabHeader
           eyebrow="Practice"
           title="Profile"
           subtitle="Manage your practice settings, services, and account."
@@ -375,17 +370,6 @@ export default function PractitionerProfileScreen() {
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
-              icon={<User size={20} color={Colors.charcoal[600]} />}
-              label="Professional details"
-              sublabel="Profile, locations, registration details"
-              onPress={() =>
-                router.push(
-                  tabPath(tabRoot, "profile/professional-details") as never,
-                )
-              }
-            />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
               icon={<MapPin size={20} color={Colors.info} />}
               label="Practice locations"
               sublabel="Clinic/base address and service radius"
@@ -493,6 +477,7 @@ export default function PractitionerProfileScreen() {
             <MenuItem
               icon={<User size={20} color={Colors.charcoal[600]} />}
               label="Edit profile"
+              sublabel="Bio, registration, and public profile"
               onPress={() =>
                 router.push(tabPath(tabRoot, "profile/edit-profile") as never)
               }
@@ -537,13 +522,6 @@ export default function PractitionerProfileScreen() {
               sublabel="Plan, renewals, secure billing"
               onPress={() => router.push("/settings/subscription" as never)}
             />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
-              icon={<Globe size={20} color={Colors.charcoal[600]} />}
-              label="Account tools"
-              sublabel="Privacy, subscription, payouts in app"
-              onPress={() => router.push("/settings" as never)}
-            />
           </MenuSection>
 
           <MenuSection title="Support">
@@ -578,7 +556,7 @@ export default function PractitionerProfileScreen() {
             Theramate v{Constants.expoConfig?.version ?? "1.0.0"}
           </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

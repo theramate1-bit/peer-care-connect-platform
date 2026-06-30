@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Clock4, ListChecks } from "lucide-react-native";
@@ -20,11 +19,15 @@ import {
   markExerciseCompleted,
   type ProgramExercise,
 } from "@/lib/api/exercises";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 export default function ExerciseProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -80,8 +83,11 @@ export default function ExerciseProgramDetailScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="Program details" fallbackHref={defaultSignedInProfileHref()} />
+    <TabScreen>
+      <AppStackHeader
+        title="Program details"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -108,10 +114,7 @@ export default function ExerciseProgramDetailScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 28 }}
-        >
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Card variant="default" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
               {data.title}
@@ -194,8 +197,8 @@ export default function ExerciseProgramDetailScreen() {
               </Card>
             ))
           )}
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

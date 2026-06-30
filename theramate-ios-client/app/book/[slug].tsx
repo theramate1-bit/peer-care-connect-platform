@@ -1,11 +1,11 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { fetchPublicTherapistBySlugOrId } from "@/lib/api/guestBooking";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 export default function DirectBookingScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -36,11 +36,9 @@ export default function DirectBookingScreen() {
   }, [slug]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="flex-1 px-6 pt-6">
-        <Text className="text-charcoal-900 text-2xl font-bold">
-          Direct booking
-        </Text>
+    <AppScreen>
+      <AppStackHeader title="Direct booking" fallbackHref="/find-therapists" />
+      <View className="flex-1 px-6 pt-2">
         {loading ? (
           <Text className="text-charcoal-500 mt-3">Loading booking link…</Text>
         ) : (
@@ -63,7 +61,7 @@ export default function DirectBookingScreen() {
                 })
               }
             >
-              Book as guest (pay at clinic)
+              Book as guest
             </Button>
             <Button
               variant="outline"
@@ -101,6 +99,6 @@ export default function DirectBookingScreen() {
           support with your practitioner&apos;s name.
         </Text>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

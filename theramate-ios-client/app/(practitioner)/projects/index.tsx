@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { fetchProjectsForTherapistUser } from "@/lib/api/practitionerProjects";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function PractitionerProjectsListScreen() {
   const tabRoot = useTabRoot();
@@ -42,10 +41,12 @@ export default function PractitionerProjectsListScreen() {
   });
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
+      <AppStackHeader
+        title="Projects"
+        subtitle="Long-form therapy project tracking and status."
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
       <ScrollView
         className="flex-1 px-6 pt-4"
         refreshControl={
@@ -56,13 +57,6 @@ export default function PractitionerProjectsListScreen() {
           />
         }
       >
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Practice"
-          title="Projects"
-          subtitle="Long-form therapy project tracking and status."
-        />
-
         <Text className="text-charcoal-600 leading-6 mb-4">
           Long-form therapy projects: edit details and phases here; data stays
           on your practice account.
@@ -111,6 +105,6 @@ export default function PractitionerProjectsListScreen() {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </TabScreen>
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { router } from "expo-router";
 
 import type { User as SupabaseAuthUser } from "@supabase/supabase-js";
@@ -204,7 +204,7 @@ export default function OAuthCompletionScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="px-6 pt-2">
         <AuthBackHeader fallbackHref="/login" label="Sign in" />
       </View>
@@ -263,6 +263,6 @@ export default function OAuthCompletionScreen() {
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

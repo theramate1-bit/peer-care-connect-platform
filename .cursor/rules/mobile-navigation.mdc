@@ -1,0 +1,23 @@
+---
+description: Mobile tab bar and screen layout — use shared navigation module
+globs:
+  - theramate-ios-client/app/**/*.tsx
+  - theramate-ios-client/components/**/*.tsx
+---
+
+# Mobile navigation layout
+
+- **Single import:** `@/components/navigation` for tab/stack chrome.
+- **Tab bar visible:** `TabScreen` → header → `TabScreenScroll` or `TabScreenList`. Do not hand-roll `paddingBottom: 100` or fixed `88` tab heights.
+- **Sticky CTAs:** `StickyBottomActionBar` (sits above tab bar via scene inset).
+- **No tab bar:** `AppScreen` + `AppStackHeader`.
+- **Tab layout files only:** `useTabLayoutScreenOptions()` for `sceneContainerStyle` + `tabBarStyle`.
+- **Chat composer:** `useTabComposerPadding()` for bottom padding on input rows.
+- **Auth / onboarding:** `AppScreen` + `AuthBackHeader` (not raw `SafeAreaView`); tab roots use `MainTabHeader` only (practitioner eyebrow/subtitle via same component).
+- **Pushed / stack screens:** `AppStackHeader` (+ optional `subtitle`, `leading`, `right`) — not hand-rolled `ChevronLeft` rows; modals use `AppScreen` + `AppStackHeader` with `onBackPress`.
+- **Shared content components:** route screen owns `AppStackHeader`; do not embed headers inside reusable `*Content` components (e.g. credits).
+- **Guest / public flows:** `AppScreen` + `AppStackHeader` (not inline `text-2xl` titles); checkout-return screens (`booking-success`, `subscription-success`) may omit back header.
+- **Route parity:** `npm run check:route-inventory` — curated Expo `app/` ↔ web `AppContent` map in `scripts/check-route-inventory.mjs`.
+- **Chrome CI:** `npm run check:mobile-chrome` — fails if `AppScreen`/`TabScreen` routes lack `AppStackHeader` / `MainTabHeader` / `AuthBackHeader`.
+- **Deep links:** `npm run check:deep-link-routes` — `lib/deepLinking.ts` targets must exist under `app/`; update map when adding return URLs.
+- **Profile menus:** one row per destination — avoid duplicate hub links (e.g. two `/settings` rows) and alias routes that re-export the same screen.

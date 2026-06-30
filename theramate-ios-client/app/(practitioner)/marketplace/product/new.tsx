@@ -8,20 +8,22 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
-import { goBackOrReplace } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import {
   PRACTITIONER_PRODUCT_DURATIONS,
   createPractitionerProductStripe,
 } from "@/lib/api/practitionerProducts";
 import { Button } from "@/components/ui/Button";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 const SERVICE_TYPES = ["clinic", "mobile", "both"] as const;
 
@@ -88,31 +90,14 @@ export default function NewPractitionerProductScreen() {
   };
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-cream-50"
-      edges={["top"]}
-    >
-      <View className="flex-row items-center px-4 pt-2 pb-4 border-b border-cream-200">
-        <TouchableOpacity
-          onPress={() => goBackOrReplace(tabPath(tabRoot, "marketplace"))}
-          className="p-2 -ml-2"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <View className="ml-2 flex-1">
-          <Text className="text-charcoal-900 text-lg font-semibold">
-            New service
-          </Text>
-          <Text className="text-charcoal-500 text-xs mt-0.5">
-            Bookable Stripe service for your marketplace listings.
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView
+    <TabScreen>
+      <AppStackHeader
+        title="New service"
+        subtitle="Bookable Stripe service for your marketplace listings."
+        fallbackHref={tabPath(tabRoot, "marketplace")}
+      />
+      <TabScreenScroll
         className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
       >
         <Text className="text-charcoal-500 text-sm mb-4">
@@ -164,7 +149,9 @@ export default function NewPractitionerProductScreen() {
             >
               <Text
                 className={
-                  duration === d ? "text-white font-medium" : "text-charcoal-800"
+                  duration === d
+                    ? "text-white font-medium"
+                    : "text-charcoal-800"
                 }
               >
                 {d} min
@@ -198,14 +185,18 @@ export default function NewPractitionerProductScreen() {
           ))}
         </View>
 
-        <Button variant="primary" disabled={busy} onPress={() => void onSubmit()}>
+        <Button
+          variant="primary"
+          disabled={busy}
+          onPress={() => void onSubmit()}
+        >
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text className="text-white font-semibold">Create service</Text>
           )}
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

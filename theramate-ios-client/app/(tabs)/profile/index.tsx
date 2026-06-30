@@ -4,14 +4,12 @@
  */
 
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import {
   User,
   Target,
-  CreditCard,
   Bell,
   Shield,
   HelpCircle,
@@ -20,14 +18,16 @@ import {
   Star,
   MapPin,
   Dumbbell,
-  Receipt,
   LayoutList,
-  Coins,
   ClipboardList,
   Heart,
 } from "lucide-react-native";
 
-import { MainTabHeader } from "@/components/navigation/AppStackHeader";
+import {
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, PressableCard } from "@/components/ui/Card";
@@ -124,16 +124,9 @@ export default function ProfileScreen() {
     : "User";
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <MainTabHeader title="Profile" />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <TabScreenScroll style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         <View
           style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}
         >
@@ -160,7 +153,7 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Target size={20} color={Colors.sage[500]} />}
               label="Progress & Goals"
-              sublabel="Track your journey"
+              sublabel="View goals from your practitioners"
               onPress={() =>
                 router.push(tabPath(tabRoot, "profile/progress-goals") as never)
               }
@@ -209,7 +202,7 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Dumbbell size={20} color={Colors.terracotta[500]} />}
               label="My Exercises"
-              sublabel="Home exercise programs and completion"
+              sublabel="View programs assigned to you"
               onPress={() =>
                 router.push(tabPath(tabRoot, "profile/exercises") as never)
               }
@@ -223,32 +216,6 @@ export default function ProfileScreen() {
               onPress={() =>
                 router.push(tabPath(tabRoot, "profile/edit-profile") as never)
               }
-            />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
-              icon={<CreditCard size={20} color={Colors.charcoal[600]} />}
-              label="Payment Methods"
-              onPress={() =>
-                router.push(
-                  tabPath(tabRoot, "profile/payment-methods") as never,
-                )
-              }
-            />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
-              icon={<Coins size={20} color={Colors.warning} />}
-              label="Credits"
-              sublabel="Balance and peer treatment activity"
-              onPress={() =>
-                router.push(tabPath(tabRoot, "profile/credits") as never)
-              }
-            />
-            <View className="h-px bg-cream-200 mx-4" />
-            <MenuItem
-              icon={<Receipt size={20} color={Colors.sage[600]} />}
-              label="Subscription & billing"
-              sublabel="Plan, renewals, secure billing"
-              onPress={() => router.push("/settings/subscription" as never)}
             />
             <View className="h-px bg-cream-200 mx-4" />
             <MenuItem
@@ -309,7 +276,7 @@ export default function ProfileScreen() {
             Theramate v{Constants.expoConfig?.version ?? "1.0.0"}
           </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

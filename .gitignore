@@ -63,6 +63,12 @@ Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
 
+# Generated preflight / reconcile reports (CI artifacts; regenerate locally)
+docs/architecture/reports/*.md
+docs/testing/reports/*.md
+!docs/architecture/reports/.gitkeep
+!docs/testing/reports/.gitkeep
+
 # BMad output (optional - remove if you want to commit BMad artifacts)
 _bmad-output/
 

@@ -17,6 +17,9 @@
     },
     "production": {
       "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://theramate.co.uk"
+      },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2",
         "resourceClass": "m-medium",

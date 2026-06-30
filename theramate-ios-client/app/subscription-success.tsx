@@ -1,11 +1,11 @@
 import React from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
 import { verifyPlatformSubscriptionCheckout } from "@/lib/api/platformSubscriptionCheckout";
+import { AppScreen } from "@/components/navigation";
 
 export default function SubscriptionSuccessScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();
@@ -42,7 +42,7 @@ export default function SubscriptionSuccessScreen() {
   }, [session_id]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <View className="flex-1 px-6 justify-center">
         {loading ? (
           <>
@@ -69,6 +69,6 @@ export default function SubscriptionSuccessScreen() {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

@@ -7,7 +7,6 @@ import {
   ScrollView,
   Image,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, {
   Marker,
   type MapPressEvent,
@@ -15,7 +14,6 @@ import MapView, {
 } from "react-native-maps";
 import * as ImagePicker from "expo-image-picker";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/Input";
@@ -23,6 +21,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { supabase } from "@/lib/supabase";
 import { PROFILE_IMAGE_MAX_BYTES } from "@/constants/config";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import {
   buildPracticeLocationUpdate,
   type PracticeLocationValues,
@@ -217,15 +220,12 @@ export default function PractitionerPracticeLocationsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Practice locations"
         fallbackHref={defaultSignedInProfileHref()}
       />
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 28 }}
-      >
+      <TabScreenScroll className="flex-1 px-6 pt-4">
         <Card variant="default" padding="md" className="mb-4">
           <Text className="text-charcoal-900 font-semibold mb-2">
             Therapist type
@@ -391,7 +391,7 @@ export default function PractitionerPracticeLocationsScreen() {
         >
           {saving ? <ActivityIndicator color="#fff" /> : "Save locations"}
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScreenScroll>
+    </TabScreen>
   );
 }

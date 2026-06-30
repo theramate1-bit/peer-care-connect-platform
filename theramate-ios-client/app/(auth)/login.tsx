@@ -12,8 +12,7 @@ import {
   Platform,
   TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, router } from "expo-router";
+import { Link, router, useFocusEffect } from "expo-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,6 +25,7 @@ import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Colors } from "@/constants/colors";
+import { AppScreen } from "@/components/navigation";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -60,16 +60,22 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOAuth = async (provider: "google" | "apple") => {
+  const handleGoogleSignIn = async () => {
     clearError();
-    const result = await signInWithOAuth(provider);
+    const result = await signInWithOAuth("google");
     if (result.success) {
       router.replace("/oauth-completion");
     }
   };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      clearError();
+    }, [clearError]),
+  );
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.cream[50] }}>
+    <AppScreen edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -166,26 +172,15 @@ export default function LoginScreen() {
               <View className="flex-1 h-px bg-charcoal-100" />
             </View>
 
-            {/* OAuth Buttons */}
-            <View className="space-y-3 mb-8">
+            <View className="mb-8">
               <Button
                 variant="outline"
-                onPress={() => handleOAuth("google")}
+                onPress={() => void handleGoogleSignIn()}
                 fullWidth
-                className="mb-3"
+                isLoading={isLoading}
               >
                 Continue with Google
               </Button>
-
-              {Platform.OS === "ios" && (
-                <Button
-                  variant="outline"
-                  onPress={() => handleOAuth("apple")}
-                  fullWidth
-                >
-                  Continue with Apple
-                </Button>
-              )}
             </View>
 
             {/* Sign Up Link */}
@@ -200,6 +195,6 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

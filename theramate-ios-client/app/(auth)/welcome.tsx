@@ -7,13 +7,13 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { AuthBackHeader } from "@/components/AuthBackHeader";
 import { HeroIllustration } from "@/components/auth/HeroIllustration";
 import { Button } from "@/components/ui/Button";
 import { Colors } from "@/constants/colors";
+import { AppScreen } from "@/components/navigation";
 
 /**
  * Secondary landing: sign in, sign up, browse — from “More options” on hero.
@@ -29,8 +29,8 @@ export default function WelcomeScreen() {
         <Text style={styles.eyebrow}>Explore</Text>
         <Text style={styles.title}>Theramate</Text>
         <Text style={styles.subtitle}>
-          Book trusted therapy sessions, track progress, and manage your care
-          in one place.
+          Book trusted therapy sessions, track progress, and manage your care in
+          one place.
         </Text>
       </View>
 
@@ -88,7 +88,7 @@ export default function WelcomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <AppScreen edges={["top", "bottom"]}>
       <View style={styles.backWrap}>
         <AuthBackHeader fallbackHref="/hero" label="Role selection" />
       </View>
@@ -106,7 +106,7 @@ export default function WelcomeScreen() {
           <View style={styles.inner}>{body}</View>
         </View>
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 

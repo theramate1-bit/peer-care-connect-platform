@@ -6,8 +6,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { Redirect, router, useFocusEffect, type Href } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   CreditCard,
@@ -16,7 +15,6 @@ import {
   AlertCircle,
 } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
@@ -24,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isPractitionerPortalRole } from "@/lib/authRoles";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 import {
   fetchLatestSubscription,
   formatBillingCycle,
@@ -83,8 +82,12 @@ export default function SettingsSubscriptionScreen() {
     waitingForUser ||
     (isAuthenticated && !!userId && isLoading && !summary);
 
+  if (isInitialized && isAuthenticated && userId && !isPractitioner) {
+    return <Redirect href={signedInTabPath("profile") as Href} />;
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="Subscription & billing"
         fallbackHref={defaultSignedInProfileHref()}
@@ -315,6 +318,6 @@ export default function SettingsSubscriptionScreen() {
           </Button>
         </ScrollView>
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }

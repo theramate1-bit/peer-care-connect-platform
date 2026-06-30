@@ -12,7 +12,6 @@ import {
   Alert,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -36,9 +35,13 @@ import {
 } from "@/lib/api/practitionerExchange";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import { ExchangeDiscoverPanel } from "@/components/practitioner/ExchangeDiscoverPanel";
 import { ExchangeReciprocalSlotModal } from "@/components/practitioner/ExchangeReciprocalSlotModal";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 function formatExchangeTime(t: string | null | undefined): string {
   if (t == null) return "";
@@ -419,10 +422,7 @@ export default function PractitionerExchangeScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <View className="flex-1 px-6 pt-8 items-center justify-center pb-16">
           <Text className="text-charcoal-900 text-xl font-semibold text-center">
             Practitioner sign-in required
@@ -446,18 +446,23 @@ export default function PractitionerExchangeScreen() {
             Create practitioner account
           </Button>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView
+    <TabScreen>
+      <AppStackHeader
+        title="Treatment exchange"
+        subtitle={
+          segment === "discover"
+            ? "Find peers in your rating tier and send a swap request."
+            : "See requests you've sent and received, and book return sessions when needed."
+        }
+        fallbackHref={tabPath(tabRoot, "profile")}
+      />
+      <TabScreenScroll
         className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl
             refreshing={pullRefreshing}
@@ -466,17 +471,6 @@ export default function PractitionerExchangeScreen() {
           />
         }
       >
-        <ScreenHeader
-          className="-mx-6 -mt-4 mb-2"
-          eyebrow="Practice"
-          title="Treatment exchange"
-          subtitle={
-            segment === "discover"
-              ? "Find peers in your rating tier and send a swap request."
-              : "See requests you’ve sent and received, and book return sessions when needed."
-          }
-        />
-
         <View className="flex-row mb-4 gap-2">
           <TouchableOpacity
             testID="exchange-segment-discover"
@@ -921,7 +915,7 @@ export default function PractitionerExchangeScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </TabScreenScroll>
 
       {userId && slotModal ? (
         <ExchangeReciprocalSlotModal
@@ -934,6 +928,6 @@ export default function PractitionerExchangeScreen() {
           onBooked={onReciprocalBooked}
         />
       ) : null}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

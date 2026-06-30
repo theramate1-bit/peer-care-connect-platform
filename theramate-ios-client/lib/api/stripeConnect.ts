@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
+import { HOSTED_CHECKOUT_PATHS } from "@/lib/hostedCheckoutPaths";
 
 export type ConnectAccountStatusPayload = {
   status: string;
@@ -153,7 +154,8 @@ export async function createConnectHostedOnboardingLink(params?: {
           ...(params?.stripeAccountId
             ? { stripe_account_id: params.stripeAccountId }
             : {}),
-          ...(params?.returnPath ? { return_path: params.returnPath } : {}),
+          return_path:
+            params?.returnPath ?? HOSTED_CHECKOUT_PATHS.connectStripeReturn,
         },
       },
     );

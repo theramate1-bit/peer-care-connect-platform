@@ -3,6 +3,7 @@
  */
 
 import { APP_CONFIG } from "@/constants/config";
+import { HOSTED_CHECKOUT_PATHS } from "@/lib/hostedCheckoutPaths";
 import {
   getStripeCheckoutWebOrigins,
   isCheckoutWebHostname,
@@ -44,7 +45,7 @@ export function parseCheckoutRedirectFromUrl(raw: string): CheckoutRedirect {
   const host = url.hostname.toLowerCase();
   if (!isCheckoutWebHostname(host, CHECKOUT_WEB_ORIGINS)) return null;
 
-  if (pathIncludes(url, "/mobile-booking/success")) {
+  if (pathIncludes(url, HOSTED_CHECKOUT_PATHS.mobileBookingSuccess)) {
     const rid = url.searchParams.get("mobile_request_id");
     const cid = url.searchParams.get("mobile_checkout_session_id");
     if (rid && cid) {
@@ -56,21 +57,21 @@ export function parseCheckoutRedirectFromUrl(raw: string): CheckoutRedirect {
     }
   }
 
-  if (pathIncludes(url, "/booking-success")) {
+  if (pathIncludes(url, HOSTED_CHECKOUT_PATHS.bookingSuccess)) {
     const sid = url.searchParams.get("session_id");
     if (sid) return { type: "clinic_success", checkoutSessionId: sid };
   }
 
-  if (pathIncludes(url, "/subscription-success")) {
+  if (pathIncludes(url, HOSTED_CHECKOUT_PATHS.subscriptionSuccess)) {
     const sid = url.searchParams.get("session_id");
     if (sid) return { type: "subscription_success", checkoutSessionId: sid };
   }
 
   const path = url.pathname.toLowerCase().replace(/\/+$/, "") || "/";
   if (
-    path === "/onboarding/stripe-return" ||
-    path.endsWith("/onboarding/stripe-return") ||
-    path === "/stripe-return"
+    path === HOSTED_CHECKOUT_PATHS.connectStripeReturn ||
+    path.endsWith(HOSTED_CHECKOUT_PATHS.connectStripeReturn) ||
+    path === HOSTED_CHECKOUT_PATHS.connectStripeReturnAlias
   ) {
     return { type: "connect_onboarding_return" };
   }

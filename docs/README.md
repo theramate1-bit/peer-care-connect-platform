@@ -11,11 +11,14 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 ### Getting Started
 
 - [Development Setup](./getting-started/development-setup.md)
+- [GitHub Actions secrets](./getting-started/github-actions.md)
 - [Environment Configuration](./getting-started/environment-setup.md)
 - [Quick Start Guide](./getting-started/quick-start.md)
 
 ### Architecture
 
+- [**Canonical paths (web / mobile / Supabase)**](./architecture/CANONICAL_PATHS.md) — single source of truth for repo layout
+- [**Supabase migration reconciliation**](./architecture/SUPABASE_MIGRATION_RECONCILIATION.md) — legacy vs canonical plan
 - [System Overview](./architecture/system-overview.md)
 - [**Supabase MCP live reference**](./architecture/supabase-mcp-live-reference.md) — **tables, columns, RLS note, edge functions** (from MCP; refresh after schema/deploy changes)
 - [Database Schema](./architecture/database-schema.md) 🆕 - Core tables, relationships, guest/client, practitioner types
@@ -83,6 +86,12 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 - [Webhooks](./api/webhooks.md)
 - [Authentication](./api/authentication.md)
 
+### Operations
+
+- [Observability (Sentry, logs)](./operations/OBSERVABILITY.md)
+- [**Pre-deploy runbook**](./operations/PRE_DEPLOY_RUNBOOK.md) — `npm run pre-deploy`
+- [Realtime cross-surface QA](./testing/REALTIME_CROSS_SURFACE_QA.md) — web ↔ app diary matrix
+
 ### Deployment
 
 - [Deployment Guide](./deployment/deployment-guide.md)
@@ -128,7 +137,7 @@ Welcome to the Peer Care Connect / Theramate documentation. This directory conta
 
 ### Web app (Theramate / Peer Care Connect)
 
-- **Code:** repo-root **`src/`** (React + Vite) with **`supabase/`** at repo root — there is no separate `peer-care-connect/` app folder in this layout.
+- **Code:** Vite app in **`peer-care-connect/`** plus feature code in repo-root **`src/`**; canonical **`supabase/`** at repo root. See [CANONICAL_PATHS](./architecture/CANONICAL_PATHS.md).
 - **Entry / setup:** see root [README.md](../README.md) and [docs/getting-started/](../getting-started/).
 
 ### AI UGC Creator

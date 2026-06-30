@@ -4,10 +4,8 @@
 
 import React, { useMemo } from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Colors } from "@/constants/colors";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +15,7 @@ import {
   parseClientHubTabParam,
 } from "@/components/practitioner/ClientHubScreen";
 import { normalizeClientEmail } from "@/lib/api/practitionerClients";
+import { AppStackHeader, TabScreen } from "@/components/navigation";
 
 export default function PractitionerGuestClientScreen() {
   const tabRoot = useTabRoot();
@@ -53,34 +52,27 @@ export default function PractitionerGuestClientScreen() {
 
   if (!userId) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      />
+      <TabScreen>
+        <View className="flex-1" />
+      </TabScreen>
     );
   }
 
   if (!decoded || !norm) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-        edges={["top"]}
-      >
+      <TabScreen>
         <AppStackHeader title="Client" fallbackHref={clientsListHref} />
         <View className="px-6 py-8">
           <Text className="text-charcoal-600">
             Missing email. Go back to the client list.
           </Text>
         </View>
-      </SafeAreaView>
+      </TabScreen>
     );
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
+    <TabScreen>
       <AppStackHeader title={displayName} fallbackHref={clientsListHref} />
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -95,6 +87,6 @@ export default function PractitionerGuestClientScreen() {
           initialTab={initialTab}
         />
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }

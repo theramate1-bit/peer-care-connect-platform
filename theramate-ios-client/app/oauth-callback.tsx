@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppScreen } from "@/components/navigation";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Linking from "expo-linking";
 
@@ -50,7 +50,7 @@ export default function OAuthCallbackScreen() {
       );
       return;
     }
-      router.replace("/oauth-completion");
+    router.replace("/oauth-completion");
   }, [params.code, params.error, params.error_description]);
 
   React.useEffect(() => {
@@ -74,7 +74,7 @@ export default function OAuthCallbackScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50">
+    <AppScreen edges={["top", "bottom"]}>
       <View className="flex-1 items-center justify-center px-6">
         <ActivityIndicator color={Colors.sage[500]} />
         <Text className="text-charcoal-600 mt-4 text-center">{message}</Text>
@@ -100,6 +100,6 @@ export default function OAuthCallbackScreen() {
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

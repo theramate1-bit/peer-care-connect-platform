@@ -7,55 +7,148 @@ on:
     branches: [main, develop]
 
 jobs:
-  lint:
-    name: Lint & Type Check
+  gitleaks:
+    name: Secret scan (Gitleaks)
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: .gitleaks.toml
+          exit-code: 1
+          no-git: false
+          verbose: true
+
+  lint:
+    name: Lint & Type Check (web)
+    runs-on: ubuntu-latest
+    needs: [gitleaks]
     defaults:
       run:
         working-directory: ./peer-care-connect
-    
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ./peer-care-connect/package-lock.json
-      
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: peer-care-connect/package-lock.json
       - name: Install dependencies
         run: npm ci
-      
       - name: Run ESLint
         run: npm run lint
-      
       - name: Type Check
         run: npx tsc --noEmit
 
-  test-unit:
-    name: Unit Tests
+  platform-drift:
+    name: Web vs mobile drift check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./peer-care-connect
-    
+    needs: [gitleaks]
     steps:
       - uses: actions/checkout@v4
-      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: DRIFT_STRICT=1 CI=1 npm run check:platform-drift
+      - run: npm run check:hierarchy
+
+  mobile:
+    name: Mobile typecheck & unit tests
+    runs-on: ubuntu-latest
+    needs: [gitleaks, platform-drift]
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ./peer-care-connect/package-lock.json
-      
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install monorepo dependencies
+        run: npm ci
+      - name: Typecheck mobile
+        run: npm run typecheck:mobile
+      - name: Mobile unit tests
+        run: npm run test:mobile
+
+  backend-test:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    needs: [gitleaks]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install monorepo dependencies
+        run: npm ci
+      - name: Run backend tests
+        run: npm run test:backend
+
+  supabase-migrations:
+    name: Supabase migrations (static checks)
+    runs-on: ubuntu-latest
+    needs: [gitleaks]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate canonical migration filenames
+        run: |
+          set -e
+          shopt -s nullglob
+          files=(supabase/migrations/*.sql)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No SQL migrations in supabase/migrations/"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            base=$(basename "$f")
+            echo "$base" | grep -Eq '^[0-9]{8,}_[a-zA-Z0-9_-]+\.sql$' || {
+              echo "Invalid migration filename: $base"
+              exit 1
+            }
+            [ -s "$f" ] || { echo "Empty migration: $f"; exit 1; }
+          done
+          echo "OK — ${#files[@]} migration files"
+      - name: Migration inventory (canonical vs legacy)
+        run: node scripts/compare-supabase-migrations.mjs
+      - name: Migration reconcile (strict — no divergent same-name SQL)
+        env:
+          RECONCILE_STRICT: "1"
+        run: node scripts/reconcile-supabase-migrations.mjs
+      - name: Block new legacy Supabase files
+        env:
+          GUARD_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+          GUARD_HEAD_SHA: ${{ github.sha }}
+        run: node scripts/guard-legacy-supabase-changes.mjs
+
+  test-unit:
+    name: Unit Tests (web)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    defaults:
+      run:
+        working-directory: ./peer-care-connect
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: peer-care-connect/package-lock.json
       - name: Install dependencies
         run: npm ci
-      
       - name: Run unit tests
         run: npm run test:unit:coverage
-      
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -64,8 +157,10 @@ jobs:
           fail_ci_if_error: false
 
   test-integration:
-    name: Integration Tests
+    name: Integration Tests (web)
     runs-on: ubuntu-latest
+    needs: [lint]
+    if: ${{ secrets.TEST_SUPABASE_URL != '' }}
     defaults:
       run:
         working-directory: ./peer-care-connect
@@ -73,82 +168,69 @@ jobs:
       VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
-    
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ./peer-care-connect/package-lock.json
-      
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: peer-care-connect/package-lock.json
       - name: Install dependencies
         run: npm ci
-      
       - name: Run integration tests
         run: npm run test:integration
-        continue-on-error: true
 
   test-e2e:
-    name: E2E Tests
+    name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
+    needs: [lint]
     defaults:
       run:
         working-directory: ./peer-care-connect
-    
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ./peer-care-connect/package-lock.json
-      
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: peer-care-connect/package-lock.json
       - name: Install dependencies
         run: npm ci
-      
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-      
+        run: npx playwright install --with-deps chromium
       - name: Run E2E tests
         run: npm run test:e2e
-        continue-on-error: true
-      
+        env:
+          CI: true
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: peer-care-connect/playwright-report/
           retention-days: 30
 
   build:
-    name: Build
+    name: Build (web)
     runs-on: ubuntu-latest
+    needs: [lint]
     defaults:
       run:
         working-directory: ./peer-care-connect
-    
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ./peer-care-connect/package-lock.json
-      
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: peer-care-connect/package-lock.json
       - name: Install dependencies
         run: npm ci
-      
       - name: Build
         run: npm run build
-      
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -156,26 +238,42 @@ jobs:
           path: peer-care-connect/dist
           retention-days: 7
 
-  security:
-    name: Security Scan
+  security-trivy:
+    name: Security Scan (Trivy)
     runs-on: ubuntu-latest
-    
+    needs: [gitleaks]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-      
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: trivy-results.sarif
+
+  release-gates:
+    name: Release readiness gates
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    needs: [mobile, backend-test, build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install monorepo dependencies
+        run: npm ci
+      - name: Run release gates
+        run: npm run test:readiness

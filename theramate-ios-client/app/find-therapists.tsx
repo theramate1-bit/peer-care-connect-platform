@@ -1,20 +1,22 @@
 import React from "react";
 import { View, Text, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Mail, MapPin, Search } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
 import { defaultSignedInProfileHref } from "@/lib/navigation";
 import { getSignedInTabRoot, signedInTabPath } from "@/lib/signedInRoutes";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function FindTherapistsRouteScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <AppStackHeader title="Find therapists" fallbackHref={defaultSignedInProfileHref()} />
+    <AppScreen>
+      <AppStackHeader
+        title="Find therapists"
+        fallbackHref={defaultSignedInProfileHref()}
+      />
       <ScrollView
         className="flex-1 px-6"
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
@@ -24,8 +26,8 @@ export default function FindTherapistsRouteScreen() {
           Browse & book
         </Text>
         <Text className="text-charcoal-500 text-center mt-3 leading-6">
-          Browse verified profiles, read reviews, then open a practitioner to book
-          a clinic slot or request a mobile visit.
+          Browse verified profiles, read reviews, then open a practitioner to
+          book a clinic slot or request a mobile visit.
         </Text>
 
         <Card variant="elevated" padding="lg" className="mt-8 mb-4">
@@ -72,6 +74,6 @@ export default function FindTherapistsRouteScreen() {
           Back to home
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

@@ -1,18 +1,17 @@
 import React from "react";
 import { View, Text, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Shield } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
 import { signedInTabPath } from "@/lib/signedInRoutes";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function SettingsPrivacyRouteScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader title="Privacy & security" fallbackHref="/settings" />
       <ScrollView
         className="flex-1 px-6"
@@ -84,6 +83,6 @@ export default function SettingsPrivacyRouteScreen() {
           Back to settings hub
         </Button>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

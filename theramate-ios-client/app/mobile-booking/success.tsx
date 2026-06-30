@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -9,6 +8,7 @@ import { Colors } from "@/constants/colors";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { getSignedInTabRoot, signedInTabPath } from "@/lib/signedInRoutes";
+import { AppScreen } from "@/components/navigation";
 
 export default function MobileBookingSuccessScreen() {
   const { sessionId, mobile_request_id, mobile_checkout_session_id } =
@@ -89,7 +89,7 @@ export default function MobileBookingSuccessScreen() {
   }, [mobile_checkout_session_id, mobile_request_id, queryClient, userId]);
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <View className="flex-1 px-6 items-center justify-center">
         <Text className="text-charcoal-900 text-3xl font-bold text-center">
           Payment received
@@ -192,6 +192,6 @@ export default function MobileBookingSuccessScreen() {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, ActivityIndicator, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -10,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { getStashedMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 export default function MobileBookingPendingScreen() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
@@ -93,12 +93,14 @@ export default function MobileBookingPendingScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
+      <AppStackHeader
+        title="Complete mobile payment"
+        subtitle="Finish checkout, then confirm your request status."
+        fallbackHref="/guest/mobile-requests"
+      />
       <View className="flex-1 px-6 items-center justify-center">
-        <Text className="text-charcoal-900 text-3xl font-bold text-center">
-          Complete mobile payment
-        </Text>
-        <Text className="text-charcoal-500 text-center mt-3">
+        <Text className="text-charcoal-500 text-center">
           Finish checkout in the app, then return here to confirm your request
           status.
         </Text>
@@ -138,6 +140,6 @@ export default function MobileBookingPendingScreen() {
           View my mobile requests
         </Button>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

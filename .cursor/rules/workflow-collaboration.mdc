@@ -42,6 +42,15 @@ alwaysApply: true
 - **Symptom:** Greens look mismatched (bright buttons vs muted cards). **Cause:** `--primary` HSL saturation too high vs mobile `#7A9E7E` (~16% not ~23%), or per-section `emerald`/`violet`/`amber` classes. **Guardrail:** derive `--primary` from `theramate-ios-client/constants/colors.ts`; landing sections use shared `landing-*` classes in `peer-care-connect/src/index.css`.
 - **Symptom:** Hero “Feel better.” invisible on cream background. **Cause:** `landing-accent-text` used cream gradient (`bg-clip-text` on near-white). **Guardrail:** hero accent uses `text-primary` (same token as CTAs/icons).
 
-## 8. Auth boot (web)
+## 8. Repo layout (canonical paths)
+
+- **Symptom:** Migration or edge function deployed from wrong folder. **Cause:** duplicate `peer-care-connect/supabase/` vs root `supabase/`. **Guardrail:** new SQL only in `supabase/migrations/`; see `docs/architecture/CANONICAL_PATHS.md`; `npm run supabase:migrations:reconcile` (0 divergent same-name); CI `RECONCILE_STRICT=1`.
+- **Symptom:** Same migration filename, different SQL in two trees. **Cause:** drift between legacy and canonical copies. **Guardrail:** one filename per migration; remove legacy `.sql` and use `.ARCHIVED` marker; merge extras into new canonical timestamp file (`20260604120000_*` pattern).
+
+## 9. AI GDPR logging (edge functions)
+
+- **Symptom:** AI feature breaks after compliance change. **Cause:** audit insert on critical path. **Guardrail:** `logAiProcessing` in `supabase/functions/_shared/ai-processing-log.ts` is best-effort (swallow errors); never gate Groq/AssemblyAI on log success. Transcripts still sent to vendors unchanged.
+
+## 10. Auth boot (web)
 
 - **Symptom:** Long “Authenticating” / timeout / wrong dashboard flash. **Cause:** Profile coupled to auth events; duplicate guards; stale cache. **Guardrail:** `resolveAccess()` + `resolveRouteGuard()` in `access-policy.ts`; `getPostAuthRedirectPath` must use `resolveSafeRedirectTarget`; `/auth/callback` + `/auth/oauth-completion` are profile-optional; subscription wait only in `SimpleProtectedRoute`, not `AuthRouter`.

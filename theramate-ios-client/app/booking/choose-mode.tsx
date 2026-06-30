@@ -1,13 +1,13 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { Building2, Car, ChevronLeft } from "lucide-react-native";
+import { Building2, Car } from "lucide-react-native";
 
 import { Card } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
 import { useMarketplacePractitioners } from "@/hooks/useMarketplacePractitioners";
 import { bookingEligibilityForMarketplacePractitioner } from "@/lib/practitionerBookingProfile";
+import { AppScreen, AppStackHeader } from "@/components/navigation";
 
 export default function BookingModeChooserScreen() {
   const { practitionerId, practitionerName } = useLocalSearchParams<{
@@ -65,16 +65,8 @@ export default function BookingModeChooserScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
-      <View className="px-4 pt-2 pb-4 border-b border-cream-200 flex-row items-center">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={28} color={Colors.charcoal[800]} />
-        </TouchableOpacity>
-        <Text className="text-charcoal-900 text-lg font-semibold ml-2">
-          Choose booking mode
-        </Text>
-      </View>
-
+    <AppScreen>
+      <AppStackHeader title="Choose booking mode" />
       <View className="px-6 pt-6">
         <Text className="text-charcoal-900 text-2xl font-bold">
           How would you like this session?
@@ -142,6 +134,6 @@ export default function BookingModeChooserScreen() {
           </TouchableOpacity>
         ) : null}
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

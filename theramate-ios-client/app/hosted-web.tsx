@@ -5,18 +5,17 @@
 
 import React, { useCallback, useMemo, useRef } from "react";
 import { View, Text, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { ControlledHostedWebView } from "@/components/web/ControlledHostedWebView";
 import { Colors } from "@/constants/colors";
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { parseCheckoutRedirectFromUrl } from "@/lib/hostedWebViewRedirects";
 import {
   peekPendingHostedWebSession,
   takePendingHostedWebSession,
 } from "@/lib/pendingHostedWebSession";
 import { clearStashedMobileCheckoutUrl } from "@/lib/mobileCheckoutUrlCache";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function HostedWebScreen() {
   const session = useMemo(() => peekPendingHostedWebSession(), []);
@@ -101,7 +100,7 @@ export default function HostedWebScreen() {
 
   if (!session) {
     return (
-      <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+      <AppScreen>
         <AppStackHeader title="Browser" onBackPress={() => router.back()} />
         <View className="flex-1 px-6 justify-center">
           <Text className="text-charcoal-900 text-lg font-semibold text-center">
@@ -111,7 +110,7 @@ export default function HostedWebScreen() {
             Go back and try the action again.
           </Text>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
@@ -125,7 +124,7 @@ export default function HostedWebScreen() {
           : "Document";
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader title={title} onBackPress={handleClose} />
       <ControlledHostedWebView
         initialUrl={session.url}
@@ -136,6 +135,6 @@ export default function HostedWebScreen() {
         }}
         onHttpUrl={handleHttpUrl}
       />
-    </SafeAreaView>
+    </AppScreen>
   );
 }

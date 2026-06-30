@@ -1,11 +1,9 @@
 import React from "react";
 import { View, Text, ScrollView, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { CreditCard, Search } from "lucide-react-native";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Colors } from "@/constants/colors";
@@ -25,6 +23,7 @@ import {
 } from "@/lib/api/subscription";
 import { createPlatformSubscriptionCheckout } from "@/lib/api/platformSubscriptionCheckout";
 import { openHostedWebSession } from "@/lib/openHostedWeb";
+import { AppStackHeader, AppScreen } from "@/components/navigation";
 
 export default function PricingScreen() {
   const { userId, isAuthenticated, userProfile } = useAuth();
@@ -69,7 +68,7 @@ export default function PricingScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <AppScreen>
       <AppStackHeader
         title="Pricing"
         fallbackHref={defaultSignedInProfileHref()}
@@ -202,6 +201,6 @@ export default function PricingScreen() {
           support to change plan tier.
         </Text>
       </ScrollView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }

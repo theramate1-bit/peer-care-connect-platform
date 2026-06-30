@@ -1,3 +1,7 @@
+/**
+ * Guest session lookup — keep aligned with `src/lib/guestBooking.ts`.
+ */
+
 import { supabase } from "@/lib/supabase";
 
 export type GuestSessionView = {
@@ -17,16 +21,14 @@ export type GuestSessionView = {
   price: number | null;
 };
 
-export type PublicTherapist = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  location: string | null;
-  bio: string | null;
-  therapist_type: string | null;
-  specializations: string[] | null;
-  hourly_rate: number | null;
-  is_verified: boolean | null;
+export type GuestBookingLookupRow = {
+  session_id: string;
+  session_date: string;
+  start_time: string;
+  session_type: string | null;
+  practitioner_name: string | null;
+  status: string | null;
+  guest_view_token: string | null;
 };
 
 export async function fetchGuestSessionByToken(params: {
@@ -49,37 +51,17 @@ export async function fetchGuestSessionByToken(params: {
   }
 }
 
-export type GuestBookingLookupRow = {
-  session_id: string;
-  session_date: string;
-  start_time: string;
-  session_type: string | null;
-  practitioner_name: string | null;
-  status: string | null;
-  guest_view_token: string | null;
+export type PublicTherapist = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  location: string | null;
+  bio: string | null;
+  therapist_type: string | null;
+  specializations: string[] | null;
+  hourly_rate: number | null;
+  is_verified: boolean | null;
 };
-
-export async function findBookingsByEmail(email: string): Promise<{
-  data: GuestBookingLookupRow[];
-  error: Error | null;
-}> {
-  const normalized = email.trim();
-  if (!normalized) {
-    return { data: [], error: new Error("Email is required") };
-  }
-  try {
-    const { data, error } = await supabase.rpc("get_guest_sessions_by_email", {
-      p_email: normalized,
-    });
-    if (error) throw error;
-    return {
-      data: (data || []) as GuestBookingLookupRow[],
-      error: null,
-    };
-  } catch (e) {
-    return { data: [], error: e instanceof Error ? e : new Error(String(e)) };
-  }
-}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -103,13 +85,7 @@ export async function fetchPublicTherapistById(id: string): Promise<{
   }
 }
 
-/**
- * Resolve a practitioner from the `/book/:slug` deep link. The `slug` param
- * in shared booking URLs is `users.booking_slug`, not a UUID. Native used to
- * look up by `id` which returned "Could not resolve" for every shared link.
- * Now: try `booking_slug` first when the value is not a UUID, fall back to
- * `id` so legacy UUID-based links continue to work.
- */
+/** `/book/:slug` — `booking_slug` first, then legacy UUID `id`. */
 export async function fetchPublicTherapistBySlugOrId(
   slugOrId: string,
 ): Promise<{
@@ -130,8 +106,6 @@ export async function fetchPublicTherapistBySlugOrId(
         .eq("booking_slug", trimmed)
         .maybeSingle();
       if (error) {
-        // If booking_slug column is missing in this environment, fall through
-        // to id-based lookup instead of bubbling the schema error.
         const msg = (error as { message?: string }).message || "";
         if (!/column .* does not exist/i.test(msg)) {
           throw error;
@@ -150,5 +124,27 @@ export async function fetchPublicTherapistBySlugOrId(
     return { data: (data as PublicTherapist | null) ?? null, error: null };
   } catch (e) {
     return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+  }
+}
+
+export async function findBookingsByEmail(email: string): Promise<{
+  data: GuestBookingLookupRow[];
+  error: Error | null;
+}> {
+  const normalized = email.trim();
+  if (!normalized) {
+    return { data: [], error: new Error("Email is required") };
+  }
+  try {
+    const { data, error } = await supabase.rpc("get_guest_sessions_by_email", {
+      p_email: normalized,
+    });
+    if (error) throw error;
+    return {
+      data: (data || []) as GuestBookingLookupRow[],
+      error: null,
+    };
+  } catch (e) {
+    return { data: [], error: e instanceof Error ? e : new Error(String(e)) };
   }
 }

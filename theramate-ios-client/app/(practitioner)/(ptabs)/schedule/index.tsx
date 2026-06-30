@@ -17,9 +17,14 @@ import {
   StyleSheet,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import {
+  AppScreen,
+  AppStackHeader,
+  MainTabHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
@@ -34,7 +39,6 @@ import {
   Settings,
   SlidersHorizontal,
   Trash2,
-  X,
 } from "lucide-react-native";
 import {
   addDays,
@@ -76,7 +80,6 @@ import {
 } from "@/lib/api/practitionerSessions";
 import { PressableCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScreenHeader } from "@/components/practitioner/ScreenHeader";
 import { BlockTimeManagerContent } from "@/components/practitioner/BlockTimeManagerContent";
 import { PractitionerAvailabilityEditor } from "@/components/practitioner/PractitionerAvailabilityEditor";
 
@@ -661,18 +664,10 @@ export default function PractitionerScheduleScreen() {
     </>
   );
 
-  const tabBarInset = useBottomTabBarHeight();
-  const tabBarHeight =
-    tabBarInset > 0 ? tabBarInset : Platform.OS === "ios" ? 88 : 70;
-
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: Colors.cream[50] }}
-      edges={["top"]}
-    >
-      <ScrollView
+    <TabScreen>
+      <TabScreenScroll
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
         refreshControl={
           <RefreshControl
             refreshing={
@@ -690,7 +685,7 @@ export default function PractitionerScheduleScreen() {
           />
         }
       >
-        <ScreenHeader
+        <MainTabHeader
           eyebrow="Practice"
           title="Diary"
           subtitle="Aligned with web /practice/schedule: week by default, same filters, block time, availability, booking link, plus scheduler & calendar routes."
@@ -1100,7 +1095,7 @@ export default function PractitionerScheduleScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </TabScreenScroll>
 
       <Modal
         visible={availabilityModalOpen}
@@ -1108,27 +1103,12 @@ export default function PractitionerScheduleScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setAvailabilityModalOpen(false)}
       >
-        <SafeAreaView
-          className="flex-1 bg-cream-50"
-          edges={["top", "left", "right"]}
-        >
-          <View className="flex-row items-start justify-between px-4 py-3 border-b border-cream-200">
-            <View className="flex-1 pr-3" style={{ minWidth: 0 }}>
-              <Text className="text-charcoal-900 text-lg font-semibold">
-                Manage Availability
-              </Text>
-              <Text className="text-charcoal-500 text-sm leading-5 mt-1">
-                {`Configure your working hours and block time for breaks. Tap Save when you're done.`}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setAvailabilityModalOpen(false)}
-              className="p-2 -mt-1"
-              accessibilityLabel="Close availability"
-            >
-              <X size={24} color={Colors.charcoal[800]} />
-            </TouchableOpacity>
-          </View>
+        <AppScreen edges={["top", "bottom"]}>
+          <AppStackHeader
+            title="Manage Availability"
+            subtitle="Configure your working hours and block time for breaks. Tap Save when you're done."
+            onBackPress={() => setAvailabilityModalOpen(false)}
+          />
           <PractitionerAvailabilityEditor
             showOpenDiaryLink={false}
             onAfterSave={() => {
@@ -1137,7 +1117,7 @@ export default function PractitionerScheduleScreen() {
               void refetchSessions();
             }}
           />
-        </SafeAreaView>
+        </AppScreen>
       </Modal>
 
       <Modal
@@ -1146,28 +1126,12 @@ export default function PractitionerScheduleScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setBlockManagerOpen(false)}
       >
-        <SafeAreaView
-          className="flex-1 bg-cream-50"
-          edges={["top", "left", "right"]}
-        >
-          <View className="flex-row items-start justify-between px-4 py-3 border-b border-cream-200">
-            <View className="flex-1 pr-3" style={{ minWidth: 0 }}>
-              <Text className="text-charcoal-900 text-lg font-semibold">
-                Block Time
-              </Text>
-              <Text className="text-charcoal-500 text-sm leading-5 mt-1">
-                Block time slots for lunch breaks, personal appointments, or
-                unavailability.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setBlockManagerOpen(false)}
-              className="p-2 -mt-1"
-              accessibilityLabel="Close block manager"
-            >
-              <X size={24} color={Colors.charcoal[800]} />
-            </TouchableOpacity>
-          </View>
+        <AppScreen edges={["top", "bottom"]}>
+          <AppStackHeader
+            title="Block Time"
+            subtitle="Block time slots for lunch breaks, personal appointments, or unavailability."
+            onBackPress={() => setBlockManagerOpen(false)}
+          />
           <View className="flex-1 px-4 pt-2">
             <BlockTimeManagerContent
               embedded
@@ -1177,9 +1141,9 @@ export default function PractitionerScheduleScreen() {
               }}
             />
           </View>
-        </SafeAreaView>
+        </AppScreen>
       </Modal>
-    </SafeAreaView>
+    </TabScreen>
   );
 }
 

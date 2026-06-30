@@ -6,18 +6,21 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Goal, ClipboardList, User } from "lucide-react-native";
 import { format } from "date-fns";
 
-import { AppStackHeader } from "@/components/navigation/AppStackHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchTreatmentPlanById } from "@/lib/api/treatmentPlans";
 import { Colors } from "@/constants/colors";
 import { Card } from "@/components/ui/Card";
 import { tabPath, useTabRoot } from "@/contexts/TabRootContext";
+import {
+  AppStackHeader,
+  TabScreen,
+  TabScreenScroll,
+} from "@/components/navigation";
 
 function prettyJsonValue(value: unknown): string {
   if (typeof value === "string") return value;
@@ -81,7 +84,7 @@ export default function TreatmentPlanDetailScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-cream-50" edges={["top"]}>
+    <TabScreen>
       <AppStackHeader
         title="Care plan"
         fallbackHref={tabPath(tabRoot, "bookings")}
@@ -94,7 +97,9 @@ export default function TreatmentPlanDetailScreen() {
       ) : isError ? (
         <View className="flex-1 px-6 pt-10">
           <Text className="text-charcoal-700 text-center">
-            {error instanceof Error ? error.message : "Could not load care plan."}
+            {error instanceof Error
+              ? error.message
+              : "Could not load care plan."}
           </Text>
           <TouchableOpacity
             onPress={() => void refetch()}
@@ -110,10 +115,7 @@ export default function TreatmentPlanDetailScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-6 pt-4"
-          contentContainerStyle={{ paddingBottom: 32 }}
-        >
+        <TabScreenScroll className="flex-1 px-6 pt-4">
           <Card variant="default" padding="lg" className="mb-4">
             <Text className="text-charcoal-900 text-xl font-bold">
               {data.title}
@@ -144,8 +146,8 @@ export default function TreatmentPlanDetailScreen() {
             items={data.interventions}
             icon={<ClipboardList size={16} color={Colors.charcoal[500]} />}
           />
-        </ScrollView>
+        </TabScreenScroll>
       )}
-    </SafeAreaView>
+    </TabScreen>
   );
 }
