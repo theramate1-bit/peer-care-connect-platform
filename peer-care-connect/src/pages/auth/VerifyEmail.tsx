@@ -1,27 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ArrowLeft, Mail, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  ArrowLeft,
+  Mail,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const VerifyEmail = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'pending' | 'success' | 'error'>('pending');
+  const [verificationStatus, setVerificationStatus] = useState<
+    "pending" | "success" | "error"
+  >("pending");
 
   useEffect(() => {
     // Get email from location state or URL params
     const emailFromState = location.state?.email;
     const urlParams = new URLSearchParams(location.search);
-    const emailFromUrl = urlParams.get('email');
-    
+    const emailFromUrl = urlParams.get("email");
+
     if (emailFromState) {
       setEmail(emailFromState);
     } else if (emailFromUrl) {
@@ -34,45 +48,47 @@ const VerifyEmail = () => {
 
   const checkVerificationStatus = async () => {
     try {
-      const { data: { User as UserIcon } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user?.email_confirmed_at) {
-        setVerificationStatus('success');
-        toast.success('Email verified successfully!');
+        setVerificationStatus("success");
+        toast.success("Email verified successfully!");
         setTimeout(() => {
-          navigate('/auth/role-selection');
+          navigate("/auth/role-selection");
         }, 2000);
       }
     } catch (error) {
-      console.error('Error checking verification status:', error);
+      console.error("Error checking verification status:", error);
     }
   };
 
   const handleResendVerification = async () => {
     if (!email) {
-      toast.error('Please enter your email address');
+      toast.error("Please enter your email address");
       return;
     }
 
     setIsResending(true);
     try {
       const { error } = await supabase.auth.resend({
-        type: 'signup',
+        type: "signup",
         email: email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/verify-email`
-        }
+          emailRedirectTo: `${window.location.origin}/auth/verify-email`,
+        },
       });
 
       if (error) {
         throw error;
       }
 
-      toast.success('Verification email sent! Please check your inbox.');
-      setVerificationStatus('pending');
+      toast.success("Verification email sent! Please check your inbox.");
+      setVerificationStatus("pending");
     } catch (error: any) {
-      console.error('Error resending verification:', error);
-      toast.error(error.message || 'Failed to resend verification email');
-      setVerificationStatus('error');
+      console.error("Error resending verification:", error);
+      toast.error(error.message || "Failed to resend verification email");
+      setVerificationStatus("error");
     } finally {
       setIsResending(false);
     }
@@ -80,36 +96,42 @@ const VerifyEmail = () => {
 
   const handleManualVerification = async () => {
     if (!email) {
-      toast.error('Please enter your email address');
+      toast.error("Please enter your email address");
       return;
     }
 
     setIsVerifying(true);
     try {
       // Check if user exists and is verified
-      const { data: { User as UserIcon } } = await supabase.auth.getUser();
-      
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user?.email_confirmed_at) {
-        toast.success('Email verified successfully!');
-        setVerificationStatus('success');
+        toast.success("Email verified successfully!");
+        setVerificationStatus("success");
         setTimeout(() => {
-          navigate('/auth/role-selection');
+          navigate("/auth/role-selection");
         }, 2000);
       } else {
-        toast.error('Email not yet verified. Please check your email and click the verification link.');
-        setVerificationStatus('pending');
+        toast.error(
+          "Email not yet verified. Please check your email and click the verification link.",
+        );
+        setVerificationStatus("pending");
       }
     } catch (error: any) {
-      console.error('Error checking verification:', error);
-      toast.error('Unable to verify email status. Please try resending the verification email.');
-      setVerificationStatus('error');
+      console.error("Error checking verification:", error);
+      toast.error(
+        "Unable to verify email status. Please try resending the verification email.",
+      );
+      setVerificationStatus("error");
     } finally {
       setIsVerifying(false);
     }
   };
 
   const handleBackToLogin = () => {
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -130,9 +152,12 @@ const VerifyEmail = () => {
             <div className="mx-auto mb-4 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
               <Mail className="w-6 h-6 text-blue-600" />
             </div>
-            <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              Verify Your Email
+            </CardTitle>
             <CardDescription>
-              We've sent a verification link to your email address. Please check your inbox and click the link to activate your account.
+              We've sent a verification link to your email address. Please check
+              your inbox and click the link to activate your account.
             </CardDescription>
           </CardHeader>
 
@@ -151,17 +176,21 @@ const VerifyEmail = () => {
             </div>
 
             {/* Status Messages */}
-            {verificationStatus === 'success' && (
+            {verificationStatus === "success" && (
               <div className="flex items-center space-x-2 text-green-600 bg-green-50 p-3 rounded-lg">
                 <CheckCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">Email verified successfully!</span>
+                <span className="text-sm font-medium">
+                  Email verified successfully!
+                </span>
               </div>
             )}
 
-            {verificationStatus === 'error' && (
+            {verificationStatus === "error" && (
               <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
                 <AlertCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">Verification failed. Please try again.</span>
+                <span className="text-sm font-medium">
+                  Verification failed. Please try again.
+                </span>
               </div>
             )}
 
@@ -178,7 +207,7 @@ const VerifyEmail = () => {
                     Sending...
                   </>
                 ) : (
-                  'Resend Verification Email'
+                  "Resend Verification Email"
                 )}
               </Button>
 
@@ -194,14 +223,16 @@ const VerifyEmail = () => {
                     Checking...
                   </>
                 ) : (
-                  'Check Verification Status'
+                  "Check Verification Status"
                 )}
               </Button>
             </div>
 
             {/* Help Text */}
             <div className="text-sm text-gray-600 space-y-2">
-              <p><strong>Didn't receive the email?</strong></p>
+              <p>
+                <strong>Didn't receive the email?</strong>
+              </p>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>Check your spam/junk folder</li>
                 <li>Make sure you entered the correct email address</li>
@@ -212,8 +243,13 @@ const VerifyEmail = () => {
 
             {/* Troubleshooting */}
             <div className="text-sm text-gray-600 space-y-2">
-              <p><strong>Still having trouble?</strong></p>
-              <p>If the verification link has expired, you can request a new one by clicking "Resend Verification Email" above.</p>
+              <p>
+                <strong>Still having trouble?</strong>
+              </p>
+              <p>
+                If the verification link has expired, you can request a new one
+                by clicking "Resend Verification Email" above.
+              </p>
             </div>
           </CardContent>
         </Card>

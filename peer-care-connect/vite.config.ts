@@ -2,7 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
-import { assertStripeEnvSafe } from "../scripts/stripe-env-guard.mjs";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const localGuard = path.resolve(__dirname, "scripts/stripe-env-guard.mjs");
+const monorepoGuard = path.resolve(
+  __dirname,
+  "../scripts/stripe-env-guard.mjs",
+);
+const guardModule = fs.existsSync(localGuard)
+  ? require(localGuard)
+  : require(monorepoGuard);
+const { assertStripeEnvSafe } = guardModule;
 
 const SHELL_SRC = path.resolve(__dirname, "./src");
 const WEB_SRC = path.resolve(__dirname, "../src");
@@ -60,7 +71,7 @@ export default defineConfig(({ mode }) => ({
     stripeEnvGuardPlugin(),
     webAwareAtAlias(),
     react({
-      jsxRuntime: 'automatic',
+      jsxRuntime: "automatic",
     }),
   ],
   resolve: {
@@ -76,28 +87,33 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    global: 'globalThis',
+    global: "globalThis",
     __DEV__: JSON.stringify(!isProduction),
     __DEBUG__: JSON.stringify(!isProduction),
-    'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
+    "process.env.NODE_ENV": JSON.stringify(
+      isProduction ? "production" : "development",
+    ),
   },
   optimizeDeps: {
     // Explicitly pre-bundle React once (prevents duplicate runtimes)
-    include: ['react', 'react-dom', 'react/jsx-runtime'],
-    esbuildOptions: { mainFields: ['module', 'main'] },
+    include: ["react", "react-dom", "react/jsx-runtime"],
+    esbuildOptions: { mainFields: ["module", "main"] },
     // Force a fresh pre-bundle so dedupe/aliases are applied
     force: true,
   },
   build: {
-    outDir: 'dist',
-    sourcemap: process.env.NODE_ENV === 'production' ? false : true, // Disable source maps in production
-    minify: process.env.NODE_ENV === 'production' ? 'terser' : false,
-    terserOptions: process.env.NODE_ENV === 'production' ? {
-      compress: {
-        drop_console: true, // Remove console.logs in production
-        drop_debugger: true,
-      },
-    } : undefined,
+    outDir: "dist",
+    sourcemap: process.env.NODE_ENV === "production" ? false : true, // Disable source maps in production
+    minify: process.env.NODE_ENV === "production" ? "terser" : false,
+    terserOptions:
+      process.env.NODE_ENV === "production"
+        ? {
+            compress: {
+              drop_console: true, // Remove console.logs in production
+              drop_debugger: true,
+            },
+          }
+        : undefined,
     rollupOptions: {
       external: [],
       output: {
@@ -117,28 +133,28 @@ export default defineConfig(({ mode }) => ({
     },
     // Proxy external APIs to avoid CORS issues in Chrome
     proxy: {
-      '/api/photon': {
-        target: 'https://photon.komoot.io',
+      "/api/photon": {
+        target: "https://photon.komoot.io",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/photon/, '/api'),
+        rewrite: (path) => path.replace(/^\/api\/photon/, "/api"),
         configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('Photon proxy error', err);
+          proxy.on("error", (err, _req, _res) => {
+            console.log("Photon proxy error", err);
           });
         },
       },
-      '/api/nominatim': {
-        target: 'https://nominatim.openstreetmap.org',
+      "/api/nominatim": {
+        target: "https://nominatim.openstreetmap.org",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/nominatim/, ''),
+        rewrite: (path) => path.replace(/^\/api\/nominatim/, ""),
         configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('Nominatim proxy error', err);
+          proxy.on("error", (err, _req, _res) => {
+            console.log("Nominatim proxy error", err);
           });
         },
       },
     },
   },
-  logLevel: 'info',
-  base: '/'
+  logLevel: "info",
+  base: "/",
 }));
